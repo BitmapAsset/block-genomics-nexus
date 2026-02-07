@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Agent {
+  id                      String         @id @default(cuid())
+  address                 String         @unique
+  displayName             String?
+  avatarUrl               String?
+  trustScore              Float          @default(0)
+  totalVerifications      Int            @default(0)
+  successfulVerifications Int            @default(0)
+  failedVerifications     Int            @default(0)
+  rank                    Int?
+  badges                  String[]       @default([])
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  lastActiveAt            DateTime?
+  verifications           Verification[]
+  genomes                 Genome[]
+
+  @@index([address])
+  @@index([trustScore(sort: Desc)])
+  @@index([rank])
+}
+
+model Block {
+  height             Int                @id
+  hash               String             @unique
+  previousHash       String
+  merkleRoot         String
+  timestamp          Int
+  nonce              Int
+  difficulty         Float
+  txCount            Int
+  size               Int
+  weight             Int
+  version            Int
+  verificationStatus String             @default("unverified")
+  genomeId           String?
+  verifiedAt         DateTime?
+  createdAt          DateTime           @default(now())
+  verifications      Verification[]
+  genome             Genome?
+
+  @@index([hash])
+  @@index([verificationStatus])
+}
+
+model Genome {
+  id           String   @id @default(cuid())
+  blockHeight  Int      @unique
+  blockHash    String
+  sequence     String   @db.Text
+  integrity    Float
+  complexity   Float
+  generatedBy  String
+  generatedAt  DateTime @default(now())
+  signature    String
+  block        Block    @relation(fields: [blockHeight], references: [height])
+  agent        Agent    @relation(fields: [generatedBy], references: [id])
+
+  @@index([blockHeight])
+  @@index([generatedBy])
+}
+
+model Verification {
+  id          String    @id @default(cuid())
+  blockHeight Int
+  blockHash   String
+  agentId     String
+  challengeId String
+  status      String    @default("challenged")
+  proof       Json?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  duration    Int?
+  scoreAwarded Float    @default(0)
+  block       Block     @relation(fields: [blockHeight], references: [height])
+  agent       Agent     @relation(fields: [agentId], references: [id])
+
+  @@index([agentId])
+  @@index([blockHeight])
+  @@index([status])
+  @@index([challengeId])
+}
+
+model Challenge {
+  id            String   @id @default(cuid())
+  blockHeight   Int
+  blockHash     String
+  challengeType String
+  difficulty    Float
+  payload       String   @db.Text
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+
+  @@index([blockHeight])
+  @@index([expiresAt])
+}

@@ -1,0 +1,205 @@
+// =============================================================================
+// Block Genomics — Prisma Schema
+// Bitcoin block verification & identity platform
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  EXPIRED
+}
+
+enum DelegationStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum TipStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+// =============================================================================
+// AGENT — A verified entity (human or AI)
+// =============================================================================
+
+model Agent {
+  id              String    @id                         // format: bg_xxxx
+  name            String
+  description     String?
+  blockHeight     Int                                   // Bitcoin block verified against
+  blockHash       String
+  genome          String    @unique @db.Char(64)        // 64 hex-char DNA fingerprint
+  tier            Int       @default(1)                 // 1, 2, or 3
+  trustScore      Int       @default(0)                 // 0–100
+  trustComponents Json      @default("{}")              // breakdown of score
+  walletAddress   String
+  isAI            Boolean   @default(false)
+  profileColor    String    @default("#00FF41")         // ring color (default: matrix green)
+  verified        Boolean   @default(false)
+  verifiedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // --- Relations ---
+  verifications       Verification[]
+  delegationsAsParent Delegation[]   @relation("ParentAgent")
+  delegationsAsChild  Delegation[]   @relation("ChildAgent")
+  tipsSent            Tip[]          @relation("TipSender")
+  tipsReceived        Tip[]          @relation("TipReceiver")
+  chatMessages        ChatMessage[]
+  claimedBlocks       Block[]        @relation("BlockClaimant")
+
+  @@index([blockHeight])
+  @@index([walletAddress])
+  @@index([genome])
+  @@index([tier])
+  @@index([verified])
+  @@map("agents")
+}
+
+// =============================================================================
+// VERIFICATION — A BIP-322 verification event
+// =============================================================================
+
+model Verification {
+  id                 String             @id @default(cuid())
+  agentId            String
+  challengeMessage   String
+  challengeNonce     String             @db.Char(32)    // 16-byte hex nonce
+  challengeTimestamp DateTime
+  signature          String                              // BIP-322 signature
+  signerAddress      String
+  blockHeight        Int
+  blockHash          String
+  status             VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  expiresAt          DateTime
+
+  // --- Relations ---
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([status])
+  @@index([blockHeight])
+  @@index([signerAddress])
+  @@map("verifications")
+}
+
+// =============================================================================
+// BLOCK — Cached Bitcoin block data
+// =============================================================================
+
+model Block {
+  height       Int       @id                            // block height is unique PK
+  hash         String    @unique
+  merkleRoot   String
+  previousHash String
+  timestamp    DateTime                                 // block timestamp (UTC)
+  nonce        BigInt                                   // Bitcoin nonce (uint32)
+  bits         String                                   // compact target
+  difficulty   Float
+  txCount      Int
+  size         Int                                      // bytes
+  weight       Int                                      // weight units
+  genome       String    @unique @db.Char(64)           // deterministic genome for this block
+  traits       Json      @default("[]")                 // [{ "trait": "is_rare", "value": true }, ...]
+  claimedById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // --- Relations ---
+  claimedBy Agent? @relation("BlockClaimant", fields: [claimedById], references: [id], onDelete: SetNull)
+
+  @@index([genome])
+  @@index([claimedById])
+  @@index([timestamp])
+  @@map("blocks")
+}
+
+// =============================================================================
+// DELEGATION — Tier 2/3 delegation records
+// =============================================================================
+
+model Delegation {
+  id            String           @id @default(cuid())
+  parentAgentId String
+  childAgentId  String
+  tier          Int                                     // 2 or 3
+  grantedAt     DateTime         @default(now())
+  expiresAt     DateTime?
+  status        DelegationStatus @default(ACTIVE)
+
+  // --- Relations ---
+  parentAgent Agent @relation("ParentAgent", fields: [parentAgentId], references: [id], onDelete: Cascade)
+  childAgent  Agent @relation("ChildAgent", fields: [childAgentId], references: [id], onDelete: Cascade)
+
+  @@index([parentAgentId])
+  @@index([childAgentId])
+  @@index([status])
+  @@map("delegations")
+}
+
+// =============================================================================
+// TIP — Lightning Network tip records
+// =============================================================================
+
+model Tip {
+  id               String    @id @default(cuid())
+  fromAgentId      String
+  toAgentId        String
+  amountSats       Int
+  lightningInvoice String?
+  paymentHash      String?   @unique
+  status           TipStatus @default(PENDING)
+  createdAt        DateTime  @default(now())
+
+  // --- Relations ---
+  fromAgent Agent @relation("TipSender", fields: [fromAgentId], references: [id], onDelete: Cascade)
+  toAgent   Agent @relation("TipReceiver", fields: [toAgentId], references: [id], onDelete: Cascade)
+
+  @@index([fromAgentId])
+  @@index([toAgentId])
+  @@index([status])
+  @@map("tips")
+}
+
+// =============================================================================
+// CHAT MESSAGE — Community chat
+// =============================================================================
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  agentId   String
+  channel   String   @default("universal")              // "universal", "block:840000", etc.
+  content   String   @db.Text
+  replyToId String?
+  createdAt DateTime @default(now())
+
+  // --- Relations ---
+  agent   Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  replyTo ChatMessage? @relation("ChatReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies ChatMessage[] @relation("ChatReplies")
+
+  @@index([agentId])
+  @@index([channel])
+  @@index([createdAt])
+  @@index([replyToId])
+  @@map("chat_messages")
+}

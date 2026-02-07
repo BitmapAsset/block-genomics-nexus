@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧬 Block Genomics Verify — The Trust Layer for AI Agents</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>">
+<style>
+  :root {
+    --bg: #050508; --card: #0c0c14; --card2: #111120; --border: #1a1a2e;
+    --accent: #f7931a; --accent2: #00d4aa; --accent3: #7c3aed;
+    --gold: #f7931a; --silver: #94a3b8; --bronze: #cd7f32;
+    --text: #e4e4e7; --text-dim: #71717a; --success: #22c55e; --danger: #ef4444;
+    --glow: rgba(247,147,26,0.12);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+  .bg-dots { position:fixed; inset:0; background-image:radial-gradient(rgba(247,147,26,0.05) 1px,transparent 1px); background-size:30px 30px; pointer-events:none; z-index:0; }
+  .container { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding:24px; }
+
+  /* Nav */
+  .nav { display:flex; justify-content:space-between; align-items:center; padding:12px 0 20px; border-bottom:1px solid var(--border); margin-bottom:32px; }
+  .nav-brand { display:flex; align-items:center; gap:10px; }
+  .nav-logo { font-size:18px; font-weight:800; color:var(--accent); }
+  .nav-ver { font-size:10px; color:var(--text-dim); background:var(--card); padding:2px 8px; border-radius:4px; }
+  .nav-links { display:flex; gap:8px; }
+  .nav-btn { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:8px 16px; color:var(--text-dim); font-size:13px; cursor:pointer; transition:all 0.2s; font-family:inherit; }
+  .nav-btn:hover, .nav-btn.active { border-color:var(--accent); color:var(--accent); }
+  .wallet-btn { background:linear-gradient(135deg,var(--accent),#e8851a); color:#000; font-weight:700; border:none; }
+  .wallet-btn:hover { transform:translateY(-1px); box-shadow:0 4px 16px var(--glow); color:#000; }
+  .wallet-btn.connected { background:linear-gradient(135deg,var(--accent2),#00b892); }
+
+  /* Pages */
+  .page { display:none; } .page.active { display:block; }
+
+  /* Shared */
+  .section { margin-bottom:40px; }
+  .section-head { text-align:center; margin-bottom:32px; }
+  .section-head h1 { font-size:44px; font-weight:900; line-height:1.1; margin-bottom:10px; }
+  .section-head h1 span { background:linear-gradient(135deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .section-head h2 { font-size:28px; font-weight:800; margin-bottom:8px; }
+  .section-head p { color:var(--text-dim); font-size:16px; max-width:600px; margin:0 auto; line-height:1.6; }
+  .tag { display:inline-block; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--accent); background:rgba(247,147,26,0.1); border:1px solid rgba(247,147,26,0.2); padding:4px 14px; border-radius:20px; margin-bottom:16px; }
+
+  /* Cards */
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:28px; transition:all 0.3s; }
+  .card:hover { border-color:rgba(247,147,26,0.3); }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .grid-3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:20px; }
+  .grid-4 { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; }
+
+  /* Stats */
+  .stat-card { text-align:center; padding:24px 16px; }
+  .stat-num { font-size:32px; font-weight:900; color:var(--accent); }
+  .stat-label { font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; margin-top:4px; }
+
+  /* Wallet Modal */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:100; display:none; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+  .modal-overlay.active { display:flex; }
+  .modal { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:32px; max-width:480px; width:90%; max-height:90vh; overflow-y:auto; }
+  .modal h3 { font-size:20px; font-weight:800; margin-bottom:8px; }
+  .modal p { color:var(--text-dim); font-size:14px; margin-bottom:20px; }
+  .wallet-option { display:flex; align-items:center; gap:16px; padding:16px; background:var(--card2); border:1px solid var(--border); border-radius:12px; cursor:pointer; margin-bottom:10px; transition:all 0.2s; }
+  .wallet-option:hover { border-color:var(--accent); }
+  .wallet-option.disabled { opacity:0.4; cursor:not-allowed; }
+  .wallet-icon { font-size:28px; width:44px; height:44px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.05); border-radius:10px; }
+  .wallet-info h4 { font-size:15px; font-weight:700; }
+  .wallet-info p { font-size:12px; color:var(--text-dim); margin:2px 0 0; }
+  .wallet-status { margin-left:auto; font-size:12px; padding:4px 10px; border-radius:6px; }
+  .wallet-status.available { background:rgba(34,197,94,0.15); color:var(--success); }
+  .wallet-status.install { background:rgba(239,68,68,0.15); color:var(--danger); }
+
+  /* Input */
+  .input { width:100%; background:var(--card2); border:1px solid var(--border); border-radius:10px; padding:12px 16px; color:var(--text); font-family:inherit; font-size:14px; outline:none; transition:border 0.2s; }
+  .input:focus { border-color:var(--accent); }
+  .input::placeholder { color:var(--text-dim); }
+  .input-group { margin-bottom:20px; }
+  .input-label { font-size:12px; color:var(--text-dim); margin-bottom:6px; display:block; text-transform:uppercase; letter-spacing:1px; }
+  .btn { padding:12px 24px; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; border:none; transition:all 0.2s; font-family:inherit; }
+  .btn:hover { transform:translateY(-1px); }
+  .btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
+  .btn-primary { background:linear-gradient(135deg,var(--accent),#e8851a); color:#000; }
+  .btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); }
+  .btn-outline:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-success { background:var(--accent2); color:#000; }
+  .btn-full { width:100%; }
+  select.input { appearance:none; cursor:pointer; }
+
+  /* Verification Flow */
+  .flow-steps { display:flex; flex-direction:column; gap:16px; }
+  .flow-step { display:flex; gap:16px; padding:20px; background:var(--card2); border:1px solid var(--border); border-radius:14px; transition:all 0.4s; }
+  .flow-step.active { border-color:var(--accent); box-shadow:0 0 24px var(--glow); }
+  .flow-step.done { border-color:var(--accent2); }
+  .flow-step.error { border-color:var(--danger); }
+  .step-icon { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; flex-shrink:0; background:var(--border); color:var(--text-dim); transition:all 0.3s; }
+  .flow-step.active .step-icon { background:var(--accent); color:#000; }
+  .flow-step.done .step-icon { background:var(--accent2); color:#000; }
+  .flow-step.error .step-icon { background:var(--danger); color:#fff; }
+  .step-body { flex:1; min-width:0; }
+  .step-title { font-size:15px; font-weight:700; margin-bottom:3px; }
+  .step-desc { font-size:12px; color:var(--text-dim); }
+  .step-data { margin-top:10px; background:rgba(0,0,0,0.3); border-radius:8px; padding:12px; font-family:'SF Mono',monospace; font-size:11px; color:var(--accent2); word-break:break-all; line-height:1.6; display:none; }
+  .flow-step.done .step-data, .flow-step.active .step-data, .flow-step.error .step-data { display:block; }
+
+  /* Agent Profile */
+  .agent-card { border:1px solid var(--border); border-radius:20px; overflow:hidden; }
+  .agent-card-header { padding:32px; background:linear-gradient(135deg,rgba(247,147,26,0.05),rgba(0,212,170,0.05)); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:20px; }
+  .agent-avatar { width:64px; height:64px; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:32px; background:linear-gradient(135deg,rgba(247,147,26,0.15),rgba(0,212,170,0.15)); border:2px solid var(--accent); flex-shrink:0; }
+  .agent-name { font-size:24px; font-weight:800; }
+  .agent-verified-tag { display:inline-flex; align-items:center; gap:4px; font-size:13px; color:var(--accent2); margin-top:4px; }
+  .agent-card-body { padding:28px; }
+
+  /* Trust Meter */
+  .trust-meter { padding:20px; background:var(--card2); border-radius:14px; margin-bottom:24px; }
+  .trust-header { display:flex; justify-content:space-between; margin-bottom:10px; }
+  .trust-label { font-size:13px; color:var(--text-dim); }
+  .trust-value { font-size:18px; font-weight:800; color:var(--accent2); }
+  .trust-bar { height:8px; background:var(--border); border-radius:4px; overflow:hidden; }
+  .trust-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width 1.5s ease; }
+  .trust-factors { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
+  .trust-factor { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-dim); }
+  .factor-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+  /* Genome Display */
+  .genome-display { background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center; margin-bottom:20px; }
+  .genome-label { font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--accent); margin-bottom:8px; }
+  .genome-hash { font-family:'SF Mono',monospace; font-size:12px; color:var(--accent2); word-break:break-all; line-height:1.6; }
+
+  /* DNA Strand */
+  .dna-container { background:rgba(0,0,0,0.2); border-radius:12px; padding:16px; margin-bottom:20px; }
+  .dna-strand { display:flex; gap:1px; flex-wrap:wrap; }
+  .dna-cell { width:6px; height:6px; border-radius:1px; }
+
+  /* Badges */
+  .badge-widget { display:inline-flex; align-items:center; gap:12px; padding:12px 20px; border-radius:14px; cursor:pointer; max-width:100%; }
+  .badge-gold { background:linear-gradient(135deg,#1a1508,#1a1205); border:1px solid rgba(247,147,26,0.4); }
+  .badge-silver { background:linear-gradient(135deg,#121218,#14141c); border:1px solid rgba(148,163,184,0.3); }
+  .badge-bronze { background:linear-gradient(135deg,#1a1410,#1a1208); border:1px solid rgba(205,127,50,0.3); }
+  .badge-icon { font-size:20px; }
+  .badge-text { text-align:left; overflow:hidden; }
+  .badge-title { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .badge-gold .badge-title { color:var(--gold); }
+  .badge-silver .badge-title { color:var(--silver); }
+  .badge-bronze .badge-title { color:var(--bronze); }
+  .badge-sub { font-size:10px; color:var(--text-dim); }
+  .badge-check { color:var(--accent2); font-size:16px; margin-left:auto; }
+
+  /* Embed Code */
+  .embed-box { background:rgba(0,0,0,0.4); border:1px solid var(--border); border-radius:10px; padding:14px; font-family:'SF Mono',monospace; font-size:11px; color:var(--accent2); white-space:pre-wrap; word-break:break-all; line-height:1.5; max-height:200px; overflow-y:auto; }
+  .embed-label { font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+
+  /* Tier Cards */
+  .tier-card { position:relative; overflow:hidden; padding:28px; }
+  .tier-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+  .tier-gold::before { background:linear-gradient(90deg,#f7931a,#ffd700); }
+  .tier-silver::before { background:linear-gradient(90deg,#94a3b8,#cbd5e1); }
+  .tier-bronze::before { background:linear-gradient(90deg,#cd7f32,#daa520); }
+  .tier-icon { font-size:36px; margin-bottom:12px; }
+  .tier-name { font-size:20px; font-weight:800; margin-bottom:4px; }
+  .tier-supply { font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; }
+  .tier-desc { font-size:13px; color:var(--text-dim); line-height:1.5; margin-bottom:16px; }
+  .tier-features { list-style:none; }
+  .tier-features li { padding:5px 0; font-size:12px; color:var(--text-dim); }
+  .tier-features li::before { content:'✓ '; color:var(--accent2); font-weight:700; }
+
+  /* How It Works Flow */
+  .how-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; }
+  .how-card { text-align:center; padding:24px 16px; }
+  .how-icon { font-size:32px; margin-bottom:10px; }
+  .how-title { font-size:14px; font-weight:700; margin-bottom:4px; }
+  .how-desc { font-size:12px; color:var(--text-dim); line-height:1.5; }
+  .how-arrow { display:flex; align-items:center; justify-content:center; color:var(--accent); font-size:20px; }
+
+  /* Connected Wallet Banner */
+  .wallet-banner { display:none; background:linear-gradient(135deg,rgba(0,212,170,0.08),rgba(247,147,26,0.08)); border:1px solid rgba(0,212,170,0.2); border-radius:14px; padding:16px 20px; margin-bottom:24px; align-items:center; gap:12px; }
+  .wallet-banner.active { display:flex; }
+  .wallet-banner-icon { font-size:20px; }
+  .wallet-banner-text { flex:1; }
+  .wallet-banner-addr { font-family:'SF Mono',monospace; font-size:12px; color:var(--accent2); }
+  .wallet-banner-bitmaps { font-size:12px; color:var(--text-dim); margin-top:2px; }
+  .wallet-banner-btn { font-size:12px; color:var(--text-dim); cursor:pointer; padding:6px 12px; border:1px solid var(--border); border-radius:8px; background:none; font-family:inherit; }
+  .wallet-banner-btn:hover { border-color:var(--danger); color:var(--danger); }
+
+  /* Responsive */
+  @media(max-width:768px) { .grid-2{grid-template-columns:1fr;} .section-head h1{font-size:32px;} .how-arrow{display:none;} }
+
+  /* Animations */
+  @keyframes fadeUp { from{opacity:0;transform:translateY(15px)} to{opacity:1;transform:translateY(0)} }
+  .animate { animation:fadeUp 0.5s ease forwards; }
+
+  .footer { text-align:center; padding:40px 0 16px; color:var(--text-dim); font-size:11px; border-top:1px solid var(--border); margin-top:40px; letter-spacing:0.5px; }
+  .footer a { color:var(--accent); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<div class="bg-dots"></div>
+
+<!-- Wallet Modal -->
+<div class="modal-overlay" id="walletModal">
+  <div class="modal">
+    <h3>🔐 Connect Wallet</h3>
+    <p>Connect your Ordinals wallet to prove Bitmap ownership and verify your AI agent.</p>
+    <div id="walletOptions"></div>
+    <div style="margin-top:16px;">
+      <button class="btn btn-outline btn-full" onclick="closeWalletModal()">Cancel</button>
+    </div>
+    <p style="font-size:11px; color:var(--text-dim); margin-top:16px; text-align:center;">
+      Don't have a wallet? <a href="https://unisat.io/download" target="_blank" style="color:var(--accent);">Install Unisat</a> — it's the most popular Ordinals wallet.
+    </p>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Nav -->
+  <nav class="nav">
+    <div class="nav-brand">
+      <span class="nav-logo">🧬 Block Genomics</span>
+      <span class="nav-ver">v0.2</span>
+    </div>
+    <div class="nav-links">
+      <button class="nav-btn active" onclick="showPage('home',this)">Home</button>
+      <button class="nav-btn" onclick="showPage('verify',this)">Verify</button>
+      <button class="nav-btn" onclick="showPage('register',this)">Register</button>
+      <button class="nav-btn" onclick="showPage('explore',this)">Explore</button>
+      <button class="nav-btn wallet-btn" id="walletNavBtn" onclick="openWalletModal()">Connect Wallet</button>
+    </div>
+  </nav>
+
+  <!-- Wallet Banner -->
+  <div class="wallet-banner" id="walletBanner">
+    <div class="wallet-banner-icon">🔗</div>
+    <div class="wallet-banner-text">
+      <div class="wallet-banner-addr" id="bannerAddr"></div>
+      <div class="wallet-banner-bitmaps" id="bannerBitmaps"></div>
+    </div>
+    <button class="wallet-banner-btn" onclick="disconnect()">Disconnect</button>
+  </div>
+
+  <!-- ========== HOME ========== -->
+  <div class="page active" id="page-home">
+    <div class="section section-head" style="padding:48px 0;">
+      <div class="tag">Built on Bitcoin • Powered by Bitmap</div>
+      <h1>The Trust Layer for<br><span>AI Agents</span></h1>
+      <p>In a world of billions of AI agents, trust is everything. Block Genomics uses Bitcoin block ownership to create unforgeable, meaningful identity — for agents and humans alike.</p>
+      <div style="margin-top:28px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="showPage('register',document.querySelector('.nav-btn:nth-child(3)'))">Register Your Agent</button>
+        <button class="btn btn-outline" onclick="showPage('verify',document.querySelector('.nav-btn:nth-child(2)'))">Verify an Agent</button>
+        <a class="btn btn-outline" href="../index.html" style="text-decoration:none;">Block Explorer 🧬</a>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid-4 section" id="homeStats">
+      <div class="card stat-card"><div class="stat-num" id="liveBlocks">—</div><div class="stat-label">Bitcoin Blocks</div></div>
+      <div class="card stat-card"><div class="stat-num">2.3B+</div><div class="stat-label">TX Anchors</div></div>
+      <div class="card stat-card"><div class="stat-num">∞</div><div class="stat-label">Delegated Slots</div></div>
+      <div class="card stat-card"><div class="stat-num">100%</div><div class="stat-label">Decentralized</div></div>
+    </div>
+
+    <!-- Trust Tiers -->
+    <div class="section">
+      <div class="section-head"><h2>Three Tiers of Trust</h2><p>Scarcity at the top. Abundance at the bottom. Trust everywhere.</p></div>
+      <div class="grid-3">
+        <div class="card tier-card tier-gold">
+          <div class="tier-icon">🏆</div>
+          <div class="tier-name" style="color:var(--gold)">Tier 1 — Block Owner</div>
+          <div class="tier-supply">~934K available • Maximum trust</div>
+          <div class="tier-desc">Direct Bitmap ownership. Prove you own a Bitcoin block by signing with your Ordinals wallet.</div>
+          <ul class="tier-features"><li>Direct on-chain verification</li><li>Unique block genome fingerprint</li><li>Can delegate Tier 2 & 3</li><li>Premium trust score</li></ul>
+        </div>
+        <div class="card tier-card tier-silver">
+          <div class="tier-icon">🔗</div>
+          <div class="tier-name" style="color:var(--silver)">Tier 2 — TX Anchor</div>
+          <div class="tier-supply">~2.3B available • High trust</div>
+          <div class="tier-desc">Anchored to a specific transaction within an owned block. Assigned by the block owner.</div>
+          <ul class="tier-features"><li>Transaction-level identity</li><li>Verified by block owner</li><li>Unique within block</li><li>Rich transaction data</li></ul>
+        </div>
+        <div class="card tier-card tier-bronze">
+          <div class="tier-icon">🛡️</div>
+          <div class="tier-name" style="color:var(--bronze)">Tier 3 — Delegated</div>
+          <div class="tier-supply">Unlimited • Standard trust</div>
+          <div class="tier-desc">Delegated verification from a block owner. Like an SSL certificate — trust flows from the block.</div>
+          <ul class="tier-features"><li>Signed by block owner</li><li>Verifiable delegation chain</li><li>Scales to billions</li><li>Revocable</li></ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- How It Works -->
+    <div class="section">
+      <div class="section-head"><h2>How It Works</h2><p>Connect. Sign. Verified. Zero centralized authorities.</p></div>
+      <div class="how-grid">
+        <div class="card how-card"><div class="how-icon">🔐</div><div class="how-title">1. Connect Wallet</div><div class="how-desc">Connect your Unisat, Xverse, or Leather wallet that holds your Bitmap inscription.</div></div>
+        <div class="how-arrow">→</div>
+        <div class="card how-card"><div class="how-icon">📋</div><div class="how-title">2. Select Bitmap</div><div class="how-desc">We detect your Bitmap inscriptions and you choose which block to register your agent under.</div></div>
+        <div class="how-arrow">→</div>
+        <div class="card how-card"><div class="how-icon">✍️</div><div class="how-title">3. Sign Challenge</div><div class="how-desc">Sign a unique verification message with your wallet. This proves you own the Bitmap — nothing leaves your wallet.</div></div>
+        <div class="how-arrow">→</div>
+        <div class="card how-card"><div class="how-icon">🧬</div><div class="how-title">4. Get Verified</div><div class="how-desc">We generate your block genome, calculate trust score, and issue your verification badge. Embed it anywhere.</div></div>
+      </div>
+    </div>
+
+    <!-- Badges Preview -->
+    <div class="section">
+      <div class="section-head"><h2>Verification Badges</h2><p>Embeddable trust signals for any website or platform.</p></div>
+      <div class="grid-3" style="text-align:center;">
+        <div class="card" style="padding:32px;">
+          <p style="font-size:11px;color:var(--text-dim);margin-bottom:16px;text-transform:uppercase;letter-spacing:1px;">Tier 1 Badge</p>
+          <div class="badge-widget badge-gold" style="margin:0 auto;"><span class="badge-icon">🧬</span><div class="badge-text"><div class="badge-title">✓ Verified • Block #800,000</div><div class="badge-sub">Genome: 7a3f…c912 • Trust: 94/100</div></div></div>
+        </div>
+        <div class="card" style="padding:32px;">
+          <p style="font-size:11px;color:var(--text-dim);margin-bottom:16px;text-transform:uppercase;letter-spacing:1px;">Tier 2 Badge</p>
+          <div class="badge-widget badge-silver" style="margin:0 auto;"><span class="badge-icon">🔗</span><div class="badge-text"><div class="badge-title">✓ Anchored • TX #2,451</div><div class="badge-sub">Block #800,000 • Trust: 78/100</div></div></div>
+        </div>
+        <div class="card" style="padding:32px;">
+          <p style="font-size:11px;color:var(--text-dim);margin-bottom:16px;text-transform:uppercase;letter-spacing:1px;">Tier 3 Badge</p>
+          <div class="badge-widget badge-bronze" style="margin:0 auto;"><span class="badge-icon">🛡️</span><div class="badge-text"><div class="badge-title">✓ Delegated Verification</div><div class="badge-sub">Via Block #800,000 • Trust: 62/100</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== VERIFY ========== -->
+  <div class="page" id="page-verify">
+    <div class="section-head"><h2>🔍 Verify an Agent</h2><p>Enter a block height, agent ID, or genome hash to verify.</p></div>
+    <div class="card" style="max-width:700px; margin:0 auto;">
+      <div style="display:flex; gap:12px;">
+        <input class="input" id="verifyInput" placeholder="Block height, agent ID, or genome hash" value="800000" />
+        <button class="btn btn-primary" id="verifyBtn" onclick="runVerify()">VERIFY</button>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="setVerify(0)">Genesis</button>
+        <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="setVerify(170)">First TX #170</button>
+        <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="setVerify(210000)">1st Halving</button>
+        <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="setVerify(709632)">Taproot</button>
+        <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="setVerify(767430)">Ordinals</button>
+        <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="setVerify(800000)">800K</button>
+      </div>
+    </div>
+
+    <!-- Verification Steps -->
+    <div class="card" style="max-width:700px; margin:24px auto;" id="verifyStepsCard" style="display:none;">
+      <div class="flow-steps" id="verifySteps"></div>
+    </div>
+
+    <!-- Agent Result -->
+    <div id="verifyResult" style="max-width:700px; margin:24px auto;"></div>
+  </div>
+
+  <!-- ========== REGISTER ========== -->
+  <div class="page" id="page-register">
+    <div class="section-head"><h2>📝 Register Your Agent</h2><p>Connect your wallet, prove Bitmap ownership, and get verified.</p></div>
+
+    <div id="registerFlow" style="max-width:700px; margin:0 auto;">
+      <!-- Step 1: Connect Wallet -->
+      <div class="card" style="margin-bottom:20px;" id="regStep1">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+          <div class="step-icon" style="width:32px;height:32px;border-radius:50%;background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;">1</div>
+          <div><div class="step-title">Connect Your Wallet</div><div class="step-desc">Connect the wallet that holds your Bitmap inscription.</div></div>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="openWalletModal()" id="regConnectBtn">Connect Ordinals Wallet</button>
+        <p id="regWalletStatus" style="text-align:center; margin-top:12px; font-size:13px; color:var(--text-dim);"></p>
+      </div>
+
+      <!-- Step 2: Select Bitmap (shown after wallet connect) -->
+      <div class="card" style="margin-bottom:20px; display:none;" id="regStep2">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+          <div class="step-icon" style="width:32px;height:32px;border-radius:50%;background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;">2</div>
+          <div><div class="step-title">Select Bitmap</div><div class="step-desc">Choose which Bitcoin block to register your agent under.</div></div>
+        </div>
+        <div id="bitmapList"></div>
+        <div class="input-group" style="margin-top:12px;">
+          <label class="input-label">Or enter block height manually</label>
+          <input class="input" id="regBlockInput" placeholder="e.g. 800000" />
+        </div>
+      </div>
+
+      <!-- Step 3: Agent Details -->
+      <div class="card" style="margin-bottom:20px; display:none;" id="regStep3">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+          <div class="step-icon" style="width:32px;height:32px;border-radius:50%;background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;">3</div>
+          <div><div class="step-title">Agent Details</div><div class="step-desc">Tell us about your AI agent.</div></div>
+        </div>
+        <div class="input-group"><label class="input-label">Agent Name</label><input class="input" id="regName" placeholder="e.g. PepeAgent, MyTradingBot" /></div>
+        <div class="input-group"><label class="input-label">Description</label><input class="input" id="regDesc" placeholder="What does your agent do?" /></div>
+        <div class="input-group"><label class="input-label">Verification Tier</label>
+          <select class="input" id="regTier">
+            <option value="1">🏆 Tier 1 — Block Owner (Highest trust)</option>
+            <option value="3">🛡️ Tier 3 — Delegated (I don't own the block)</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="startRegistration()">Sign & Verify →</button>
+      </div>
+
+      <!-- Step 4: Verification Process -->
+      <div class="card" style="margin-bottom:20px; display:none;" id="regStep4">
+        <div class="flow-steps" id="regVerifySteps"></div>
+      </div>
+
+      <!-- Result -->
+      <div id="regResult"></div>
+    </div>
+
+    <!-- Demo Mode Notice -->
+    <div class="card" style="max-width:700px; margin:24px auto; text-align:center; border-color:rgba(247,147,26,0.2);">
+      <p style="font-size:13px; color:var(--text-dim);">
+        🎮 <strong style="color:var(--accent);">Demo Mode:</strong> No wallet? Try the verification flow with any block number! 
+        The full wallet connection works with Unisat, Xverse, or Leather installed.
+      </p>
+      <button class="btn btn-outline" style="margin-top:12px;" onclick="demoRegister()">Try Demo Registration →</button>
+    </div>
+  </div>
+
+  <!-- ========== EXPLORE ========== -->
+  <div class="page" id="page-explore">
+    <div class="section-head"><h2>🌐 Explore Verified Agents</h2><p>Browse agents verified through Block Genomics.</p></div>
+    <div class="card" style="max-width:700px; margin:0 auto;">
+      <div style="display:flex; gap:12px; margin-bottom:20px;">
+        <input class="input" id="searchInput" placeholder="Search by name, block, or genome..." />
+        <button class="btn btn-primary" onclick="searchAgents()">Search</button>
+      </div>
+      <div id="searchResults">
+        <p style="text-align:center; color:var(--text-dim); padding:32px;">
+          Register agents to see them here. Agents are stored locally in this proof of concept.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    🧬 Block Genomics Verify v0.2 — Phase 2: Wallet Integration<br>
+    Built on Bitcoin • Powered by Bitmap • Owned by the Community<br>
+    <a href="../index.html">Block Explorer</a> · Built by Pepe 🐸 for Gravity
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+// ============================================
+// UI LOGIC
+// ============================================
+
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn:not(.wallet-btn)').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+// Live block count
+fetch('https://mempool.space/api/blocks/tip/height')
+  .then(r => r.text())
+  .then(h => document.getElementById('liveBlocks').textContent = parseInt(h).toLocaleString())
+  .catch(() => document.getElementById('liveBlocks').textContent = '934,820+');
+
+// ============================================
+// WALLET MODAL
+// ============================================
+
+function openWalletModal() {
+  const modal = document.getElementById('walletModal');
+  const container = document.getElementById('walletOptions');
+  const wallets = BG.detectWallets();
+  
+  container.innerHTML = wallets.map(w => `
+    <div class="wallet-option ${w.available ? '' : 'disabled'}" onclick="${w.available ? `connectWallet('${w.id}')` : `window.open('${w.installUrl}','_blank')`}">
+      <div class="wallet-icon">${w.icon}</div>
+      <div class="wallet-info">
+        <h4>${w.name}</h4>
+        <p>${w.available ? 'Ready to connect' : 'Click to install'}</p>
+      </div>
+      <span class="wallet-status ${w.available ? 'available' : 'install'}">
+        ${w.available ? '● Ready' : '↓ Install'}
+      </span>
+    </div>
+  `).join('');
+  
+  modal.classList.add('active');
+}
+
+function closeWalletModal() {
+  document.getElementById('walletModal').classList.remove('active');
+}
+
+async function connectWallet(providerId) {
+  const result = await BG.connectWallet(providerId);
+  if (result.success) {
+    closeWalletModal();
+    updateWalletUI();
+  } else {
+    alert('Connection failed: ' + result.error);
+  }
+}
+
+function disconnect() {
+  BG.disconnectWallet();
+  updateWalletUI();
+}
+
+function updateWalletUI() {
+  const btn = document.getElementById('walletNavBtn');
+  const banner = document.getElementById('walletBanner');
+  
+  if (BG.wallet.connected) {
+    const addr = BG.wallet.address;
+    btn.textContent = addr.slice(0, 6) + '...' + addr.slice(-4);
+    btn.classList.add('connected');
+    
+    banner.classList.add('active');
+    document.getElementById('bannerAddr').textContent = addr;
+    document.getElementById('bannerBitmaps').textContent = 
+      BG.wallet.bitmaps.length > 0 
+        ? `${BG.wallet.bitmaps.length} Bitmap(s) detected` 
+        : 'No Bitmaps detected — you can still use demo mode';
+    
+    // Update register flow
+    document.getElementById('regConnectBtn').textContent = '✓ Connected';
+    document.getElementById('regConnectBtn').disabled = true;
+    document.getElementById('regWalletStatus').innerHTML = `<span style="color:var(--accent2)">✓ Connected via ${BG.wallet.provider}</span>`;
+    document.getElementById('regStep2').style.display = 'block';
+    document.getElementById('regStep3').style.display = 'block';
+    
+    // Show bitmaps
+    if (BG.wallet.bitmaps.length > 0) {
+      document.getElementById('bitmapList').innerHTML = BG.wallet.bitmaps.map(b => `
+        <div style="padding:12px; background:var(--card2); border:1px solid var(--border); border-radius:10px; margin-bottom:8px; cursor:pointer; display:flex; align-items:center; gap:12px;" onclick="selectBitmap(${b.blockHeight})">
+          <span style="font-size:24px;">🗺️</span>
+          <div><strong>Block #${b.blockHeight?.toLocaleString()}</strong><br><span style="font-size:11px; color:var(--text-dim);">${b.inscriptionId?.slice(0,16)}...</span></div>
+          <span style="margin-left:auto; color:var(--accent2);">Select →</span>
+        </div>
+      `).join('');
+    }
+  } else {
+    btn.textContent = 'Connect Wallet';
+    btn.classList.remove('connected');
+    banner.classList.remove('active');
+    document.getElementById('regConnectBtn').textContent = 'Connect Ordinals Wallet';
+    document.getElementById('regConnectBtn').disabled = false;
+    document.getElementById('regWalletStatus').textContent = '';
+    document.getElementById('regStep2').style.display = 'none';
+    document.getElementById('regStep3').style.display = 'none';
+  }
+}
+
+function selectBitmap(height) {
+  document.getElementById('regBlockInput').value = height;
+  document.getElementById('regStep3').style.display = 'block';
+}
+
+// ============================================
+// VERIFICATION FLOW
+// ============================================
+
+function setVerify(n) { document.getElementById('verifyInput').value = n; runVerify(); }
+
+async function runVerify() {
+  const input = document.getElementById('verifyInput').value.trim();
+  if (!input) return;
+  
+  const btn = document.getElementById('verifyBtn');
+  btn.disabled = true;
+  
+  const stepsDiv = document.getElementById('verifySteps');
+  const resultDiv = document.getElementById('verifyResult');
+  document.getElementById('verifyStepsCard').style.display = 'block';
+  resultDiv.innerHTML = '';
+  
+  // Initialize steps
+  const stepDefs = [
+    { title: 'Fetch Block Data', desc: 'Retrieving block from Bitcoin blockchain...' },
+    { title: 'Generate Block Genome', desc: 'Computing unique fingerprint from non-arbitrary data...' },
+    { title: 'Calculate Trust Score', desc: 'Analyzing block characteristics...' },
+    { title: 'Verify Ownership', desc: 'Checking Bitmap ownership on-chain...' },
+  ];
+  
+  stepsDiv.innerHTML = stepDefs.map((s, i) => `
+    <div class="flow-step" id="vs${i}">
+      <div class="step-icon">${i + 1}</div>
+      <div class="step-body">
+        <div class="step-title">${s.title}</div>
+        <div class="step-desc">${s.desc}</div>
+        <div class="step-data" id="vsd${i}"></div>
+      </div>
+    </div>
+  `).join('');
+  
+  try {
+    // Step 1
+    setVStep(0, 'active');
+    const hashResp = await fetch(`${BG.API}/block-height/${input}`);
+    if (!hashResp.ok) throw new Error('Block not found');
+    const blockHash = await hashResp.text();
+    const blockResp = await fetch(`${BG.API}/block/${blockHash}`);
+    const block = await blockResp.json();
+    
+    document.getElementById('vsd0').innerHTML = `<span style="color:var(--accent)">Block #${block.height.toLocaleString()}</span>\nHash: ${block.id}\nTransactions: ${block.tx_count.toLocaleString()} | Size: ${(block.size/1024/1024).toFixed(2)} MB\nTimestamp: ${new Date(block.timestamp*1000).toUTCString()}`;
+    setVStep(0, 'done');
+    
+    // Step 2
+    setVStep(1, 'active');
+    await sleep(600);
+    const result = await BG.verifyAgent(block.height, 'Agent @ Block #' + block.height);
+    
+    document.getElementById('vsd1').innerHTML = `<span style="color:var(--accent2)">Genome Generated ✓</span>\nFingerprint: ${result.agent.genome}\nData sources: ${block.tx_count.toLocaleString()} transactions\nDNA Sequence: ${result.agent.dnaSequence.slice(0, 60)}...`;
+    setVStep(1, 'done');
+    
+    // Step 3
+    setVStep(2, 'active');
+    await sleep(400);
+    const tc = result.agent.trustComponents;
+    document.getElementById('vsd2').innerHTML = `<span style="color:var(--accent2)">Trust Score: ${tc.total}/100</span>\n\nBlock Age: ${tc.age.years} years (+${tc.age.score}/${tc.age.max})\nData Richness: ${tc.richness.txCount} txs (+${tc.richness.score}/${tc.richness.max})\nNetwork Security: ${(tc.security.difficulty/1e12).toFixed(1)}T difficulty (+${tc.security.score}/${tc.security.max})\nOwnership: ${BG.wallet.connected ? 'Wallet verified' : 'Simulated'} (+${tc.ownership.score}/${tc.ownership.max})`;
+    setVStep(2, 'done');
+    
+    // Step 4
+    setVStep(3, 'active');
+    await sleep(500);
+    document.getElementById('vsd3').innerHTML = BG.wallet.connected 
+      ? `<span style="color:var(--success)">✅ VERIFIED — Bitmap ownership confirmed on-chain</span>`
+      : `<span style="color:var(--gold)">⚠️ DEMO MODE — Connect wallet to verify Bitmap ownership</span>\nOwnership check simulated. Full verification requires wallet connection.`;
+    setVStep(3, 'done');
+    
+    // Save & render profile
+    BG.saveAgent(result.agent);
+    await sleep(300);
+    resultDiv.innerHTML = renderAgentProfile(result.agent);
+    
+    // Animate trust bar
+    setTimeout(() => {
+      const fill = document.getElementById('resultTrustFill');
+      if (fill) fill.style.width = tc.total + '%';
+    }, 200);
+    
+  } catch(e) {
+    const activeStep = document.querySelector('.flow-step.active');
+    if (activeStep) { activeStep.className = 'flow-step error'; activeStep.querySelector('.step-data').textContent = 'Error: ' + e.message; activeStep.querySelector('.step-data').style.display = 'block'; activeStep.querySelector('.step-data').style.color = 'var(--danger)'; }
+  }
+  
+  btn.disabled = false;
+}
+
+function setVStep(n, state) { 
+  const el = document.getElementById('vs' + n); 
+  if (el) el.className = 'flow-step ' + state; 
+}
+
+function renderAgentProfile(agent) {
+  const tc = agent.trustComponents || {};
+  const tierClass = agent.tier === 1 ? 'gold' : agent.tier === 2 ? 'silver' : 'bronze';
+  const tierLabel = agent.tier === 1 ? '🏆 Tier 1 — Block Owner' : agent.tier === 2 ? '🔗 Tier 2 — TX Anchor' : '🛡️ Tier 3 — Delegated';
+  
+  // Mini DNA strand
+  const dna = (agent.dnaSequence || '').slice(0, 200);
+  const dnaColors = { A: '#f7931a', T: '#00d4aa', G: '#3b82f6', C: '#ef4444' };
+  const dnaCells = dna.split('').map(b => `<div class="dna-cell" style="background:${dnaColors[b] || '#333'}"></div>`).join('');
+  
+  // Notable characteristics
+  const notableHtml = (agent.analysis?.notable || []).map(n => `<span style="display:inline-block; background:rgba(247,147,26,0.1); border:1px solid rgba(247,147,26,0.2); border-radius:6px; padding:2px 8px; font-size:10px; color:var(--accent); margin:2px;">${n}</span>`).join('');
+  
+  return `
+    <div class="agent-card card animate">
+      <div class="agent-card-header">
+        <div class="agent-avatar">🤖</div>
+        <div>
+          <div class="agent-name">${agent.name}</div>
+          <div class="agent-verified-tag">✅ Verified by Block Genomics • ${tierLabel}</div>
+        </div>
+      </div>
+      <div class="agent-card-body">
+        <div class="grid-3" style="margin-bottom:20px;">
+          <div class="card stat-card" style="padding:16px;"><div class="stat-num" style="font-size:22px;">#${(agent.blockHeight || 0).toLocaleString()}</div><div class="stat-label">Block</div></div>
+          <div class="card stat-card" style="padding:16px;"><div class="stat-num" style="font-size:22px;">${agent.trustScore || 0}</div><div class="stat-label">Trust Score</div></div>
+          <div class="card stat-card" style="padding:16px;"><div class="stat-num" style="font-size:22px;">${(agent.block?.tx_count || 0).toLocaleString()}</div><div class="stat-label">Block TXs</div></div>
+        </div>
+        
+        <div class="trust-meter">
+          <div class="trust-header"><span class="trust-label">Trust Score</span><span class="trust-value">${tc.total || 0}/100</span></div>
+          <div class="trust-bar"><div class="trust-fill" id="resultTrustFill" style="width:0%"></div></div>
+          <div class="trust-factors">
+            <div class="trust-factor"><div class="factor-dot" style="background:var(--accent)"></div>Block Age: ${tc.age?.years || '?'} yrs (+${tc.age?.score || 0})</div>
+            <div class="trust-factor"><div class="factor-dot" style="background:var(--accent2)"></div>Data Richness (+${tc.richness?.score || 0})</div>
+            <div class="trust-factor"><div class="factor-dot" style="background:#3b82f6"></div>Network Security (+${tc.security?.score || 0})</div>
+            <div class="trust-factor"><div class="factor-dot" style="background:var(--accent3)"></div>Ownership (+${tc.ownership?.score || 0})</div>
+          </div>
+        </div>
+        
+        ${notableHtml ? `<div style="margin-bottom:16px;">${notableHtml}</div>` : ''}
+        
+        <div class="genome-display">
+          <div class="genome-label">Block Genome Fingerprint</div>
+          <div class="genome-hash">${agent.genome || '—'}</div>
+        </div>
+        
+        <div class="dna-container">
+          <div style="font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">DNA Sequence Preview</div>
+          <div class="dna-strand">${dnaCells}</div>
+          <div style="margin-top:8px; display:flex; gap:12px;">
+            <span style="font-size:10px; color:#f7931a;">● A</span>
+            <span style="font-size:10px; color:#00d4aa;">● T</span>
+            <span style="font-size:10px; color:#3b82f6;">● G</span>
+            <span style="font-size:10px; color:#ef4444;">● C</span>
+          </div>
+        </div>
+        
+        <div style="margin-bottom:16px;">
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">VERIFICATION BADGE</div>
+          <div style="text-align:center; padding:16px; background:var(--card2); border-radius:12px;">
+            <div class="badge-widget badge-${tierClass}" style="margin:0 auto;">
+              <span class="badge-icon">🧬</span>
+              <div class="badge-text">
+                <div class="badge-title">✓ Verified • Block #${(agent.blockHeight || 0).toLocaleString()}</div>
+                <div class="badge-sub">Genome: ${(agent.genome || '').slice(0,12)}… • Trust: ${agent.trustScore || 0}/100</div>
+              </div>
+              <span class="badge-check">✓</span>
+            </div>
+          </div>
+        </div>
+        
+        <div>
+          <div class="embed-label">Embed Code</div>
+          <div class="embed-box">${escapeHtml(BG.generateEmbedCode(agent))}</div>
+        </div>
+        
+        <div style="margin-top:16px; font-size:11px; color:var(--text-dim); text-align:center;">
+          Agent ID: ${agent.id} | Registered: ${new Date(agent.registeredAt).toLocaleString()}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ============================================
+// REGISTRATION
+// ============================================
+
+async function startRegistration() {
+  const block = document.getElementById('regBlockInput').value.trim();
+  const name = document.getElementById('regName').value.trim() || 'My Agent';
+  const tier = parseInt(document.getElementById('regTier').value);
+  
+  if (!block) { alert('Please enter a block height'); return; }
+  
+  document.getElementById('regStep4').style.display = 'block';
+  const stepsDiv = document.getElementById('regVerifySteps');
+  
+  const stepDefs = [
+    { title: 'Generating Block Genome', desc: 'Computing unique fingerprint...' },
+    { title: 'Creating Challenge', desc: 'Building verification message...' },
+    { title: BG.wallet.connected ? 'Signing with Wallet' : 'Simulating Signature', desc: BG.wallet.connected ? 'Please approve in your wallet...' : 'Demo mode — no wallet connected' },
+    { title: 'Registering Agent', desc: 'Creating verified agent profile...' },
+  ];
+  
+  stepsDiv.innerHTML = stepDefs.map((s, i) => `
+    <div class="flow-step" id="rs${i}">
+      <div class="step-icon">${i + 1}</div>
+      <div class="step-body">
+        <div class="step-title">${s.title}</div>
+        <div class="step-desc">${s.desc}</div>
+        <div class="step-data" id="rsd${i}"></div>
+      </div>
+    </div>
+  `).join('');
+  
+  try {
+    // Step 1: Genome
+    setRStep(0, 'active');
+    const genomeResult = await BG.generateGenome(parseInt(block));
+    document.getElementById('rsd0').innerHTML = `<span style="color:var(--accent2)">✓ Genome: ${genomeResult.genome.slice(0, 32)}...</span>`;
+    setRStep(0, 'done');
+    
+    // Step 2: Challenge
+    setRStep(1, 'active');
+    await sleep(400);
+    const challenge = BG.generateChallenge(parseInt(block), name);
+    document.getElementById('rsd1').innerHTML = `<span style="color:var(--accent2)">✓ Challenge created</span>\nNonce: ${challenge.nonce.slice(0, 16)}...\nTimestamp: ${challenge.timestamp}`;
+    setRStep(1, 'done');
+    
+    // Step 3: Sign
+    setRStep(2, 'active');
+    if (BG.wallet.connected) {
+      const signResult = await BG.signChallenge(challenge.message);
+      if (signResult.success) {
+        document.getElementById('rsd2').innerHTML = `<span style="color:var(--accent2)">✓ Signed with ${BG.wallet.provider}</span>\nSignature: ${signResult.signature.slice(0, 32)}...`;
+      } else {
+        document.getElementById('rsd2').innerHTML = `<span style="color:var(--danger)">Signing failed: ${signResult.error}</span>`;
+      }
+    } else {
+      await sleep(600);
+      document.getElementById('rsd2').innerHTML = `<span style="color:var(--gold)">⚠️ Demo mode — signature simulated</span>\nConnect wallet for real verification`;
+    }
+    setRStep(2, 'done');
+    
+    // Step 4: Register
+    setRStep(3, 'active');
+    await sleep(500);
+    
+    const result = await BG.verifyAgent(parseInt(block), name, tier);
+    result.agent.description = document.getElementById('regDesc').value;
+    BG.saveAgent(result.agent);
+    
+    document.getElementById('rsd3').innerHTML = `<span style="color:var(--success)">✅ AGENT REGISTERED</span>\nID: ${result.agent.id}\nTrust Score: ${result.agent.trustScore}/100`;
+    setRStep(3, 'done');
+    
+    // Show result
+    await sleep(300);
+    document.getElementById('regResult').innerHTML = renderAgentProfile(result.agent);
+    setTimeout(() => {
+      const fill = document.getElementById('resultTrustFill');
+      if (fill) fill.style.width = result.agent.trustScore + '%';
+    }, 200);
+    
+  } catch(e) {
+    const active = document.querySelector('#regVerifySteps .flow-step.active');
+    if (active) {
+      active.className = 'flow-step error';
+      active.querySelector('.step-data').textContent = 'Error: ' + e.message;
+      active.querySelector('.step-data').style.display = 'block';
+      active.querySelector('.step-data').style.color = 'var(--danger)';
+    }
+  }
+}
+
+function demoRegister() {
+  document.getElementById('regStep2').style.display = 'block';
+  document.getElementById('regStep3').style.display = 'block';
+  document.getElementById('regBlockInput').value = '800000';
+  document.getElementById('regName').value = 'DemoAgent';
+  document.getElementById('regWalletStatus').innerHTML = '<span style="color:var(--gold)">⚠️ Demo mode — no wallet connected</span>';
+  document.getElementById('regConnectBtn').textContent = 'Demo Mode';
+  showPage('register', document.querySelector('.nav-btn:nth-child(3)'));
+}
+
+function setRStep(n, state) { 
+  const el = document.getElementById('rs' + n);
+  if (el) el.className = 'flow-step ' + state;
+}
+
+// ============================================
+// EXPLORE / SEARCH
+// ============================================
+
+function searchAgents() {
+  const query = document.getElementById('searchInput').value.trim();
+  const results = query ? BG.searchAgents(query) : Object.values(BG.getAgents());
+  const div = document.getElementById('searchResults');
+  
+  if (results.length === 0) {
+    div.innerHTML = '<p style="text-align:center;color:var(--text-dim);padding:24px;">No agents found.</p>';
+    return;
+  }
+  
+  div.innerHTML = results.map(a => `
+    <div class="card" style="margin-bottom:12px; display:flex; align-items:center; gap:16px; cursor:pointer;" onclick="viewAgent('${a.id}')">
+      <div style="font-size:28px;">🤖</div>
+      <div style="flex:1;">
+        <div style="font-weight:700;">${a.name}</div>
+        <div style="font-size:12px; color:var(--text-dim);">Block #${(a.blockHeight||0).toLocaleString()} • Trust: ${a.trustScore}/100 • ${a.tier === 1 ? '🏆 Tier 1' : a.tier === 2 ? '🔗 Tier 2' : '🛡️ Tier 3'}</div>
+      </div>
+      <div style="font-size:12px; color:var(--accent);">View →</div>
+    </div>
+  `).join('');
+}
+
+function viewAgent(id) {
+  const agent = BG.getAgent(id);
+  if (!agent) return;
+  document.getElementById('verifyInput').value = agent.blockHeight;
+  showPage('verify', document.querySelector('.nav-btn:nth-child(2)'));
+  document.getElementById('verifyResult').innerHTML = renderAgentProfile(agent);
+  document.getElementById('verifyStepsCard').style.display = 'none';
+  setTimeout(() => {
+    const fill = document.getElementById('resultTrustFill');
+    if (fill) fill.style.width = agent.trustScore + '%';
+  }, 200);
+}
+
+// Utility
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Init
+updateWalletUI();
+</script>
+</body>
+</html>

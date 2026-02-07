@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Genomics — System Flow Chart</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0f0f1a 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00d4aa, #7b68ee, #00d4aa);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradient 3s ease infinite;
+            margin-bottom: 10px;
+        }
+        
+        @keyframes gradient {
+            0%, 100% { background-position: 0% center; }
+            50% { background-position: 100% center; }
+        }
+        
+        .subtitle {
+            color: #888;
+            font-size: 1.1rem;
+        }
+        
+        .section {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .section h2 {
+            color: #00d4aa;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .mermaid {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 20px;
+            overflow-x: auto;
+        }
+        
+        .legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        
+        .tier-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .tier-1 { background: linear-gradient(90deg, #ffd700, #ffaa00); color: #000; }
+        .tier-2 { background: linear-gradient(90deg, #c0c0c0, #a0a0a0); color: #000; }
+        .tier-3 { background: linear-gradient(90deg, #cd7f32, #a0522d); color: #fff; }
+        
+        .use-cases {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .use-case {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        
+        .use-case:hover {
+            transform: translateY(-2px);
+            border-color: #00d4aa;
+        }
+        
+        .use-case h4 {
+            color: #7b68ee;
+            margin-bottom: 10px;
+        }
+        
+        .use-case p {
+            color: #aaa;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧬 Block Genomics</h1>
+            <p class="subtitle">The Trust Layer for AI Agents on Bitcoin — System Architecture</p>
+        </header>
+
+        <!-- Main Flow -->
+        <div class="section">
+            <h2>📊 Complete System Flow</h2>
+            <div class="mermaid">
+flowchart TB
+    subgraph ACTORS["👥 ACTORS"]
+        OWNER[("🏛️ Bitmap Owner<br/>(Block Owner)")]
+        DEV[("👨‍💻 AI Developer")]
+        USER[("👤 End User")]
+        AGENT[("🤖 AI Agent")]
+    end
+
+    subgraph BITCOIN["₿ BITCOIN LAYER"]
+        BLOCK["⛏️ Bitcoin Block<br/>(~1M total)"]
+        TX["📜 Transaction<br/>(~2.3B total)"]
+        BITMAP["🗺️ Bitmap Inscription<br/>(On-chain ownership)"]
+    end
+
+    subgraph GENOMICS["🧬 BLOCK GENOMICS PROTOCOL"]
+        WALLET["💳 Wallet Connection<br/>(Unisat/Xverse/Leather)"]
+        DETECT["🔍 Bitmap Detection<br/>(Scan owned blocks)"]
+        SIGN["✍️ BIP322 Signature<br/>(Prove ownership)"]
+        GENOME["🧬 Genome Generation<br/>(Unique fingerprint)"]
+        REGISTER["📝 Agent Registration<br/>(Link agent to block)"]
+        VERIFY["✅ Verification API<br/>(Public endpoint)"]
+    end
+
+    subgraph TIERS["🏆 VERIFICATION TIERS"]
+        T1["🥇 TIER 1: GOLD<br/>Direct Block Owner<br/>~1M supply"]
+        T2["🥈 TIER 2: SILVER<br/>Transaction Anchor<br/>~2.3B supply"]
+        T3["🥉 TIER 3: BRONZE<br/>Delegated Verification<br/>∞ supply"]
+    end
+
+    subgraph OUTPUT["📤 OUTPUTS"]
+        BADGE["🛡️ Verification Badge"]
+        SCORE["📊 Trust Score"]
+        API["🔌 Verification API"]
+        CERT["📜 Agent Certificate"]
+    end
+
+    %% Connections
+    OWNER -->|"Owns"| BLOCK
+    BLOCK -->|"Contains"| TX
+    BLOCK -->|"Inscribed as"| BITMAP
+    
+    OWNER -->|"Connects"| WALLET
+    WALLET -->|"Scans"| DETECT
+    DETECT -->|"Finds Bitmaps"| BITMAP
+    BITMAP -->|"Signs with"| SIGN
+    SIGN -->|"Creates"| GENOME
+    
+    DEV -->|"Submits agent"| REGISTER
+    REGISTER -->|"Links to"| GENOME
+    
+    GENOME -->|"Direct ownership"| T1
+    TX -->|"Transaction proof"| T2
+    T1 -->|"Can delegate to"| T3
+    
+    T1 & T2 & T3 -->|"Issues"| BADGE
+    T1 & T2 & T3 -->|"Calculates"| SCORE
+    BADGE & SCORE -->|"Stored in"| CERT
+    
+    USER -->|"Queries"| API
+    AGENT -->|"Presents"| CERT
+    API -->|"Returns"| VERIFY
+    VERIFY -->|"Shows"| BADGE
+
+    %% Styling
+    classDef bitcoin fill:#f7931a,stroke:#c77700,color:#000
+    classDef genomics fill:#7b68ee,stroke:#5a4fcf,color:#fff
+    classDef tier1 fill:#ffd700,stroke:#ccac00,color:#000
+    classDef tier2 fill:#c0c0c0,stroke:#909090,color:#000
+    classDef tier3 fill:#cd7f32,stroke:#a0522d,color:#fff
+    classDef output fill:#00d4aa,stroke:#00a080,color:#000
+    
+    class BLOCK,TX,BITMAP bitcoin
+    class WALLET,DETECT,SIGN,GENOME,REGISTER,VERIFY genomics
+    class T1 tier1
+    class T2 tier2
+    class T3 tier3
+    class BADGE,SCORE,API,CERT output
+            </div>
+        </div>
+
+        <!-- Registration Flow -->
+        <div class="section">
+            <h2>📝 Agent Registration Flow</h2>
+            <div class="mermaid">
+sequenceDiagram
+    participant O as 🏛️ Block Owner
+    participant W as 💳 Wallet
+    participant BG as 🧬 Block Genomics
+    participant BC as ₿ Bitcoin
+    participant A as 🤖 AI Agent
+
+    Note over O,A: STEP 1: Prove Block Ownership
+    O->>W: Connect Wallet
+    W->>BG: Request Bitmap scan
+    BG->>BC: Query inscriptions
+    BC-->>BG: Return owned Bitmaps
+    BG-->>W: Show owned blocks
+
+    Note over O,A: STEP 2: Sign & Generate Genome
+    O->>W: Select block to use
+    W->>O: Request BIP322 signature
+    O->>W: Sign message
+    W->>BG: Submit signature + block ID
+    BG->>BG: Verify signature
+    BG->>BG: Generate unique genome
+    BG-->>O: Return genome fingerprint
+
+    Note over O,A: STEP 3: Register Agent
+    O->>BG: Submit agent details
+    BG->>BG: Link agent to genome
+    BG->>BG: Calculate trust score
+    BG-->>A: Issue verification certificate
+    
+    Note over O,A: ✅ Agent now has verifiable identity!
+            </div>
+        </div>
+
+        <!-- Verification Flow -->
+        <div class="section">
+            <h2>✅ Verification Flow (Third Party)</h2>
+            <div class="mermaid">
+sequenceDiagram
+    participant U as 👤 User/Service
+    participant A as 🤖 AI Agent
+    participant API as 🔌 Verification API
+    participant BG as 🧬 Block Genomics
+    participant BC as ₿ Bitcoin
+
+    U->>A: Interact with agent
+    A->>U: Present genome ID
+    U->>API: Verify agent (genome_id)
+    API->>BG: Lookup agent
+    BG->>BC: Verify block ownership (on-chain)
+    BC-->>BG: Confirm ownership valid
+    BG-->>API: Return verification result
+    API-->>U: {verified: true, tier: "gold", trust_score: 95, block: 123456}
+    
+    Note over U,BC: ✅ User knows: Agent is vouched for by real Bitcoin value
+            </div>
+        </div>
+
+        <!-- Three Tiers -->
+        <div class="section">
+            <h2>🏆 The Three Tiers</h2>
+            <div class="mermaid">
+flowchart LR
+    subgraph T1["🥇 TIER 1: GOLD"]
+        T1D["Direct Block Ownership"]
+        T1S["Supply: ~1M blocks"]
+        T1V["Highest trust level"]
+        T1R["Can delegate to others"]
+    end
+    
+    subgraph T2["🥈 TIER 2: SILVER"]
+        T2D["Transaction-Level Anchor"]
+        T2S["Supply: ~2.3B transactions"]
+        T2V["Medium trust level"]
+        T2R["Specific tx in block"]
+    end
+    
+    subgraph T3["🥉 TIER 3: BRONZE"]
+        T3D["Delegated Verification"]
+        T3S["Supply: Unlimited"]
+        T3V["Entry-level trust"]
+        T3R["Verified by T1 owner"]
+    end
+    
+    T1 -->|"Can create"| T3
+    T1D --> T1S --> T1V --> T1R
+    T2D --> T2S --> T2V --> T2R
+    T3D --> T3S --> T3V --> T3R
+
+    classDef gold fill:#ffd700,stroke:#ccac00,color:#000
+    classDef silver fill:#c0c0c0,stroke:#909090,color:#000
+    classDef bronze fill:#cd7f32,stroke:#a0522d,color:#fff
+    
+    class T1,T1D,T1S,T1V,T1R gold
+    class T2,T2D,T2S,T2V,T2R silver
+    class T3,T3D,T3S,T3V,T3R bronze
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <span class="tier-badge tier-1">TIER 1</span>
+                    <span>Block owners — the "root certificates"</span>
+                </div>
+                <div class="legend-item">
+                    <span class="tier-badge tier-2">TIER 2</span>
+                    <span>Transaction-level — specific on-chain proof</span>
+                </div>
+                <div class="legend-item">
+                    <span class="tier-badge tier-3">TIER 3</span>
+                    <span>Delegated — vouched for by Tier 1</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Use Cases -->
+        <div class="section">
+            <h2>🎯 Use Cases</h2>
+            <div class="use-cases">
+                <div class="use-case">
+                    <h4>🤖 AI Agent Marketplace</h4>
+                    <p>Platforms can show verified badges for trustworthy agents. Users filter by verification tier.</p>
+                </div>
+                <div class="use-case">
+                    <h4>💼 Enterprise AI</h4>
+                    <p>Companies verify their internal AI agents. Accountability chain for compliance.</p>
+                </div>
+                <div class="use-case">
+                    <h4>🏦 Financial Services</h4>
+                    <p>Trading bots, advisory agents verified with high-value blocks for maximum trust.</p>
+                </div>
+                <div class="use-case">
+                    <h4>🎮 Gaming & Virtual Worlds</h4>
+                    <p>NPCs and AI characters with verifiable identities. Premium blocks = premium characters.</p>
+                </div>
+                <div class="use-case">
+                    <h4>📱 Consumer Apps</h4>
+                    <p>Personal AI assistants with verified identity. Users know who's behind the AI.</p>
+                </div>
+                <div class="use-case">
+                    <h4>🏛️ Bitmap Monetization</h4>
+                    <p>Block owners earn passive income by verifying agents. Scarce blocks = higher fees.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Revenue Flow -->
+        <div class="section">
+            <h2>💰 Revenue & Value Flow</h2>
+            <div class="mermaid">
+flowchart LR
+    DEV["👨‍💻 AI Developer<br/>Pays for verification"]
+    FEE["💵 Verification Fee"]
+    OWNER["🏛️ Block Owner<br/>Receives revenue"]
+    PROTO["🧬 Protocol Fee<br/>(Block Genomics)"]
+    
+    DEV -->|"$$$"| FEE
+    FEE -->|"80%"| OWNER
+    FEE -->|"20%"| PROTO
+    
+    OWNER -->|"Reinvest in"| MORE["More blocks = More capacity"]
+    PROTO -->|"Funds"| DEV2["Protocol development"]
+
+    classDef money fill:#00d4aa,stroke:#00a080,color:#000
+    class FEE,OWNER,PROTO money
+            </div>
+        </div>
+
+        <footer>
+            <p>🧬 Block Genomics — The Trust Layer for AI Agents on Bitcoin</p>
+            <p style="margin-top: 10px; font-size: 0.9rem;">Built by Gravity & Pepe 🐸 | 2026</p>
+        </footer>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                primaryColor: '#7b68ee',
+                primaryTextColor: '#fff',
+                primaryBorderColor: '#5a4fcf',
+                lineColor: '#888',
+                secondaryColor: '#00d4aa',
+                tertiaryColor: '#1a1a2e',
+                background: '#0a0a0f',
+                mainBkg: '#1a1a2e',
+                textColor: '#e0e0e0',
+                fontSize: '14px'
+            },
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            sequence: {
+                useMaxWidth: true,
+                mirrorActors: false
+            }
+        });
+    </script>
+</body>
+</html>

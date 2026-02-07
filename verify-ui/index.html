@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Block Genomics — Verify Your Genome</title>
+  <meta name="description" content="Connect your Bitcoin wallet, select a Bitmap inscription, and reveal your block's unique genome.">
+
+  <!-- Preconnect for performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="verify.css">
+
+  <!-- Favicon (inline SVG) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>">
+</head>
+<body>
+
+  <!-- Ambient Background -->
+  <div class="ambient-bg">
+    <div class="orb"></div>
+    <div class="orb"></div>
+    <div class="orb"></div>
+  </div>
+
+  <!-- Flash Overlay (for reveal) -->
+  <div class="flash-overlay" id="flash-overlay"></div>
+
+  <!-- Particle Container -->
+  <div class="particle-container" id="particles"></div>
+
+  <!-- App Shell -->
+  <div class="app">
+
+    <!-- Progress Bar -->
+    <div class="progress-bar"><div class="fill" style="width: 0%"></div></div>
+
+    <!-- Step Dots -->
+    <div class="step-dots">
+      <div class="dot active"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+
+    <!-- Back Button -->
+    <button class="back-btn" id="back-btn" aria-label="Go back">←</button>
+
+    <!-- Steps Viewport -->
+    <div class="steps-viewport">
+
+      <!-- ═══ STEP 0: Welcome ═══ -->
+      <div class="step active" id="step-0">
+        <div class="step-content">
+          <div class="step-icon">🧬</div>
+          <h1 class="step-title">Every Bitcoin Block<br>Has a Genome</h1>
+          <p class="step-subtitle">
+            Your block's hash encodes a unique genetic signature — traits, trust scores, and an identity that's verifiably yours.
+          </p>
+          <p class="step-subtitle" style="color: var(--accent); font-weight: 600; font-size: 1.1rem;">
+            Ready to claim your genome?
+          </p>
+          <button class="btn btn-primary" id="btn-connect-start">
+            <span>🔗</span> Connect Wallet
+          </button>
+          <button class="btn btn-ghost btn-small" id="btn-demo">
+            ▶ Demo Mode
+          </button>
+        </div>
+      </div>
+
+      <!-- ═══ STEP 1: Wallet Connection ═══ -->
+      <div class="step" id="step-1">
+        <div class="step-content">
+          <div class="step-icon">👛</div>
+          <h1 class="step-title">Connect Your Wallet</h1>
+          <p class="step-subtitle">
+            Choose a Bitcoin wallet to scan for Bitmap inscriptions.
+          </p>
+
+          <div class="wallet-grid">
+            <!-- Unisat -->
+            <div class="wallet-card" data-wallet="unisat" tabindex="0">
+              <div class="icon unisat">🟠</div>
+              <div class="info">
+                <div class="name">Unisat Wallet</div>
+                <div class="status">Tap to connect</div>
+              </div>
+              <div class="arrow">→</div>
+            </div>
+            <!-- Xverse -->
+            <div class="wallet-card" data-wallet="xverse" tabindex="0">
+              <div class="icon xverse">🟣</div>
+              <div class="info">
+                <div class="name">Xverse</div>
+                <div class="status">Tap to connect</div>
+              </div>
+              <div class="arrow">→</div>
+            </div>
+            <!-- Leather -->
+            <div class="wallet-card" data-wallet="leather" tabindex="0">
+              <div class="icon leather">🔵</div>
+              <div class="info">
+                <div class="name">Leather (Hiro)</div>
+                <div class="status">Tap to connect</div>
+              </div>
+              <div class="arrow">→</div>
+            </div>
+          </div>
+
+          <p class="step-subtitle" style="font-size: 0.8rem; margin-top: 8px;">
+            Don't have a wallet?
+            <a href="https://unisat.io" target="_blank" style="color: var(--accent); text-decoration: none;">Get Unisat →</a>
+          </p>
+        </div>
+      </div>
+
+      <!-- ═══ STEP 2: Bitmap Selection ═══ -->
+      <div class="step" id="step-2">
+        <div class="step-content">
+          <div class="step-icon">🗺️</div>
+          <h1 class="step-title">Your Bitmaps</h1>
+          <p class="step-subtitle">
+            Select a Bitmap inscription to decode its genome.
+          </p>
+
+          <div class="bitmap-grid" id="bitmap-grid">
+            <!-- Populated by JS -->
+          </div>
+
+          <button class="btn btn-primary" id="btn-bitmap-continue" style="opacity: 0.4; pointer-events: none;">
+            Continue →
+          </button>
+        </div>
+      </div>
+
+      <!-- ═══ STEP 3: Block Preview ═══ -->
+      <div class="step" id="step-3">
+        <div class="step-content">
+          <div class="step-icon">📦</div>
+          <h1 class="step-title">Block Preview</h1>
+
+          <div class="block-preview">
+            <div class="block-stat">
+              <span class="label">Block Height</span>
+              <span class="value" id="preview-height">#—</span>
+            </div>
+            <div class="block-stat">
+              <span class="label">Block Hash</span>
+              <span class="value" id="preview-hash">—</span>
+            </div>
+            <div class="block-stat">
+              <span class="label">Mined</span>
+              <span class="value" id="preview-age">—</span>
+            </div>
+            <div class="block-stat">
+              <span class="label">Transactions</span>
+              <span class="value" id="preview-txcount">—</span>
+            </div>
+          </div>
+
+          <p class="step-subtitle" style="font-size: 0.8rem;">Detected Traits</p>
+          <div class="traits-preview" id="preview-traits"></div>
+
+          <div class="dna-mini-preview">
+            <canvas id="mini-dna-canvas"></canvas>
+          </div>
+
+          <button class="btn btn-primary" id="btn-sign">
+            <span>✍️</span> Sign to Verify
+          </button>
+        </div>
+      </div>
+
+      <!-- ═══ STEP 4: Signing ═══ -->
+      <div class="step" id="step-4">
+        <div class="step-content">
+          <div class="signing-anim">
+            <div class="signing-ring"></div>
+            <div class="signing-ring"></div>
+            <div class="signing-ring"></div>
+            <div class="signing-icon">✍️</div>
+          </div>
+
+          <h1 class="step-title">Signing...</h1>
+          <p class="step-subtitle">
+            Check your wallet to approve the verification signature.
+          </p>
+          <p class="step-subtitle" style="font-size: 0.8rem; color: var(--text-dim);">
+            This proves you own the wallet without moving any funds.
+          </p>
+
+          <button class="btn btn-ghost btn-small" onclick="history.back()">
+            Cancel
+          </button>
+        </div>
+      </div>
+
+      <!-- ═══ STEP 5: THE REVEAL ✨ ═══ -->
+      <div class="step" id="step-5">
+        <div class="step-content" style="gap: 20px;">
+
+          <!-- DNA Helix -->
+          <div class="dna-helix-wrapper">
+            <canvas id="dna-helix-canvas"></canvas>
+            <div class="dna-glow-overlay"></div>
+          </div>
+
+          <!-- Trust Score -->
+          <div class="trust-score-display">
+            <div class="trust-score-ring">
+              <svg viewBox="0 0 128 128">
+                <circle class="ring-bg" cx="64" cy="64" r="60"/>
+                <circle class="ring-fill" cx="64" cy="64" r="60"/>
+              </svg>
+              <div class="trust-score-value">
+                <div class="number" id="trust-number">0</div>
+                <div class="label">Trust Score</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Genome Hash -->
+          <div class="genome-hash" id="genome-hash-text">
+            <span class="cursor"></span>
+          </div>
+
+          <!-- Traits -->
+          <div class="reveal-traits" id="reveal-traits"></div>
+
+          <!-- Identity Toggle -->
+          <div id="identity-toggle" style="width: 100%; display: flex; justify-content: center; opacity: 0;">
+            <div class="identity-toggle">
+              <div class="identity-option selected-human" data-identity="human">
+                <span class="emoji">🟢</span>
+                <span class="opt-label">Human</span>
+              </div>
+              <div class="identity-option" data-identity="ai">
+                <span class="emoji">🔵</span>
+                <span class="opt-label">AI Agent</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Continue -->
+          <button class="btn btn-primary" id="btn-reveal-continue" style="opacity: 0;">
+            View Your Profile →
+          </button>
+        </div>
+      </div>
+
+      <!-- ═══ STEP 6: Profile ═══ -->
+      <div class="step" id="step-6">
+        <div class="step-content" style="gap: 20px;">
+          <h1 class="step-title" style="font-size: 1.4rem;">Your Block Genome</h1>
+
+          <!-- Profile Card -->
+          <div class="profile-card">
+            <div class="banner">
+              <canvas id="profile-banner-canvas"></canvas>
+            </div>
+            <div class="profile-avatar-area">
+              <div class="profile-avatar">🧬</div>
+              <div class="profile-name">Block #—</div>
+              <div class="profile-address">—</div>
+            </div>
+            <div class="profile-stats">
+              <div class="profile-stat">
+                <div class="num" id="profile-trust">—</div>
+                <div class="lbl">Trust</div>
+              </div>
+              <div class="profile-stat">
+                <div class="num" id="profile-traits">—</div>
+                <div class="lbl">Traits</div>
+              </div>
+              <div class="profile-stat">
+                <div class="num" id="profile-block">—</div>
+                <div class="lbl">Block</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- DNA Viewer -->
+          <div class="profile-dna-viewer">
+            <canvas id="profile-dna-canvas"></canvas>
+          </div>
+
+          <!-- Share Buttons -->
+          <div class="share-row">
+            <button class="btn btn-primary btn-small" id="btn-share-x">
+              Share on 𝕏
+            </button>
+            <button class="btn btn-secondary btn-small" id="btn-copy-link">
+              🔗 Copy Link
+            </button>
+            <button class="btn btn-secondary btn-small" id="btn-download">
+              ⬇ Badge
+            </button>
+          </div>
+
+          <!-- Embed Code -->
+          <div class="embed-box">
+            <span class="copy-label">📋 Embed on your site</span>
+            <code>&lt;iframe src="https://blockgenomics.xyz/embed/500000" width="350" height="400" frameborder="0"&gt;&lt;/iframe&gt;</code>
+          </div>
+
+          <!-- Explore -->
+          <button class="btn btn-ghost" id="btn-explore">
+            🌐 Explore Other Verified Blocks
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /steps-viewport -->
+
+  </div><!-- /app -->
+
+  <!-- Demo Mode Banner -->
+  <div class="demo-banner" id="demo-banner">
+    ⚡ Demo Mode Active
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Scripts -->
+  <script src="verify.js"></script>
+</body>
+</html>

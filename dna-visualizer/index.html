@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Block Genomics | DNA Verification</title>
+  <link rel="stylesheet" href="styles.css">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>">
+  
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  
+  <!-- Three.js Addons -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div class="loading-screen" id="loading">
+    <div class="loading-helix"></div>
+    <div class="loading-text">Initializing DNA Visualizer</div>
+  </div>
+
+  <div id="app">
+    <!-- Holographic Overlay -->
+    <div class="holographic-overlay"></div>
+    
+    <!-- Chromatic Aberration Layer -->
+    <div class="chromatic-layer"></div>
+    
+    <!-- 3D Canvas Container -->
+    <div id="dna-canvas"></div>
+    
+    <!-- Base Pair Tooltip -->
+    <div class="bp-tooltip" id="bp-tooltip">
+      <div class="bp-tooltip-header">
+        <div class="bp-tooltip-color" id="bp-color"></div>
+        <div class="bp-tooltip-title" id="bp-title">Nucleotide #0</div>
+      </div>
+      <div class="bp-tooltip-row">
+        <span class="bp-tooltip-label">Hex Value</span>
+        <span class="bp-tooltip-value" id="bp-hex">0x00</span>
+      </div>
+      <div class="bp-tooltip-row">
+        <span class="bp-tooltip-label">Position</span>
+        <span class="bp-tooltip-value" id="bp-position">0 / 64</span>
+      </div>
+      <div class="bp-tooltip-row">
+        <span class="bp-tooltip-label">Helix Angle</span>
+        <span class="bp-tooltip-value" id="bp-angle">0°</span>
+      </div>
+      <div class="bp-tooltip-row">
+        <span class="bp-tooltip-label">Trait Match</span>
+        <span class="bp-tooltip-value highlight" id="bp-trait">—</span>
+      </div>
+    </div>
+
+    <!-- Genome Hash Display -->
+    <div class="genome-display">
+      <div class="genome-label">Genome Hash (256-bit)</div>
+      <div class="genome-hash" id="genome-hash">
+        a3f8c2e91b4d6f0785c3e2a19b7d4f6e8c2a1b3d5f7e9c0b2a4d6f8e1c3b5a7d
+      </div>
+    </div>
+
+    <!-- Status Indicator -->
+    <div class="status-indicator" id="status">
+      <div class="status-dot"></div>
+      <span class="status-text">Verifying genome...</span>
+    </div>
+
+    <!-- Color Legend -->
+    <div class="color-legend" id="legend">
+      <div class="legend-title">Nucleotide Colors</div>
+      <!-- Populated by JavaScript -->
+    </div>
+
+    <!-- Info Panel -->
+    <div class="info-panel">
+      <div class="info-title">Genome Info</div>
+      <div class="info-stat">
+        <label>Base Pairs</label>
+        <value id="bp-count">64</value>
+      </div>
+      <div class="info-stat">
+        <label>Helix Turns</label>
+        <value>3</value>
+      </div>
+      <div class="info-stat">
+        <label>Hash Length</label>
+        <value>256-bit</value>
+      </div>
+      <div class="info-stat">
+        <label>State</label>
+        <value id="current-state">Idle</value>
+      </div>
+    </div>
+
+    <!-- Sequence Ticker -->
+    <div class="sequence-ticker">
+      <div class="sequence-scroll" id="sequence-ticker">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+      <button class="control-btn idle" onclick="setIdle()">🌀 Idle</button>
+      <button class="control-btn verify" onclick="startVerification()">⚡ Verify</button>
+      <button class="control-btn success" onclick="showSuccess()">✓ Success</button>
+    </div>
+  </div>
+
+  <!-- DNA Visualizer -->
+  <script src="dna-visualizer.js"></script>
+  
+  <script>
+    // Example genome hash
+    const genomeHash = 'a3f8c2e91b4d6f0785c3e2a19b7d4f6e8c2a1b3d5f7e9c0b2a4d6f8e1c3b5a7d';
+    
+    let visualizer;
+    
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        // Create visualizer (disable bloom to avoid addon issues)
+        visualizer = new DNAVisualizer('#dna-canvas', {
+          genomeHash: genomeHash,
+          enableBloom: false,  // Disabled - addon loading issues
+          enableParticles: true
+        });
+
+        // Populate color legend
+        populateColorLegend();
+        
+        // Create sequence ticker
+        createSequenceTicker();
+        
+        // Hide loading screen
+        setTimeout(() => {
+          document.getElementById('loading').classList.add('hidden');
+        }, 1500);
+      } catch (err) {
+        console.error('DNA Visualizer failed to initialize:', err);
+        document.getElementById('loading').innerHTML = 
+          '<div style="color:#ff4444;padding:20px;">Error: ' + err.message + '</div>';
+      }
+
+      // Listen for state changes
+      document.querySelector('#dna-canvas').addEventListener('state-change', (e) => {
+        document.getElementById('current-state').textContent = 
+          e.detail.state.charAt(0).toUpperCase() + e.detail.state.slice(1);
+      });
+
+      // Listen for base pair clicks
+      document.querySelector('#dna-canvas').addEventListener('basepair-click', (e) => {
+        console.log('Clicked base pair:', e.detail);
+      });
+    });
+
+    function populateColorLegend() {
+      const legend = document.getElementById('legend');
+      const palette = visualizer.getColorPalette();
+      
+      // Show first 8 for space
+      const hexChars = '0123456789abcdef'.split('');
+      
+      hexChars.slice(0, 8).forEach(hex => {
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        item.innerHTML = `
+          <div class="legend-color" style="background: ${palette[hex]}; color: ${palette[hex]}"></div>
+          <span>0x${hex.toUpperCase()}</span>
+        `;
+        legend.appendChild(item);
+      });
+    }
+
+    function createSequenceTicker() {
+      const ticker = document.getElementById('sequence-ticker');
+      const sequence = visualizer.getGenomeSequence();
+      const palette = visualizer.getColorPalette();
+      const hash = genomeHash.toLowerCase();
+      
+      // Create sequence twice for seamless loop
+      const fullSequence = sequence + sequence;
+      
+      fullSequence.split('').forEach((nucleotide, i) => {
+        const span = document.createElement('span');
+        span.textContent = nucleotide;
+        const hexIndex = i % hash.length;
+        span.style.color = palette[hash[hexIndex]];
+        ticker.appendChild(span);
+      });
+    }
+
+    // Control functions
+    function setIdle() {
+      visualizer.setState('idle');
+      updateStatus('');
+    }
+
+    function startVerification() {
+      visualizer.setState('verifying');
+      updateStatus('verifying', 'Verifying genome authenticity...');
+      
+      // Auto-complete after 3 seconds (demo)
+      setTimeout(() => {
+        if (visualizer.state === 'verifying') {
+          showSuccess();
+        }
+      }, 3000);
+    }
+
+    function showSuccess() {
+      visualizer.setState('verified');
+      updateStatus('verified', 'Genome verified! ✓');
+      
+      // Return to idle after animation
+      setTimeout(() => {
+        updateStatus('');
+      }, 4000);
+    }
+
+    function updateStatus(state, text) {
+      const status = document.getElementById('status');
+      const statusText = status.querySelector('.status-text');
+      
+      if (!state) {
+        status.classList.remove('visible', 'verifying', 'verified');
+        return;
+      }
+      
+      status.className = `status-indicator visible ${state}`;
+      statusText.textContent = text;
+    }
+
+    // Allow changing genome hash via URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const customHash = urlParams.get('hash');
+    if (customHash && /^[0-9a-f]{64}$/i.test(customHash)) {
+      document.getElementById('genome-hash').textContent = customHash;
+    }
+  </script>
+</body>
+</html>
