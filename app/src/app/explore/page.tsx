@@ -1,11 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  truncateHash,
-  formatNumber,
-  formatRelativeTime,
-  hexPairToColor,
-} from "@/lib/genome-utils";
+import { formatNumber, hexPairToColor } from "@/lib/genome-utils";
+import { prisma } from "@/lib/prisma";
 import SearchBar from "./search-bar";
 
 export const metadata: Metadata = {
@@ -13,8 +9,6 @@ export const metadata: Metadata = {
   description:
     "Browse verified Bitcoin blocks, search agents, and explore genomic identities.",
 };
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3100";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -28,39 +22,46 @@ interface SearchResult {
   matchField: string;
 }
 
-interface SearchResponse {
-  query: string;
-  count: number;
-  results: SearchResult[];
-}
-
 // ─── Data ──────────────────────────────────────────────────────────────────
 
 async function fetchRecentAgents(): Promise<SearchResult[]> {
-  try {
-    // Use search API with a broad query to get recent agents
-    // The API returns agents sorted by most recent
-    const res = await fetch(`${API_URL}/api/v1/agent/?q=&limit=20`, {
-      next: { revalidate: 60 },
-    });
-    if (!res.ok) return [];
-    const data: SearchResponse = await res.json();
-    return data.results || [];
-  } catch {
-    return [];
-  }
+  const agents = await prisma.agent.findMany({
+    include: {
+      genomes: true,
+      _count: { select: { verifications: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
+
+  return agents.map((agent) => {
+    const latestGenome = agent.genomes.reduce((latest, genome) => {
+      if (!latest) return genome;
+      return genome.generatedAt > latest.generatedAt ? genome : latest;
+    }, undefined as (typeof agent.genomes)[number] | undefined);
+
+    return {
+      type: "agent",
+      id: agent.id,
+      name: agent.displayName || "Anonymous Agent",
+      blockHeight: latestGenome?.blockHeight ?? 0,
+      genome: latestGenome?.sequence ?? null,
+      trustScore: Math.round(agent.trustScore),
+      matchField: "name",
+    };
+  });
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 
 export default async function ExplorePage() {
-  const recentAgents = await fetchRecentAgents();
-
-  const totalVerifications = recentAgents.filter(
-    (r) => r.type === "agent"
-  ).length;
-
-  const uniqueBlocks = new Set(recentAgents.map((r) => r.blockHeight)).size;
+  const [recentAgents, totalAgents, totalBlocks, totalGenomes] =
+    await Promise.all([
+      fetchRecentAgents(),
+      prisma.agent.count(),
+      prisma.block.count(),
+      prisma.genome.count(),
+    ]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
@@ -78,7 +79,7 @@ export default async function ExplorePage() {
 
       {/* ─── Search ────────────────────────────────────────────── */}
       <div className="mb-10">
-        <SearchBar apiUrl={API_URL} />
+        <SearchBar />
       </div>
 
       {/* ─── Stats ─────────────────────────────────────────────── */}
@@ -86,17 +87,17 @@ export default async function ExplorePage() {
         <StatCard
           icon="🤖"
           label="Verified Agents"
-          value={totalVerifications > 0 ? formatNumber(totalVerifications) : "—"}
+          value={totalAgents > 0 ? formatNumber(totalAgents) : "—"}
         />
         <StatCard
           icon="⛓️"
           label="Verified Blocks"
-          value={uniqueBlocks > 0 ? formatNumber(uniqueBlocks) : "—"}
+          value={totalBlocks > 0 ? formatNumber(totalBlocks) : "—"}
         />
         <StatCard
           icon="🧬"
           label="Genomes Extracted"
-          value={totalVerifications > 0 ? formatNumber(totalVerifications) : "—"}
+          value={totalGenomes > 0 ? formatNumber(totalGenomes) : "—"}
         />
       </div>
 

@@ -13,6 +13,7 @@ import {
   parseGenomeTraits,
   dnaBaseColor,
 } from "@/lib/genome-utils";
+import { prisma } from "@/lib/prisma";
 import type { AgentPublic, BlockResponse } from "./types";
 import CopyButton from "./copy-button";
 
@@ -22,17 +23,81 @@ interface BlockPageProps {
   params: Promise<{ height: string }>;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3100";
-
 // ─── Data fetching ─────────────────────────────────────────────────────────
+
+function getAddressInfo(address: string) {
+  const normalized = address.toLowerCase();
+  if (normalized.startsWith("bc1p")) {
+    return { addressFormat: "taproot", signatureType: "taproot-pending" };
+  }
+  if (normalized.startsWith("bc1q")) {
+    return { addressFormat: "segwit-native", signatureType: "segwit" };
+  }
+  if (normalized.startsWith("3")) {
+    return { addressFormat: "segwit-compat", signatureType: "segwit" };
+  }
+  if (normalized.startsWith("1")) {
+    return { addressFormat: "legacy", signatureType: "legacy" };
+  }
+  return { addressFormat: "unknown", signatureType: "legacy" };
+}
 
 async function fetchBlock(height: number): Promise<BlockResponse | null> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/block/${height}`, {
-      next: { revalidate: 300 },
+    const block = await prisma.block.findUnique({
+      where: { height },
+      include: {
+        genome: {
+          include: {
+            agent: true,
+          },
+        },
+      },
     });
-    if (!res.ok) return null;
-    return res.json();
+
+    if (!block) return null;
+
+    let agent: AgentPublic | null = null;
+
+    if (block.genome?.agent) {
+      const addressInfo = getAddressInfo(block.genome.agent.address);
+      const blockAge = Math.floor(
+        (Date.now() - block.timestamp * 1000) / (1000 * 60 * 60 * 24)
+      );
+      agent = {
+        id: block.genome.agent.id,
+        name: block.genome.agent.displayName || "Anonymous Agent",
+        blockHeight: block.height,
+        genome: block.genome.sequence,
+        genomeVersion: 1,
+        trustScore: Math.round(block.genome.agent.trustScore),
+        trustFactors: {
+          signatureValid: block.genome.agent.successfulVerifications > 0,
+          bitmapOwnership:
+            block.genome.agent.badges?.includes("bitmap") ?? false,
+          blockExists: true,
+          addressFormat: addressInfo.addressFormat,
+          inscriptionAge: null,
+          blockAge,
+        },
+        verifiedAt: (block.verifiedAt ?? block.genome.generatedAt).toISOString(),
+        createdAt: block.genome.agent.createdAt.toISOString(),
+        signatureType: addressInfo.signatureType,
+      };
+    }
+
+    return {
+      height: block.height,
+      hash: block.hash,
+      timestamp: block.timestamp,
+      txCount: block.txCount,
+      size: block.size,
+      weight: block.weight,
+      genome: block.genome?.sequence ?? null,
+      genomeVersion: block.genome ? 1 : 0,
+      verified: block.verificationStatus === "verified",
+      agent,
+    };
   } catch {
     return null;
   }

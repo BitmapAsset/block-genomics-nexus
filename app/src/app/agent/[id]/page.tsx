@@ -8,6 +8,7 @@ import {
   genomeToDNA,
   dnaBaseColor,
 } from "@/lib/genome-utils";
+import { prisma } from "@/lib/prisma";
 import CopyButton from "./copy-button";
 import BadgeEmbed from "./badge-embed";
 
@@ -39,17 +40,78 @@ interface AgentPageProps {
   params: Promise<{ id: string }>;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3100";
-
 // ─── Data fetching ─────────────────────────────────────────────────────────
+
+function getAddressInfo(address: string) {
+  const normalized = address.toLowerCase();
+  if (normalized.startsWith("bc1p")) {
+    return { addressFormat: "taproot", signatureType: "taproot-pending" };
+  }
+  if (normalized.startsWith("bc1q")) {
+    return { addressFormat: "segwit-native", signatureType: "segwit" };
+  }
+  if (normalized.startsWith("3")) {
+    return { addressFormat: "segwit-compat", signatureType: "segwit" };
+  }
+  if (normalized.startsWith("1")) {
+    return { addressFormat: "legacy", signatureType: "legacy" };
+  }
+  return { addressFormat: "unknown", signatureType: "legacy" };
+}
 
 async function fetchAgent(id: string): Promise<AgentPublic | null> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/agent/${id}`, {
-      next: { revalidate: 300 },
+    const agent = await prisma.agent.findUnique({
+      where: { id },
+      include: {
+        genomes: {
+          include: { block: true },
+          orderBy: { generatedAt: "desc" },
+          take: 1,
+        },
+        verifications: {
+          include: { block: true },
+          orderBy: { startedAt: "desc" },
+          take: 1,
+        },
+      },
     });
-    if (!res.ok) return null;
-    return res.json();
+
+    if (!agent) return null;
+
+    const latestGenome = agent.genomes[0];
+    const latestVerification = agent.verifications[0];
+    const block = latestGenome?.block ?? latestVerification?.block ?? null;
+    const blockHeight =
+      latestGenome?.blockHeight ?? latestVerification?.blockHeight ?? 0;
+    const { addressFormat, signatureType } = getAddressInfo(agent.address);
+    const blockAge = block
+      ? Math.floor((Date.now() - block.timestamp * 1000) / (1000 * 60 * 60 * 24))
+      : null;
+
+    return {
+      id: agent.id,
+      name: agent.displayName || "Anonymous Agent",
+      blockHeight,
+      genome: latestGenome?.sequence ?? "0".repeat(64),
+      genomeVersion: 1,
+      trustScore: Math.round(agent.trustScore),
+      trustFactors: {
+        signatureValid: agent.successfulVerifications > 0,
+        bitmapOwnership: agent.badges?.includes("bitmap") ?? false,
+        blockExists: Boolean(block),
+        addressFormat,
+        inscriptionAge: null,
+        blockAge,
+      },
+      verifiedAt: (
+        latestVerification?.completedAt ??
+        latestVerification?.startedAt ??
+        agent.createdAt
+      ).toISOString(),
+      createdAt: agent.createdAt.toISOString(),
+      signatureType,
+    };
   } catch {
     return null;
   }
@@ -107,7 +169,7 @@ export default async function AgentPage({ params }: AgentPageProps) {
   const colors = genomeToColors(agent.genome);
   const dna = genomeToDNA(agent.genome);
   const tier = scoreTier(agent.trustScore);
-  const badgeUrl = `${API_URL}/api/v1/badge/${agent.id}.svg`;
+  const badgeUrl = `/api/v1/badge/${agent.id}.svg`;
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12">
@@ -287,7 +349,7 @@ export default async function AgentPage({ params }: AgentPageProps) {
             <p className="text-sm text-text-secondary mb-4">
               Add your verification badge to your website or README:
             </p>
-            <BadgeEmbed agentId={agent.id} agentName={agent.name} apiUrl={API_URL} />
+            <BadgeEmbed agentId={agent.id} agentName={agent.name} apiUrl="" />
           </section>
         </div>
 

@@ -1,6 +1,33 @@
 import Link from "next/link";
+import { formatNumber } from "@/lib/genome-utils";
+import { prisma } from "@/lib/prisma";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const [blocksVerified, activeAgents, genomesExtracted] =
+    await Promise.all([
+      prisma.genome.findMany({ select: { blockHeight: true }, distinct: ['blockHeight'] }).then(r => r.length),
+      prisma.agent.count(),
+      prisma.genome.count(),
+    ]);
+
+  const stats = [
+    {
+      label: "Blocks Verified",
+      value: blocksVerified > 0 ? formatNumber(blocksVerified) : "—",
+      icon: "⛓️",
+    },
+    {
+      label: "Active Agents",
+      value: activeAgents > 0 ? formatNumber(activeAgents) : "—",
+      icon: "🤖",
+    },
+    {
+      label: "Genomes Extracted",
+      value: genomesExtracted > 0 ? formatNumber(genomesExtracted) : "—",
+      icon: "🧬",
+    },
+  ];
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
       {/* Hero */}
@@ -43,11 +70,7 @@ export default function HomePage() {
 
       {/* Stats preview */}
       <div className="mt-20 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
-        {[
-          { label: "Blocks Verified", value: "—", icon: "⛓️" },
-          { label: "Active Agents", value: "—", icon: "🤖" },
-          { label: "Genomes Extracted", value: "—", icon: "🧬" },
-        ].map((stat) => (
+        {stats.map((stat) => (
           <div
             key={stat.label}
             className="glass-panel p-5 text-center hover:glass-panel-hover transition-all"

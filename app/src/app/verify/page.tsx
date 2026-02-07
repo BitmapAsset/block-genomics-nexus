@@ -6,7 +6,7 @@ import type { ChallengeResponse, VerifyResponse, VerifiedAgent } from "@/types/a
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3100";
+const API_URL = "";
 
 type Step = "connect" | "block" | "challenge" | "sign" | "verify" | "result";
 

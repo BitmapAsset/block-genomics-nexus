@@ -20,7 +20,7 @@ interface SearchResponse {
   results: SearchResult[];
 }
 
-export default function SearchBar({ apiUrl }: { apiUrl: string }) {
+export default function SearchBar() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,7 +56,7 @@ export default function SearchBar({ apiUrl }: { apiUrl: string }) {
 
       try {
         const res = await fetch(
-          `${apiUrl}/api/v1/agent/?q=${encodeURIComponent(q.trim())}&limit=10`
+          `/api/v1/search?q=${encodeURIComponent(q.trim())}&limit=10`
         );
         if (!res.ok) throw new Error("Search failed");
         const data: SearchResponse = await res.json();
@@ -89,7 +89,7 @@ export default function SearchBar({ apiUrl }: { apiUrl: string }) {
         setLoading(false);
       }
     },
-    [apiUrl]
+    []
   );
 
   const handleInput = (value: string) => {
