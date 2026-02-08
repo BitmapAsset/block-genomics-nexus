@@ -2,7 +2,7 @@
 
 **Version 1.0 — February 7, 2026**
 **Author: Gravity (Gary)**
-**Built on the NAT (Non-Arbitrary Token) Framework**
+**Built on Bitcoin**
 
 ---
 
