@@ -4,7 +4,6 @@ import {
   genomeToColors,
   truncateHash,
   formatNumber,
-  hexPairToColor,
   genomeToDNA,
   dnaBaseColor,
 } from "@/lib/genome-utils";
@@ -23,6 +22,23 @@ interface TrustFactors {
   blockAge: number | null;
 }
 
+interface AgentGenomeEntry {
+  blockHeight: number;
+  sequence: string;
+  createdAt: string;
+  blockHash: string | null;
+}
+
+interface AgentVerificationEntry {
+  id: string;
+  blockHeight: number;
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+  scoreAwarded: number;
+  blockHash: string | null;
+}
+
 interface AgentPublic {
   id: string;
   name: string;
@@ -34,11 +50,44 @@ interface AgentPublic {
   verifiedAt: string;
   createdAt: string;
   signatureType: string;
+  totalVerifications: number;
+  successRate: number;
+  badges: string[];
+  recentGenomes: AgentGenomeEntry[];
+  recentVerifications: AgentVerificationEntry[];
 }
 
 interface AgentPageProps {
   params: Promise<{ id: string }>;
 }
+
+const hexPalette: Record<string, string> = {
+  "0": "#ff0055",
+  "1": "#ff3366",
+  "2": "#ff6633",
+  "3": "#ffaa00",
+  "4": "#ccff00",
+  "5": "#66ff33",
+  "6": "#00ff99",
+  "7": "#00ffcc",
+  "8": "#00ccff",
+  "9": "#0099ff",
+  a: "#3366ff",
+  b: "#6633ff",
+  c: "#9933ff",
+  d: "#cc33ff",
+  e: "#ff33cc",
+  f: "#ff3399",
+};
+
+const badgeIcons: Record<string, string> = {
+  bitmap: "🧩",
+  genesis: "🌟",
+  pioneer: "🚀",
+  sentinel: "🛡️",
+  scholar: "📚",
+  validator: "✅",
+};
 
 // ─── Data fetching ─────────────────────────────────────────────────────────
 
@@ -67,12 +116,12 @@ async function fetchAgent(id: string): Promise<AgentPublic | null> {
         genomes: {
           include: { block: true },
           orderBy: { generatedAt: "desc" },
-          take: 1,
+          take: 6,
         },
         verifications: {
           include: { block: true },
           orderBy: { startedAt: "desc" },
-          take: 1,
+          take: 8,
         },
       },
     });
@@ -88,6 +137,9 @@ async function fetchAgent(id: string): Promise<AgentPublic | null> {
     const blockAge = block
       ? Math.floor((Date.now() - block.timestamp * 1000) / (1000 * 60 * 60 * 24))
       : null;
+    const successRate = agent.totalVerifications
+      ? Math.round((agent.successfulVerifications / agent.totalVerifications) * 100)
+      : 0;
 
     return {
       id: agent.id,
@@ -111,6 +163,24 @@ async function fetchAgent(id: string): Promise<AgentPublic | null> {
       ).toISOString(),
       createdAt: agent.createdAt.toISOString(),
       signatureType,
+      totalVerifications: agent.totalVerifications,
+      successRate,
+      badges: agent.badges ?? [],
+      recentGenomes: agent.genomes.map((g) => ({
+        blockHeight: g.blockHeight,
+        sequence: g.sequence,
+        createdAt: g.generatedAt.toISOString(),
+        blockHash: g.block?.hash ?? null,
+      })),
+      recentVerifications: agent.verifications.map((v) => ({
+        id: v.id,
+        blockHeight: v.blockHeight,
+        status: v.status,
+        startedAt: v.startedAt.toISOString(),
+        completedAt: v.completedAt?.toISOString() ?? null,
+        scoreAwarded: v.scoreAwarded,
+        blockHash: v.block?.hash ?? null,
+      })),
     };
   } catch {
     return null;
@@ -196,6 +266,9 @@ export default async function AgentPage({ params }: AgentPageProps) {
               } border-current/30`}>
                 {tier.label}
               </span>
+              <span className="rounded-full border border-accent-purple/40 bg-accent-purple/10 px-3 py-0.5 text-xs font-medium text-accent-purple">
+                Genome v{agent.genomeVersion}
+              </span>
             </div>
 
             {/* ID */}
@@ -218,38 +291,42 @@ export default async function AgentPage({ params }: AgentPageProps) {
                 </div>
               </div>
 
-              {/* Block */}
+              {/* Total Verifications */}
               <div>
-                <Link
-                  href={`/block/${agent.blockHeight}`}
-                  className="text-3xl font-bold font-mono text-bitcoin hover:underline"
-                >
-                  #{formatNumber(agent.blockHeight)}
-                </Link>
+                <div className="text-2xl font-semibold text-text-primary">
+                  {formatNumber(agent.totalVerifications)}
+                </div>
                 <div className="text-[10px] uppercase tracking-wider text-text-muted">
-                  Block Height
+                  Verifications
                 </div>
               </div>
 
-              {/* Signature Type */}
+              {/* Success Rate */}
               <div>
-                <div className="text-lg font-medium text-text-primary capitalize">
-                  {agent.signatureType.replace("-", " ")}
+                <div className="text-2xl font-semibold text-success">
+                  {agent.successRate}%
                 </div>
                 <div className="text-[10px] uppercase tracking-wider text-text-muted">
-                  Signature
+                  Success Rate
                 </div>
               </div>
 
-              {/* Genome Version */}
+              {/* Member Since */}
               <div>
                 <div className="text-lg font-medium text-text-primary">
-                  v{agent.genomeVersion}
+                  {new Date(agent.createdAt).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                  })}
                 </div>
                 <div className="text-[10px] uppercase tracking-wider text-text-muted">
-                  Genome
+                  Member Since
                 </div>
               </div>
+            </div>
+
+            <div className="mt-5">
+              <TrustScoreBar score={agent.trustScore} />
             </div>
           </div>
 
@@ -283,19 +360,56 @@ export default async function AgentPage({ params }: AgentPageProps) {
                 {agent.genome.split("").map((char, i) => (
                   <span
                     key={i}
-                    style={{
-                      color: hexPairToColor(
-                        agent.genome.slice(
-                          Math.floor(i / 2) * 2,
-                          Math.floor(i / 2) * 2 + 2
-                        )
-                      ),
-                    }}
+                    style={{ color: hexPalette[char.toLowerCase()] || "#ffffff" }}
                   >
                     {char}
                   </span>
                 ))}
               </p>
+            </div>
+          </section>
+
+          {/* Verified Blocks */}
+          <section className="glass-panel p-6">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-text-muted mb-4">
+              ✅ Verified Blocks
+            </h2>
+            <div className="space-y-3">
+              {agent.recentGenomes.length === 0 && (
+                <p className="text-sm text-text-muted">
+                  No verified blocks yet. Challenge this agent to start building history.
+                </p>
+              )}
+              {agent.recentGenomes.map((genome) => (
+                <Link
+                  key={genome.blockHeight}
+                  href={`/block/${genome.blockHeight}`}
+                  className="block rounded-lg border border-border bg-bg-primary/40 px-4 py-3 hover:border-border-hover transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-text-primary">
+                        Block #{formatNumber(genome.blockHeight)}
+                      </p>
+                      <p className="text-xs text-text-muted">
+                        {new Date(genome.createdAt).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    <p className="font-mono text-xs tracking-wider">
+                      {genome.sequence.slice(0, 16).split("").map((char, i) => (
+                        <span key={i} style={{ color: hexPalette[char.toLowerCase()] || "#fff" }}>
+                          {char}
+                        </span>
+                      ))}
+                      <span className="text-text-muted">…</span>
+                    </p>
+                  </div>
+                </Link>
+              ))}
             </div>
           </section>
 
@@ -403,22 +517,44 @@ export default async function AgentPage({ params }: AgentPageProps) {
             </div>
           </section>
 
-          {/* Timeline */}
+          {/* Verification History */}
           <section className="glass-panel p-6">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-text-muted mb-5">
-              Timeline
+              Verification History
             </h2>
             <div className="space-y-4">
-              <TimelineEvent
-                icon="✅"
-                label="Verified"
-                date={agent.verifiedAt}
-              />
-              <TimelineEvent
-                icon="🔗"
-                label="Created"
-                date={agent.createdAt}
-              />
+              {agent.recentVerifications.length === 0 && (
+                <p className="text-sm text-text-muted">No verification events yet.</p>
+              )}
+              {agent.recentVerifications.map((event) => (
+                <TimelineEvent
+                  key={event.id}
+                  icon={event.status === "verified" ? "✅" : event.status === "failed" ? "⚠️" : "🧬"}
+                  label={`${event.status.replace(/_/g, " ")} · Block #${formatNumber(event.blockHeight)}`}
+                  date={event.completedAt ?? event.startedAt}
+                />
+              ))}
+            </div>
+          </section>
+
+          {/* Badges */}
+          <section className="glass-panel p-6">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-text-muted mb-4">
+              Badges
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {agent.badges.length === 0 && (
+                <span className="text-sm text-text-muted">No badges earned yet.</span>
+              )}
+              {agent.badges.map((badge) => (
+                <span
+                  key={badge}
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-primary/40 px-3 py-1 text-xs text-text-secondary"
+                >
+                  <span>{badgeIcons[badge] ?? "🏷️"}</span>
+                  {badge}
+                </span>
+              ))}
             </div>
           </section>
 
@@ -439,6 +575,12 @@ export default async function AgentPage({ params }: AgentPageProps) {
 
           {/* Quick Links */}
           <section className="glass-panel p-5 space-y-2">
+            <Link
+              href={`/verify?agent=${agent.id}`}
+              className="flex items-center justify-center gap-2 w-full rounded-lg bg-accent-cyan/15 border border-accent-cyan/40 px-4 py-2.5 text-sm font-medium text-accent-cyan hover:bg-accent-cyan/25 hover:border-accent-cyan/60 glow-cyan transition-all"
+            >
+              ⚔️ Challenge This Agent
+            </Link>
             <Link
               href={`/block/${agent.blockHeight}`}
               className="flex items-center justify-center gap-2 w-full rounded-lg bg-bitcoin/10 border border-bitcoin/30 px-4 py-2.5 text-sm font-medium text-bitcoin hover:bg-bitcoin/20 transition-all"
@@ -496,6 +638,23 @@ function TrustScoreRing({ score }: { score: number }) {
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-2xl font-bold text-gradient-cyan-purple">{score}</span>
         <span className="text-[10px] text-text-muted uppercase tracking-wider">Trust</span>
+      </div>
+    </div>
+  );
+}
+
+function TrustScoreBar({ score }: { score: number }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-text-muted mb-2">
+        <span>Trust Meter</span>
+        <span>{score}/100</span>
+      </div>
+      <div className="h-2 rounded-full bg-bg-tertiary/60 border border-border overflow-hidden">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-accent-cyan to-accent-purple trust-bar-fill"
+          style={{ width: `${score}%` }}
+        />
       </div>
     </div>
   );

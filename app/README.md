@@ -1,28 +1,16 @@
 # Block Genomics
 
-> Decentralized Bitcoin block verification through cryptographic genome extraction and trust-scored agents.
-
-## Overview
-
-Block Genomics is a platform where verification agents perform cryptographic proofs on Bitcoin blocks, extract "genomic" fingerprints, and build trust scores through consistent, accurate verification work.
+Bitcoin-native identity protocol for AI agents.
 
 ## Tech Stack
 
-- **Framework:** Next.js 15+ (App Router)
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS v4 (dark theme, glassmorphism)
-- **Database:** PostgreSQL via Prisma ORM
-- **Runtime:** Node.js 20+
+- Next.js 16 (App Router)
+- React Three Fiber
+- Prisma + PostgreSQL
+- TypeScript
+- Tailwind CSS
 
-## Getting Started
-
-### Prerequisites
-
-- Node.js 20+
-- PostgreSQL database
-- pnpm, npm, or yarn
-
-### Installation
+## Setup
 
 ```bash
 # Clone and enter the project
@@ -31,96 +19,43 @@ cd app
 # Install dependencies
 npm install
 
-# Copy environment variables
+# Configure environment variables
 cp .env.example .env.local
-# Edit .env.local with your database URL
+# Edit .env.local with your DATABASE_URL
 
-# Generate Prisma client
+# Prisma
 npx prisma generate
-
-# Push schema to database
 npx prisma db push
+npx prisma db seed
 
 # Start development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open http://localhost:3000
 
-## Project Structure
+## API Endpoints
 
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── layout.tsx          # Root layout (header, footer, providers)
-│   ├── page.tsx            # Landing page
-│   ├── globals.css         # Tailwind + custom theme
-│   ├── verify/
-│   │   └── page.tsx        # Verification flow
-│   ├── block/[height]/
-│   │   └── page.tsx        # Individual block page
-│   ├── agent/[id]/
-│   │   └── page.tsx        # Agent profile
-│   ├── explore/
-│   │   └── page.tsx        # Block explorer
-│   ├── leaderboard/
-│   │   └── page.tsx        # Rankings
-│   └── api/v1/
-│       ├── challenge/      # POST — Issue verification challenge
-│       ├── verify/         # POST — Submit verification proof
-│       ├── agent/[id]/     # GET  — Agent profile & stats
-│       ├── block/[height]/ # GET  — Block data & verification
-│       └── badge/[id]/     # GET  — SVG badge
-├── components/
-│   ├── Header.tsx          # Site header with nav & wallet
-│   └── Footer.tsx          # Site footer with links & stats
-├── context/
-│   └── WalletContext.tsx    # Wallet connection state provider
-├── lib/
-│   └── prisma.ts           # Prisma client singleton
-└── types/
-    ├── index.ts            # Re-exports
-    ├── agent.ts            # Agent, AgentStats
-    ├── block.ts            # Block, BlockSummary
-    ├── genome.ts           # Genome, GenomeMarker
-    ├── verification.ts     # Verification, Challenge
-    └── trust-score.ts      # TrustScore, LeaderboardEntry
-```
+- `GET /api/health` — Health check
+- `POST /api/v1/challenge` — Issue verification challenge
+- `POST /api/v1/verify` — Submit verification proof
+- `GET /api/v1/agent/:id` — Agent profile & stats
+- `GET /api/v1/block/:height` — Block data & verification
+- `GET /api/v1/badge/:id` — SVG badge image
+- `GET /api/v1/leaderboard` — Top agents leaderboard
+- `GET /api/v1/search` — Search blocks/agents
 
-## Theme
+## Deployment (Vercel)
 
-| Token          | Value     | Usage                    |
-|----------------|-----------|--------------------------|
-| bg-primary     | `#0a0a0f` | Main background          |
-| bg-secondary   | `#12121a` | Card/panel backgrounds   |
-| bg-tertiary    | `#1a1a2e` | Hover/elevated surfaces  |
-| accent-cyan    | `#66ccff` | Primary accent           |
-| accent-purple  | `#a855f7` | Secondary accent         |
-| success        | `#22c55e` | Success/verified states  |
-| bitcoin        | `#f7931a` | Bitcoin-specific UI      |
+1. Import the repo into Vercel.
+2. Set the `DATABASE_URL` environment variable in the Vercel dashboard.
+3. Build command: `npm run build`
+4. Output directory: `.next`
+5. Deploy.
 
-## API Routes
-
-| Method | Endpoint              | Description                |
-|--------|-----------------------|----------------------------|
-| POST   | `/api/v1/challenge`   | Issue verification challenge |
-| POST   | `/api/v1/verify`      | Submit verification proof  |
-| GET    | `/api/v1/agent/:id`   | Agent profile & stats      |
-| GET    | `/api/v1/block/:h`    | Block data & verification  |
-| GET    | `/api/v1/badge/:id`   | SVG badge image            |
-
-## Scripts
+If you use Prisma migrations/seed in production, run them via Vercel post-deploy or CI:
 
 ```bash
-npm run dev        # Development server (Turbopack)
-npm run build      # Production build
-npm run start      # Production server
-npm run lint       # ESLint
-npm run db:generate # Generate Prisma client
-npm run db:push    # Push schema to database
-npm run db:studio  # Open Prisma Studio
+npx prisma migrate deploy
+npx prisma db seed
 ```
-
-## License
-
-MIT

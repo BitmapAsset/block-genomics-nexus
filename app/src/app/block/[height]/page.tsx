@@ -3,13 +3,11 @@ import Link from "next/link";
 import {
   genomeToDNA,
   genomeToColors,
-  hexPairToColor,
   formatBlockTime,
   formatRelativeTime,
   truncateHash,
   formatBytes,
   formatNumber,
-  formatWeight,
   parseGenomeTraits,
   dnaBaseColor,
 } from "@/lib/genome-utils";
@@ -21,6 +19,37 @@ import CopyButton from "./copy-button";
 
 interface BlockPageProps {
   params: Promise<{ height: string }>;
+}
+
+const hexPalette: Record<string, string> = {
+  "0": "#ff0055",
+  "1": "#ff3366",
+  "2": "#ff6633",
+  "3": "#ffaa00",
+  "4": "#ccff00",
+  "5": "#66ff33",
+  "6": "#00ff99",
+  "7": "#00ffcc",
+  "8": "#00ccff",
+  "9": "#0099ff",
+  a: "#3366ff",
+  b: "#6633ff",
+  c: "#9933ff",
+  d: "#cc33ff",
+  e: "#ff33cc",
+  f: "#ff3399",
+};
+
+const eraBadges = [
+  { label: "Genesis", min: 0, max: 209999, className: "bg-bitcoin/15 border-bitcoin/40 text-bitcoin" },
+  { label: "Halving I", min: 210000, max: 419999, className: "bg-accent-cyan/15 border-accent-cyan/40 text-accent-cyan" },
+  { label: "Halving II", min: 420000, max: 629999, className: "bg-accent-purple/15 border-accent-purple/40 text-accent-purple" },
+  { label: "Halving III", min: 630000, max: 839999, className: "bg-success/15 border-success/40 text-success" },
+  { label: "Halving IV", min: 840000, max: Number.POSITIVE_INFINITY, className: "bg-emerald-400/15 border-emerald-400/40 text-emerald-300" },
+];
+
+function getEraBadge(height: number) {
+  return eraBadges.find((era) => height >= era.min && height <= era.max) ?? eraBadges[0];
 }
 
 // ─── Data fetching ─────────────────────────────────────────────────────────
@@ -93,6 +122,9 @@ async function fetchBlock(height: number): Promise<BlockResponse | null> {
       txCount: block.txCount,
       size: block.size,
       weight: block.weight,
+      difficulty: block.difficulty,
+      nonce: block.nonce,
+      merkleRoot: block.merkleRoot,
       genome: block.genome?.sequence ?? null,
       genomeVersion: block.genome ? 1 : 0,
       verified: block.verificationStatus === "verified",
@@ -136,9 +168,23 @@ export default async function BlockPage({ params }: BlockPageProps) {
   const colors = genome ? genomeToColors(genome) : null;
   const traits = genome ? parseGenomeTraits(genome) : null;
   const agent = block.agent;
+  const era = getEraBadge(block.height);
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
+      {/* ─── Breadcrumb ──────────────────────────────────────── */}
+      <nav className="text-xs text-text-muted mb-6 flex flex-wrap items-center gap-2">
+        <Link href="/" className="hover:text-text-primary transition-colors">
+          Home
+        </Link>
+        <span>›</span>
+        <Link href="/explore" className="hover:text-text-primary transition-colors">
+          Explore
+        </Link>
+        <span>›</span>
+        <span className="text-text-secondary font-mono">Block #{formatNumber(block.height)}</span>
+      </nav>
+
       {/* ─── Block Header ──────────────────────────────────────── */}
       <div className="mb-10">
         <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -147,15 +193,32 @@ export default async function BlockPage({ params }: BlockPageProps) {
             <span className="text-gradient-cyan-purple">Block</span>{" "}
             <span className="font-mono">#{formatNumber(block.height)}</span>
           </h1>
+          <span className={`rounded-full border px-3 py-0.5 text-xs font-medium ${era.className}`}>
+            {era.label}
+          </span>
           <StatusBadge verified={block.verified} />
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-muted font-mono">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-text-muted font-mono">
           <span className="break-all">{block.hash}</span>
           {genome && <CopyButton text={block.hash} label="hash" />}
         </div>
         <p className="text-sm text-text-secondary mt-2">
           Mined {formatBlockTime(block.timestamp)} · {formatRelativeTime(block.timestamp)}
         </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link
+            href={`/verify?block=${blockHeight}`}
+            className="inline-flex items-center gap-2 rounded-lg bg-accent-cyan/15 border border-accent-cyan/40 px-5 py-2.5 text-sm font-medium text-accent-cyan hover:bg-accent-cyan/25 hover:border-accent-cyan/60 glow-cyan transition-all"
+          >
+            🧬 Verify This Block
+          </Link>
+          <Link
+            href="/nexus"
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
+          >
+            🌌 View on Nexus
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -167,12 +230,12 @@ export default async function BlockPage({ params }: BlockPageProps) {
               Block Data
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <DataCell label="Height" value={formatNumber(block.height)} mono />
+              <DataCell label="Timestamp" value={formatBlockTime(block.timestamp)} />
               <DataCell label="Transactions" value={formatNumber(block.txCount)} />
               <DataCell label="Size" value={formatBytes(block.size)} />
-              <DataCell label="Weight" value={formatWeight(block.weight)} />
-              <DataCell label="Timestamp" value={formatBlockTime(block.timestamp)} />
-              <DataCell label="Genome Version" value={block.genomeVersion ? `v${block.genomeVersion}` : "—"} />
+              <DataCell label="Difficulty" value={formatNumber(Math.round(block.difficulty))} />
+              <DataCell label="Nonce" value={formatNumber(block.nonce)} mono />
+              <DataCell label="Merkle Root" value={truncateHash(block.merkleRoot, 10)} mono />
             </div>
           </section>
 
@@ -192,9 +255,7 @@ export default async function BlockPage({ params }: BlockPageProps) {
                       key={i}
                       className="inline-block genome-char-reveal"
                       style={{
-                        color: hexPairToColor(
-                          genome.slice(Math.floor(i / 2) * 2, Math.floor(i / 2) * 2 + 2)
-                        ),
+                        color: hexPalette[char.toLowerCase()] || "#ffffff",
                         animationDelay: `${i * 15}ms`,
                       }}
                     >
@@ -288,6 +349,9 @@ export default async function BlockPage({ params }: BlockPageProps) {
               <div className="text-center">
                 {/* Trust Score Ring */}
                 <TrustScoreRing score={agent.trustScore} />
+                <div className="mt-4">
+                  <TrustScoreBar score={agent.trustScore} />
+                </div>
 
                 <p className="text-sm text-text-secondary mt-4 mb-1">
                   Verified by
@@ -468,6 +532,23 @@ function TrustScoreRing({ score }: { score: number }) {
         <span className="text-[10px] text-text-muted uppercase tracking-wider">
           Trust
         </span>
+      </div>
+    </div>
+  );
+}
+
+function TrustScoreBar({ score }: { score: number }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-text-muted mb-2">
+        <span>Trust Meter</span>
+        <span>{score}/100</span>
+      </div>
+      <div className="h-2 rounded-full bg-bg-tertiary/60 border border-border overflow-hidden">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-accent-cyan to-accent-purple trust-bar-fill"
+          style={{ width: `${score}%` }}
+        />
       </div>
     </div>
   );

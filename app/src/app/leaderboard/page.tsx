@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { formatNumber } from "@/lib/genome-utils";
 
 export const metadata: Metadata = {
   title: "Leaderboard — Block Genomics",
@@ -16,15 +18,30 @@ const tierColors: Record<string, string> = {
   unranked: "text-text-muted",
 };
 
-export default function LeaderboardPage() {
+function scoreTier(score: number) {
+  if (score >= 97) return { label: "Genesis", color: tierColors.genesis };
+  if (score >= 90) return { label: "Diamond", color: tierColors.diamond };
+  if (score >= 75) return { label: "Platinum", color: tierColors.platinum };
+  if (score >= 55) return { label: "Gold", color: tierColors.gold };
+  if (score >= 30) return { label: "Silver", color: tierColors.silver };
+  if (score > 0) return { label: "Bronze", color: tierColors.bronze };
+  return { label: "Unranked", color: tierColors.unranked };
+}
+
+export default async function LeaderboardPage() {
+  const agents = await prisma.agent.findMany({
+    orderBy: { trustScore: "desc" },
+    take: 25,
+  });
+
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">
-          <span className="text-gradient-cyan-purple">Leaderboard</span>
+          <span className="text-gradient-cyan-purple">Top Verified Agents</span>
         </h1>
         <p className="mt-2 text-text-secondary">
-          Top verification agents ranked by trust score and performance.
+          See the strongest verifiers shaping Bitcoin’s block genome registry.
         </p>
       </div>
 
@@ -50,29 +67,80 @@ export default function LeaderboardPage() {
         <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-border text-xs font-semibold uppercase tracking-wider text-text-muted">
           <div className="col-span-1">Rank</div>
           <div className="col-span-4">Agent</div>
-          <div className="col-span-2 text-right">Trust Score</div>
+          <div className="col-span-3 text-right">Trust Score</div>
           <div className="col-span-2 text-right">Tier</div>
           <div className="col-span-2 text-right">Verifications</div>
-          <div className="col-span-1 text-right">Streak</div>
         </div>
 
-        {/* Empty state */}
-        <div className="px-6 py-16 text-center">
-          <div className="text-4xl mb-3">🏆</div>
-          <h3 className="text-sm font-semibold text-text-primary mb-1">
-            No agents ranked yet
-          </h3>
-          <p className="text-xs text-text-muted max-w-sm mx-auto">
-            Be the first to verify blocks and claim your spot on the
-            leaderboard. Connect your wallet to get started.
-          </p>
-          <Link
-            href="/verify"
-            className="inline-flex items-center gap-1 mt-4 text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors"
-          >
-            Start verifying →
-          </Link>
-        </div>
+        {agents.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <div className="text-4xl mb-3">🏆</div>
+            <h3 className="text-sm font-semibold text-text-primary mb-1">
+              No agents ranked yet
+            </h3>
+            <p className="text-xs text-text-muted max-w-sm mx-auto">
+              Be the first to verify blocks and claim your spot on the
+              leaderboard. Connect your wallet to get started.
+            </p>
+            <Link
+              href="/verify"
+              className="inline-flex items-center gap-1 mt-4 text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors"
+            >
+              Start verifying →
+            </Link>
+          </div>
+        ) : (
+          <div className="divide-y divide-border/60">
+            {agents.map((agent, index) => {
+              const rank = index + 1;
+              const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+              const tier = scoreTier(Math.round(agent.trustScore));
+              const successRate = agent.totalVerifications
+                ? Math.round((agent.successfulVerifications / agent.totalVerifications) * 100)
+                : 0;
+
+              return (
+                <div
+                  key={agent.id}
+                  className="grid grid-cols-12 gap-4 px-6 py-4 text-sm hover:bg-bg-primary/40 transition-colors"
+                >
+                  <div className="col-span-1 font-mono text-text-muted">
+                    <span className="mr-1">{rank}</span>
+                    {medal && <span>{medal}</span>}
+                  </div>
+                  <div className="col-span-4">
+                    <Link
+                      href={`/agent/${agent.id}`}
+                      className="font-medium text-text-primary hover:text-accent-cyan transition-colors"
+                    >
+                      {agent.displayName || `Agent ${agent.id.slice(0, 6)}`}
+                    </Link>
+                    <p className="text-xs text-text-muted">
+                      {successRate}% success · {formatNumber(agent.totalVerifications)} verifications
+                    </p>
+                  </div>
+                  <div className="col-span-3 text-right">
+                    <div className="text-sm font-semibold text-text-primary">
+                      {Math.round(agent.trustScore)}
+                    </div>
+                    <div className="mt-1 h-2 rounded-full bg-bg-tertiary/60 border border-border overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-accent-cyan to-accent-purple trust-bar-fill"
+                        style={{ width: `${Math.min(100, Math.round(agent.trustScore))}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className={`col-span-2 text-right font-medium ${tier.color}`}>
+                    {tier.label}
+                  </div>
+                  <div className="col-span-2 text-right text-text-secondary">
+                    {formatNumber(agent.totalVerifications)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Legend */}

@@ -29,6 +29,9 @@ export interface BlockResponse {
   txCount: number;
   size: number;
   weight: number;
+  difficulty: number;
+  nonce: number;
+  merkleRoot: string;
   genome: string | null;
   genomeVersion: number;
   verified: boolean;
