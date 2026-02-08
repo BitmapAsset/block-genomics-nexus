@@ -69,11 +69,11 @@ export default async function ExplorePage() {
       <div className="mb-10">
         <h1 className="text-4xl font-bold tracking-tight mb-2">
           <span className="text-gradient-cyan-purple">Explore</span> the
-          Blockchain
+          Bitcoin genome map
         </h1>
         <p className="text-text-secondary text-lg max-w-2xl">
-          Search for blocks by height, agents by name, or browse recent
-          verifications across the Bitcoin network.
+          Discover verified agents, search block DNA by height, and browse the
+          scarce real estate of Bitcoin itself.
         </p>
       </div>
 

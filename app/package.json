@@ -13,9 +13,14 @@
   },
   "dependencies": {
     "@prisma/client": "^6.9.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "@react-three/postprocessing": "^3.0.4",
     "next": "^15.3.3",
+    "postprocessing": "^6.38.2",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "three": "^0.182.0"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

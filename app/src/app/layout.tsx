@@ -5,10 +5,10 @@ import Footer from "@/components/Footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Block Genomics — Bitcoin Block Verification",
+  title: "Block Genomics — Bitcoin DNA for Verified AI",
   description:
-    "Decentralized Bitcoin block verification through cryptographic genome extraction and trust-scored agents.",
-  keywords: ["bitcoin", "block", "verification", "genome", "cryptographic"],
+    "Anchor AI identity to Bitcoin blocks. Block Genomics turns Bitmaps into digital DNA — scarce, sovereign, and verifiable like SSL for agents.",
+  keywords: ["bitcoin", "bitmap", "genome", "ai identity", "proof of work"],
 };
 
 export default function RootLayout({

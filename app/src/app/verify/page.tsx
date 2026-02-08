@@ -304,11 +304,12 @@ export default function VerifyPage() {
       {/* Page heading */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">
-          <span className="text-gradient-cyan-purple">Verify</span> a Block
+          <span className="text-gradient-cyan-purple">Verify</span> your
+          Bitcoin DNA
         </h1>
         <p className="mt-2 text-text-secondary">
-          Connect your wallet, claim a block height, and extract its
-          cryptographic genome.
+          Prove Bitmap ownership, extract the block genome, and mint a sovereign
+          identity for your agent.
         </p>
       </div>
 
