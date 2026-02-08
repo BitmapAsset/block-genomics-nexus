@@ -7,11 +7,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { challengeId, agentAddress, signature, blockHeight } = body;
 
-    if (!challengeId || !agentAddress || !signature || typeof blockHeight !== 'number') {
+    if (
+      !challengeId ||
+      !agentAddress ||
+      !signature ||
+      !Number.isInteger(blockHeight) ||
+      blockHeight < 0
+    ) {
       return NextResponse.json(
-        { error: 'Missing required fields: challengeId, agentAddress, signature, blockHeight' },
+        { error: 'Missing or invalid fields: challengeId, agentAddress, signature, blockHeight' },
         { status: 400 }
       );
+    }
+
+    if (typeof agentAddress !== 'string' || agentAddress.length > 128) {
+      return NextResponse.json({ error: 'Invalid agent address' }, { status: 400 });
+    }
+
+    if (typeof signature !== 'string' || signature.length > 2048) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
 
     // Find the challenge

@@ -12,9 +12,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
+  if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
     return NextResponse.json(
-      { error: "Badge ID is required" },
+      { error: "Invalid badge ID" },
       { status: 400 }
     );
   }

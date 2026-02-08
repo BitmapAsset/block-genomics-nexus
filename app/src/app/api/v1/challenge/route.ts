@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { blockHeight } = body;
 
-    if (typeof blockHeight !== 'number' || blockHeight < 0) {
+    if (!Number.isInteger(blockHeight) || blockHeight < 0) {
       return NextResponse.json({ error: 'Invalid block height' }, { status: 400 });
     }
 

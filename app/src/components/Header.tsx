@@ -7,6 +7,7 @@ import { useWallet, type WalletType } from "@/context/WalletContext";
 const navLinks = [
   { href: "/explore", label: "Explore" },
   { href: "/verify", label: "Verify" },
+  { href: "/nexus", label: "Nexus" },
   { href: "/leaderboard", label: "Leaderboard" },
 ];
 

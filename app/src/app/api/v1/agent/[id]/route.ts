@@ -8,6 +8,10 @@ export async function GET(
   try {
     const { id } = await params;
 
+    if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
+      return NextResponse.json({ error: 'Invalid agent id' }, { status: 400 });
+    }
+
     const agent = await prisma.agent.findUnique({
       where: { id },
       include: {

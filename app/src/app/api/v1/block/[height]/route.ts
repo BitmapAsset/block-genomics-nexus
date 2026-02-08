@@ -7,9 +7,9 @@ export async function GET(
 ) {
   try {
     const { height } = await params;
-    const blockHeight = parseInt(height, 10);
+    const blockHeight = Number.parseInt(height, 10);
 
-    if (isNaN(blockHeight) || blockHeight < 0) {
+    if (!Number.isInteger(blockHeight) || blockHeight < 0) {
       return NextResponse.json({ error: 'Invalid block height' }, { status: 400 });
     }
 

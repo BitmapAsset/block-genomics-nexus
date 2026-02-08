@@ -4,13 +4,24 @@ import { prisma } from "@/lib/prisma";
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get("q")?.trim() ?? "";
+    const rawQuery = searchParams.get("q")?.trim() ?? "";
     const limitParam = Number(searchParams.get("limit") ?? 10);
-    const limit = Number.isFinite(limitParam) ? Math.max(1, limitParam) : 10;
+    const limit = Number.isFinite(limitParam)
+      ? Math.min(Math.max(1, limitParam), 50)
+      : 10;
 
-    if (!query) {
-      return NextResponse.json({ query, count: 0, results: [] });
+    if (!rawQuery) {
+      return NextResponse.json({ query: "", count: 0, results: [] });
     }
+
+    if (rawQuery.length > 100) {
+      return NextResponse.json(
+        { error: "Query too long" },
+        { status: 400 }
+      );
+    }
+
+    const query = rawQuery.replace(/[\u0000-\u001F\u007F]/g, "");
 
     type SearchResult = {
       type: "agent" | "block";
