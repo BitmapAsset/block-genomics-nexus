@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import CopyButton from "./copy-button";
 import BadgeEmbed from "./badge-embed";
+import DNAHeroClient from "./dna-hero-client";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -347,6 +348,11 @@ export default async function AgentPage({ params }: AgentPageProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ─── Left Column ───────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-6">
+          {/* DNA Visualizer */}
+          <section className="glass-panel p-4 overflow-hidden rounded-xl">
+            <DNAHeroClient genomeHash={agent.genome} state="verified" height="280px" />
+          </section>
+
           {/* Genome Hash */}
           <section className="glass-panel p-6">
             <div className="flex items-center justify-between mb-4">

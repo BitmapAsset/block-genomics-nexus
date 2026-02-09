@@ -13,6 +13,7 @@ import {
 } from "@/lib/genome-utils";
 import { prisma } from "@/lib/prisma";
 import type { AgentPublic, BlockResponse } from "./types";
+import DNAHeroClient from "./dna-hero-client";
 import CopyButton from "./copy-button";
 
 // ─── Types (matching API server response) ──────────────────────────────────
@@ -238,6 +239,13 @@ export default async function BlockPage({ params }: BlockPageProps) {
               <DataCell label="Merkle Root" value={truncateHash(block.merkleRoot, 10)} mono />
             </div>
           </section>
+
+          {/* DNA Visualizer */}
+          {genome && (
+            <section className="glass-panel p-4 overflow-hidden rounded-xl mb-6">
+              <DNAHeroClient genomeHash={genome} state="verified" height="280px" />
+            </section>
+          )}
 
           {/* Genome Hash Visualization */}
           {genome && (
