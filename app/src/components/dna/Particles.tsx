@@ -6,9 +6,8 @@ import * as THREE from 'three';
 import { DNAState } from '../DNAVisualizer';
 
 const palette = [
-  '#ff0055', '#ff3366', '#ff6633', '#ffaa00', '#ccff00', '#66ff33',
-  '#00ff99', '#00ffcc', '#00ccff', '#0099ff', '#3366ff', '#6633ff',
-  '#9933ff', '#cc33ff', '#ff33cc', '#ff3399',
+  '#f7931a', '#ffb347', '#ffd27d', '#ffcc66', '#ffae42', '#f7b267',
+  '#f6d285', '#ff9f1c', '#f4a261', '#f6c177', '#f7c97f', '#ffb454',
 ];
 
 interface ParticlesProps {
@@ -119,7 +118,7 @@ const Particles: React.FC<ParticlesProps> = ({ state, particleCount = 200 }) => 
         </bufferGeometry>
         <pointsMaterial
           size={0.15}
-          color="#00ff66"
+          color="#f6c177"
           transparent
           opacity={0}
           blending={THREE.AdditiveBlending}

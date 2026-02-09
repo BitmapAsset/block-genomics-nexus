@@ -5,219 +5,337 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { DNAState } from '../DNAVisualizer';
 
-const colorPalette: Record<string, string> = {
-  '0': '#ff0055',
-  '1': '#ff3366',
-  '2': '#ff6633',
-  '3': '#ffaa00',
-  '4': '#ccff00',
-  '5': '#66ff33',
-  '6': '#00ff99',
-  '7': '#00ffcc',
-  '8': '#00ccff',
-  '9': '#0099ff',
-  a: '#3366ff',
-  b: '#6633ff',
-  c: '#9933ff',
-  d: '#cc33ff',
-  e: '#ff33cc',
-  f: '#ff3399',
-};
-
 interface HelixProps {
   genomeHash: string;
   state: DNAState;
 }
 
-const cubeSize = 2.5;
+const cubeSize = 3.2;
+const voxelGrid = 8;
+const voxelsPerSide = voxelGrid - 1;
+const rayCount = 22;
+const agentPool = 18;
+const loopDuration = 15;
+
+const hexToColor = (hex: string) => new THREE.Color(hex);
 
 const Helix: React.FC<HelixProps> = ({ genomeHash, state }) => {
-  const cubeRef = useRef<THREE.Mesh>(null);
-  const coreRef = useRef<THREE.Mesh>(null);
-  const streamRefs = useRef<THREE.Mesh[]>([]);
+  const groupRef = useRef<THREE.Group>(null);
+  const voxelRef = useRef<THREE.InstancedMesh>(null);
+  const helixRef = useRef<THREE.Group>(null);
+  const raysRef = useRef<THREE.LineSegments>(null);
+  const agentRefs = useRef<THREE.Sprite[]>([]);
+  const agentBadges = useRef<THREE.Sprite[]>([]);
 
   const hash = genomeHash.toLowerCase();
 
-  const gridGeometry = useMemo(() => {
-    const divisions = 6;
+  const { voxelTransforms, voxelCount } = useMemo(() => {
     const half = cubeSize / 2;
-    const positions: number[] = [];
+    const step = cubeSize / (voxelGrid - 1);
+    const transforms: THREE.Matrix4[] = [];
 
-    const addLine = (a: THREE.Vector3, b: THREE.Vector3) => {
-      positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
-    };
-
-    const addFaceGrid = (normal: 'x' | 'y' | 'z', sign: 1 | -1) => {
-      for (let i = 0; i <= divisions; i += 1) {
-        const t = (i / divisions - 0.5) * cubeSize;
-        if (normal === 'x') {
-          addLine(new THREE.Vector3(sign * half, t, -half), new THREE.Vector3(sign * half, t, half));
-          addLine(new THREE.Vector3(sign * half, -half, t), new THREE.Vector3(sign * half, half, t));
-        }
-        if (normal === 'y') {
-          addLine(new THREE.Vector3(-half, sign * half, t), new THREE.Vector3(half, sign * half, t));
-          addLine(new THREE.Vector3(t, sign * half, -half), new THREE.Vector3(t, sign * half, half));
-        }
-        if (normal === 'z') {
-          addLine(new THREE.Vector3(-half, t, sign * half), new THREE.Vector3(half, t, sign * half));
-          addLine(new THREE.Vector3(t, -half, sign * half), new THREE.Vector3(t, half, sign * half));
+    for (let x = 0; x < voxelGrid; x += 1) {
+      for (let y = 0; y < voxelGrid; y += 1) {
+        for (let z = 0; z < voxelGrid; z += 1) {
+          const isEdge =
+            x === 0 || y === 0 || z === 0 || x === voxelsPerSide || y === voxelsPerSide || z === voxelsPerSide;
+          if (!isEdge) continue;
+          const px = -half + x * step;
+          const py = -half + y * step;
+          const pz = -half + z * step;
+          const matrix = new THREE.Matrix4();
+          matrix.setPosition(px, py, pz);
+          transforms.push(matrix);
         }
       }
+    }
+
+    return { voxelTransforms: transforms, voxelCount: transforms.length };
+  }, []);
+
+  const voxelColors = useMemo(() => {
+    const colors = new Float32Array(voxelCount * 3);
+    for (let i = 0; i < voxelCount; i += 1) {
+      const t = (i % 9) / 9;
+      const color = new THREE.Color().lerpColors(hexToColor('#F7931A'), hexToColor('#FFD28A'), t);
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
+    }
+    return colors;
+  }, [voxelCount]);
+
+  const helixCurves = useMemo(() => {
+    const pointsA: THREE.Vector3[] = [];
+    const pointsB: THREE.Vector3[] = [];
+    const length = 2.2;
+    const turns = 3.2;
+    for (let i = 0; i <= 220; i += 1) {
+      const t = i / 220;
+      const angle = t * Math.PI * 2 * turns;
+      const radius = 0.6 + Math.sin(t * Math.PI * 2) * 0.08;
+      const y = (t - 0.5) * length * 2.2;
+      pointsA.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
+      pointsB.push(new THREE.Vector3(Math.cos(angle + Math.PI) * radius, y, Math.sin(angle + Math.PI) * radius));
+    }
+    return {
+      curveA: new THREE.CatmullRomCurve3(pointsA),
+      curveB: new THREE.CatmullRomCurve3(pointsB),
     };
+  }, []);
 
-    addFaceGrid('x', 1);
-    addFaceGrid('x', -1);
-    addFaceGrid('y', 1);
-    addFaceGrid('y', -1);
-    addFaceGrid('z', 1);
-    addFaceGrid('z', -1);
+  const helixColors = useMemo(() => {
+    const palette = hash.padEnd(16, '0').slice(0, 16).split('');
+    return palette.map((h) => new THREE.Color(`#${h}${h}ff${h}${h}`));
+  }, [hash]);
 
+  const rayData = useMemo(() => {
+    const dirs: THREE.Vector3[] = [];
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < rayCount; i += 1) {
+      const y = 1 - (i / (rayCount - 1)) * 2;
+      const radius = Math.sqrt(1 - y * y);
+      const theta = golden * i;
+      dirs.push(new THREE.Vector3(Math.cos(theta) * radius, y, Math.sin(theta) * radius));
+    }
+    return dirs;
+  }, []);
+
+  const rayGeometry = useMemo(() => {
+    const positions = new Float32Array(rayCount * 2 * 3);
+    rayData.forEach((dir, i) => {
+      positions[i * 6] = 0;
+      positions[i * 6 + 1] = 0;
+      positions[i * 6 + 2] = 0;
+      positions[i * 6 + 3] = dir.x * 6;
+      positions[i * 6 + 4] = dir.y * 6;
+      positions[i * 6 + 5] = dir.z * 6;
+    });
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     return geometry;
-  }, []);
+  }, [rayData]);
 
-  const bitcoinTexture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    ctx.clearRect(0, 0, 256, 256);
-    ctx.fillStyle = 'rgba(0,0,0,0)';
-    ctx.fillRect(0, 0, 256, 256);
-    ctx.strokeStyle = 'rgba(255, 200, 80, 0.35)';
-    ctx.lineWidth = 6;
-    ctx.font = 'bold 180px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.strokeText('₿', 128, 140);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.needsUpdate = true;
-    return texture;
-  }, []);
-
-  const streams = useMemo(() => {
-    const streamCount = 16;
-    const half = cubeSize / 2;
-    const corners = [
-      new THREE.Vector3(-half, -half, -half),
-      new THREE.Vector3(half, -half, -half),
-      new THREE.Vector3(-half, half, -half),
-      new THREE.Vector3(half, half, -half),
-      new THREE.Vector3(-half, -half, half),
-      new THREE.Vector3(half, -half, half),
-      new THREE.Vector3(-half, half, half),
-      new THREE.Vector3(half, half, half),
-    ];
-
-    const getRand = (i: number) => {
-      const hex = hash[i % hash.length] || '0';
-      return parseInt(hex, 16) / 15;
+  const emojiTextures = useMemo(() => {
+    const makeEmoji = (emoji: string, tint: string) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.clearRect(0, 0, 256, 256);
+      ctx.fillStyle = 'rgba(0,0,0,0)';
+      ctx.fillRect(0, 0, 256, 256);
+      ctx.font = 'bold 140px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(emoji, 128, 132);
+      ctx.strokeStyle = tint;
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(128, 128, 90, 0, Math.PI * 2);
+      ctx.stroke();
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.needsUpdate = true;
+      return texture;
     };
 
-    return Array.from({ length: streamCount }).map((_, i) => {
-      const corner = corners[i % corners.length].clone();
-      const dir = corner.clone().normalize();
-      const jitter = new THREE.Vector3(
-        (getRand(i + 3) - 0.5) * 0.6,
-        (getRand(i + 7) - 0.5) * 0.6,
-        (getRand(i + 11) - 0.5) * 0.6
-      );
-      const end = corner.clone().add(dir.multiplyScalar(3.5 + getRand(i + 5) * 2)).add(jitter);
-      const mid1 = corner.clone().add(dir.clone().multiplyScalar(1.3)).add(jitter.clone().multiplyScalar(0.5));
-      const mid2 = corner.clone().add(dir.clone().multiplyScalar(2.4)).add(jitter.clone().multiplyScalar(0.8));
-      const curve = new THREE.CatmullRomCurve3([corner, mid1, mid2, end]);
-      const hexChar = hash[i % hash.length] || '0';
-      const color = new THREE.Color(colorPalette[hexChar] || '#ffffff');
-      return { curve, color, phase: getRand(i + 13) * Math.PI * 2 };
+    const badgeCanvas = document.createElement('canvas');
+    badgeCanvas.width = 128;
+    badgeCanvas.height = 128;
+    const badgeCtx = badgeCanvas.getContext('2d');
+    if (badgeCtx) {
+      badgeCtx.clearRect(0, 0, 128, 128);
+      badgeCtx.fillStyle = '#00ff99';
+      badgeCtx.beginPath();
+      badgeCtx.arc(64, 64, 46, 0, Math.PI * 2);
+      badgeCtx.fill();
+      badgeCtx.fillStyle = '#0a0a0f';
+      badgeCtx.font = 'bold 64px sans-serif';
+      badgeCtx.textAlign = 'center';
+      badgeCtx.textBaseline = 'middle';
+      badgeCtx.fillText('✓', 64, 70);
+    }
+    const badgeTexture = new THREE.CanvasTexture(badgeCanvas);
+    badgeTexture.needsUpdate = true;
+
+    return {
+      bot: makeEmoji('🤖', '#59c3ff'),
+      human: makeEmoji('👤', '#ffd36a'),
+      badge: badgeTexture,
+    };
+  }, []);
+
+  const agents = useMemo(() => {
+    return Array.from({ length: agentPool }).map((_, i) => {
+      const seed = (parseInt(hash[i % hash.length] || '0', 16) + 1) / 16;
+      return {
+        seed,
+        progress: Math.random(),
+        verified: false,
+        type: i % 2 === 0 ? 'bot' : 'human',
+      };
     });
   }, [hash]);
 
+  useEffect(() => {
+    if (!voxelRef.current) return;
+    voxelTransforms.forEach((matrix, i) => {
+      voxelRef.current!.setMatrixAt(i, matrix);
+    });
+    voxelRef.current.instanceMatrix.needsUpdate = true;
+    voxelRef.current.geometry.setAttribute('color', new THREE.InstancedBufferAttribute(voxelColors, 3));
+  }, [voxelTransforms, voxelColors]);
+
   useFrame(({ clock }) => {
     const time = clock.getElapsedTime();
-    if (coreRef.current) {
-      const basePulse = 1 + Math.sin(time * 2) * 0.08;
-      const boost = state === 'verifying' ? 0.12 : state === 'verified' ? 0.06 : 0.04;
-      coreRef.current.scale.setScalar(basePulse + boost);
-      const mat = coreRef.current.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = 2.2 + Math.sin(time * 3) * 0.6 + (state === 'verifying' ? 0.8 : 0.2);
+    const phase = time % loopDuration;
+    const assemble = THREE.MathUtils.smoothstep(phase, 0, 2);
+    const raysOn = THREE.MathUtils.smoothstep(phase, 2, 4);
+    const pulse = 1 + Math.sin(time * 2.8) * 0.08;
+
+    if (groupRef.current) {
+      groupRef.current.rotation.y += 0.0003;
     }
 
-    streamRefs.current.forEach((mesh, i) => {
-      const mat = mesh.material as THREE.MeshStandardMaterial;
-      mat.opacity = 0.55 + Math.sin(time * 2 + streams[i].phase) * 0.25;
-      mat.emissiveIntensity = 1.6 + Math.sin(time * 3 + streams[i].phase) * 0.6;
-    });
-
-    if (cubeRef.current) {
-      const mat = cubeRef.current.material as THREE.MeshStandardMaterial;
+    if (voxelRef.current) {
+      const mat = voxelRef.current.material as THREE.MeshStandardMaterial;
+      mat.opacity = 0.35 + Math.sin(time * 1.8) * 0.05;
       mat.emissiveIntensity = 0.6 + Math.sin(time * 1.2) * 0.2;
+      voxelRef.current.scale.setScalar(assemble);
     }
+
+    if (helixRef.current) {
+      helixRef.current.rotation.y += 0.004;
+      helixRef.current.rotation.x = Math.sin(time * 0.7) * 0.2;
+      helixRef.current.scale.setScalar(pulse);
+      helixRef.current.visible = phase > 1.2;
+    }
+
+    if (raysRef.current) {
+      const mat = raysRef.current.material as THREE.LineBasicMaterial;
+      mat.opacity = 0.2 + raysOn * 0.6 + Math.sin(time * 3 + 1) * 0.1;
+      raysRef.current.scale.setScalar(raysOn);
+    }
+
+    agentRefs.current.forEach((sprite, index) => {
+      const badge = agentBadges.current[index];
+      if (!sprite) return;
+      const agent = agents[index];
+      const progressSpeed = phase < 4 ? 0.0 : 0.003 + agent.seed * 0.004;
+      agent.progress += progressSpeed;
+      if (agent.progress > 1.2) {
+        agent.progress = -0.2;
+        agent.verified = false;
+      }
+
+      const dir = rayData[index % rayData.length].clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), agent.seed * Math.PI * 2);
+      const start = dir.clone().multiplyScalar(6 + agent.seed * 4);
+      const end = dir.clone().multiplyScalar(1.2);
+      const pos = start.lerp(end, Math.max(0, agent.progress));
+      sprite.position.copy(pos);
+
+      if (badge) {
+        badge.position.copy(pos.clone().add(new THREE.Vector3(0.6, 0.4, 0)));
+        badge.visible = agent.verified;
+      }
+
+      if (!agent.verified) {
+        const toCenter = pos.clone().normalize();
+        const closest = rayData.reduce((acc, dir) => {
+          const dot = dir.dot(toCenter);
+          return dot > acc ? dot : acc;
+        }, -1);
+        const material = sprite.material as THREE.SpriteMaterial;
+        if (closest > 0.92 && pos.length() < 4.2) {
+          agent.verified = true;
+          material.color = new THREE.Color('#3dff9e');
+          material.opacity = 1;
+        } else {
+          material.color = new THREE.Color(agent.type === 'bot' ? '#7bc8ff' : '#ffd36a');
+          material.opacity = 0.9;
+        }
+      }
+    });
   });
 
-  useEffect(() => {
-    streamRefs.current = streamRefs.current.slice(0, streams.length);
-  }, [streams.length]);
-
   return (
-    <group>
-      <mesh ref={cubeRef}>
-        <boxGeometry args={[cubeSize, cubeSize, cubeSize]} />
+    <group ref={groupRef}>
+      <instancedMesh ref={voxelRef} args={[undefined, undefined, voxelCount]}>
+        <boxGeometry args={[cubeSize / voxelGrid, cubeSize / voxelGrid, cubeSize / voxelGrid]} />
         <meshStandardMaterial
-          color="#0b1020"
-          metalness={0.6}
-          roughness={0.25}
-          emissive="#1b2a4a"
+          vertexColors
+          transparent
+          opacity={0.4}
+          roughness={0.3}
+          metalness={0.4}
+          emissive="#ff9b3b"
           emissiveIntensity={0.8}
-          transparent
-          opacity={0.72}
         />
-      </mesh>
+      </instancedMesh>
 
-      <lineSegments geometry={gridGeometry}>
-        <lineBasicMaterial color="#3a4a6a" transparent opacity={0.35} />
-      </lineSegments>
-
-      <mesh position={[0, 0, cubeSize / 2 + 0.01]}>
-        <planeGeometry args={[cubeSize * 0.8, cubeSize * 0.8]} />
-        <meshBasicMaterial
-          map={bitcoinTexture || undefined}
-          transparent
-          opacity={0.22}
-          color="#ffcc66"
-        />
-      </mesh>
-
-      <mesh ref={coreRef}>
-        <sphereGeometry args={[0.55, 32, 32]} />
-        <meshStandardMaterial
-          color="#52ffe8"
-          emissive="#6fffe6"
-          emissiveIntensity={2.4}
-          metalness={0.2}
-          roughness={0.2}
-          transparent
-          opacity={0.85}
-        />
-      </mesh>
-
-      {streams.map((stream, i) => (
-        <mesh
-          key={`stream-${i}`}
-          ref={(el) => {
-            if (el) streamRefs.current[i] = el;
-          }}
-        >
-          <tubeGeometry args={[stream.curve, 40, 0.05, 8, false]} />
+      <group ref={helixRef}>
+        <mesh>
+          <tubeGeometry args={[helixCurves.curveA, 280, 0.09, 12, false]} />
           <meshStandardMaterial
-            color={stream.color}
-            emissive={stream.color}
-            emissiveIntensity={1.4}
+            color={helixColors[2] || '#7dffe6'}
+            emissive={helixColors[4] || '#8ffff2'}
+            emissiveIntensity={2.6}
             transparent
-            opacity={0.7}
+            opacity={0.9}
           />
         </mesh>
+        <mesh>
+          <tubeGeometry args={[helixCurves.curveB, 280, 0.09, 12, false]} />
+          <meshStandardMaterial
+            color={helixColors[10] || '#ff7dff'}
+            emissive={helixColors[12] || '#ffb7ff'}
+            emissiveIntensity={2.6}
+            transparent
+            opacity={0.9}
+          />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[0.45, 28, 28]} />
+          <meshStandardMaterial
+            color="#9bfffe"
+            emissive="#9bfffe"
+            emissiveIntensity={3.2}
+            transparent
+            opacity={0.9}
+          />
+        </mesh>
+      </group>
+
+      <lineSegments ref={raysRef} geometry={rayGeometry}>
+        <lineBasicMaterial color="#7ff6ff" transparent opacity={0.5} />
+      </lineSegments>
+
+      {agents.map((agent, i) => (
+        <React.Fragment key={`agent-${i}`}>
+          <sprite
+            ref={(el) => {
+              if (el) agentRefs.current[i] = el;
+            }}
+            scale={[0.9, 0.9, 0.9]}
+          >
+            <spriteMaterial
+              map={agent.type === 'bot' ? emojiTextures.bot || undefined : emojiTextures.human || undefined}
+              transparent
+              opacity={0.85}
+              color={agent.type === 'bot' ? '#7bc8ff' : '#ffd36a'}
+            />
+          </sprite>
+          <sprite
+            ref={(el) => {
+              if (el) agentBadges.current[i] = el;
+            }}
+            scale={[0.4, 0.4, 0.4]}
+            visible={false}
+          >
+            <spriteMaterial map={emojiTextures.badge || undefined} transparent opacity={0.95} />
+          </sprite>
+        </React.Fragment>
       ))}
     </group>
   );
