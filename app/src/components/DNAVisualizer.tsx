@@ -19,19 +19,19 @@ interface DNAVisualizerProps {
 
 const Scene: React.FC<{ genomeHash: string; state: DNAState }> = ({ genomeHash, state }) => {
   const groupRef = useRef<THREE.Group>(null);
-  const currentSpeed = useRef(0.003);
-  const targetSpeed = useRef(0.003);
+  const currentSpeed = useRef(0.0005);
+  const targetSpeed = useRef(0.0005);
 
   useEffect(() => {
     switch (state) {
       case 'verifying':
-        targetSpeed.current = 0.015;
+        targetSpeed.current = 0.002;
         break;
       case 'verified':
-        targetSpeed.current = 0.0015;
+        targetSpeed.current = 0.001;
         break;
       default:
-        targetSpeed.current = 0.003;
+        targetSpeed.current = 0.0005;
     }
   }, [state]);
 
@@ -65,12 +65,13 @@ const DNAVisualizer: React.FC<DNAVisualizerProps> = ({
       >
         <color attach="background" args={['#0a0a0f']} />
         <fog attach="fog" args={['#0a0a0f', 0.02]} />
-        <PerspectiveCamera makeDefault fov={60} position={[0, 0, 15]} />
+        <PerspectiveCamera makeDefault fov={55} position={[0, 0.6, 9]} />
 
-        <ambientLight color="#222244" intensity={0.5} />
-        <directionalLight position={[10, 10, 10]} intensity={1} />
-        <pointLight color="#0066ff" intensity={2} distance={30} position={[-10, 5, 5]} />
-        <pointLight color="#ff0066" intensity={2} distance={30} position={[10, -5, 5]} />
+        <ambientLight color="#0f1222" intensity={0.6} />
+        <directionalLight position={[8, 10, 6]} intensity={1.2} color="#8fd3ff" />
+        <directionalLight position={[-6, -4, -8]} intensity={0.6} color="#ffb24a" />
+        <pointLight color="#6f9dff" intensity={1.6} distance={25} position={[-6, 4, 6]} />
+        <pointLight color="#ff8c3a" intensity={1.4} distance={25} position={[6, -4, 4]} />
 
         <Scene genomeHash={genomeHash} state={state} />
         <Effects state={state} />

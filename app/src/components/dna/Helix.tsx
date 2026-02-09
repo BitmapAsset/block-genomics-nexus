@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { DNAState } from '../DNAVisualizer';
@@ -16,240 +16,209 @@ const colorPalette: Record<string, string> = {
   '7': '#00ffcc',
   '8': '#00ccff',
   '9': '#0099ff',
-  'a': '#3366ff',
-  'b': '#6633ff',
-  'c': '#9933ff',
-  'd': '#cc33ff',
-  'e': '#ff33cc',
-  'f': '#ff3399',
+  a: '#3366ff',
+  b: '#6633ff',
+  c: '#9933ff',
+  d: '#cc33ff',
+  e: '#ff33cc',
+  f: '#ff3399',
 };
 
 interface HelixProps {
   genomeHash: string;
   state: DNAState;
-  basePairCount?: number;
-  helixRadius?: number;
-  helixHeight?: number;
 }
 
-const Helix: React.FC<HelixProps> = ({
-  genomeHash,
-  state,
-  basePairCount = 64,
-  helixRadius = 2,
-  helixHeight = 20,
-}) => {
-  const basePairRef = useRef<THREE.InstancedMesh>(null);
-  const backboneRef = useRef<THREE.InstancedMesh>(null);
-  const glowRef = useRef<THREE.InstancedMesh>(null);
-  const [hovered, setHovered] = useState<number | null>(null);
-  const verifiedStart = useRef<number | null>(null);
+const cubeSize = 2.5;
+
+const Helix: React.FC<HelixProps> = ({ genomeHash, state }) => {
+  const cubeRef = useRef<THREE.Mesh>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
+  const streamRefs = useRef<THREE.Mesh[]>([]);
 
   const hash = genomeHash.toLowerCase();
 
-  const { baseColors, basePairMatrices, backboneMatrices, glowMatrices } = useMemo(() => {
-    const colors: THREE.Color[] = [];
-    const bpMatrices: THREE.Matrix4[] = [];
-    const bbMatrices: THREE.Matrix4[] = [];
-    const gMatrices: THREE.Matrix4[] = [];
-    const obj = new THREE.Object3D();
+  const gridGeometry = useMemo(() => {
+    const divisions = 6;
+    const half = cubeSize / 2;
+    const positions: number[] = [];
 
-    for (let i = 0; i < basePairCount; i += 1) {
-      const t = i / basePairCount;
-      const y = (t - 0.5) * helixHeight;
-      const angle = t * Math.PI * 6;
-      const hexChar = hash[i % hash.length] || '0';
-      const color = new THREE.Color(colorPalette[hexChar] || '#ffffff');
-
-      const x1 = Math.cos(angle) * helixRadius;
-      const z1 = Math.sin(angle) * helixRadius;
-      const x2 = Math.cos(angle + Math.PI) * helixRadius;
-      const z2 = Math.sin(angle + Math.PI) * helixRadius;
-
-      const distance = Math.sqrt((x2 - x1) ** 2 + (z2 - z1) ** 2);
-      obj.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
-      obj.rotation.set(0, 0, 0);
-      obj.lookAt(x1, y, z1);
-      obj.rotateX(Math.PI / 2);
-      obj.scale.set(1, 1, distance / (helixRadius * 2));
-      obj.updateMatrix();
-      bpMatrices.push(obj.matrix.clone());
-      colors.push(color);
-
-      obj.position.set(x1, y, z1);
-      obj.rotation.set(0, 0, 0);
-      obj.scale.set(1, 1, 1);
-      obj.updateMatrix();
-      bbMatrices.push(obj.matrix.clone());
-      gMatrices.push(obj.matrix.clone());
-
-      obj.position.set(x2, y, z2);
-      obj.updateMatrix();
-      bbMatrices.push(obj.matrix.clone());
-      gMatrices.push(obj.matrix.clone());
-    }
-
-    return {
-      baseColors: colors,
-      basePairMatrices: bpMatrices,
-      backboneMatrices: bbMatrices,
-      glowMatrices: gMatrices,
+    const addLine = (a: THREE.Vector3, b: THREE.Vector3) => {
+      positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
     };
-  }, [basePairCount, helixHeight, helixRadius, hash]);
 
-  useEffect(() => {
-    if (!basePairRef.current) return;
-    basePairMatrices.forEach((m, i) => {
-      basePairRef.current!.setMatrixAt(i, m);
-    });
-    baseColors.forEach((c, i) => {
-      basePairRef.current!.setColorAt(i, c);
-    });
-    basePairRef.current.instanceMatrix.needsUpdate = true;
-    if (basePairRef.current.instanceColor) basePairRef.current.instanceColor.needsUpdate = true;
-  }, [basePairMatrices, baseColors]);
-
-  useEffect(() => {
-    if (!backboneRef.current || !glowRef.current) return;
-    backboneMatrices.forEach((m, i) => backboneRef.current!.setMatrixAt(i, m));
-    glowMatrices.forEach((m, i) => glowRef.current!.setMatrixAt(i, m));
-    backboneRef.current.instanceMatrix.needsUpdate = true;
-    glowRef.current.instanceMatrix.needsUpdate = true;
-
-    baseColors.forEach((c, i) => {
-      const color = c.clone();
-      glowRef.current!.setColorAt(i * 2, color);
-      glowRef.current!.setColorAt(i * 2 + 1, color);
-    });
-    if (glowRef.current.instanceColor) glowRef.current.instanceColor.needsUpdate = true;
-  }, [backboneMatrices, glowMatrices, baseColors]);
-
-  useEffect(() => {
-    if (state === 'verified') {
-      verifiedStart.current = performance.now();
-    }
-  }, [state]);
-
-  useFrame(({ clock }) => {
-    if (!basePairRef.current) return;
-    const time = clock.getElapsedTime();
-    const pulse = state === 'verifying' ? 0.4 + (Math.sin(time * 6) * 0.5 + 0.5) * 0.6 : 1;
-
-    baseColors.forEach((baseColor, i) => {
-      const color = baseColor.clone();
-      if (state === 'verifying') {
-        color.multiplyScalar(pulse);
-      }
-
-      if (state === 'verified' && verifiedStart.current) {
-        const elapsed = (performance.now() - verifiedStart.current) / 1000;
-        if (elapsed < 2.2) {
-          const green = new THREE.Color('#00ff66');
-          const mix = Math.sin(elapsed * 8 + i * 0.2) * 0.5 + 0.5;
-          color.lerp(green, mix * 0.6);
+    const addFaceGrid = (normal: 'x' | 'y' | 'z', sign: 1 | -1) => {
+      for (let i = 0; i <= divisions; i += 1) {
+        const t = (i / divisions - 0.5) * cubeSize;
+        if (normal === 'x') {
+          addLine(new THREE.Vector3(sign * half, t, -half), new THREE.Vector3(sign * half, t, half));
+          addLine(new THREE.Vector3(sign * half, -half, t), new THREE.Vector3(sign * half, half, t));
+        }
+        if (normal === 'y') {
+          addLine(new THREE.Vector3(-half, sign * half, t), new THREE.Vector3(half, sign * half, t));
+          addLine(new THREE.Vector3(t, sign * half, -half), new THREE.Vector3(t, sign * half, half));
+        }
+        if (normal === 'z') {
+          addLine(new THREE.Vector3(-half, t, sign * half), new THREE.Vector3(half, t, sign * half));
+          addLine(new THREE.Vector3(t, -half, sign * half), new THREE.Vector3(t, half, sign * half));
         }
       }
+    };
 
-      if (hovered === i) {
-        color.lerp(new THREE.Color('#ffffff'), 0.4);
-      }
-      basePairRef.current!.setColorAt(i, color);
+    addFaceGrid('x', 1);
+    addFaceGrid('x', -1);
+    addFaceGrid('y', 1);
+    addFaceGrid('y', -1);
+    addFaceGrid('z', 1);
+    addFaceGrid('z', -1);
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    return geometry;
+  }, []);
+
+  const bitcoinTexture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.clearRect(0, 0, 256, 256);
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = 'rgba(255, 200, 80, 0.35)';
+    ctx.lineWidth = 6;
+    ctx.font = 'bold 180px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeText('₿', 128, 140);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+  }, []);
+
+  const streams = useMemo(() => {
+    const streamCount = 16;
+    const half = cubeSize / 2;
+    const corners = [
+      new THREE.Vector3(-half, -half, -half),
+      new THREE.Vector3(half, -half, -half),
+      new THREE.Vector3(-half, half, -half),
+      new THREE.Vector3(half, half, -half),
+      new THREE.Vector3(-half, -half, half),
+      new THREE.Vector3(half, -half, half),
+      new THREE.Vector3(-half, half, half),
+      new THREE.Vector3(half, half, half),
+    ];
+
+    const getRand = (i: number) => {
+      const hex = hash[i % hash.length] || '0';
+      return parseInt(hex, 16) / 15;
+    };
+
+    return Array.from({ length: streamCount }).map((_, i) => {
+      const corner = corners[i % corners.length].clone();
+      const dir = corner.clone().normalize();
+      const jitter = new THREE.Vector3(
+        (getRand(i + 3) - 0.5) * 0.6,
+        (getRand(i + 7) - 0.5) * 0.6,
+        (getRand(i + 11) - 0.5) * 0.6
+      );
+      const end = corner.clone().add(dir.multiplyScalar(3.5 + getRand(i + 5) * 2)).add(jitter);
+      const mid1 = corner.clone().add(dir.clone().multiplyScalar(1.3)).add(jitter.clone().multiplyScalar(0.5));
+      const mid2 = corner.clone().add(dir.clone().multiplyScalar(2.4)).add(jitter.clone().multiplyScalar(0.8));
+      const curve = new THREE.CatmullRomCurve3([corner, mid1, mid2, end]);
+      const hexChar = hash[i % hash.length] || '0';
+      const color = new THREE.Color(colorPalette[hexChar] || '#ffffff');
+      return { curve, color, phase: getRand(i + 13) * Math.PI * 2 };
     });
-    if (basePairRef.current.instanceColor) basePairRef.current.instanceColor.needsUpdate = true;
+  }, [hash]);
+
+  useFrame(({ clock }) => {
+    const time = clock.getElapsedTime();
+    if (coreRef.current) {
+      const basePulse = 1 + Math.sin(time * 2) * 0.08;
+      const boost = state === 'verifying' ? 0.12 : state === 'verified' ? 0.06 : 0.04;
+      coreRef.current.scale.setScalar(basePulse + boost);
+      const mat = coreRef.current.material as THREE.MeshStandardMaterial;
+      mat.emissiveIntensity = 2.2 + Math.sin(time * 3) * 0.6 + (state === 'verifying' ? 0.8 : 0.2);
+    }
+
+    streamRefs.current.forEach((mesh, i) => {
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      mat.opacity = 0.55 + Math.sin(time * 2 + streams[i].phase) * 0.25;
+      mat.emissiveIntensity = 1.6 + Math.sin(time * 3 + streams[i].phase) * 0.6;
+    });
+
+    if (cubeRef.current) {
+      const mat = cubeRef.current.material as THREE.MeshStandardMaterial;
+      mat.emissiveIntensity = 0.6 + Math.sin(time * 1.2) * 0.2;
+    }
   });
 
-  const backboneCurve = useMemo(() => {
-    const makeCurve = (side: 1 | -1) => {
-      const points: THREE.Vector3[] = [];
-      for (let i = 0; i <= basePairCount; i += 1) {
-        const t = i / basePairCount;
-        const y = (t - 0.5) * helixHeight;
-        const angle = t * Math.PI * 6 + (side === -1 ? Math.PI : 0);
-        points.push(
-          new THREE.Vector3(
-            Math.cos(angle) * helixRadius,
-            y,
-            Math.sin(angle) * helixRadius
-          )
-        );
-      }
-      return new THREE.CatmullRomCurve3(points);
-    };
-    return {
-      left: makeCurve(1),
-      right: makeCurve(-1),
-    };
-  }, [basePairCount, helixHeight, helixRadius]);
+  useEffect(() => {
+    streamRefs.current = streamRefs.current.slice(0, streams.length);
+  }, [streams.length]);
 
   return (
     <group>
-      <instancedMesh
-        ref={backboneRef}
-        args={[undefined, undefined, basePairCount * 2]}
-        frustumCulled={false}
-      >
-        <sphereGeometry args={[0.15, 16, 16]} />
+      <mesh ref={cubeRef}>
+        <boxGeometry args={[cubeSize, cubeSize, cubeSize]} />
         <meshStandardMaterial
-          color="#4488aa"
-          metalness={0.5}
-          roughness={0.3}
-          emissive="#112233"
-          emissiveIntensity={0.3}
-        />
-      </instancedMesh>
-
-      <instancedMesh
-        ref={glowRef}
-        args={[undefined, undefined, basePairCount * 2]}
-        frustumCulled={false}
-      >
-        <sphereGeometry args={[0.12, 12, 12]} />
-        <meshBasicMaterial vertexColors transparent opacity={0.5} />
-      </instancedMesh>
-
-      <instancedMesh
-        ref={basePairRef}
-        args={[undefined, undefined, basePairCount]}
-        frustumCulled={false}
-        onPointerMove={(e) => {
-          e.stopPropagation();
-          if (e.instanceId !== undefined) setHovered(e.instanceId);
-        }}
-        onPointerOut={() => setHovered(null)}
-      >
-        <cylinderGeometry args={[0.08, 0.08, helixRadius * 2, 8]} />
-        <meshStandardMaterial
-          vertexColors
-          metalness={0.3}
-          roughness={0.4}
-          emissive="#ffffff"
-          emissiveIntensity={0.4}
+          color="#0b1020"
+          metalness={0.6}
+          roughness={0.25}
+          emissive="#1b2a4a"
+          emissiveIntensity={0.8}
           transparent
-          opacity={0.9}
-        />
-      </instancedMesh>
-
-      <mesh>
-        <tubeGeometry args={[backboneCurve.left, 100, 0.06, 8, false]} />
-        <meshStandardMaterial
-          color="#66aacc"
-          metalness={0.6}
-          roughness={0.2}
-          emissive="#224466"
-          emissiveIntensity={0.3}
+          opacity={0.72}
         />
       </mesh>
 
-      <mesh>
-        <tubeGeometry args={[backboneCurve.right, 100, 0.06, 8, false]} />
-        <meshStandardMaterial
-          color="#66aacc"
-          metalness={0.6}
-          roughness={0.2}
-          emissive="#224466"
-          emissiveIntensity={0.3}
+      <lineSegments geometry={gridGeometry}>
+        <lineBasicMaterial color="#3a4a6a" transparent opacity={0.35} />
+      </lineSegments>
+
+      <mesh position={[0, 0, cubeSize / 2 + 0.01]}>
+        <planeGeometry args={[cubeSize * 0.8, cubeSize * 0.8]} />
+        <meshBasicMaterial
+          map={bitcoinTexture || undefined}
+          transparent
+          opacity={0.22}
+          color="#ffcc66"
         />
       </mesh>
+
+      <mesh ref={coreRef}>
+        <sphereGeometry args={[0.55, 32, 32]} />
+        <meshStandardMaterial
+          color="#52ffe8"
+          emissive="#6fffe6"
+          emissiveIntensity={2.4}
+          metalness={0.2}
+          roughness={0.2}
+          transparent
+          opacity={0.85}
+        />
+      </mesh>
+
+      {streams.map((stream, i) => (
+        <mesh
+          key={`stream-${i}`}
+          ref={(el) => {
+            if (el) streamRefs.current[i] = el;
+          }}
+        >
+          <tubeGeometry args={[stream.curve, 40, 0.05, 8, false]} />
+          <meshStandardMaterial
+            color={stream.color}
+            emissive={stream.color}
+            emissiveIntensity={1.4}
+            transparent
+            opacity={0.7}
+          />
+        </mesh>
+      ))}
     </group>
   );
 };
