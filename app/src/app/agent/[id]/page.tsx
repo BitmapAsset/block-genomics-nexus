@@ -88,6 +88,12 @@ const badgeIcons: Record<string, string> = {
   sentinel: "🛡️",
   scholar: "📚",
   validator: "✅",
+  verified: "✅",
+  "ai-agent": "🤖",
+  builder: "🔨",
+  "tier-1": "👑",
+  "tier-2": "⭐",
+  "tier-3": "🔗",
 };
 
 // ─── Data fetching ─────────────────────────────────────────────────────────

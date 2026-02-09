@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>BG Shield Export</title></head>
+<body style="background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;flex-direction:column;gap:20px">
+<canvas id="c" width="1024" height="1024" style="width:512px;height:512px;border:1px solid #333"></canvas>
+<div>
+  <a id="dl" download="bg-verification-shield.png" style="color:#66ccff;font-family:sans-serif;cursor:pointer">⬇️ Download 1024×1024 PNG</a>
+</div>
+<script>
+const size=1024,canvas=document.getElementById('c'),ctx=canvas.getContext('2d'),cx=size/2,cy=size/2,s=size/512;
+const outerGlow=ctx.createRadialGradient(cx,cy,size*.2,cx,cy,size*.5);
+outerGlow.addColorStop(0,'rgba(247,147,26,0.25)');outerGlow.addColorStop(.5,'rgba(102,204,255,0.12)');outerGlow.addColorStop(1,'transparent');
+ctx.fillStyle=outerGlow;ctx.fillRect(0,0,size,size);
+function sp(){ctx.beginPath();ctx.moveTo(cx,cy-170*s);ctx.bezierCurveTo(cx+50*s,cy-170*s,cx+145*s,cy-150*s,cx+150*s,cy-130*s);ctx.lineTo(cx+150*s,cy-20*s);ctx.bezierCurveTo(cx+148*s,cy+60*s,cx+100*s,cy+120*s,cx,cy+180*s);ctx.bezierCurveTo(cx-100*s,cy+120*s,cx-148*s,cy+60*s,cx-150*s,cy-20*s);ctx.lineTo(cx-150*s,cy-130*s);ctx.bezierCurveTo(cx-145*s,cy-150*s,cx-50*s,cy-170*s,cx,cy-170*s);ctx.closePath();}
+ctx.save();sp();const sg=ctx.createLinearGradient(cx,cy-170*s,cx,cy+180*s);sg.addColorStop(0,'#1a1a2e');sg.addColorStop(.5,'#12121a');sg.addColorStop(1,'#0a0a14');ctx.fillStyle=sg;ctx.fill();ctx.restore();
+ctx.save();sp();const bg=ctx.createLinearGradient(cx-150*s,cy,cx+150*s,cy);bg.addColorStop(0,'#f7931a');bg.addColorStop(.3,'#ffd27d');bg.addColorStop(.7,'#66ccff');bg.addColorStop(1,'#a855f7');ctx.strokeStyle=bg;ctx.lineWidth=5*s;ctx.stroke();ctx.restore();
+ctx.save();ctx.scale(.92,.92);ctx.translate(cx*.08/.92,cy*.08/.92);sp();ctx.strokeStyle='rgba(255,210,125,0.2)';ctx.lineWidth=1.5*s;ctx.stroke();ctx.restore();
+ctx.save();sp();ctx.clip();const ha=40*s,ht=cy-140*s,hb=cy+150*s;
+for(let st=0;st<2;st++){const ph=st*Math.PI,col=st===0?'#f7931a':'#66ccff';ctx.beginPath();for(let i=0;i<=80;i++){const t=i/80,y=ht+t*(hb-ht),x=cx+Math.sin(t*Math.PI*4+ph)*ha;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.strokeStyle=col;ctx.globalAlpha=.25;ctx.lineWidth=2.5*s;ctx.stroke();ctx.globalAlpha=.15;ctx.lineWidth=1.5*s;for(let i=0;i<=80;i++){const t=i/80;if(Math.abs(Math.sin(t*Math.PI*4+ph))<.15&&i%4===0){const y=ht+t*(hb-ht),x1=cx-ha*.8,x2=cx+ha*.8;ctx.beginPath();ctx.moveTo(x1,y);ctx.lineTo(x2,y);const rg=ctx.createLinearGradient(x1,y,x2,y);rg.addColorStop(0,'#f7931a');rg.addColorStop(1,'#66ccff');ctx.strokeStyle=rg;ctx.stroke();}}ctx.globalAlpha=1;}ctx.restore();
+ctx.save();sp();ctx.clip();const btcG=ctx.createRadialGradient(cx,cy,0,cx,cy,60*s);btcG.addColorStop(0,'rgba(247,147,26,0.3)');btcG.addColorStop(1,'transparent');ctx.fillStyle=btcG;ctx.beginPath();ctx.arc(cx,cy,60*s,0,Math.PI*2);ctx.fill();ctx.font=`bold ${90*s}px -apple-system,"Helvetica Neue",Arial,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';const tg=ctx.createLinearGradient(cx,cy-45*s,cx,cy+45*s);tg.addColorStop(0,'#ffd27d');tg.addColorStop(.5,'#ffffff');tg.addColorStop(1,'#f7931a');ctx.fillStyle=tg;ctx.fillText('₿',cx,cy+2*s);ctx.strokeStyle='rgba(247,147,26,0.4)';ctx.lineWidth=1.5*s;ctx.strokeText('₿',cx,cy+2*s);ctx.restore();
+ctx.save();sp();ctx.clip();ctx.font=`bold ${22*s}px -apple-system,"Helvetica Neue",Arial,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='rgba(102,204,255,0.6)';ctx.fillText('BG',cx,cy+135*s);ctx.restore();
+ctx.save();sp();ctx.clip();const ckY=cy-130*s;ctx.beginPath();ctx.moveTo(cx-18*s,ckY);ctx.lineTo(cx-6*s,ckY+12*s);ctx.lineTo(cx+18*s,ckY-8*s);ctx.strokeStyle='#22ff88';ctx.lineWidth=4*s;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();const cg=ctx.createRadialGradient(cx,ckY,0,cx,ckY,25*s);cg.addColorStop(0,'rgba(34,255,136,0.2)');cg.addColorStop(1,'transparent');ctx.fillStyle=cg;ctx.beginPath();ctx.arc(cx,ckY,25*s,0,Math.PI*2);ctx.fill();ctx.restore();
+ctx.save();sp();ctx.clip();[{x:cx-110*s,y:cy-80*s},{x:cx+110*s,y:cy-80*s},{x:cx-90*s,y:cy+50*s},{x:cx+90*s,y:cy+50*s}].forEach(({x,y})=>{ctx.beginPath();ctx.moveTo(x,y-5*s);ctx.lineTo(x+4*s,y);ctx.lineTo(x,y+5*s);ctx.lineTo(x-4*s,y);ctx.closePath();ctx.fillStyle='rgba(255,210,125,0.4)';ctx.fill();});ctx.restore();
+document.getElementById('dl').href=canvas.toDataURL('image/png');
+</script>
+</body></html>

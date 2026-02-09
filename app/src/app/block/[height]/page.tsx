@@ -161,7 +161,7 @@ export default async function BlockPage({ params }: BlockPageProps) {
   const block = await fetchBlock(blockHeight);
 
   if (!block) {
-    return <ErrorState message={`Block #${formatNumber(blockHeight)} could not be loaded. The API server may be offline.`} />;
+    return <ErrorState message={`Block #${formatNumber(blockHeight)} hasn't been indexed yet. Only verified blocks appear here — try verifying it first!`} blockHeight={blockHeight} />;
   }
 
   const genome = block.genome;
@@ -582,18 +582,28 @@ function TrustFactorText({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ErrorState({ message }: { message: string }) {
+function ErrorState({ message, blockHeight }: { message: string; blockHeight?: number }) {
   return (
     <div className="mx-auto max-w-2xl px-4 py-24 text-center">
       <div className="text-5xl mb-4 opacity-40">⛓️‍💥</div>
-      <h1 className="text-2xl font-bold mb-3">Block Not Found</h1>
+      <h1 className="text-2xl font-bold mb-3">Block Not Indexed</h1>
       <p className="text-text-secondary mb-6">{message}</p>
-      <Link
-        href="/explore"
-        className="inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
-      >
-        ← Back to Explorer
-      </Link>
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+        {blockHeight !== undefined && (
+          <Link
+            href={`/verify?block=${blockHeight}`}
+            className="inline-flex items-center gap-2 rounded-lg bg-accent-cyan/15 border border-accent-cyan/40 px-5 py-2.5 text-sm font-medium text-accent-cyan hover:bg-accent-cyan/25 hover:border-accent-cyan/60 glow-cyan transition-all"
+          >
+            🧬 Verify Block #{formatNumber(blockHeight)}
+          </Link>
+        )}
+        <Link
+          href="/explore"
+          className="inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
+        >
+          ← Back to Explorer
+        </Link>
+      </div>
     </div>
   );
 }
