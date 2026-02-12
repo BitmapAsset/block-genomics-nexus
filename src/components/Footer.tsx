@@ -28,9 +28,9 @@ export default function Footer() {
             </h3>
             <ul className="space-y-2">
               {[
-                { href: "/explore", label: "Explorer" },
+                { href: "/nexus", label: "Nexus" },
                 { href: "/verify", label: "Verify" },
-                { href: "/leaderboard", label: "Leaderboard" },
+                { href: "/whitepaper", label: "White Paper" },
               ].map((link) => (
                 <li key={link.href}>
                   <Link
@@ -51,8 +51,8 @@ export default function Footer() {
             </h3>
             <ul className="space-y-2">
               {[
-                { href: "/docs", label: "Documentation" },
-                { href: "/api", label: "API Reference" },
+                { href: "/whitepaper", label: "Documentation" },
+                { href: "/api/v1/blocks/1", label: "API Reference" },
                 { href: "https://github.com", label: "GitHub" },
               ].map((link) => (
                 <li key={link.href}>

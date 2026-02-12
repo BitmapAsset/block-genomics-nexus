@@ -4,10 +4,8 @@ import Link from "next/link";
 import WalletConnect from "@/components/auth/WalletConnect";
 
 const navLinks = [
-  { href: "/explore", label: "Explore" },
-  { href: "/verify", label: "Verify" },
   { href: "/nexus", label: "Nexus" },
-  { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/verify", label: "Verify" },
   { href: "/whitepaper", label: "White Paper" },
 ];
 
