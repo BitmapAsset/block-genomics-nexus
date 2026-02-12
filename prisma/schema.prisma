@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// SQLite for dev — swap to PostgreSQL for prod
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+  // provider = "postgresql"
+  // url      = env("DATABASE_URL") // e.g. postgresql://user:pass@localhost:5432/nexus
+}
+
+model User {
+  walletAddress String   @id @unique
+  handle        String?
+  avatar        String?
+  tier          Int      @default(3) // 1=Block Owner, 2=Parcel Owner, 3=Delegated
+  verified      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  blocks                Block[]
+  parcels               Parcel[]
+  delegationsOwned      Delegation[]        @relation("DelegationOwner")
+  delegationsReceived   Delegation[]        @relation("DelegationDelegatee")
+  delegationListings    DelegationListing[]
+  chatMessages          ChatMessage[]
+  estates               Estate[]
+}
+
+model Block {
+  height       Int      @id @unique
+  hash         String?
+  ownerAddress String?
+  label        String?
+  groundColor  String?  @default("#2d5a27")
+  skyColor     String?  @default("#87CEEB")
+  createdAt    DateTime @default(now())
+
+  owner                User?               @relation(fields: [ownerAddress], references: [walletAddress])
+  parcels              Parcel[]
+  delegations          Delegation[]
+  delegationListings   DelegationListing[]
+  chatMessages         ChatMessage[]
+  estates              Estate[]
+
+  @@index([ownerAddress])
+}
+
+model Parcel {
+  blockHeight  Int
+  txIndex      Int
+  ownerAddress String?
+  customColor  String?
+  pattern      String?
+  imageUrl     String?
+  rotation     Float?   @default(0)
+  facing       String?  @default("north")
+  emissive     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  block Block @relation(fields: [blockHeight], references: [height])
+  owner User? @relation(fields: [ownerAddress], references: [walletAddress])
+
+  @@id([blockHeight, txIndex])
+  @@unique([blockHeight, txIndex])
+  @@index([ownerAddress])
+}
+
+model Delegation {
+  id               String   @id @default(cuid())
+  blockHeight      Int
+  parcelTxIndex    Int?
+  ownerAddress     String
+  delegateeAddress String
+  tier             Int      // 2 or 3
+  durationDays     Int      // 30 or 365
+  priceSats        Int
+  protocolFeeSats  Int
+  startDate        DateTime
+  endDate          DateTime
+  active           Boolean  @default(true)
+  txId             String?
+  createdAt        DateTime @default(now())
+
+  block    Block @relation(fields: [blockHeight], references: [height])
+  owner    User  @relation("DelegationOwner", fields: [ownerAddress], references: [walletAddress])
+  delegatee User @relation("DelegationDelegatee", fields: [delegateeAddress], references: [walletAddress])
+
+  @@index([blockHeight])
+  @@index([ownerAddress])
+  @@index([delegateeAddress])
+  @@index([active])
+}
+
+model DelegationListing {
+  id            String   @id @default(cuid())
+  blockHeight   Int
+  parcelTxIndex Int?
+  ownerAddress  String
+  tier          Int      // 2 or 3
+  spotsTotal    Int      @default(-1) // -1 = unlimited
+  spotsUsed     Int      @default(0)
+  price30d      Int      // sats for 30 days
+  price365d     Int      // sats for 365 days
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  block Block @relation(fields: [blockHeight], references: [height])
+  owner User  @relation(fields: [ownerAddress], references: [walletAddress])
+
+  @@index([blockHeight])
+  @@index([ownerAddress])
+  @@index([active])
+}
+
+model ChatMessage {
+  id            String   @id @default(cuid())
+  blockHeight   Int
+  senderAddress String
+  senderHandle  String?
+  text          String
+  type          String   @default("text") // text, image, gif, link
+  mediaUrl      String?
+  replyToId     String?
+  reported      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  block  Block @relation(fields: [blockHeight], references: [height])
+  sender User  @relation(fields: [senderAddress], references: [walletAddress])
+
+  @@index([blockHeight])
+  @@index([senderAddress])
+  @@index([createdAt])
+}
+
+model Estate {
+  id            String   @id @default(cuid())
+  name          String
+  ownerAddress  String
+  blockHeight   Int
+  parcelIndices String   // JSON array of ints (SQLite doesn't support Int[])
+  glowColor     String?
+  createdAt     DateTime @default(now())
+
+  block Block @relation(fields: [blockHeight], references: [height])
+  owner User  @relation(fields: [ownerAddress], references: [walletAddress])
+
+  @@index([blockHeight])
+  @@index([ownerAddress])
+}

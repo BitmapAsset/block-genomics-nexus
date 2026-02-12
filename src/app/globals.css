@@ -1,0 +1,230 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-primary: #0a0a0f;
+  --color-bg-secondary: #12121a;
+  --color-bg-tertiary: #1a1a2e;
+  --color-accent-cyan: #66ccff;
+  --color-accent-purple: #a855f7;
+  --color-success: #22c55e;
+  --color-bitcoin: #f7931a;
+  --color-text-primary: #e2e8f0;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-border: rgba(102, 204, 255, 0.1);
+  --color-border-hover: rgba(102, 204, 255, 0.25);
+
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+}
+
+/* Glassmorphism panel base */
+@utility glass-panel {
+  background: rgba(18, 18, 26, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+@utility glass-panel-hover {
+  background: rgba(18, 18, 26, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border-hover);
+  border-radius: 12px;
+}
+
+/* Glow effects */
+@utility glow-cyan {
+  box-shadow: 0 0 20px rgba(102, 204, 255, 0.15),
+    0 0 60px rgba(102, 204, 255, 0.05);
+}
+
+@utility glow-purple {
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.15),
+    0 0 60px rgba(168, 85, 247, 0.05);
+}
+
+@utility glow-bitcoin {
+  box-shadow: 0 0 20px rgba(247, 147, 26, 0.15),
+    0 0 60px rgba(247, 147, 26, 0.05);
+}
+
+/* Gradient text */
+@utility text-gradient-cyan-purple {
+  background: linear-gradient(135deg, var(--color-accent-cyan), var(--color-accent-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Base body styles */
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-bg-tertiary);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* ─── Verification Page Animations ─────────────────────────────── */
+
+/* Pulsing container for waiting states */
+.verify-pulse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(102, 204, 255, 0.1),
+    transparent
+  );
+  animation: verifyPulse 2s ease-in-out infinite;
+}
+
+@keyframes verifyPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(102, 204, 255, 0.2);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 40px 10px rgba(102, 204, 255, 0.1);
+    transform: scale(1.05);
+  }
+}
+
+/* Progress bar for verify step */
+.verify-progress-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-accent-cyan),
+    var(--color-accent-purple),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: verifyProgress 1.5s ease-in-out infinite;
+}
+
+@keyframes verifyProgress {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Genome character reveal */
+.genome-char-reveal {
+  animation: charPop 0.2s ease-out forwards;
+}
+
+@keyframes charPop {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.8);
+  }
+  60% {
+    transform: translateY(-1px) scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* DNA base pair reveal */
+.dna-base-reveal {
+  opacity: 0;
+  animation: dnaReveal 0.3s ease-out forwards;
+}
+
+@keyframes dnaReveal {
+  0% {
+    opacity: 0;
+    transform: scaleY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/* Genome color grid tile reveal */
+.genome-color-reveal {
+  opacity: 0;
+  transform: scale(0);
+  animation: colorReveal 0.4s ease-out forwards;
+}
+
+@keyframes colorReveal {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(-10deg);
+  }
+  60% {
+    transform: scale(1.1) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* Result bounce */
+.result-bounce {
+  animation: resultBounce 0.6s ease-out;
+}
+
+@keyframes resultBounce {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  70% {
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Trust score bar fill — uses inline style for target width */
+.trust-bar-fill {
+  animation: trustFill 1.5s ease-out;
+  transform-origin: left;
+}
+
+@keyframes trustFill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes nexusPulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(0,255,204,0.2), inset 0 0 10px rgba(0,255,204,0.05); }
+  50% { box-shadow: 0 0 25px rgba(0,255,204,0.35), inset 0 0 15px rgba(0,255,204,0.1); }
+}
