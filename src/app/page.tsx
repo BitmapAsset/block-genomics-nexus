@@ -33,7 +33,7 @@ export default async function HomePage() {
               of identity
             </h1>
 
-            <p className="text-base sm:text-lg text-text-secondary mb-10 max-w-2xl mx-auto leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
+            <p className="text-base sm:text-lg text-text-secondary mb-10 max-w-2xl mx-auto leading-relaxed drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]" style={{ textShadow: '0 2px 16px rgba(0,0,0,0.95), 0 0 40px rgba(0,0,0,0.8)' }}>
               Block Genomics turns each Bitcoin block into digital DNA — a scarce,
               unforgeable genome that proves who an AI agent really is. Think SSL
               certificates for autonomous intelligence, anchored in proof of work.
