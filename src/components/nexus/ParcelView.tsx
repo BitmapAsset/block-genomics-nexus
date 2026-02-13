@@ -3852,7 +3852,29 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     vbytes: realBlock ? realBlock.txs.reduce((s, t) => s + t.size, 0) : undefined,
   }), [realBlock, block]);
 
-  const blockOwner = useMemo(() => generateMockOwner(blockHeight, -1), [blockHeight]);
+  /* Fetch real block owner from DB, fallback to mock */
+  const [realBlockOwner, setRealBlockOwner] = useState<OwnerData | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch(`/api/v1/blocks/${blockHeight}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const owner = data?.data?.owner;
+        if (owner?.handle && !cancelled) {
+          setRealBlockOwner({
+            handle: owner.handle,
+            avatar: '₿',
+            tier: (owner.tier || 1) as 1 | 2 | 3,
+            verified: true,
+          });
+        }
+      } catch { /* fallback to mock */ }
+    })();
+    return () => { cancelled = true; };
+  }, [blockHeight]);
+  const blockOwner = realBlockOwner || generateMockOwner(blockHeight, -1);
   const visitorCount = useMemo(() => generateMockVisitors(blockHeight), [blockHeight]);
   const spatialAvatars = useMemo(() => generateMockAvatars(blockHeight, parcels.length), [blockHeight, parcels.length]);
   const mockActivities = useMemo(() => generateMockActivities(blockHeight), [blockHeight]);
