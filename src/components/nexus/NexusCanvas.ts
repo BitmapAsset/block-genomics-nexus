@@ -59,8 +59,8 @@ interface GlitchSegment {
 export class NexusCanvasEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private camera: Camera = { x: 0, y: 0, zoom: 0.05 };
-  private targetCamera: Camera = { x: 0, y: 0, zoom: 0.05 };
+  private camera: Camera = { x: 0, y: 0, zoom: typeof window !== 'undefined' && window.innerWidth < 768 ? 0.15 : 0.05 };
+  private targetCamera: Camera = { x: 0, y: 0, zoom: typeof window !== 'undefined' && window.innerWidth < 768 ? 0.15 : 0.05 };
   private animFrameId = 0;
   private hoveredBlock: number | null = null;
   private selectedBlock: number | null = null;

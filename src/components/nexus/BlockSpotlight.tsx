@@ -428,7 +428,7 @@ export default function BlockSpotlight({
   const [exploredCount, setExploredCount] = useState(0);
   const [heroItem, setHeroItem] = useState<SpotlightItem | null>(null);
   const journeyRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(typeof window !== 'undefined' && window.innerWidth >= 768);
   const [expanded, setExpanded] = useState(false);
 
   // Generate items per tab
