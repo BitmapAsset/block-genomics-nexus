@@ -157,6 +157,9 @@ function mondrianLayout(
   // Scale factor: map grid units to world units
   const scale = blockSize / gridWidth;
 
+  // Proportional gap: ~12% of one grid cell in world units (matches Bitmap.Community aesthetic)
+  const cellGap = scale * 0.12;
+
   // 2D occupancy grid for packing
   const gridH = gridWidth + 50; // extra rows for overflow
   const occupied: boolean[][] = [];
@@ -187,14 +190,14 @@ function mondrianLayout(
               occupied[row + dr][col + dc] = true;
             }
           }
-          // Convert grid coords to world coords
-          const halfGap = gap / 2;
+          // Convert grid coords to world coords with proportional gaps
+          const halfGap = cellGap / 2;
           results.push({
             index: sq.index,
             x: originX + col * scale + halfGap,
             z: originZ + row * scale + halfGap,
-            width: Math.max(0.01, size * scale - gap),
-            depth: Math.max(0.01, size * scale - gap),
+            width: Math.max(0.01, size * scale - cellGap),
+            depth: Math.max(0.01, size * scale - cellGap),
           });
           placed = true;
         }
@@ -205,10 +208,10 @@ function mondrianLayout(
     if (!placed) {
       results.push({
         index: sq.index,
-        x: originX + gap / 2,
-        z: originZ + (gridH - size) * scale + gap / 2,
-        width: Math.max(0.01, size * scale - gap),
-        depth: Math.max(0.01, size * scale - gap),
+        x: originX + cellGap / 2,
+        z: originZ + (gridH - size) * scale + cellGap / 2,
+        width: Math.max(0.01, size * scale - cellGap),
+        depth: Math.max(0.01, size * scale - cellGap),
       });
     }
   }
@@ -336,7 +339,7 @@ function generateMockVisitors(blockHeight: number): number {
 
 /* ─── Block size constant ─── */
 const BLOCK_SIZE = 20; // 20×20 world units = 2.1km × 2.1km conceptually
-const TREEMAP_GAP = 0.15; // Visible dark gutters between parcels (matches Bitfeed aesthetic)
+const TREEMAP_GAP = 0.15; // Base gap — actual gap is proportional to cell scale (see mondrianLayout)
 const METERS_PER_UNIT = 2100 / BLOCK_SIZE; // 105 meters per world unit
 
 /* ─── Generate parcels with treemap layout ─── */

@@ -173,7 +173,8 @@ export class NexusCanvasEngine {
     }
 
     const totalBytes = txBytes.reduce((s, b) => s + b, 0);
-    const gap = 1.5; // Visible dark gutters between parcels (matches Bitfeed)
+    // Proportional gap calculated after gridW is known (see below)
+    let cellGap = 1.5;
 
     // Dark background
     tctx.fillStyle = '#0a0a0f';
@@ -190,6 +191,7 @@ export class NexusCanvasEngine {
     const totalGridArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
     const gridW = Math.ceil(Math.sqrt(totalGridArea));
     const pxPerGrid = size / gridW;
+    cellGap = pxPerGrid * 0.12; // ~12% of cell = proportional dark gutters (matches Bitmap.Community)
 
     // Occupancy grid
     const gridH = gridW + 20;
@@ -211,10 +213,10 @@ export class NexusCanvasEngine {
                 occ[row + dr][col + dc] = true;
             rects.push({
               index: sq.idx,
-              x: col * pxPerGrid + gap / 2,
-              y: row * pxPerGrid + gap / 2,
-              w: Math.max(0.5, gs * pxPerGrid - gap),
-              h: Math.max(0.5, gs * pxPerGrid - gap),
+              x: col * pxPerGrid + cellGap / 2,
+              y: row * pxPerGrid + cellGap / 2,
+              w: Math.max(0.5, gs * pxPerGrid - cellGap),
+              h: Math.max(0.5, gs * pxPerGrid - cellGap),
             });
             placed = true;
           }
