@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, isValidBitcoinAddress } from '@/lib/api-helpers';
 import crypto from 'crypto';
+import { logActivity } from '@/lib/activity';
 
 /**
  * POST /api/v1/auth/verify
@@ -89,6 +90,9 @@ export async function POST(req: NextRequest) {
         create: { height: blockHeight, ownerAddress: walletAddress },
       });
     }
+
+    // Log activity
+    logActivity(walletAddress, 'verification', { tier, blockHeight, handle: normalizedHandle });
 
     return success({
       verified: true,

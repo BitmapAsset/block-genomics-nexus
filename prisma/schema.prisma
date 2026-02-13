@@ -28,6 +28,8 @@ model User {
   delegationListings    DelegationListing[]
   chatMessages          ChatMessage[]
   estates               Estate[]
+  sessions              UserSession[]
+  activities            ActivityLog[]
 }
 
 model Block {
@@ -248,4 +250,65 @@ model AgentSession {
 
   @@index([agentId])
   @@index([sandboxId])
+}
+
+// ─── Enterprise Data Infrastructure ─────────────────────────────
+
+model UserSession {
+  id             String    @id @default(cuid())
+  walletAddress  String
+  walletType     String
+  ipHash         String?
+  userAgent      String?
+  connectedAt    DateTime  @default(now())
+  disconnectedAt DateTime?
+  lastActiveAt   DateTime  @default(now())
+  user           User      @relation(fields: [walletAddress], references: [walletAddress])
+
+  @@index([walletAddress])
+}
+
+model ActivityLog {
+  id            String   @id @default(cuid())
+  walletAddress String
+  action        String
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [walletAddress], references: [walletAddress])
+
+  @@index([walletAddress])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model PageView {
+  id            String   @id @default(cuid())
+  path          String
+  walletAddress String?
+  sessionId     String?
+  referrer      String?
+  createdAt     DateTime @default(now())
+
+  @@index([path])
+  @@index([createdAt])
+}
+
+model ProfileView {
+  id            String   @id @default(cuid())
+  viewedHandle  String
+  viewerAddress String?
+  createdAt     DateTime @default(now())
+
+  @@index([viewedHandle])
+  @@index([createdAt])
+}
+
+model SearchLog {
+  id            String   @id @default(cuid())
+  query         String
+  resultsCount  Int      @default(0)
+  walletAddress String?
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
 }

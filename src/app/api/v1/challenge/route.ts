@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { success, error } from '@/lib/api-helpers';
 import { setChallenge, cleanupChallenges } from '@/lib/challenges';
 import crypto from 'crypto';
+import { logActivity } from '@/lib/activity';
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,6 +14,8 @@ export async function POST(req: NextRequest) {
     const message = `Block Genomics Verification\n\nWallet: ${walletAddress}\nNonce: ${nonce}\nTimestamp: ${new Date().toISOString()}`;
 
     setChallenge(walletAddress, nonce);
+
+    logActivity(walletAddress, 'challenge_request', {});
 
     return success({ message, nonce });
   } catch (e: any) {

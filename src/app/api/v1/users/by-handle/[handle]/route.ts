@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { logActivity, logProfileView } from '@/lib/activity';
 
 export async function GET(
   _req: NextRequest,
@@ -18,6 +19,8 @@ export async function GET(
     });
 
     if (!user) return error('User not found', 404);
+
+    logProfileView(normalizedHandle);
 
     return success({
       walletAddress: user.walletAddress,
@@ -82,6 +85,8 @@ export async function PATCH(
       where: { handle: normalizedHandle },
       data: updates,
     });
+
+    logActivity(walletAddress, 'profile_update', { handle: normalizedHandle, fields: Object.keys(updates) });
 
     return success({
       walletAddress: updated.walletAddress,

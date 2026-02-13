@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { logActivity } from '@/lib/activity';
 
 export async function GET(
   _req: NextRequest,
@@ -14,6 +15,8 @@ export async function GET(
     });
 
     if (!user) return error('User not found', 404);
+
+    logActivity(address, 'login', { method: 'wallet_lookup' });
 
     return success({
       walletAddress: user.walletAddress,
