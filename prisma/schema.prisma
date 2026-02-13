@@ -12,7 +12,7 @@ datasource db {
 
 model User {
   walletAddress String   @id @unique
-  handle        String?
+  handle        String?  @unique
   avatar        String?
   tier          Int      @default(3) // 1=Block Owner, 2=Parcel Owner, 3=Delegated
   verified      Boolean  @default(false)
@@ -134,6 +134,17 @@ model ChatMessage {
   @@index([blockHeight])
   @@index([senderAddress])
   @@index([createdAt])
+}
+
+model HandleHistory {
+  id            String   @id @default(cuid())
+  handle        String
+  walletAddress String
+  action        String   // "claimed" | "released" | "changed"
+  createdAt     DateTime @default(now())
+
+  @@index([handle])
+  @@index([walletAddress])
 }
 
 model Estate {
