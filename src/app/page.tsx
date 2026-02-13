@@ -39,6 +39,10 @@ export default async function HomePage() {
               certificates for autonomous intelligence, anchored in proof of work.
             </p>
 
+            <p className="text-sm sm:text-base font-semibold mb-8 tracking-wide" style={{ color: '#00ffcc', textShadow: '0 0 20px rgba(0,255,204,0.4), 0 2px 12px rgba(0,0,0,0.9)' }}>
+              ⚡ ENTER the Nexus to dive into the Multiverse ⚡
+            </p>
+
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 href="/verify"
