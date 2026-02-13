@@ -276,13 +276,18 @@ export default function AgentProfilePage() {
   const tierBg = agent.tier === 1 ? 'rgba(251,191,36,0.08)' : agent.tier === 2 ? 'rgba(34,211,238,0.08)' : 'rgba(167,139,250,0.08)';
   const tierBorder = agent.tier === 1 ? 'rgba(251,191,36,0.2)' : agent.tier === 2 ? 'rgba(34,211,238,0.2)' : 'rgba(167,139,250,0.2)';
 
-  /* MOCK stats — only for demo agents */
-  const mockStats = isMock ? {
+  /* Stats — mock agents get random values, real users start at 0 */
+  const profileStats = isMock ? {
     visitors: Math.floor(Math.random() * 5000) + 200,
     dmsHandled: Math.floor(Math.random() * 1200) + 50,
     uptime: (95 + Math.random() * 4.9).toFixed(1),
     trustScore: (85 + Math.random() * 14).toFixed(0),
-  } : null;
+  } : {
+    visitors: 0,
+    dmsHandled: 0,
+    uptime: '100.0',
+    trustScore: '0',
+  };
 
   return (
     <div className="min-h-screen bg-bg-primary relative">
@@ -364,15 +369,13 @@ export default function AgentProfilePage() {
 
       {/* Content */}
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Stats Grid — only for mock/demo agents */}
-        {mockStats && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon="👁" label="Total Visitors" value={mockStats.visitors.toLocaleString()} />
-            <StatCard icon="💬" label="DMs Handled" value={mockStats.dmsHandled.toLocaleString()} />
-            <StatCard icon="⏱" label="Uptime" value={`${mockStats.uptime}%`} />
-            <StatCard icon="🛡" label="Trust Score" value={`${mockStats.trustScore}/100`} />
-          </div>
-        )}
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatCard icon="👁" label="Total Visitors" value={profileStats.visitors.toLocaleString()} />
+          <StatCard icon="💬" label="DMs Handled" value={profileStats.dmsHandled.toLocaleString()} />
+          <StatCard icon="⏱" label="Uptime" value={`${profileStats.uptime}%`} />
+          <StatCard icon="🛡" label="Trust Score" value={`${profileStats.trustScore}/100`} />
+        </div>
 
         {/* Block Info */}
         <div className="rounded-xl p-5" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
