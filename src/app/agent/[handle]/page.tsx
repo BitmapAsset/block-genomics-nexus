@@ -234,8 +234,19 @@ export default function AgentProfilePage() {
             <div style={{ height: '420px' }}>
               <DNAVisualizer genomeHash={agent.genomeHash} state="verified" height="420px" />
             </div>
+            {/* Scrolling colored genome hash */}
+            <div className="overflow-hidden relative" style={{ height: '32px', background: 'rgba(0,0,0,0.3)' }}>
+              <div className="absolute whitespace-nowrap animate-genome-scroll flex items-center h-full gap-[2px]">
+                {[...agent.genomeHash.slice(2), ...agent.genomeHash.slice(2)].map((c, i) => {
+                  const v = parseInt(c, 16) || 0;
+                  const hue = (v / 15) * 360;
+                  return <span key={i} className="font-mono text-sm font-bold" style={{ color: `hsl(${hue}, 80%, 60%)`, textShadow: `0 0 6px hsl(${hue}, 80%, 40%)` }}>{c}</span>;
+                })}
+              </div>
+              <style>{`@keyframes genome-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } } .animate-genome-scroll { animation: genome-scroll 12s linear infinite; }`}</style>
+            </div>
             {/* Footer */}
-            <div className="px-5 py-3 text-center">
+            <div className="px-5 py-2 text-center">
               <p className="text-[10px]" style={{ color: '#64748b' }}>Unique genome derived from on-chain verification • Drag to rotate</p>
             </div>
           </div>
