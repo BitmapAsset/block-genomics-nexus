@@ -2549,9 +2549,13 @@ function VPSLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => vo
           <div>
             <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: '#64748b' }}>Connection Type</label>
             <div className="flex gap-2">
-              {['HTTPS', 'WebSocket', 'WebRTC'].map(t => (
-                <button key={t} className="px-3 py-1.5 rounded text-[10px] font-mono"
-                  style={{ background: 'rgba(247,147,26,0.1)', border: '1px solid rgba(247,147,26,0.2)', color: '#f7931a' }}>{t}</button>
+              {[{ label: 'HTTPS', value: 'https' }, { label: 'WebSocket', value: 'websocket' }, { label: 'WebRTC', value: 'webrtc' }].map(t => (
+                <button key={t.value} onClick={() => setConnType(t.value)} className="px-3 py-1.5 rounded text-[10px] font-mono"
+                  style={{
+                    background: connType === t.value ? 'rgba(247,147,26,0.2)' : 'rgba(247,147,26,0.05)',
+                    border: `1px solid ${connType === t.value ? 'rgba(247,147,26,0.4)' : 'rgba(247,147,26,0.15)'}`,
+                    color: '#f7931a',
+                  }}>{t.label}</button>
               ))}
             </div>
           </div>
@@ -2559,6 +2563,7 @@ function VPSLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => vo
             <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>🔐</span><span>Connection verified via BIP-322 signature from your wallet</span></div>
             <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>🛡️</span><span>All traffic encrypted end-to-end (TLS 1.3 + cert pinning)</span></div>
           </div>
+          {error && <div className="text-[11px] px-3 py-2 rounded-lg" style={{ background: 'rgba(255,50,50,0.1)', border: '1px solid rgba(255,50,50,0.3)', color: '#ff6b6b' }}>⚠️ {error}</div>}
           <button onClick={handleLink} disabled={!url || status === 'verifying'}
             className="w-full py-2.5 rounded-lg text-sm font-bold transition-all"
             style={{
@@ -2724,10 +2729,46 @@ function AgentLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => 
     buildDecorate: false, handleOffers: false, fullAutonomy: false,
   });
 
-  const handleLink = () => {
+  const [error, setError] = useState('');
+
+  const handleLink = async () => {
     if (!agentUrl) return;
     setStatus('connecting');
-    setTimeout(() => setStatus('linked'), 2500);
+    setError('');
+    try {
+      const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet') || '' : '';
+      const challenge = `agent-register:${blockHeight}:${parcelIndex}:${Date.now()}`;
+      const signature = typeof window !== 'undefined' && (window as any).unisat
+        ? await (window as any).unisat.signMessage(challenge) : '';
+
+      // Map permission keys to AgentPermission enum values
+      const permMap: Record<string, string> = {
+        readDMs: 'READ_DMS', sendDMs: 'SEND_DMS', manageContent: 'MANAGE_CONTENT',
+        buildDecorate: 'BUILD_DECORATE', handleOffers: 'HANDLE_OFFERS', fullAutonomy: 'FULL_AUTONOMY',
+      };
+      const permList = Object.entries(permissions).filter(([, v]) => v).map(([k]) => permMap[k]);
+
+      const res = await fetch('/api/v1/agents/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress,
+          endpointUrl: agentUrl,
+          blockHeight,
+          parcelIndex: linkTarget === 'parcel' ? parcelIndex : null,
+          tier: 1,
+          permissions: permList,
+          signature,
+          challenge,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to register agent');
+      setStatus('linked');
+    } catch (e: any) {
+      setError(e.message);
+      setStatus('idle');
+    }
   };
 
   const targetAddress = linkTarget === 'block' ? `${blockHeight}.bitmap` : `${parcelIndex}.${blockHeight}.bitmap`;
@@ -2798,6 +2839,7 @@ function AgentLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => 
             <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>🛡️</span><span>All agent communications E2E encrypted</span></div>
             <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>⚡</span><span>Revoke access anytime from your wallet</span></div>
           </div>
+          {error && <div className="text-[11px] px-3 py-2 rounded-lg" style={{ background: 'rgba(255,50,50,0.1)', border: '1px solid rgba(255,50,50,0.3)', color: '#ff6b6b' }}>⚠️ {error}</div>}
           <button onClick={handleLink} disabled={!agentUrl || status === 'connecting'}
             className="w-full py-2.5 rounded-lg text-sm font-bold transition-all"
             style={{
