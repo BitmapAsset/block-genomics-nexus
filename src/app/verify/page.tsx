@@ -105,66 +105,90 @@ async function signWithWallet(walletId: string, message: string): Promise<string
   throw new Error('Unknown wallet');
 }
 
-/** Fetch .bitmap inscriptions from Unisat API */
+/** Fetch .bitmap inscriptions from wallet */
 async function fetchBitmapInscriptions(address: string): Promise<BitmapInscription[]> {
-  try {
-    // Try Unisat open API for inscription lookup
-    const resp = await fetch(`https://open-api.unisat.io/v1/indexer/address/${address}/inscription-data?cursor=0&size=100`, {
-      headers: { 'Accept': 'application/json' },
-    });
+  const results: BitmapInscription[] = [];
 
-    if (!resp.ok) {
-      // Fallback: try ordinals.com
-      const ordResp = await fetch(`https://ordinals.com/api/address/${address}/inscriptions`);
-      if (!ordResp.ok) return [];
-      const ordData = await ordResp.json();
-      return parseBitmapInscriptions(ordData);
-    }
-
-    const data = await resp.json();
-    return parseBitmapInscriptions(data?.data?.inscription || []);
-  } catch {
-    // If APIs fail, try Unisat extension directly
-    if (window.unisat) {
-      try {
-        const result = await window.unisat.getInscriptions(0, 100);
-        return parseBitmapInscriptions(result?.list || []);
-      } catch { /* fall through */ }
-    }
-    return [];
+  // Strategy 1: Try Unisat extension directly (most reliable — has content)
+  if (window.unisat) {
+    try {
+      let offset = 0;
+      const pageSize = 20;
+      while (offset < 200) { // max 200 inscriptions
+        const page = await window.unisat.getInscriptions(offset, pageSize);
+        if (!page?.list?.length) break;
+        for (const insc of page.list) {
+          const content = (insc.content || '').trim();
+          const parsed = parseBitmapContent(content, insc.inscriptionId);
+          if (parsed) results.push(parsed);
+        }
+        if (page.list.length < pageSize) break;
+        offset += pageSize;
+      }
+      if (results.length > 0) return results;
+    } catch { /* extension method failed, try API */ }
   }
+
+  // Strategy 2: Unisat open API — get inscription IDs, then fetch content for each
+  try {
+    const resp = await fetch(
+      `https://open-api.unisat.io/v1/indexer/address/${address}/inscription-utxo-data?cursor=0&size=50`,
+      { headers: { 'Accept': 'application/json' } }
+    );
+    if (resp.ok) {
+      const data = await resp.json();
+      const utxos = data?.data?.utxo || [];
+      // Collect all inscription IDs
+      const inscriptionIds: string[] = [];
+      for (const utxo of utxos) {
+        for (const insc of (utxo.inscriptions || [])) {
+          if (insc.inscriptionId) inscriptionIds.push(insc.inscriptionId);
+        }
+      }
+      // Fetch content for each inscription (parallel, max 10 at a time)
+      const contentPromises = inscriptionIds.map(async (id) => {
+        try {
+          const contentResp = await fetch(
+            `https://open-api.unisat.io/v1/indexer/inscription/content/${id}`
+          );
+          if (!contentResp.ok) return null;
+          const text = await contentResp.text();
+          return parseBitmapContent(text.trim(), id);
+        } catch { return null; }
+      });
+      const parsed = await Promise.all(contentPromises);
+      for (const p of parsed) {
+        if (p) results.push(p);
+      }
+    }
+  } catch { /* API failed */ }
+
+  return results;
 }
 
-/** Parse raw inscription data into BitmapInscription[] */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parseBitmapInscriptions(inscriptions: any[]): BitmapInscription[] {
-  const results: BitmapInscription[] = [];
-  for (const insc of inscriptions) {
-    const id = ((insc.inscriptionId || insc.id || '') as string);
-    const content = ((insc.content || '') as string).toString().trim();
+/** Parse a single content string into a BitmapInscription or null */
+function parseBitmapContent(content: string, inscriptionId: string): BitmapInscription | null {
+  const blockMatch = content.match(/^(\d+)\.bitmap$/);
+  const parcelMatch = content.match(/^(\d+):(\d+)\.bitmap$/);
 
-    // Match .bitmap pattern: "123456.bitmap" or "123456:42.bitmap"
-    const blockMatch = content.match(/^(\d+)\.bitmap$/);
-    const parcelMatch = content.match(/^(\d+):(\d+)\.bitmap$/);
-
-    if (blockMatch) {
-      results.push({
-        type: 'block',
-        height: parseInt(blockMatch[1], 10),
-        inscriptionId: id,
-        label: `${parseInt(blockMatch[1], 10).toLocaleString()}.bitmap`,
-      });
-    } else if (parcelMatch) {
-      results.push({
-        type: 'parcel',
-        height: parseInt(parcelMatch[1], 10),
-        txIndex: parseInt(parcelMatch[2], 10),
-        inscriptionId: id,
-        label: `${parseInt(parcelMatch[1], 10).toLocaleString()}:${parcelMatch[2]}.bitmap`,
-      });
-    }
+  if (blockMatch) {
+    return {
+      type: 'block',
+      height: parseInt(blockMatch[1], 10),
+      inscriptionId,
+      label: `${parseInt(blockMatch[1], 10).toLocaleString()}.bitmap`,
+    };
   }
-  return results;
+  if (parcelMatch) {
+    return {
+      type: 'parcel',
+      height: parseInt(parcelMatch[1], 10),
+      txIndex: parseInt(parcelMatch[2], 10),
+      inscriptionId,
+      label: `${parseInt(parcelMatch[1], 10).toLocaleString()}:${parcelMatch[2]}.bitmap`,
+    };
+  }
+  return null;
 }
 
 
