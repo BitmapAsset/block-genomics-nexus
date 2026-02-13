@@ -3024,8 +3024,9 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
   const [unlimited, setUnlimited] = useState(false);
   const [welcome, setWelcome] = useState('');
   const [status, setStatus] = useState<'idle' | 'publishing' | 'live'>('idle');
+  const [scopeBlock, setScopeBlock] = useState(parcelIndex < 0);
 
-  const isBlock = parcelIndex < 0;
+  const isBlock = scopeBlock;
   const address = isBlock ? `${blockHeight}.bitmap` : `${parcelIndex}.${blockHeight}.bitmap`;
   const protocolFeeMonthly = Math.ceil(parseInt(monthlyPrice || '0') * 3 / 100);
   const protocolFeeYearly = Math.ceil(parseInt(yearlyPrice || '0') * 3 / 100);
@@ -3060,6 +3061,22 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
             </div>
           </div>
         </div>
+
+        {/* Scope toggle: Entire Block vs Single Parcel */}
+        <div className="flex gap-2">
+          <button onClick={() => setScopeBlock(true)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all"
+            style={isBlock ? { background: 'rgba(247,147,26,0.15)', border: '1px solid rgba(247,147,26,0.5)', color: '#f7931a' } : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#64748b' }}>
+            ⛓️ Entire Block
+          </button>
+          <button onClick={() => setScopeBlock(false)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all"
+            style={!isBlock ? { background: 'rgba(0,255,204,0.1)', border: '1px solid rgba(0,255,204,0.4)', color: '#00ffcc' } : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#64748b' }}>
+            📦 Single Parcel
+          </button>
+        </div>
+        {isBlock && <p className="text-[10px]" style={{ color: '#94a3b8' }}>Full authority over every parcel in this block</p>}
+        {!isBlock && <p className="text-[10px]" style={{ color: '#94a3b8' }}>Delegate access to parcel #{parcelIndex} only</p>}
 
         {/* Pricing — simple 2 options */}
         <div className="space-y-3">
