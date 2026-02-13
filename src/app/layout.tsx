@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GlobalWalletProvider } from "@/context/GlobalWalletContext";
 import { AuthProvider } from "@/context/AuthContext";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -31,11 +32,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen flex flex-col bg-bg-primary text-text-primary antialiased">
-        <AuthProvider>
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
-        </AuthProvider>
+        <GlobalWalletProvider>
+          <AuthProvider>
+            <Header />
+            <main className="flex-1">{children}</main>
+            <Footer />
+          </AuthProvider>
+        </GlobalWalletProvider>
       </body>
     </html>
   );

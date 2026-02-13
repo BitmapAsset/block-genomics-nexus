@@ -4,6 +4,8 @@ import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import CrownShield from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
+import { useGlobalWallet } from '@/context/GlobalWalletContext';
+import { detectWallets, connectWalletByType, signWithWallet, saveSession, clearSession, type WalletType } from '@/lib/wallet-utils';
 
 /* ── helpers ── */
 function truncateAddress(addr: string) {
@@ -29,9 +31,9 @@ function StepBadge({ n, active, done }: { n: number; active: boolean; done: bool
 
 /* ── wallet icons ── */
 const walletMeta = [
-  { id: 'unisat', label: 'Unisat', icon: '🟧', color: '#f7931a' },
-  { id: 'xverse', label: 'Xverse', icon: '🔵', color: '#4488ff' },
-  { id: 'leather', label: 'Leather', icon: '🟤', color: '#8b6914' },
+  { id: 'unisat' as WalletType, label: 'Unisat', icon: '🟧', color: '#f7931a' },
+  { id: 'xverse' as WalletType, label: 'Xverse', icon: '🔵', color: '#4488ff' },
+  { id: 'leather' as WalletType, label: 'Leather', icon: '🟤', color: '#8b6914' },
 ] as const;
 
 /* ── inscription types ── */
@@ -43,71 +45,6 @@ interface BitmapInscription {
   label: string;
 }
 
-/** Detect which wallets are installed */
-function detectWallets(): Record<string, boolean> {
-  if (typeof window === 'undefined') return {};
-  return {
-    unisat: !!window.unisat,
-    xverse: !!window.BitcoinProvider,
-    leather: !!window.LeatherProvider,
-  };
-}
-
-/** Connect to Unisat wallet — returns address */
-async function connectUnisat(): Promise<string> {
-  if (!window.unisat) throw new Error('Unisat wallet not installed');
-  const accounts = await window.unisat.requestAccounts();
-  if (!accounts.length) throw new Error('No accounts returned');
-  return accounts[0];
-}
-
-/** Connect to Xverse wallet — returns address */
-async function connectXverse(): Promise<string> {
-  const provider = window.BitcoinProvider;
-  if (!provider) throw new Error('Xverse wallet not installed');
-  const response = await provider.connect();
-  if (!response?.addresses?.length) throw new Error('No accounts returned');
-  return response.addresses[0].address;
-}
-
-/** Connect to Leather wallet — returns address */
-async function connectLeather(): Promise<string> {
-  if (!window.LeatherProvider) throw new Error('Leather wallet not installed');
-  const resp = await window.LeatherProvider.request('getAddresses');
-  if (resp.error) throw new Error(resp.error.message);
-  const addrs = resp.result?.addresses || [];
-  // Prefer Taproot (p2tr) address
-  const taproot = addrs.find(a => a.type === 'p2tr');
-  const addr = taproot?.address || addrs[0]?.address;
-  if (!addr) throw new Error('No address returned from Leather');
-  return addr;
-}
-
-/** Sign message with wallet */
-async function signWithWallet(walletId: string, message: string): Promise<string> {
-  if (walletId === 'unisat') {
-    if (!window.unisat) throw new Error('Unisat not available');
-    return await window.unisat.signMessage(message, 'bip322-simple');
-  }
-  if (walletId === 'xverse') {
-    const provider = window.BitcoinProvider;
-    if (!provider) throw new Error('Xverse not available');
-    return await provider.signMessage(message, { network: 'Mainnet' });
-  }
-  if (walletId === 'leather') {
-    if (!window.LeatherProvider) throw new Error('Leather not available');
-    const resp = await window.LeatherProvider.request('signMessage', {
-      message,
-      paymentType: 'p2tr',
-    });
-    if (resp.error) throw new Error(resp.error.message);
-    const sig = resp.result?.signature || resp.result?.hex;
-    if (!sig) throw new Error('No signature returned from Leather');
-    return sig;
-  }
-  throw new Error('Unknown wallet');
-}
-
 /** Fetch .bitmap inscriptions from wallet */
 async function fetchBitmapInscriptions(address: string): Promise<BitmapInscription[]> {
   const results: BitmapInscription[] = [];
@@ -117,7 +54,7 @@ async function fetchBitmapInscriptions(address: string): Promise<BitmapInscripti
     try {
       let offset = 0;
       const pageSize = 20;
-      while (offset < 200) { // max 200 inscriptions
+      while (offset < 200) {
         const page = await window.unisat.getInscriptions(offset, pageSize);
         if (!page?.list?.length) break;
         for (const insc of page.list) {
@@ -132,7 +69,7 @@ async function fetchBitmapInscriptions(address: string): Promise<BitmapInscripti
     } catch { /* extension method failed, try API */ }
   }
 
-  // Strategy 2: Unisat open API — get inscription IDs, then fetch content for each
+  // Strategy 2: Unisat open API
   try {
     const resp = await fetch(
       `https://open-api.unisat.io/v1/indexer/address/${address}/inscription-utxo-data?cursor=0&size=100`,
@@ -147,10 +84,8 @@ async function fetchBitmapInscriptions(address: string): Promise<BitmapInscripti
           if (insc.inscriptionId) inscriptionIds.push(insc.inscriptionId);
         }
       }
-      // Fetch content via ordinals.com (no API key needed)
       const contentPromises = inscriptionIds.map(async (id) => {
         try {
-          // Try ordinals.com first (most reliable, no auth needed)
           const contentResp = await fetch(`https://ordinals.com/content/${id}`);
           if (contentResp.ok) {
             const text = await contentResp.text();
@@ -159,7 +94,6 @@ async function fetchBitmapInscriptions(address: string): Promise<BitmapInscripti
           }
         } catch { /* ordinals.com failed */ }
         try {
-          // Fallback: Unisat API
           const contentResp = await fetch(`https://open-api.unisat.io/v1/indexer/inscription/content/${id}`);
           if (contentResp.ok) {
             const text = await contentResp.text();
@@ -176,8 +110,7 @@ async function fetchBitmapInscriptions(address: string): Promise<BitmapInscripti
     }
   } catch { /* API failed */ }
 
-  // Strategy 3: Known inscriptions by address (hardcoded for our wallet as ultimate fallback)
-  // This ensures our own bitmaps always show up
+  // Strategy 3: Known inscriptions by address (hardcoded fallback)
   const knownBitmaps: Record<string, { block: number; id: string }[]> = {
     'bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978': [
       { block: 718840, id: 'cd031d5761e72f2ca1c7806fed7aae0f0ac94d7ced2c152692f9ff97aaf4afd4i0' },
@@ -227,12 +160,18 @@ function parseBitmapContent(content: string, inscriptionId: string): BitmapInscr
 
 
 export default function VerifyPage() {
-  /* step 1 */
-  const [wallet, setWallet] = useState<string | null>(null);
-  const [walletAddr, setWalletAddr] = useState('');
+  const globalWallet = useGlobalWallet();
+
+  /* step 1 — use context if already connected, otherwise local state */
+  const [localWallet, setLocalWallet] = useState<WalletType | null>(null);
+  const [localWalletAddr, setLocalWalletAddr] = useState('');
   const [walletError, setWalletError] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [detectedWallets, setDetectedWallets] = useState<Record<string, boolean>>({});
+
+  // Derived wallet state: prefer global context, fall back to local
+  const wallet: WalletType | null = globalWallet.isConnected ? globalWallet.walletType : localWallet;
+  const walletAddr: string = globalWallet.isConnected ? (globalWallet.walletAddress || '') : localWalletAddr;
 
   /* step 2 */
   const [blockInput, setBlockInput] = useState('');
@@ -264,19 +203,6 @@ export default function VerifyPage() {
     check();
     const t = setTimeout(check, 500);
     return () => clearTimeout(t);
-  }, []);
-
-  /* Restore wallet session from localStorage on mount */
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('bg_wallet');
-      if (!saved) return;
-      const { type, address } = JSON.parse(saved);
-      if (type && address) {
-        setWallet(type);
-        setWalletAddr(address);
-      }
-    } catch {}
   }, []);
 
   /* Check for existing profile when wallet address is set */
@@ -312,38 +238,51 @@ export default function VerifyPage() {
   }, [walletAddr]);
 
   /* ── actions ── */
-  const connectWallet = useCallback(async (id: string) => {
+  const connectWallet = useCallback(async (id: WalletType) => {
     setConnecting(true);
     setWalletError('');
     try {
-      let addr = '';
-      if (id === 'unisat') addr = await connectUnisat();
-      else if (id === 'xverse') addr = await connectXverse();
-      else if (id === 'leather') addr = await connectLeather();
-      else throw new Error('Unknown wallet');
-
-      setWallet(id);
-      setWalletAddr(addr);
-      localStorage.setItem('bg_wallet', JSON.stringify({ type: id, address: addr }));
-    } catch (e: any) {
-      const msg = e?.message || 'Failed to connect';
-      if (msg.includes('not installed')) {
-        // Open install page
-        const urls: Record<string, string> = {
-          unisat: 'https://unisat.io/download',
-          xverse: 'https://www.xverse.app/download',
-          leather: 'https://leather.io/install-extension',
-        };
-        window.open(urls[id], '_blank');
+      // Use global context connect — this persists to localStorage automatically
+      await globalWallet.connect(id);
+    } catch {
+      // If global connect fails, try direct connection as fallback
+      try {
+        const addr = await connectWalletByType(id);
+        setLocalWallet(id);
+        setLocalWalletAddr(addr);
+        saveSession(id, addr);
+      } catch (e2: unknown) {
+        const msg = e2 instanceof Error ? e2.message : 'Failed to connect';
+        if (msg.includes('not installed')) {
+          const urls: Record<string, string> = {
+            unisat: 'https://unisat.io/download',
+            xverse: 'https://www.xverse.app/download',
+            leather: 'https://leather.io/install-extension',
+          };
+          window.open(urls[id], '_blank');
+        }
+        setWalletError(msg);
       }
-      setWalletError(msg);
     } finally {
       setConnecting(false);
     }
-  }, []);
+  }, [globalWallet]);
+
+  const disconnectWallet = useCallback(() => {
+    globalWallet.disconnect();
+    setLocalWallet(null);
+    setLocalWalletAddr('');
+    setBlockInfo(null);
+    setVerified(false);
+    setGenomeHash('');
+    setProfileCreated(false);
+    setHandle('');
+    setDisplayName('');
+    setHandleAvailable(null);
+    clearSession();
+  }, [globalWallet]);
 
   const selectInscription = useCallback(async (insc: BitmapInscription) => {
-    // Fetch real tx count from mempool.space
     try {
       const resp = await fetch(`https://mempool.space/api/block-height/${insc.height}`);
       if (resp.ok) {
@@ -368,7 +307,6 @@ export default function VerifyPage() {
     }
     setBlockError('');
 
-    // Fetch real block data from mempool.space
     try {
       const resp = await fetch(`https://mempool.space/api/block-height/${height}`);
       if (!resp.ok) { setBlockError('Block not found'); return; }
@@ -390,7 +328,6 @@ export default function VerifyPage() {
     setVerifying(true);
     setSignError('');
     try {
-      // Step 1: Get challenge from server
       const challengeResp = await fetch('/api/v1/challenge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -400,11 +337,8 @@ export default function VerifyPage() {
       if (!challengeData.success) throw new Error(challengeData.error || 'Failed to get challenge');
 
       const { message } = challengeData.data;
-
-      // Step 2: Sign with wallet
       const signature = await signWithWallet(wallet, message);
 
-      // Step 3: Verify on server
       const verifyResp = await fetch('/api/v1/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -420,12 +354,14 @@ export default function VerifyPage() {
 
       setGenomeHash(verifyData.data.genomeHash);
       setVerified(true);
-    } catch (e: any) {
-      setSignError(e?.message || 'Verification failed. Please try again.');
+      // Refresh global profile after verification
+      globalWallet.refreshProfile();
+    } catch (e: unknown) {
+      setSignError(e instanceof Error ? e.message : 'Verification failed. Please try again.');
     } finally {
       setVerifying(false);
     }
-  }, [wallet, walletAddr, blockInfo]);
+  }, [wallet, walletAddr, blockInfo, globalWallet]);
 
   const validateHandle = (v: string) => {
     if (v.length < 3 || v.length > 20) return 'Must be 3–20 characters';
@@ -455,11 +391,10 @@ export default function VerifyPage() {
   const createProfile = useCallback(async () => {
     const err = validateHandle(handle);
     if (err) { setHandleError(err); return; }
-    if (!walletAddr || !blockInfo) return;
+    if (!walletAddr || !blockInfo || !wallet) return;
 
     setCreatingProfile(true);
     try {
-      // Re-sign to create profile with handle
       const challengeResp = await fetch('/api/v1/challenge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -468,7 +403,7 @@ export default function VerifyPage() {
       const challengeData = await challengeResp.json();
       if (!challengeData.success) throw new Error('Failed to get challenge');
 
-      const signature = await signWithWallet(wallet!, challengeData.data.message);
+      const signature = await signWithWallet(wallet, challengeData.data.message);
 
       const resp = await fetch('/api/v1/auth/verify', {
         method: 'POST',
@@ -486,12 +421,14 @@ export default function VerifyPage() {
       if (!data.success) throw new Error(data.error || 'Failed to create profile');
 
       setProfileCreated(true);
-    } catch (e: any) {
-      setHandleError(e?.message || 'Failed to create profile');
+      // Refresh global profile after creation
+      globalWallet.refreshProfile();
+    } catch (e: unknown) {
+      setHandleError(e instanceof Error ? e.message : 'Failed to create profile');
     } finally {
       setCreatingProfile(false);
     }
-  }, [handle, displayName, walletAddr, wallet, blockInfo]);
+  }, [handle, displayName, walletAddr, wallet, blockInfo, globalWallet]);
 
   /* ── render ── */
   return (
@@ -554,7 +491,7 @@ export default function VerifyPage() {
                 <span className="text-text-secondary">Connected via <strong className="text-text-primary capitalize">{wallet}</strong></span>
                 <code className="ml-auto text-xs text-accent-cyan bg-accent-cyan/10 px-2 py-1 rounded">{truncateAddress(walletAddr)}</code>
                 <button
-                  onClick={() => { setWallet(null); setWalletAddr(''); setBlockInfo(null); setVerified(false); setGenomeHash(''); setProfileCreated(false); setHandle(''); setDisplayName(''); setHandleAvailable(null); localStorage.removeItem('bg_wallet'); }}
+                  onClick={disconnectWallet}
                   className="text-xs text-text-muted hover:text-red-400 transition-colors ml-2"
                 >
                   Disconnect

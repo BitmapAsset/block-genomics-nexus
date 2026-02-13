@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { useAuth, type WalletType } from "@/context/AuthContext";
+import { useGlobalWallet, type WalletType } from "@/context/GlobalWalletContext";
 
 function truncateAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -18,62 +18,114 @@ export default function WalletConnect() {
   const {
     isConnected, isConnecting, walletAddress, walletType, profile,
     connect, disconnect, availableWallets,
-  } = useAuth();
+  } = useGlobalWallet();
   const [open, setOpen] = useState(false);
-  const modalRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Close dropdown on outside click
   useEffect(() => {
-    if (open) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
-    return () => { document.body.style.overflow = ''; };
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
+  // Lock body scroll when modal is open (disconnected state)
+  useEffect(() => {
+    if (open && !isConnected) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => { document.body.style.overflow = ''; };
+  }, [open, isConnected]);
+
   const handleConnect = async (type: WalletType) => {
-    setOpen(false);
-    await connect(type);
+    try {
+      await connect(type);
+      setOpen(false);
+    } catch {
+      // error is in context
+    }
   };
 
   const isAvailable = (type: WalletType) => availableWallets.includes(type);
 
+  const [addressCopied, setAddressCopied] = useState(false);
+  const copyAddress = () => {
+    if (!walletAddress) return;
+    navigator.clipboard.writeText(walletAddress);
+    setAddressCopied(true);
+    setTimeout(() => setAddressCopied(false), 2000);
+  };
+
   return (
     <>
       {isConnected ? (
-        <div className="relative">
+        <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setOpen(prev => !prev)}
-            className="flex items-center gap-3 rounded-full border border-accent-cyan/30 bg-accent-cyan/5 px-3 py-1.5 text-sm font-medium text-text-primary hover:border-accent-cyan/50 transition-all"
+            className="flex items-center gap-2 rounded-full border border-accent-cyan/30 bg-accent-cyan/5 px-3 py-1.5 text-sm font-medium text-text-primary hover:border-accent-cyan/50 transition-all"
           >
-            <span className="h-8 w-8 rounded-full bg-gradient-to-br from-accent-cyan/30 to-accent-purple/40 border border-accent-cyan/30 flex items-center justify-center text-xs">
-              {profile?.handle?.slice(0, 2).toUpperCase() || "BG"}
+            {/* Green dot */}
+            <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
+            <span className="hidden sm:inline text-xs font-mono text-accent-cyan">
+              {walletAddress ? truncateAddress(walletAddress) : ''}
             </span>
-            <div className="hidden sm:flex flex-col items-start leading-tight">
-              <span className="text-xs text-text-muted">
-                {profile ? `@${profile.handle}` : truncateAddress(walletAddress || "")}
-              </span>
-              <span className="text-[10px] text-accent-cyan">
-                {walletType ? WALLETS.find(w => w.type === walletType)?.name || 'Wallet' : 'Wallet'}
-              </span>
-            </div>
+            <span className="sm:hidden text-xs font-mono text-accent-cyan">
+              {walletAddress ? `${walletAddress.slice(0, 4)}…${walletAddress.slice(-4)}` : ''}
+            </span>
           </button>
           {open && (
-            <div className="absolute right-0 mt-2 w-56 rounded-xl p-2 shadow-xl z-50" style={{ background: 'rgba(12,12,20,0.95)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}>
-              <div className="px-3 py-2">
-                <p className="text-[10px] uppercase tracking-wider" style={{ color: '#64748b' }}>Connected</p>
-                <p className="text-sm font-mono mt-0.5" style={{ color: '#e2e8f0' }}>
-                  {walletAddress ? truncateAddress(walletAddress) : "—"}
+            <div className="absolute right-0 mt-2 w-64 rounded-xl p-2 shadow-xl z-50" style={{ background: 'rgba(12,12,20,0.95)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}>
+              {/* Wallet address - copyable */}
+              <button onClick={copyAddress} className="w-full text-left rounded-lg px-3 py-2 hover:bg-white/5 transition-colors group">
+                <p className="text-[10px] uppercase tracking-wider" style={{ color: '#64748b' }}>
+                  {addressCopied ? '✅ Copied!' : 'Wallet Address · Click to copy'}
                 </p>
-              </div>
+                <p className="text-xs font-mono mt-0.5 break-all leading-relaxed" style={{ color: '#e2e8f0' }}>
+                  {walletAddress}
+                </p>
+                <p className="text-[10px] mt-1" style={{ color: '#475569' }}>
+                  via {walletType ? WALLETS.find(w => w.type === walletType)?.name || 'Wallet' : 'Wallet'}
+                </p>
+              </button>
+
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
-              {profile ? (
-                <>
-                  <Link href="/profile" className="block rounded-lg px-3 py-2 text-sm hover:bg-white/5 transition-colors" style={{ color: '#e2e8f0' }} onClick={() => setOpen(false)}>👤 Profile</Link>
-                  <Link href={`/block/${profile.bitmapBlock}`} className="block rounded-lg px-3 py-2 text-sm hover:bg-white/5 transition-colors" style={{ color: '#e2e8f0' }} onClick={() => setOpen(false)}>🗺️ My Block</Link>
-                </>
-              ) : (
-                <Link href="/connect" className="block rounded-lg px-3 py-2 text-sm hover:bg-white/5 transition-colors" style={{ color: '#e2e8f0' }} onClick={() => setOpen(false)}>✨ Create Profile</Link>
-              )}
-              <button onClick={() => { disconnect(); setOpen(false); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-red-500/10" style={{ color: '#f87171' }}>
-                🔌 Disconnect
+
+              {/* Profile links */}
+              {profile?.handle ? (
+                <Link
+                  href={`/agent/${profile.handle}`}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/5 transition-colors"
+                  style={{ color: '#e2e8f0' }}
+                  onClick={() => setOpen(false)}
+                >
+                  <span>👤</span> View Profile
+                  <span className="ml-auto text-[10px] font-mono" style={{ color: '#64748b' }}>@{profile.handle}</span>
+                </Link>
+              ) : null}
+
+              <Link
+                href="/verify"
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/5 transition-colors"
+                style={{ color: '#e2e8f0' }}
+                onClick={() => setOpen(false)}
+              >
+                <span>{profile?.handle ? '⚙️' : '✨'}</span>
+                {profile?.handle ? 'Verify / Settings' : 'Verify / Create Profile'}
+              </Link>
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
+
+              {/* Disconnect */}
+              <button
+                onClick={() => { disconnect(); setOpen(false); }}
+                className="flex items-center gap-2 w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-red-500/10"
+                style={{ color: '#f87171' }}
+              >
+                <span>🔌</span> Disconnect
               </button>
             </div>
           )}
@@ -92,7 +144,6 @@ export default function WalletConnect() {
       {open && !isConnected && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }} onClick={() => setOpen(false)}>
           <div
-            ref={modalRef}
             onClick={e => e.stopPropagation()}
             className="w-full sm:w-[420px] rounded-2xl overflow-y-auto my-auto"
             style={{

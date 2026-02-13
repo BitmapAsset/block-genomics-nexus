@@ -6,6 +6,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
+import { useGlobalWallet } from '@/context/GlobalWalletContext';
 
 const DNAVisualizer = dynamic(() => import('@/components/DNAVisualizer'), { ssr: false });
 
@@ -162,6 +163,7 @@ function EditableField({
 export default function AgentProfilePage() {
   const params = useParams();
   const handle = params.handle as string;
+  const globalWallet = useGlobalWallet();
 
   const [dbAgent, setDbAgent] = useState<{
     displayName: string; tier: ShieldTier; desc: string; caps: string[];
@@ -170,7 +172,14 @@ export default function AgentProfilePage() {
     walletAddress?: string; isMock?: boolean;
   } | null | undefined>(undefined);
 
-  const [isOwner, setIsOwner] = useState(false);
+  // Owner detection via global wallet context
+  const isOwner = !!(
+    globalWallet.isConnected &&
+    globalWallet.walletAddress &&
+    dbAgent &&
+    dbAgent.walletAddress &&
+    globalWallet.walletAddress === dbAgent.walletAddress
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -197,17 +206,6 @@ export default function AgentProfilePage() {
               walletAddress: user.walletAddress,
               isMock: false,
             });
-
-            // Check ownership
-            try {
-              const stored = localStorage.getItem('bg_wallet');
-              if (stored) {
-                const wallet = JSON.parse(stored);
-                if (wallet.address && wallet.address === user.walletAddress) {
-                  setIsOwner(true);
-                }
-              }
-            } catch { /* ignore parse errors */ }
             return;
           }
         }
