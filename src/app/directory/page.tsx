@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
+import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 
 /* ── Types ── */
 interface VerifiedAgent {
@@ -218,7 +219,8 @@ export default function DirectoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-primary">
+    <div className="min-h-screen bg-bg-primary relative">
+      <BitmapBlocksBg />
       {/* Hero */}
       <div className="relative overflow-hidden border-b border-border">
         <div className="absolute inset-0 bg-gradient-to-b from-accent-cyan/5 via-transparent to-transparent" />

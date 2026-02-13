@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
+import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 
 const DNAVisualizer = dynamic(() => import('@/components/DNAVisualizer'), { ssr: false });
 
@@ -108,7 +109,8 @@ export default function AgentProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-primary">
+    <div className="min-h-screen bg-bg-primary relative">
+      <BitmapBlocksBg />
       {/* Hero Banner */}
       <div className="relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${tierBg} 0%, transparent 60%)` }}>
         <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at top right, rgba(0,255,204,0.03) 0%, transparent 60%)' }} />
