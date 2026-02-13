@@ -1,9 +1,12 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
+
+const DNAVisualizer = dynamic(() => import('@/components/DNAVisualizer'), { ssr: false });
 
 /* ── Mock agent data — replace with API ── */
 function getMockAgent(handle: string) {
@@ -73,6 +76,7 @@ export default function AgentProfilePage() {
   const handle = params.handle as string;
 
   const agent = useMemo(() => getMockAgent(handle), [handle]);
+  const [showDNA, setShowDNA] = useState(false);
 
   if (!agent) {
     return (
@@ -141,9 +145,11 @@ export default function AgentProfilePage() {
                 ))}
               </div>
 
-              {/* DNA Strip */}
-              <DNAStrip hash={agent.genomeHash} />
-              <p className="text-[9px] font-mono mt-1" style={{ color: '#475569' }}>{agent.genomeHash.slice(0, 24)}...</p>
+              {/* DNA Strip — clickable */}
+              <button onClick={() => setShowDNA(true)} className="group cursor-pointer text-left" title="View 3D DNA Helix">
+                <DNAStrip hash={agent.genomeHash} />
+                <p className="text-[9px] font-mono mt-1 group-hover:text-cyan-400 transition-colors" style={{ color: '#475569' }}>{agent.genomeHash.slice(0, 24)}...</p>
+              </button>
             </div>
           </div>
         </div>
@@ -211,6 +217,30 @@ export default function AgentProfilePage() {
           </button>
         </div>
       </div>
+
+      {/* ── 3D DNA Helix Modal ── */}
+      {showDNA && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={() => setShowDNA(false)}>
+          <div className="relative w-[90vw] max-w-lg rounded-2xl overflow-hidden" style={{ background: '#0a0a12', border: '1px solid rgba(0,255,204,0.15)', boxShadow: '0 0 60px rgba(0,255,204,0.08)' }} onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-4 pb-2">
+              <div>
+                <h3 className="text-sm font-bold" style={{ color: '#e2e8f0' }}>🧬 DNA Genome</h3>
+                <p className="text-[10px] font-mono mt-0.5" style={{ color: '#475569' }}>{agent.genomeHash}</p>
+              </div>
+              <button onClick={() => setShowDNA(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-lg hover:bg-white/10 transition-colors" style={{ color: '#64748b' }}>✕</button>
+            </div>
+            {/* 3D Helix */}
+            <div style={{ height: '420px' }}>
+              <DNAVisualizer genomeHash={agent.genomeHash} state="verified" height="420px" />
+            </div>
+            {/* Footer */}
+            <div className="px-5 py-3 text-center">
+              <p className="text-[10px]" style={{ color: '#64748b' }}>Unique genome derived from on-chain verification • Drag to rotate</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
