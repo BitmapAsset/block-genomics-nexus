@@ -933,9 +933,9 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
         const area = worldW * worldD;
 
         // Large gaps = parks, narrow gaps = roads
-        if (area > 2.0) {
+        if (area > 1.0) {
           parks.push({ x: worldX + worldW / 2, z: worldZ + worldD / 2, w: worldW, d: worldD });
-        } else if (area > 0.02) {
+        } else if (area > 0.005) {
           roads.push({ x: worldX + worldW / 2, z: worldZ + worldD / 2, w: worldW, d: worldD });
         }
       }
@@ -945,33 +945,33 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
 
   return (
     <group>
-      {/* Base ground */}
+      {/* Base ground — lighter in street view so roads contrast */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
         <planeGeometry args={[size, size]} />
-        <meshStandardMaterial color="#06060c" roughness={1} metalness={0} />
+        <meshStandardMaterial color={viewMode === 'street' ? '#101018' : '#06060c'} roughness={1} metalness={0} />
       </mesh>
 
-      {/* Roads — dark asphalt gray */}
+      {/* Roads — visible asphalt gray */}
       {(viewMode === 'street' || viewMode === 'heights') && surfaces.roads.map((r, i) => (
         <mesh key={`road-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[r.x, 0.001, r.z]}>
           <planeGeometry args={[r.w, r.d]} />
-          <meshStandardMaterial color="#1a1a24" roughness={0.95} metalness={0} />
+          <meshStandardMaterial color="#2a2a3a" roughness={0.85} metalness={0.1} />
         </mesh>
       ))}
 
-      {/* Parks — dark green */}
+      {/* Parks — visible green */}
       {(viewMode === 'street' || viewMode === 'heights') && surfaces.parks.map((p, i) => (
         <mesh key={`park-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[p.x, 0.001, p.z]}>
           <planeGeometry args={[p.w, p.d]} />
-          <meshStandardMaterial color="#0a2a0a" roughness={0.9} metalness={0} />
+          <meshStandardMaterial color="#1a3a1a" roughness={0.85} metalness={0} />
         </mesh>
       ))}
 
       {/* Road lane markings for street view */}
-      {viewMode === 'street' && surfaces.roads.filter(r => r.w > 0.3 || r.d > 0.3).slice(0, 50).map((r, i) => (
+      {viewMode === 'street' && surfaces.roads.filter(r => r.w > 0.2 || r.d > 0.2).slice(0, 80).map((r, i) => (
         <mesh key={`mark-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[r.x, 0.002, r.z]}>
           <planeGeometry args={[r.w > r.d ? r.w * 0.8 : r.w * 0.05, r.d > r.w ? r.d * 0.8 : r.d * 0.05]} />
-          <meshStandardMaterial color="#ffcc00" transparent opacity={0.3} roughness={1} metalness={0} />
+          <meshStandardMaterial color="#ffcc00" transparent opacity={0.5} roughness={1} metalness={0} />
         </mesh>
       ))}
     </group>
@@ -1666,10 +1666,10 @@ function FlyToCamera({ flyTarget, onComplete }: { flyTarget: FlyTarget | null; o
    BLOCK_SIZE=20 world units = 2100m → 1 world unit = 105m
    Walking: 1.4 m/s | Running: 3.5 m/s | Eye height: 1.7m
    ═══════════════════════════════════════════ */
-const WALK_SPEED = 1.4 / METERS_PER_UNIT;
-const RUN_SPEED = 3.5 / METERS_PER_UNIT;
+const WALK_SPEED = 3.0 / METERS_PER_UNIT;  // ~3 m/s brisk walk (was 1.4 — too slow)
+const RUN_SPEED = 8.0 / METERS_PER_UNIT;  // ~8 m/s fast run (was 3.5)
 const EYE_HEIGHT = 1.7 / METERS_PER_UNIT;
-const MOUSE_SENSITIVITY = 0.003;
+const MOUSE_SENSITIVITY = 0.004;
 const BLOCK_HALF = BLOCK_SIZE / 2;
 
 function StreetWalker({ active, parcels, teleportTo }: { active: boolean; parcels: ParcelData[]; teleportTo: ParcelData | null }) {
@@ -2037,12 +2037,15 @@ function MediaPreviewLink({ text }: { text: string }) {
 function VPSLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => void; blockHeight: number; parcelIndex: number }) {
   const [url, setUrl] = useState('');
   const [status, setStatus] = useState<'idle' | 'verifying' | 'linked'>('idle');
+  const [linkTarget, setLinkTarget] = useState<'block' | 'parcel'>('parcel');
 
   const handleLink = () => {
     if (!url) return;
     setStatus('verifying');
     setTimeout(() => setStatus('linked'), 2000);
   };
+
+  const targetAddress = linkTarget === 'block' ? `${blockHeight}.bitmap` : `${parcelIndex}.${blockHeight}.bitmap`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose} style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
@@ -2051,9 +2054,32 @@ function VPSLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => vo
           <h3 className="text-base font-bold" style={{ color: '#f7931a' }}>🔗 Link VPS / Server</h3>
           <button onClick={onClose} className="text-[#64748b] hover:text-white text-lg">✕</button>
         </div>
+        {/* Link target toggle */}
+        <div className="flex gap-2 mb-4">
+          <button onClick={() => { setLinkTarget('block'); setStatus('idle'); }}
+            className="flex-1 py-2 rounded-lg text-[11px] font-bold transition-all"
+            style={{
+              background: linkTarget === 'block' ? 'rgba(247,147,26,0.15)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${linkTarget === 'block' ? 'rgba(247,147,26,0.4)' : 'rgba(255,255,255,0.08)'}`,
+              color: linkTarget === 'block' ? '#f7931a' : '#64748b',
+            }}>
+            ⛓️ Entire Block
+          </button>
+          <button onClick={() => { setLinkTarget('parcel'); setStatus('idle'); }}
+            className="flex-1 py-2 rounded-lg text-[11px] font-bold transition-all"
+            style={{
+              background: linkTarget === 'parcel' ? 'rgba(247,147,26,0.15)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${linkTarget === 'parcel' ? 'rgba(247,147,26,0.4)' : 'rgba(255,255,255,0.08)'}`,
+              color: linkTarget === 'parcel' ? '#f7931a' : '#64748b',
+            }}>
+            📦 Single Parcel
+          </button>
+        </div>
         <p className="text-[11px] mb-4" style={{ color: '#94a3b8' }}>
-          Connect your server to parcel <span style={{ color: '#f7931a' }}>{parcelIndex}.{blockHeight}.bitmap</span>.
-          Visitors who click into your parcel will be redirected to your hosted experience.
+          Connect your server to {linkTarget === 'block' ? 'block' : 'parcel'} <span style={{ color: '#f7931a' }}>{targetAddress}</span>.
+          {linkTarget === 'block'
+            ? ' As block owner, you have full authority over every parcel in this block. All visitors will be redirected to your hosted experience.'
+            : ' Visitors who click into your parcel will be redirected to your hosted experience.'}
         </p>
         <div className="space-y-3">
           <div>
@@ -2235,6 +2261,7 @@ function LivestreamModal({ onClose, blockHeight, parcelIndex, isStreaming, onSta
 function AgentLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => void; blockHeight: number; parcelIndex: number }) {
   const [agentUrl, setAgentUrl] = useState('');
   const [status, setStatus] = useState<'idle' | 'connecting' | 'linked'>('idle');
+  const [linkTarget, setLinkTarget] = useState<'block' | 'parcel'>('parcel');
   const [permissions, setPermissions] = useState({
     readDMs: true, sendDMs: true, manageContent: true,
     buildDecorate: false, handleOffers: false, fullAutonomy: false,
@@ -2246,6 +2273,8 @@ function AgentLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => 
     setTimeout(() => setStatus('linked'), 2500);
   };
 
+  const targetAddress = linkTarget === 'block' ? `${blockHeight}.bitmap` : `${parcelIndex}.${blockHeight}.bitmap`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose} style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
       <div className="w-[440px] rounded-2xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} style={{ background: '#0f0f18', border: '1px solid rgba(0,255,136,0.2)' }}>
@@ -2253,9 +2282,32 @@ function AgentLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => 
           <h3 className="text-base font-bold" style={{ color: '#00ff88' }}>🤖 Link AI Agent</h3>
           <button onClick={onClose} className="text-[#64748b] hover:text-white text-lg">✕</button>
         </div>
+        {/* Link target toggle */}
+        <div className="flex gap-2 mb-4">
+          <button onClick={() => { setLinkTarget('block'); setStatus('idle'); }}
+            className="flex-1 py-2 rounded-lg text-[11px] font-bold transition-all"
+            style={{
+              background: linkTarget === 'block' ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${linkTarget === 'block' ? 'rgba(0,255,136,0.35)' : 'rgba(255,255,255,0.08)'}`,
+              color: linkTarget === 'block' ? '#00ff88' : '#64748b',
+            }}>
+            ⛓️ Entire Block
+          </button>
+          <button onClick={() => { setLinkTarget('parcel'); setStatus('idle'); }}
+            className="flex-1 py-2 rounded-lg text-[11px] font-bold transition-all"
+            style={{
+              background: linkTarget === 'parcel' ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${linkTarget === 'parcel' ? 'rgba(0,255,136,0.35)' : 'rgba(255,255,255,0.08)'}`,
+              color: linkTarget === 'parcel' ? '#00ff88' : '#64748b',
+            }}>
+            📦 Single Parcel
+          </button>
+        </div>
         <p className="text-[11px] mb-4" style={{ color: '#94a3b8' }}>
-          Connect an AI agent to manage <span style={{ color: '#f7931a' }}>{parcelIndex}.{blockHeight}.bitmap</span>.
-          Your agent becomes the digital landlord — handling visitors, content, and automation.
+          Connect an AI agent to manage <span style={{ color: '#f7931a' }}>{targetAddress}</span>.
+          {linkTarget === 'block'
+            ? ' As block owner, your agent gains full authority over every parcel — managing visitors, content, builds, and automation across the entire block.'
+            : ' Your agent becomes the digital landlord — handling visitors, content, and automation for this parcel.'}
         </p>
         <div className="space-y-3">
           <div>
@@ -3603,10 +3655,10 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                   if (firstParcel) handleParcelClick(firstParcel);
                 }}
               />
-              <AmbientParticles count={80} spread={BLOCK_SIZE * 1.2} />
+              <AmbientParticles count={30} spread={BLOCK_SIZE * 1.2} />
               <EnergyBeams parcels={parcels} />
-              <SpatialAvatars avatars={spatialAvatars} parcels={parcels} />
-              <SpatialMessages avatars={spatialAvatars} parcels={parcels} />
+              <SpatialAvatars avatars={spatialAvatars.slice(0, 5)} parcels={parcels} />
+              <SpatialMessages avatars={spatialAvatars.slice(0, 3)} parcels={parcels} />
               <SpatialReactions parcels={parcels} reactions={spatialReactions} />
               {isStreaming && selectedParcel && displayParcelOwner && (
                 <>

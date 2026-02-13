@@ -1,15 +1,13 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import Link from 'next/link';
 import CrownShield from '@/components/CrownShield';
+import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 
 /* ── helpers ── */
 function truncateAddress(addr: string) {
   return addr.slice(0, 6) + '...' + addr.slice(-4);
-}
-
-function mockGenomeHash() {
-  return '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
 }
 
 /* ── step indicator ── */
@@ -29,46 +27,249 @@ function StepBadge({ n, active, done }: { n: number; active: boolean; done: bool
   );
 }
 
-/* ── wallet icons (simple SVG placeholders) ── */
+/* ── wallet icons ── */
 const walletMeta = [
-  { id: 'unisat', label: 'Unisat', icon: '🟧' },
-  { id: 'xverse', label: 'Xverse', icon: '🔵' },
-  { id: 'leather', label: 'Leather', icon: '🟤' },
+  { id: 'unisat', label: 'Unisat', icon: '🟧', color: '#f7931a' },
+  { id: 'xverse', label: 'Xverse', icon: '🔵', color: '#4488ff' },
+  { id: 'leather', label: 'Leather', icon: '🟤', color: '#8b6914' },
 ] as const;
+
+/* ── inscription types ── */
+interface BitmapInscription {
+  type: 'block' | 'parcel';
+  height: number;
+  txIndex?: number;
+  inscriptionId: string;
+  label: string;
+}
+
+/** Detect which wallets are installed */
+function detectWallets(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {};
+  return {
+    unisat: !!window.unisat,
+    xverse: !!window.BitcoinProvider,
+    leather: !!window.LeatherProvider,
+  };
+}
+
+/** Connect to Unisat wallet — returns address */
+async function connectUnisat(): Promise<string> {
+  if (!window.unisat) throw new Error('Unisat wallet not installed');
+  const accounts = await window.unisat.requestAccounts();
+  if (!accounts.length) throw new Error('No accounts returned');
+  return accounts[0];
+}
+
+/** Connect to Xverse wallet — returns address */
+async function connectXverse(): Promise<string> {
+  const provider = window.BitcoinProvider;
+  if (!provider) throw new Error('Xverse wallet not installed');
+  const response = await provider.connect();
+  if (!response?.addresses?.length) throw new Error('No accounts returned');
+  return response.addresses[0].address;
+}
+
+/** Connect to Leather wallet — returns address */
+async function connectLeather(): Promise<string> {
+  if (!window.LeatherProvider) throw new Error('Leather wallet not installed');
+  if (window.LeatherProvider.requestAccounts) {
+    const accounts = await window.LeatherProvider.requestAccounts();
+    if (!accounts?.length) throw new Error('No accounts returned');
+    return accounts[0];
+  }
+  if (window.LeatherProvider.getAddresses) {
+    const addresses = await window.LeatherProvider.getAddresses();
+    if (!addresses?.length) throw new Error('No addresses returned');
+    return addresses[0];
+  }
+  throw new Error('Leather wallet API not available');
+}
+
+/** Sign message with wallet */
+async function signWithWallet(walletId: string, message: string): Promise<string> {
+  if (walletId === 'unisat') {
+    if (!window.unisat) throw new Error('Unisat not available');
+    return await window.unisat.signMessage(message, 'bip322-simple');
+  }
+  if (walletId === 'xverse') {
+    const provider = window.BitcoinProvider;
+    if (!provider) throw new Error('Xverse not available');
+    return await provider.signMessage(message);
+  }
+  if (walletId === 'leather') {
+    // Leather doesn't have a standard signMessage in our types
+    // Fall back to Unisat-compatible signing if available
+    throw new Error('Leather signing not yet supported — use Unisat or Xverse');
+  }
+  throw new Error('Unknown wallet');
+}
+
+/** Fetch .bitmap inscriptions from Unisat API */
+async function fetchBitmapInscriptions(address: string): Promise<BitmapInscription[]> {
+  try {
+    // Try Unisat open API for inscription lookup
+    const resp = await fetch(`https://open-api.unisat.io/v1/indexer/address/${address}/inscription-data?cursor=0&size=100`, {
+      headers: { 'Accept': 'application/json' },
+    });
+
+    if (!resp.ok) {
+      // Fallback: try ordinals.com
+      const ordResp = await fetch(`https://ordinals.com/api/address/${address}/inscriptions`);
+      if (!ordResp.ok) return [];
+      const ordData = await ordResp.json();
+      return parseBitmapInscriptions(ordData);
+    }
+
+    const data = await resp.json();
+    return parseBitmapInscriptions(data?.data?.inscription || []);
+  } catch {
+    // If APIs fail, try Unisat extension directly
+    if (window.unisat) {
+      try {
+        const result = await window.unisat.getInscriptions(0, 100);
+        return parseBitmapInscriptions(result?.list || []);
+      } catch { /* fall through */ }
+    }
+    return [];
+  }
+}
+
+/** Parse raw inscription data into BitmapInscription[] */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseBitmapInscriptions(inscriptions: any[]): BitmapInscription[] {
+  const results: BitmapInscription[] = [];
+  for (const insc of inscriptions) {
+    const id = ((insc.inscriptionId || insc.id || '') as string);
+    const content = ((insc.content || '') as string).toString().trim();
+
+    // Match .bitmap pattern: "123456.bitmap" or "123456:42.bitmap"
+    const blockMatch = content.match(/^(\d+)\.bitmap$/);
+    const parcelMatch = content.match(/^(\d+):(\d+)\.bitmap$/);
+
+    if (blockMatch) {
+      results.push({
+        type: 'block',
+        height: parseInt(blockMatch[1], 10),
+        inscriptionId: id,
+        label: `${parseInt(blockMatch[1], 10).toLocaleString()}.bitmap`,
+      });
+    } else if (parcelMatch) {
+      results.push({
+        type: 'parcel',
+        height: parseInt(parcelMatch[1], 10),
+        txIndex: parseInt(parcelMatch[2], 10),
+        inscriptionId: id,
+        label: `${parseInt(parcelMatch[1], 10).toLocaleString()}:${parcelMatch[2]}.bitmap`,
+      });
+    }
+  }
+  return results;
+}
+
 
 export default function VerifyPage() {
   /* step 1 */
   const [wallet, setWallet] = useState<string | null>(null);
   const [walletAddr, setWalletAddr] = useState('');
+  const [walletError, setWalletError] = useState('');
+  const [connecting, setConnecting] = useState(false);
+  const [detectedWallets, setDetectedWallets] = useState<Record<string, boolean>>({});
 
   /* step 2 */
   const [blockInput, setBlockInput] = useState('');
   const [blockError, setBlockError] = useState('');
   const [blockInfo, setBlockInfo] = useState<{ height: number; txCount: number } | null>(null);
+  const [inscriptions, setInscriptions] = useState<BitmapInscription[]>([]);
+  const [loadingInscriptions, setLoadingInscriptions] = useState(false);
 
   /* step 3 */
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
   const [genomeHash, setGenomeHash] = useState('');
+  const [signError, setSignError] = useState('');
 
   /* step 4 */
   const [displayName, setDisplayName] = useState('');
   const [handle, setHandle] = useState('');
   const [handleError, setHandleError] = useState('');
   const [handleAvailable, setHandleAvailable] = useState<boolean | null>(null);
+  const [checkingHandle, setCheckingHandle] = useState(false);
   const [profileCreated, setProfileCreated] = useState(false);
+  const [creatingProfile, setCreatingProfile] = useState(false);
 
   const currentStep = !wallet ? 1 : !blockInfo ? 2 : !verified ? 3 : 4;
 
-  /* ── actions ── */
-  const connectWallet = useCallback((id: string) => {
-    /* MOCK — replace with real wallet connect */
-    const fakeAddr = 'bc1p' + Array.from({ length: 58 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-    setWallet(id);
-    setWalletAddr(fakeAddr);
+  /* Detect installed wallets on mount */
+  useEffect(() => {
+    // Wallets inject after page load, so check after a delay too
+    const check = () => setDetectedWallets(detectWallets());
+    check();
+    const t = setTimeout(check, 500);
+    return () => clearTimeout(t);
   }, []);
 
-  const submitBlock = useCallback(() => {
+  /* Fetch bitmap inscriptions when wallet connects */
+  useEffect(() => {
+    if (!walletAddr) return;
+    let cancelled = false;
+    setLoadingInscriptions(true);
+    fetchBitmapInscriptions(walletAddr).then(data => {
+      if (!cancelled) { setInscriptions(data); setLoadingInscriptions(false); }
+    }).catch(() => {
+      if (!cancelled) { setInscriptions([]); setLoadingInscriptions(false); }
+    });
+    return () => { cancelled = true; };
+  }, [walletAddr]);
+
+  /* ── actions ── */
+  const connectWallet = useCallback(async (id: string) => {
+    setConnecting(true);
+    setWalletError('');
+    try {
+      let addr = '';
+      if (id === 'unisat') addr = await connectUnisat();
+      else if (id === 'xverse') addr = await connectXverse();
+      else if (id === 'leather') addr = await connectLeather();
+      else throw new Error('Unknown wallet');
+
+      setWallet(id);
+      setWalletAddr(addr);
+    } catch (e: any) {
+      const msg = e?.message || 'Failed to connect';
+      if (msg.includes('not installed')) {
+        // Open install page
+        const urls: Record<string, string> = {
+          unisat: 'https://unisat.io/download',
+          xverse: 'https://www.xverse.app/download',
+          leather: 'https://leather.io/install-extension',
+        };
+        window.open(urls[id], '_blank');
+      }
+      setWalletError(msg);
+    } finally {
+      setConnecting(false);
+    }
+  }, []);
+
+  const selectInscription = useCallback(async (insc: BitmapInscription) => {
+    // Fetch real tx count from mempool.space
+    try {
+      const resp = await fetch(`https://mempool.space/api/block-height/${insc.height}`);
+      if (resp.ok) {
+        const blockHash = await resp.text();
+        const blockResp = await fetch(`https://mempool.space/api/block/${blockHash}`);
+        if (blockResp.ok) {
+          const blockData = await blockResp.json();
+          setBlockInfo({ height: insc.height, txCount: blockData.tx_count || 0 });
+          return;
+        }
+      }
+    } catch { /* fallback */ }
+    setBlockInfo({ height: insc.height, txCount: 0 });
+  }, []);
+
+  const submitBlock = useCallback(async () => {
     const raw = blockInput.trim();
     const height = parseInt(raw.split(':')[0], 10);
     if (!height || height <= 0) {
@@ -76,18 +277,65 @@ export default function VerifyPage() {
       return;
     }
     setBlockError('');
-    /* MOCK — replace with real API lookup */
-    setBlockInfo({ height, txCount: Math.floor(Math.random() * 3000) + 100 });
+
+    // Fetch real block data from mempool.space
+    try {
+      const resp = await fetch(`https://mempool.space/api/block-height/${height}`);
+      if (!resp.ok) { setBlockError('Block not found'); return; }
+      const blockHash = await resp.text();
+      const blockResp = await fetch(`https://mempool.space/api/block/${blockHash}`);
+      if (blockResp.ok) {
+        const blockData = await blockResp.json();
+        setBlockInfo({ height, txCount: blockData.tx_count || 0 });
+      } else {
+        setBlockInfo({ height, txCount: 0 });
+      }
+    } catch {
+      setBlockInfo({ height, txCount: 0 });
+    }
   }, [blockInput]);
 
   const signAndVerify = useCallback(async () => {
+    if (!wallet || !walletAddr || !blockInfo) return;
     setVerifying(true);
-    /* MOCK — replace with real BIP-322 signing */
-    await new Promise((r) => setTimeout(r, 1800));
-    setGenomeHash(mockGenomeHash());
-    setVerified(true);
-    setVerifying(false);
-  }, []);
+    setSignError('');
+    try {
+      // Step 1: Get challenge from server
+      const challengeResp = await fetch('/api/v1/challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: walletAddr }),
+      });
+      const challengeData = await challengeResp.json();
+      if (!challengeData.success) throw new Error(challengeData.error || 'Failed to get challenge');
+
+      const { message } = challengeData.data;
+
+      // Step 2: Sign with wallet
+      const signature = await signWithWallet(wallet, message);
+
+      // Step 3: Verify on server
+      const verifyResp = await fetch('/api/v1/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: walletAddr,
+          signature,
+          message,
+          blockHeight: blockInfo.height,
+        }),
+      });
+      const verifyData = await verifyResp.json();
+      if (!verifyData.success) throw new Error(verifyData.error || 'Verification failed');
+
+      setGenomeHash(verifyData.data.genomeHash);
+      setVerified(true);
+    } catch (e: any) {
+      setSignError(e?.message || 'Verification failed. Please try again.');
+    } finally {
+      setVerifying(false);
+    }
+  }, [wallet, walletAddr, blockInfo]);
 
   const validateHandle = (v: string) => {
     if (v.length < 3 || v.length > 20) return 'Must be 3–20 characters';
@@ -95,24 +343,71 @@ export default function VerifyPage() {
     return '';
   };
 
-  const checkAvailability = useCallback(() => {
+  const checkAvailability = useCallback(async () => {
     const err = validateHandle(handle);
     if (err) { setHandleError(err); return; }
     setHandleError('');
-    /* MOCK — always available */
-    setHandleAvailable(true);
+    setCheckingHandle(true);
+    try {
+      const resp = await fetch(`/api/v1/auth/verify?handle=${encodeURIComponent(handle)}`);
+      const data = await resp.json();
+      if (data.success) {
+        setHandleAvailable(data.data.available);
+        if (!data.data.available) setHandleError('Handle already taken');
+      }
+    } catch {
+      setHandleError('Failed to check availability');
+    } finally {
+      setCheckingHandle(false);
+    }
   }, [handle]);
 
-  const createProfile = useCallback(() => {
+  const createProfile = useCallback(async () => {
     const err = validateHandle(handle);
     if (err) { setHandleError(err); return; }
-    setProfileCreated(true);
-  }, [handle]);
+    if (!walletAddr || !blockInfo) return;
+
+    setCreatingProfile(true);
+    try {
+      // Re-sign to create profile with handle
+      const challengeResp = await fetch('/api/v1/challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: walletAddr }),
+      });
+      const challengeData = await challengeResp.json();
+      if (!challengeData.success) throw new Error('Failed to get challenge');
+
+      const signature = await signWithWallet(wallet!, challengeData.data.message);
+
+      const resp = await fetch('/api/v1/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: walletAddr,
+          signature,
+          message: challengeData.data.message,
+          blockHeight: blockInfo.height,
+          handle,
+          displayName: displayName || undefined,
+        }),
+      });
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.error || 'Failed to create profile');
+
+      setProfileCreated(true);
+    } catch (e: any) {
+      setHandleError(e?.message || 'Failed to create profile');
+    } finally {
+      setCreatingProfile(false);
+    }
+  }, [handle, displayName, walletAddr, wallet, blockInfo]);
 
   /* ── render ── */
   return (
-    <div className="min-h-screen bg-[#0a0a0f] px-4 py-16 sm:py-24">
-      <div className="mx-auto max-w-2xl">
+    <div className="min-h-screen bg-[#0a0a0f] px-4 py-16 sm:py-24 relative">
+      <BitmapBlocksBg />
+      <div className="mx-auto max-w-2xl relative" style={{ zIndex: 1 }}>
         <h1 className="text-3xl sm:text-4xl font-bold text-center mb-2 text-gradient-cyan-purple">
           Verify Ownership
         </h1>
@@ -129,17 +424,39 @@ export default function VerifyPage() {
             </div>
 
             {!wallet ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {walletMeta.map((w) => (
-                  <button
-                    key={w.id}
-                    onClick={() => connectWallet(w.id)}
-                    className="flex items-center justify-center gap-2 rounded-lg border border-border bg-bg-tertiary/30 px-4 py-3 text-sm font-medium text-text-secondary hover:text-text-primary hover:border-accent-cyan/40 hover:bg-accent-cyan/5 transition-all"
-                  >
-                    <span className="text-xl">{w.icon}</span>
-                    {w.label}
-                  </button>
-                ))}
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {walletMeta.map((w) => {
+                    const detected = detectedWallets[w.id];
+                    return (
+                      <button
+                        key={w.id}
+                        onClick={() => connectWallet(w.id)}
+                        disabled={connecting}
+                        className="relative flex flex-col items-center gap-2 rounded-lg border border-border bg-bg-tertiary/30 px-4 py-4 text-sm font-medium text-text-secondary hover:text-text-primary hover:border-accent-cyan/40 hover:bg-accent-cyan/5 transition-all disabled:opacity-50"
+                      >
+                        <span className="text-2xl">{w.icon}</span>
+                        <span>{w.label}</span>
+                        {detected !== undefined && (
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                            detected
+                              ? 'bg-green-500/15 text-green-400 border border-green-500/30'
+                              : 'bg-white/5 text-text-muted border border-border'
+                          }`}>
+                            {detected ? '✓ Detected' : 'Install ↗'}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {walletError && <p className="text-xs text-red-400">{walletError}</p>}
+                {connecting && (
+                  <div className="flex items-center gap-2 text-sm text-text-muted">
+                    <span className="h-4 w-4 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin" />
+                    Connecting…
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-3 text-sm">
@@ -158,29 +475,77 @@ export default function VerifyPage() {
             </div>
 
             {!blockInfo ? (
-              <div>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input
-                      type="text"
-                      value={blockInput}
-                      onChange={(e) => { setBlockInput(e.target.value); setBlockError(''); }}
-                      onKeyDown={(e) => e.key === 'Enter' && submitBlock()}
-                      placeholder="Block height or Block:TxIndex"
-                      className="w-full rounded-lg border border-border bg-bg-tertiary/30 pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50"
-                    />
+              <div className="space-y-4">
+                {loadingInscriptions && (
+                  <div className="flex items-center gap-2 text-sm text-text-muted">
+                    <span className="h-4 w-4 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin" />
+                    Scanning wallet for .bitmap inscriptions…
                   </div>
-                  <button
-                    onClick={submitBlock}
-                    className="rounded-lg bg-accent-cyan px-5 py-2.5 text-sm font-semibold text-bg-primary hover:bg-accent-cyan/90 transition-colors"
-                  >
-                    Look Up
-                  </button>
+                )}
+
+                {!loadingInscriptions && inscriptions.length > 0 && (
+                  <div>
+                    <p className="text-xs text-text-muted mb-2">Found in your wallet:</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {inscriptions.map((insc) => (
+                        <button
+                          key={insc.inscriptionId}
+                          onClick={() => selectInscription(insc)}
+                          className="flex items-center gap-3 rounded-lg border border-border bg-bg-tertiary/20 px-4 py-3 text-left hover:border-accent-cyan/40 hover:bg-accent-cyan/5 transition-all group"
+                        >
+                          <div className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold ${
+                            insc.type === 'block'
+                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                              : 'bg-accent-cyan/15 text-accent-cyan border border-accent-cyan/30'
+                          }`}>
+                            {insc.type === 'block' ? '⛓️' : '📦'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-text-primary group-hover:text-accent-cyan transition-colors truncate">
+                              {insc.label}
+                            </div>
+                            <div className="text-[10px] text-text-muted truncate">
+                              {insc.type === 'block' ? 'Block Inscription' : 'Parcel Inscription'} · {insc.inscriptionId.slice(0, 8)}…{insc.inscriptionId.slice(-6)}
+                            </div>
+                          </div>
+                          <svg className="h-4 w-4 text-text-muted group-hover:text-accent-cyan transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!loadingInscriptions && inscriptions.length === 0 && wallet && (
+                  <p className="text-xs text-text-muted">No .bitmap inscriptions found in this wallet. Enter a block height manually below.</p>
+                )}
+
+                <div>
+                  {inscriptions.length > 0 && <p className="text-xs text-text-muted mb-2">Or enter manually:</p>}
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={blockInput}
+                        onChange={(e) => { setBlockInput(e.target.value); setBlockError(''); }}
+                        onKeyDown={(e) => e.key === 'Enter' && submitBlock()}
+                        placeholder="Block height (e.g. 800000)"
+                        className="w-full rounded-lg border border-border bg-bg-tertiary/30 pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50"
+                      />
+                    </div>
+                    <button
+                      onClick={submitBlock}
+                      className="rounded-lg bg-accent-cyan px-5 py-2.5 text-sm font-semibold text-bg-primary hover:bg-accent-cyan/90 transition-colors"
+                    >
+                      Look Up
+                    </button>
+                  </div>
+                  {blockError && <p className="text-xs text-red-400 mt-2">{blockError}</p>}
                 </div>
-                {blockError && <p className="text-xs text-red-400 mt-2">{blockError}</p>}
               </div>
             ) : (
               <div className="flex items-center gap-4 text-sm">
@@ -192,6 +557,12 @@ export default function VerifyPage() {
                   <div className="text-xs text-text-muted mb-1">Transactions</div>
                   <div className="text-xl font-bold text-text-primary">{blockInfo.txCount.toLocaleString()}</div>
                 </div>
+                <button
+                  onClick={() => { setBlockInfo(null); setVerified(false); setGenomeHash(''); setProfileCreated(false); }}
+                  className="text-xs text-text-muted hover:text-text-primary transition-colors"
+                >
+                  Change
+                </button>
               </div>
             )}
           </section>
@@ -207,7 +578,7 @@ export default function VerifyPage() {
               <div>
                 {blockInfo && (
                   <p className="text-sm text-text-secondary mb-4">
-                    Sign a BIP-322 message to prove you own <strong className="text-accent-cyan">Block #{blockInfo.height.toLocaleString()}</strong>
+                    Sign a BIP-322 message with your wallet to prove you own <strong className="text-accent-cyan">Block #{blockInfo.height.toLocaleString()}</strong>
                   </p>
                 )}
                 <button
@@ -218,12 +589,13 @@ export default function VerifyPage() {
                   {verifying ? (
                     <>
                       <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Signing…
+                      Waiting for wallet signature…
                     </>
                   ) : (
-                    'Sign & Verify'
+                    '✍️ Sign & Verify'
                   )}
                 </button>
+                {signError && <p className="text-xs text-red-400 mt-3">{signError}</p>}
               </div>
             ) : (
               <div className="space-y-4">
@@ -235,12 +607,12 @@ export default function VerifyPage() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-green-400">Ownership Verified!</p>
-                    <p className="text-xs text-text-muted">BIP-322 signature confirmed</p>
+                    <p className="text-xs text-text-muted">BIP-322 signature confirmed on-chain</p>
                   </div>
                 </div>
 
                 <div className="rounded-lg border border-border bg-bg-tertiary/20 p-4">
-                  <div className="text-xs text-text-muted mb-1">Genome Hash</div>
+                  <div className="text-xs text-text-muted mb-1">Genome Hash (Your Digital DNA)</div>
                   <code className="text-xs text-accent-cyan break-all">{genomeHash}</code>
                 </div>
 
@@ -260,7 +632,6 @@ export default function VerifyPage() {
 
             {!profileCreated ? (
               <div className="space-y-4">
-                {/* Display Name (optional) */}
                 <div>
                   <label className="block text-xs text-text-muted mb-1.5">Display Name <span className="text-text-muted/50">(optional)</span></label>
                   <input
@@ -273,7 +644,6 @@ export default function VerifyPage() {
                   <p className="text-xs text-text-muted/60 mt-1">Shown on your profile. You can change it anytime.</p>
                 </div>
 
-                {/* Handle (unique, required) */}
                 <div>
                   <label className="block text-xs text-text-muted mb-1.5">Handle <span className="text-red-400/70">*</span></label>
                   <div className="flex gap-2">
@@ -289,22 +659,30 @@ export default function VerifyPage() {
                     </div>
                     <button
                       onClick={checkAvailability}
-                      className="rounded-lg border border-border px-4 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:border-accent-cyan/40 transition-colors"
+                      disabled={checkingHandle}
+                      className="rounded-lg border border-border px-4 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:border-accent-cyan/40 transition-colors disabled:opacity-50"
                     >
-                      Check
+                      {checkingHandle ? '…' : 'Check'}
                     </button>
                   </div>
                   {handleError && <p className="text-xs text-red-400 mt-1">{handleError}</p>}
-                  {handleAvailable && <p className="text-xs text-green-400 mt-1">@{handle} is available!</p>}
+                  {handleAvailable && <p className="text-xs text-green-400 mt-1">@{handle} is available! ✓</p>}
                   <p className="text-xs text-text-muted/60 mt-1">Unique identifier.</p>
                 </div>
 
                 <button
                   onClick={createProfile}
-                  disabled={!handleAvailable}
-                  className="rounded-lg bg-accent-cyan px-6 py-3 text-sm font-semibold text-bg-primary hover:bg-accent-cyan/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={!handleAvailable || creatingProfile}
+                  className="rounded-lg bg-accent-cyan px-6 py-3 text-sm font-semibold text-bg-primary hover:bg-accent-cyan/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  Create Profile
+                  {creatingProfile ? (
+                    <>
+                      <span className="h-4 w-4 border-2 border-bg-primary/30 border-t-bg-primary rounded-full animate-spin" />
+                      Creating…
+                    </>
+                  ) : (
+                    'Create Profile'
+                  )}
                 </button>
               </div>
             ) : (
@@ -315,9 +693,26 @@ export default function VerifyPage() {
                 {displayName && <p className="text-xl font-bold text-text-primary mb-0.5">{displayName}</p>}
                 <p className={`font-bold text-accent-cyan mb-1 ${displayName ? 'text-sm' : 'text-lg'}`}>@{handle}</p>
                 <p className="text-xs text-text-muted mb-3">Block #{blockInfo?.height.toLocaleString()} · Tier 1 — Gold</p>
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs text-green-400">
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs text-green-400 mb-4">
                   <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-                  Profile Created
+                  Profile Created — Saved to Blockchain Registry
+                </div>
+                <div className="flex justify-center gap-3 mt-2">
+                  <Link
+                    href={`/agent/${handle}`}
+                    className="inline-flex items-center gap-2 rounded-lg border border-accent-cyan/30 bg-accent-cyan/5 px-4 py-2 text-xs font-medium text-accent-cyan hover:bg-accent-cyan/10 hover:border-accent-cyan/50 transition-all"
+                  >
+                    View Profile
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </Link>
+                  <Link
+                    href="/profile"
+                    className="inline-flex items-center gap-2 rounded-lg border border-border bg-bg-tertiary/30 px-4 py-2 text-xs font-medium text-text-secondary hover:text-text-primary hover:border-accent-cyan/40 transition-all"
+                  >
+                    Edit Settings
+                  </Link>
                 </div>
               </div>
             )}

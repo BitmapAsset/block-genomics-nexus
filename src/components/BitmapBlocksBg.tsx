@@ -19,7 +19,7 @@ const COLORS = ['#f7931a', '#ffcc44', '#e8860f', '#cc7400', '#ffa940'];
 
 export default function BitmapBlocksBg() {
   return (
-    <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0, opacity: 0.35 }}>
+    <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0, opacity: 0.5 }}>
       {ROWS.map((row, ri) => {
         const totalWidth = row.blocks.reduce((s, b) => s + b + 3, 0);
         const animName = `bitmapScroll${ri}`;

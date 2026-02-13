@@ -11,7 +11,10 @@ datasource db {
 model User {
   walletAddress String   @id @unique
   handle        String?  @unique
+  displayName   String?
   avatar        String?
+  genomeHash    String?
+  anchorBlock   Int?     // The block/parcel they verified ownership of
   tier          Int      @default(3) // 1=Block Owner, 2=Parcel Owner, 3=Delegated
   verified      Boolean  @default(false)
   createdAt     DateTime @default(now())

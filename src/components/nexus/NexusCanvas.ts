@@ -85,7 +85,7 @@ export class NexusCanvasEngine {
   private static readonly PARCEL_TEX_SIZE = 128;
 
   // Async texture generation budget (max textures generated per frame)
-  private static readonly TEX_BUDGET_PER_FRAME = 6;
+  private static readonly TEX_BUDGET_PER_FRAME = 3; // reduced from 6 for smoother frame rate
   private texGenQueue: number[] = []; // blocks waiting for texture generation
   private texGenSet = new Set<number>(); // fast lookup for queue membership
 

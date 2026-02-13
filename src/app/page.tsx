@@ -179,7 +179,7 @@ export default async function HomePage() {
                 </div>
               </div>
               <a
-                href="https://bitmap.land"
+                href="https://github.com/Blockamoto/gitbook"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 mt-6 text-sm text-accent-cyan hover:text-accent-cyan/80 transition-colors"
