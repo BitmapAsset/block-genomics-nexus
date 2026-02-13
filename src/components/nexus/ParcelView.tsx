@@ -4407,7 +4407,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             {blockHeight.toLocaleString()}.BITMAP
           </div>
           <div className="text-[10px] font-mono" style={{ color: '#64748b' }}>
-            {viewMode === 'dna' ? 'GENOME VIEW' : `${parcels.length.toLocaleString()} child inscriptions · Treemap layout · Drag to rotate · Scroll to zoom`}
+            {viewMode === 'dna' ? 'GENOME VIEW' : `${parcels.length.toLocaleString()} parcels / txs · Treemap layout · Drag to rotate · Scroll to zoom`}
           </div>
         </div>
 
@@ -4726,7 +4726,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             </div>
 
             <div className="px-4 py-3 space-y-1.5 text-[11px] font-mono" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <PropRow label="CHILD INSCRIPTIONS" value={parcels.length.toLocaleString()} />
+              <PropRow label="PARCELS / TXS" value={parcels.length.toLocaleString()} />
               <PropRow label="VALUE" value={`₿ ${totalValue.toFixed(4)}`} highlight />
               <PropRow label="VBYTES" value={(blockStats.vbytes ?? totalBytes).toLocaleString()} />
               <PropRow label="HEIGHT" value={blockHeight.toLocaleString()} />
