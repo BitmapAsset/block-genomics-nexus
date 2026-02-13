@@ -12,6 +12,7 @@ model User {
   walletAddress String   @id @unique
   handle        String?  @unique
   displayName   String?
+  bio           String?
   avatar        String?
   genomeHash    String?
   anchorBlock   Int?     // The block/parcel they verified ownership of

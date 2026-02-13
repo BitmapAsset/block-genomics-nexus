@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
@@ -42,7 +42,7 @@ function getMockAgent(handle: string) {
   if (!agent) return null;
 
   const genomeHash = '0x' + Array.from({ length: 64 }, (_, i) => ((handle.charCodeAt(i % handle.length) * 7 + i * 13) % 16).toString(16)).join('');
-  return { handle, genomeHash, ...agent };
+  return { handle, genomeHash, ...agent, isMock: true as const };
 }
 
 /* ── DNA Helix Visual ── */
@@ -61,7 +61,7 @@ function DNAStrip({ hash }: { hash: string }) {
   );
 }
 
-/* ── Stat Card ── */
+/* ── Stat Card (mock agents only) ── */
 function StatCard({ label, value, icon }: { label: string; value: string; icon: string }) {
   return (
     <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -72,16 +72,105 @@ function StatCard({ label, value, icon }: { label: string; value: string; icon: 
   );
 }
 
+/* ── Inline Editable Text ── */
+function EditableField({
+  value, onSave, maxLength, multiline = false, isOwner,
+  textClassName, textStyle,
+}: {
+  value: string; onSave: (v: string) => Promise<void>; maxLength: number;
+  multiline?: boolean; isOwner: boolean;
+  textClassName?: string; textStyle?: React.CSSProperties;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  useEffect(() => { setDraft(value); }, [value]);
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const save = useCallback(async () => {
+    const trimmed = draft.trim();
+    if (trimmed === value) { setEditing(false); return; }
+    setSaving(true);
+    try { await onSave(trimmed); } finally { setSaving(false); setEditing(false); }
+  }, [draft, value, onSave]);
+
+  const cancel = () => { setDraft(value); setEditing(false); };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') cancel();
+    if (e.key === 'Enter' && !multiline) { e.preventDefault(); save(); }
+  };
+
+  if (!editing) {
+    return (
+      <div className="group flex items-start gap-2">
+        {multiline ? (
+          <p className={textClassName} style={textStyle}>{value || <span style={{ color: '#475569', fontStyle: 'italic' }}>No bio yet. Click to add one.</span>}</p>
+        ) : (
+          <span className={textClassName} style={textStyle}>{value}</span>
+        )}
+        {isOwner && (
+          <button onClick={() => setEditing(true)} className="opacity-0 group-hover:opacity-100 transition-opacity text-sm hover:text-white flex-shrink-0 mt-0.5 cursor-pointer" style={{ color: '#64748b' }} title="Edit">✏️</button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full">
+      {multiline ? (
+        <textarea
+          ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          value={draft}
+          onChange={e => setDraft(e.target.value.slice(0, maxLength))}
+          onKeyDown={handleKeyDown}
+          onBlur={save}
+          rows={3}
+          disabled={saving}
+          className="w-full rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1"
+          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(0,255,204,0.3)', color: '#e2e8f0' }}
+        />
+      ) : (
+        <input
+          ref={inputRef as React.RefObject<HTMLInputElement>}
+          value={draft}
+          onChange={e => setDraft(e.target.value.slice(0, maxLength))}
+          onKeyDown={handleKeyDown}
+          onBlur={save}
+          disabled={saving}
+          className="w-full rounded-lg px-3 py-1.5 text-2xl sm:text-3xl font-bold focus:outline-none focus:ring-1"
+          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(0,255,204,0.3)', color: '#e2e8f0' }}
+        />
+      )}
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-[10px]" style={{ color: draft.length >= maxLength ? '#f87171' : '#64748b' }}>{draft.length}/{maxLength}</span>
+        {multiline && (
+          <div className="flex gap-2">
+            <button onClick={cancel} className="text-[10px] px-2 py-0.5 rounded cursor-pointer" style={{ color: '#94a3b8' }}>Cancel</button>
+            <button onClick={save} disabled={saving} className="text-[10px] px-2 py-0.5 rounded cursor-pointer" style={{ background: 'rgba(0,255,204,0.15)', color: '#00ffcc' }}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AgentProfilePage() {
   const params = useParams();
   const handle = params.handle as string;
 
-  // Try real DB first, fall back to mock
   const [dbAgent, setDbAgent] = useState<{
     displayName: string; tier: ShieldTier; desc: string; caps: string[];
     blockHeight: number; parcelIndex: number | null; verifiedAt: string; online: boolean;
     bio: string; tags: string[]; handle: string; genomeHash: string;
-  } | null | undefined>(undefined); // undefined = loading
+    walletAddress?: string; isMock?: boolean;
+  } | null | undefined>(undefined);
+
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,16 +185,29 @@ export default function AgentProfilePage() {
               handle: user.handle,
               displayName: user.displayName || user.handle,
               tier: (user.tier || 3) as ShieldTier,
-              desc: 'Verified Block Genomics member',
+              desc: user.bio || 'Verified Block Genomics member',
               caps: [],
               blockHeight: user.anchorBlock || 0,
               parcelIndex: null,
               verifiedAt: user.createdAt ? new Date(user.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
               online: true,
-              bio: `Verified owner of Block #${(user.anchorBlock || 0).toLocaleString()} on the Bitcoin blockchain.`,
+              bio: user.bio || '',
               tags: ['verified', 'bitcoin', 'bitmap'],
               genomeHash: user.genomeHash || '0x' + '0'.repeat(64),
+              walletAddress: user.walletAddress,
+              isMock: false,
             });
+
+            // Check ownership
+            try {
+              const stored = localStorage.getItem('bg_wallet');
+              if (stored) {
+                const wallet = JSON.parse(stored);
+                if (wallet.address && wallet.address === user.walletAddress) {
+                  setIsOwner(true);
+                }
+              }
+            } catch { /* ignore parse errors */ }
             return;
           }
         }
@@ -116,11 +218,34 @@ export default function AgentProfilePage() {
   }, [handle]);
 
   const mockAgent = useMemo(() => getMockAgent(handle), [handle]);
-  const agent = dbAgent === undefined ? null : (dbAgent || mockAgent);
+  const agent = dbAgent === undefined ? null : (dbAgent || (mockAgent ? { ...mockAgent, walletAddress: undefined } : null));
+  const isMock = agent?.isMock ?? true;
   const loading = dbAgent === undefined;
 
   const [showDNA, setShowDNA] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // For live edits
+  const [displayName, setDisplayName] = useState('');
+  const [bio, setBio] = useState('');
+  useEffect(() => {
+    if (agent) { setDisplayName(agent.displayName); setBio(agent.bio); }
+  }, [agent?.displayName, agent?.bio]);
+
+  const patchProfile = useCallback(async (fields: { displayName?: string; bio?: string }) => {
+    const stored = localStorage.getItem('bg_wallet');
+    if (!stored) return;
+    const wallet = JSON.parse(stored);
+    const resp = await fetch(`/api/v1/users/by-handle/${encodeURIComponent(handle)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...fields, walletAddress: wallet.address }),
+    });
+    if (!resp.ok) throw new Error('Failed to save');
+    const data = await resp.json();
+    if (fields.displayName !== undefined) setDisplayName(data.data.displayName);
+    if (fields.bio !== undefined) setBio(data.data.bio || '');
+  }, [handle]);
 
   if (loading) {
     return (
@@ -153,13 +278,13 @@ export default function AgentProfilePage() {
   const tierBg = agent.tier === 1 ? 'rgba(251,191,36,0.08)' : agent.tier === 2 ? 'rgba(34,211,238,0.08)' : 'rgba(167,139,250,0.08)';
   const tierBorder = agent.tier === 1 ? 'rgba(251,191,36,0.2)' : agent.tier === 2 ? 'rgba(34,211,238,0.2)' : 'rgba(167,139,250,0.2)';
 
-  /* MOCK stats */
-  const mockStats = {
+  /* MOCK stats — only for demo agents */
+  const mockStats = isMock ? {
     visitors: Math.floor(Math.random() * 5000) + 200,
     dmsHandled: Math.floor(Math.random() * 1200) + 50,
     uptime: (95 + Math.random() * 4.9).toFixed(1),
     trustScore: (85 + Math.random() * 14).toFixed(0),
-  };
+  } : null;
 
   return (
     <div className="min-h-screen bg-bg-primary relative">
@@ -184,13 +309,40 @@ export default function AgentProfilePage() {
             {/* Name + Handle */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-1">
-                <h1 className="text-2xl sm:text-3xl font-bold" style={{ color: '#e2e8f0' }}>{agent.displayName}</h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: tierBg, border: `1px solid ${tierBorder}`, color: tierColor }}>
+                {!isMock && isOwner ? (
+                  <EditableField
+                    value={displayName}
+                    onSave={async (v) => { await patchProfile({ displayName: v }); }}
+                    maxLength={50}
+                    isOwner={true}
+                    textClassName="text-2xl sm:text-3xl font-bold"
+                    textStyle={{ color: '#e2e8f0' }}
+                  />
+                ) : (
+                  <h1 className="text-2xl sm:text-3xl font-bold" style={{ color: '#e2e8f0' }}>{displayName || agent.displayName}</h1>
+                )}
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0" style={{ background: tierBg, border: `1px solid ${tierBorder}`, color: tierColor }}>
                   {tierLabel}
                 </span>
               </div>
               <p className="text-sm font-mono mb-2" style={{ color: '#64748b' }}>@{agent.handle}</p>
-              <p className="text-sm leading-relaxed mb-4" style={{ color: '#94a3b8' }}>{agent.bio}</p>
+
+              {/* Bio - editable for owners of real profiles */}
+              <div className="mb-4">
+                {!isMock && isOwner ? (
+                  <EditableField
+                    value={bio}
+                    onSave={async (v) => { await patchProfile({ bio: v }); }}
+                    maxLength={160}
+                    multiline
+                    isOwner={true}
+                    textClassName="text-sm leading-relaxed"
+                    textStyle={{ color: '#94a3b8' }}
+                  />
+                ) : (
+                  <p className="text-sm leading-relaxed" style={{ color: '#94a3b8' }}>{bio || agent.bio}</p>
+                )}
+              </div>
 
               {/* Tags */}
               <div className="flex flex-wrap gap-1.5 mb-4">
@@ -213,13 +365,15 @@ export default function AgentProfilePage() {
 
       {/* Content */}
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard icon="👁" label="Total Visitors" value={mockStats.visitors.toLocaleString()} />
-          <StatCard icon="💬" label="DMs Handled" value={mockStats.dmsHandled.toLocaleString()} />
-          <StatCard icon="⏱" label="Uptime" value={`${mockStats.uptime}%`} />
-          <StatCard icon="🛡" label="Trust Score" value={`${mockStats.trustScore}/100`} />
-        </div>
+        {/* Stats Grid — only for mock/demo agents */}
+        {mockStats && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard icon="👁" label="Total Visitors" value={mockStats.visitors.toLocaleString()} />
+            <StatCard icon="💬" label="DMs Handled" value={mockStats.dmsHandled.toLocaleString()} />
+            <StatCard icon="⏱" label="Uptime" value={`${mockStats.uptime}%`} />
+            <StatCard icon="🛡" label="Trust Score" value={`${mockStats.trustScore}/100`} />
+          </div>
+        )}
 
         {/* Block Info */}
         <div className="rounded-xl p-5" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -244,17 +398,19 @@ export default function AgentProfilePage() {
           </div>
         </div>
 
-        {/* Capabilities */}
-        <div className="rounded-xl p-5" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <h2 className="text-sm font-bold mb-4" style={{ color: '#cbd5e1' }}>⚡ Capabilities</h2>
-          <div className="flex flex-wrap gap-2">
-            {agent.caps.map(cap => (
-              <span key={cap} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: 'rgba(0,255,204,0.06)', border: '1px solid rgba(0,255,204,0.15)', color: '#00ffcc' }}>
-                {cap}
-              </span>
-            ))}
+        {/* Capabilities — only show when there are capabilities */}
+        {agent.caps.length > 0 && (
+          <div className="rounded-xl p-5" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <h2 className="text-sm font-bold mb-4" style={{ color: '#cbd5e1' }}>⚡ Capabilities</h2>
+            <div className="flex flex-wrap gap-2">
+              {agent.caps.map(cap => (
+                <span key={cap} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: 'rgba(0,255,204,0.06)', border: '1px solid rgba(0,255,204,0.15)', color: '#00ffcc' }}>
+                  {cap}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Actions */}
         <div className="flex flex-wrap gap-3">
