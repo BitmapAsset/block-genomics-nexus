@@ -181,28 +181,24 @@ const CrownShield: React.FC<CrownShieldProps> = ({
         filter={`url(#${uid}g)`}
       />
 
-      {/* ═══ GREEN ✓ (bottom-left) ═══ */}
+      {/* ═══ GREEN ✓ (bottom center — scales well at all sizes) ═══ */}
       {verified && (
         <g>
+          {/* Green circle background for visibility at small sizes */}
+          <circle cx="50" cy="95" r={size < 24 ? 12 : 10} fill="#0c0c1a" stroke="#22ff88" strokeWidth={size < 24 ? 3 : 2} />
           <path
-            d="M 30 90 L 37 97 L 48 84"
+            d={size < 24
+              ? "M 42 95 L 48 101 L 58 88"   /* larger check for tiny badges */
+              : "M 43 95 L 48 100 L 57 89"    /* normal check */
+            }
             fill="none"
             stroke="#22ff88"
-            strokeWidth="3.5"
+            strokeWidth={size < 24 ? 4 : 3.5}
             strokeLinecap="round"
             strokeLinejoin="round"
           />
           {/* check glow */}
-          <path
-            d="M 30 90 L 37 97 L 48 84"
-            fill="none"
-            stroke="#22ff88"
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.3"
-            filter={`url(#${uid}g)`}
-          />
+          <circle cx="50" cy="95" r="14" fill="#22ff88" opacity="0.1" filter={`url(#${uid}g)`} />
         </g>
       )}
     </svg>
@@ -240,7 +236,7 @@ export function crownShieldSVGString(tier: ShieldTier = 1, verified = true, size
   <path d="${crown}" fill="${c.primary}" opacity="0.7"/>
   <circle cx="34" cy="7" r="3" fill="${c.light}"/><circle cx="50" cy="3" r="3.5" fill="${c.light}"/><circle cx="66" cy="7" r="3" fill="${c.light}"/>
   <text x="50" y="65" text-anchor="middle" dominant-baseline="central" fill="url(#t)" font-family="system-ui" font-size="42" font-weight="bold">₿</text>
-  ${verified ? '<path d="M 30 90 L 37 97 L 48 84" fill="none" stroke="#22ff88" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>' : ''}
+  ${verified ? '<circle cx="50" cy="95" r="10" fill="#0c0c1a" stroke="#22ff88" stroke-width="2"/><path d="M 43 95 L 48 100 L 57 89" fill="none" stroke="#22ff88" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>' : ''}
 </svg>`;
 }
 
@@ -255,7 +251,8 @@ export function CrownShieldInline({ size = 16, tier = 1 as ShieldTier }: { size?
       <path d="M 30 22 L 34 8 L 42 18 L 50 4 L 58 18 L 66 8 L 70 22 Z" fill={c.primary} opacity="0.7"/>
       <circle cx="34" cy="7" r="3" fill={c.light}/><circle cx="50" cy="3" r="3.5" fill={c.light}/><circle cx="66" cy="7" r="3" fill={c.light}/>
       <text x="50" y="65" textAnchor="middle" dominantBaseline="central" fill={c.primary} fontFamily="system-ui" fontSize="42" fontWeight="bold">₿</text>
-      <path d="M 30 90 L 37 97 L 48 84" fill="none" stroke="#22ff88" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="50" cy="95" r="12" fill="#0c0c1a" stroke="#22ff88" strokeWidth="3"/>
+      <path d="M 42 95 L 48 101 L 58 88" fill="none" stroke="#22ff88" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
