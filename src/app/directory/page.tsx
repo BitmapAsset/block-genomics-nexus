@@ -17,31 +17,32 @@ interface VerifiedAgent {
   online: boolean;
   description: string;
   capabilities: string[];
+  tags: string[];
 }
 
 /* ── Mock Data — replace with API ── */
 function generateMockAgents(): VerifiedAgent[] {
   const names = [
-    { handle: 'satoshi_prime', displayName: 'Satoshi Prime', desc: 'Bitcoin protocol analysis & block forensics', caps: ['Protocol Analysis', 'Block Forensics', 'Transaction Tracing'] },
-    { handle: 'block_oracle', displayName: 'Block Oracle', desc: 'Real-time Bitcoin market intelligence agent', caps: ['Market Analysis', 'Price Prediction', 'Whale Tracking'] },
-    { handle: 'nexus_builder', displayName: 'Nexus Builder', desc: 'Smart contract & Bitmap development agent', caps: ['Smart Contracts', 'Bitmap Dev', 'Inscription Tools'] },
-    { handle: 'cipher_guard', displayName: 'Cipher Guard', desc: 'Security auditing & vulnerability detection', caps: ['Security Audit', 'Pen Testing', 'Threat Detection'] },
-    { handle: 'meme_weaver', displayName: 'Meme Weaver', desc: 'Cultural analysis & memetic content creation', caps: ['Content Creation', 'Trend Analysis', 'Cultural Intel'] },
-    { handle: 'chain_sage', displayName: 'Chain Sage', desc: 'On-chain data analytics & research', caps: ['Data Analytics', 'Research', 'UTXO Analysis'] },
-    { handle: 'lightning_fox', displayName: 'Lightning Fox', desc: 'Lightning Network routing & payment optimization', caps: ['Lightning Routing', 'Payment Channels', 'Liquidity'] },
-    { handle: 'hash_prophet', displayName: 'Hash Prophet', desc: 'Mining operations & hashrate forecasting', caps: ['Mining Ops', 'Hashrate Analysis', 'Energy Optimization'] },
-    { handle: 'genome_x', displayName: 'Genome X', desc: 'AI identity verification specialist', caps: ['ID Verification', 'Genome Analysis', 'Trust Scoring'] },
-    { handle: 'bitmap_architect', displayName: 'Bitmap Architect', desc: 'Virtual world design & block landscaping', caps: ['3D Design', 'World Building', 'Parcel Architecture'] },
-    { handle: 'ordinal_scout', displayName: 'Ordinal Scout', desc: 'Inscription discovery & rarity analysis', caps: ['Inscription Analysis', 'Rarity Scoring', 'Collection Curation'] },
-    { handle: 'node_runner', displayName: 'Node Runner', desc: 'Full node operations & network monitoring', caps: ['Node Management', 'Network Health', 'Peer Analysis'] },
-    { handle: 'deep_block', displayName: 'Deep Block', desc: 'Deep learning models trained on Bitcoin data', caps: ['Machine Learning', 'Pattern Recognition', 'Anomaly Detection'] },
-    { handle: 'pixel_miner', displayName: 'Pixel Miner', desc: 'Digital art creation & NFT inscription', caps: ['Digital Art', 'Inscription Minting', 'Creative AI'] },
-    { handle: 'fee_optimizer', displayName: 'Fee Optimizer', desc: 'Transaction fee estimation & mempool analysis', caps: ['Fee Estimation', 'Mempool Analysis', 'Batch Optimization'] },
-    { handle: 'whale_watcher', displayName: 'Whale Watcher', desc: 'Large holder tracking & movement alerts', caps: ['Whale Tracking', 'Alert Systems', 'Flow Analysis'] },
-    { handle: 'proof_smith', displayName: 'Proof Smith', desc: 'Cryptographic proof generation & verification', caps: ['ZK Proofs', 'BIP-322 Signing', 'Multisig'] },
-    { handle: 'block_historian', displayName: 'Block Historian', desc: 'Bitcoin history researcher & archive keeper', caps: ['Historical Analysis', 'Block Archives', 'Timeline Research'] },
-    { handle: 'quantum_shield', displayName: 'Quantum Shield', desc: 'Post-quantum cryptography research agent', caps: ['Quantum Research', 'Crypto Upgrades', 'Security Futures'] },
-    { handle: 'rune_caster', displayName: 'Rune Caster', desc: 'Runes protocol specialist & token analytics', caps: ['Runes Protocol', 'Token Analysis', 'Etching Tools'] },
+    { handle: 'satoshi_prime', displayName: 'Satoshi Prime', desc: 'Bitcoin protocol analysis & block forensics', caps: ['Protocol Analysis', 'Block Forensics', 'Transaction Tracing'], tags: ['bitcoin', 'protocol', 'forensics', 'analysis', 'security'] },
+    { handle: 'block_oracle', displayName: 'Block Oracle', desc: 'Real-time Bitcoin market intelligence agent', caps: ['Market Analysis', 'Price Prediction', 'Whale Tracking'], tags: ['market', 'trading', 'whale', 'analytics', 'finance'] },
+    { handle: 'nexus_builder', displayName: 'Nexus Builder', desc: 'Smart contract & Bitmap development agent', caps: ['Smart Contracts', 'Bitmap Dev', 'Inscription Tools'], tags: ['development', 'bitmap', 'building', 'tools', 'metaverse'] },
+    { handle: 'cipher_guard', displayName: 'Cipher Guard', desc: 'Security auditing & vulnerability detection', caps: ['Security Audit', 'Pen Testing', 'Threat Detection'], tags: ['security', 'audit', 'protection', 'enterprise', 'cybersecurity'] },
+    { handle: 'meme_weaver', displayName: 'Meme Weaver', desc: 'Cultural analysis & memetic content creation', caps: ['Content Creation', 'Trend Analysis', 'Cultural Intel'], tags: ['memes', 'culture', 'content', 'social', 'entertainment', 'gaming'] },
+    { handle: 'chain_sage', displayName: 'Chain Sage', desc: 'On-chain data analytics & research', caps: ['Data Analytics', 'Research', 'UTXO Analysis'], tags: ['research', 'data', 'analytics', 'UTXO', 'intelligence'] },
+    { handle: 'lightning_fox', displayName: 'Lightning Fox', desc: 'Lightning Network routing & payment optimization', caps: ['Lightning Routing', 'Payment Channels', 'Liquidity'], tags: ['lightning', 'payments', 'speed', 'commerce', 'shopping'] },
+    { handle: 'hash_prophet', displayName: 'Hash Prophet', desc: 'Mining operations & hashrate forecasting', caps: ['Mining Ops', 'Hashrate Analysis', 'Energy Optimization'], tags: ['mining', 'energy', 'hashrate', 'operations', 'sustainability'] },
+    { handle: 'genome_x', displayName: 'Genome X', desc: 'AI identity verification specialist', caps: ['ID Verification', 'Genome Analysis', 'Trust Scoring'], tags: ['identity', 'verification', 'trust', 'AI', 'genomics'] },
+    { handle: 'bitmap_architect', displayName: 'Bitmap Architect', desc: 'Virtual world design & block landscaping', caps: ['3D Design', 'World Building', 'Parcel Architecture'], tags: ['design', 'architecture', '3D', 'gaming', 'virtual world', 'movies'] },
+    { handle: 'ordinal_scout', displayName: 'Ordinal Scout', desc: 'Inscription discovery & rarity analysis', caps: ['Inscription Analysis', 'Rarity Scoring', 'Collection Curation'], tags: ['ordinals', 'NFT', 'art', 'collectibles', 'rarity', 'gallery'] },
+    { handle: 'node_runner', displayName: 'Node Runner', desc: 'Full node operations & network monitoring', caps: ['Node Management', 'Network Health', 'Peer Analysis'], tags: ['nodes', 'network', 'infrastructure', 'decentralization', 'monitoring'] },
+    { handle: 'deep_block', displayName: 'Deep Block', desc: 'Deep learning models trained on Bitcoin data', caps: ['Machine Learning', 'Pattern Recognition', 'Anomaly Detection'], tags: ['AI', 'machine learning', 'prediction', 'science', 'technology'] },
+    { handle: 'pixel_miner', displayName: 'Pixel Miner', desc: 'Digital art creation & NFT inscription', caps: ['Digital Art', 'Inscription Minting', 'Creative AI'], tags: ['art', 'creative', 'NFT', 'design', 'gallery', 'movies'] },
+    { handle: 'fee_optimizer', displayName: 'Fee Optimizer', desc: 'Transaction fee estimation & mempool analysis', caps: ['Fee Estimation', 'Mempool Analysis', 'Batch Optimization'], tags: ['fees', 'optimization', 'savings', 'transactions', 'efficiency', 'shopping'] },
+    { handle: 'whale_watcher', displayName: 'Whale Watcher', desc: 'Large holder tracking & movement alerts', caps: ['Whale Tracking', 'Alert Systems', 'Flow Analysis'], tags: ['whales', 'alerts', 'tracking', 'market', 'signals'] },
+    { handle: 'proof_smith', displayName: 'Proof Smith', desc: 'Cryptographic proof generation & verification', caps: ['ZK Proofs', 'BIP-322 Signing', 'Multisig'], tags: ['cryptography', 'proofs', 'privacy', 'security', 'advanced'] },
+    { handle: 'block_historian', displayName: 'Block Historian', desc: 'Bitcoin history researcher & archive keeper', caps: ['Historical Analysis', 'Block Archives', 'Timeline Research'], tags: ['history', 'research', 'education', 'archives', 'knowledge'] },
+    { handle: 'quantum_shield', displayName: 'Quantum Shield', desc: 'Post-quantum cryptography research agent', caps: ['Quantum Research', 'Crypto Upgrades', 'Security Futures'], tags: ['quantum', 'future', 'research', 'science', 'technology'] },
+    { handle: 'rune_caster', displayName: 'Rune Caster', desc: 'Runes protocol specialist & token analytics', caps: ['Runes Protocol', 'Token Analysis', 'Etching Tools'], tags: ['runes', 'tokens', 'DeFi', 'trading', 'protocol'] },
   ];
 
   return names.map((n, i) => {
@@ -59,6 +60,7 @@ function generateMockAgents(): VerifiedAgent[] {
       online: Math.random() > 0.35,
       description: n.desc,
       capabilities: n.caps,
+      tags: n.tags,
     };
   });
 }
@@ -138,6 +140,15 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
           ))}
         </div>
 
+        {/* Tags */}
+        <div className="flex flex-wrap gap-1 mb-3">
+          {agent.tags.slice(0, 4).map((tag) => (
+            <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(0,255,204,0.05)', border: '1px solid rgba(0,255,204,0.12)', color: '#5eead4' }}>
+              #{tag}
+            </span>
+          ))}
+        </div>
+
         {/* Footer stats */}
         <div className="flex items-center justify-between text-[11px] text-text-muted pt-2 border-t border-border/20">
           <div className="flex items-center gap-3">
@@ -176,7 +187,8 @@ export default function DirectoryPage() {
           a.blockHeight.toString().includes(q) ||
           (a.parcelIndex !== null && a.parcelIndex.toString().includes(q)) ||
           a.description.toLowerCase().includes(q) ||
-          a.capabilities.some((c) => c.toLowerCase().includes(q))
+          a.capabilities.some((c) => c.toLowerCase().includes(q)) ||
+          a.tags.some((t) => t.toLowerCase().includes(q))
       );
     }
 
@@ -248,7 +260,7 @@ export default function DirectoryPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, handle, block #, parcel #, or capability..."
+            placeholder="Search by name, handle, block #, capability, or interest (gaming, art, shopping, security...)"
             className="w-full pl-12 pr-4 py-3 bg-bg-secondary/60 border border-border rounded-xl text-text-primary text-sm placeholder-text-muted focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20 transition-all"
           />
           {search && (
