@@ -659,6 +659,34 @@ export class NexusCanvasEngine {
     const rowEnd = Math.ceil(bottomRight.wy / UNIT) + 1;
     const maxRow = Math.ceil(TOTAL_BLOCKS / COLS);
 
+    // Ground surface — subtle background and grid lines
+    if (unitScreen > 2) {
+      // Subtle ground fill behind blocks
+      ctx.fillStyle = '#0d0d18';
+      for (let row = rowStart; row <= Math.min(rowEnd, maxRow); row++) {
+        for (let col = colStart; col <= colEnd; col++) {
+          const sx = (col * UNIT - this.camera.x) * zoom + w / 2;
+          const sy = (row * UNIT - this.camera.y) * zoom + h / 2;
+          ctx.fillRect(sx, sy, unitScreen, unitScreen);
+        }
+      }
+      // Thin grid lines between cells
+      ctx.strokeStyle = '#1a1a2a';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let col = colStart; col <= colEnd + 1; col++) {
+        const sx = (col * UNIT - this.camera.x) * zoom + w / 2;
+        ctx.moveTo(sx, (rowStart * UNIT - this.camera.y) * zoom + h / 2);
+        ctx.lineTo(sx, (Math.min(rowEnd, maxRow) * UNIT + UNIT - this.camera.y) * zoom + h / 2);
+      }
+      for (let row = rowStart; row <= Math.min(rowEnd, maxRow) + 1; row++) {
+        const sy = (row * UNIT - this.camera.y) * zoom + h / 2;
+        ctx.moveTo((colStart * UNIT - this.camera.x) * zoom + w / 2, sy);
+        ctx.lineTo((colEnd * UNIT + UNIT - this.camera.x) * zoom + w / 2, sy);
+      }
+      ctx.stroke();
+    }
+
     // Render blocks
     for (let row = rowStart; row <= Math.min(rowEnd, maxRow); row++) {
       for (let col = colStart; col <= colEnd; col++) {

@@ -978,7 +978,7 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
 
   // Dashed lane markings for street view — instanced
   const laneMarkings = useMemo(() => {
-    if (!isStreet) return { matrices: new Float32Array(0), count: 0 };
+    if (false) return { matrices: new Float32Array(0), count: 0 };
     const bigRoads = surfaces.roads.filter(r => r.w > 0.15 || r.d > 0.15);
     const matrices: THREE.Matrix4[] = [];
     const dashLen = 0.06;
@@ -1022,7 +1022,7 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
 
   // Sidewalk edges — slightly raised along parcel borders (street view only)
   const sidewalks = useMemo(() => {
-    if (!isStreet || !parcels || parcels.length === 0) return { matrices: new Float32Array(0), count: 0 };
+    if (!parcels || parcels.length === 0) return { matrices: new Float32Array(0), count: 0 };
     const matrices: THREE.Matrix4[] = [];
     const sw = 0.012; // sidewalk width in world units
     const sh = 0.004; // sidewalk height
@@ -1055,7 +1055,7 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
 
   // Road surface instanced meshes
   const roadInstances = useMemo(() => {
-    const show = isStreet || viewMode === 'heights';
+    const show = true;
     if (!show) return { matrices: new Float32Array(0), count: 0 };
     const matrices: THREE.Matrix4[] = [];
     for (const r of surfaces.roads) {
@@ -1073,7 +1073,7 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
   }, [isStreet, viewMode, surfaces.roads]);
 
   const parkInstances = useMemo(() => {
-    const show = isStreet || viewMode === 'heights';
+    const show = true;
     if (!show) return { matrices: new Float32Array(0), count: 0 };
     const matrices: THREE.Matrix4[] = [];
     for (const p of surfaces.parks) {
@@ -1193,7 +1193,7 @@ function StreetSigns({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: s
 
     // Collect unique parcel corner points that are NOT inside another parcel
     const halfBlock = BLOCK_SIZE / 2;
-    const corners: { x: number; z: number; hash: string }[] = [];
+    const corners: { x: number; z: number; label: string }[] = [];
 
     for (const p of parcels) {
       const pts = [
@@ -1213,9 +1213,7 @@ function StreetSigns({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: s
           }
         }
         if (!inParcel && pt.x > -halfBlock && pt.x < halfBlock && pt.z > -halfBlock && pt.z < halfBlock) {
-          // Generate pseudo-hash from txIndex
-          const hex = (p.txIndex * 2654435761 >>> 0).toString(16).padStart(8, '0');
-          corners.push({ x: pt.x, z: pt.z, hash: `0x${hex.slice(0, 4)}…` });
+          corners.push({ x: pt.x, z: pt.z, label: `Parcel ${p.txIndex}` });
         }
       }
     }
@@ -1255,7 +1253,7 @@ function StreetSigns({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: s
               whiteSpace: 'nowrap',
               backdropFilter: 'blur(4px)',
             }}>
-              {s.hash} Ave
+              {s.label} Ave
             </div>
           </Html>
         </group>
