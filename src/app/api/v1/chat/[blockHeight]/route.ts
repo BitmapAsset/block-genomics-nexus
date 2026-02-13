@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api-helpers';
+import { success, error, sanitizeString } from '@/lib/api-helpers';
 
 export async function GET(
   req: NextRequest,
@@ -13,10 +13,10 @@ export async function GET(
 
     const url = new URL(req.url);
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 200);
-    const before = url.searchParams.get('before'); // cursor-based pagination
+    const after = url.searchParams.get('after'); // ISO timestamp for polling
 
-    const where: any = { blockHeight: h };
-    if (before) where.createdAt = { lt: new Date(before) };
+    const where: Record<string, unknown> = { blockHeight: h };
+    if (after) where.createdAt = { gt: new Date(after) };
 
     const messages = await prisma.chatMessage.findMany({
       where,
@@ -25,12 +25,14 @@ export async function GET(
     });
 
     return success(messages.reverse());
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    return error(e instanceof Error ? e.message : 'Unknown error', 500);
   }
 }
 
-// TODO: Add rate limiting (e.g., 10 messages per minute per user)
+// Simple in-memory rate limiter: 1 msg per 2 seconds per wallet
+const rateLimitMap = new Map<string, number>();
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ blockHeight: string }> }
@@ -41,17 +43,26 @@ export async function POST(
     if (isNaN(h) || h < 0) return error('Invalid block height', 400);
 
     const body = await req.json();
-    const { walletAddress, signature, message: authMessage, text, type, mediaUrl, replyToId } = body;
+    const { senderAddress, senderHandle, text, type } = body;
 
-    if (!walletAddress || !signature || !authMessage) return error('Auth required', 400);
-    if (!text || typeof text !== 'string') return error('text is required', 400);
+    if (!senderAddress || typeof senderAddress !== 'string') return error('senderAddress is required', 400);
+    if (!text || typeof text !== 'string' || !text.trim()) return error('text is required', 400);
 
-    /* MOCK — replace with real BIP-322 */
-    if (!verifyWalletSignature(walletAddress, authMessage, signature)) return error('Invalid signature', 401);
+    // Rate limit: 1 message per 2 seconds per wallet
+    const now = Date.now();
+    const lastSent = rateLimitMap.get(senderAddress) || 0;
+    if (now - lastSent < 2000) {
+      return error('Rate limited — wait 2 seconds between messages', 429);
+    }
+    rateLimitMap.set(senderAddress, now);
 
-    // Verify user has access to this block (owner, parcel owner, or delegatee)
-    const user = await prisma.user.findUnique({ where: { walletAddress } });
-    if (!user) return error('User not found', 404);
+    // Clean up old entries periodically
+    if (rateLimitMap.size > 1000) {
+      const cutoff = now - 10000;
+      for (const [k, v] of rateLimitMap) {
+        if (v < cutoff) rateLimitMap.delete(k);
+      }
+    }
 
     const validTypes = ['text', 'image', 'gif', 'link'];
     const msgType = type && validTypes.includes(type) ? type : 'text';
@@ -59,17 +70,15 @@ export async function POST(
     const chatMsg = await prisma.chatMessage.create({
       data: {
         blockHeight: h,
-        senderAddress: walletAddress,
-        senderHandle: user.handle,
+        senderAddress,
+        senderHandle: senderHandle ? sanitizeString(senderHandle, 50) : 'anon',
         text: sanitizeString(text, 2000),
         type: msgType,
-        mediaUrl: mediaUrl ? sanitizeString(mediaUrl, 500) : null,
-        replyToId: replyToId || null,
       },
     });
 
     return success(chatMsg, 201);
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    return error(e instanceof Error ? e.message : 'Unknown error', 500);
   }
 }

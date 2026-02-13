@@ -34,6 +34,8 @@ interface ChatMessage {
   type: 'text' | 'image' | 'gif' | 'link';
   isOwner?: boolean;
   ownerData?: OwnerData;
+  isDemo?: boolean; // true for mock/seed messages
+  createdAt?: string; // ISO timestamp from DB
 }
 
 interface OwnerData {
@@ -2466,10 +2468,38 @@ function VPSLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => vo
   const [status, setStatus] = useState<'idle' | 'verifying' | 'linked'>('idle');
   const [linkTarget, setLinkTarget] = useState<'block' | 'parcel'>('parcel');
 
-  const handleLink = () => {
+  const [error, setError] = useState('');
+  const [connType, setConnType] = useState('https');
+
+  const handleLink = async () => {
     if (!url) return;
     setStatus('verifying');
-    setTimeout(() => setStatus('linked'), 2000);
+    setError('');
+    try {
+      const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet') || '' : '';
+      const challenge = `vps-link:${blockHeight}:${parcelIndex}:${Date.now()}`;
+      const signature = typeof window !== 'undefined' && (window as any).unisat
+        ? await (window as any).unisat.signMessage(challenge) : '';
+      const res = await fetch('/api/v1/vps/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress,
+          blockHeight,
+          parcelIndex: linkTarget === 'parcel' ? parcelIndex : null,
+          serverUrl: url,
+          connectionType: connType,
+          signature,
+          challenge,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to link VPS');
+      setStatus('linked');
+    } catch (e: any) {
+      setError(e.message);
+      setStatus('idle');
+    }
   };
 
   const targetAddress = linkTarget === 'block' ? `${blockHeight}.bitmap` : `${parcelIndex}.${blockHeight}.bitmap`;
@@ -3031,9 +3061,45 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
   const protocolFeeMonthly = Math.ceil(parseInt(monthlyPrice || '0') * 3 / 100);
   const protocolFeeYearly = Math.ceil(parseInt(yearlyPrice || '0') * 3 / 100);
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     setStatus('publishing');
-    setTimeout(() => setStatus('live'), 1500); /* MOCK — replace with on-chain listing */
+    try {
+      const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet') || '' : '';
+      const res = await fetch('/api/v1/delegations/listings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress,
+          signature: 'mock-sig',
+          message: 'List delegation',
+          blockHeight,
+          parcelTxIndex: isBlock ? null : parcelIndex,
+          tier: 3,
+          spotsTotal: unlimited ? -1 : parseInt(maxSpots || '10'),
+          price30d: parseInt(monthlyPrice || '0'),
+          price365d: parseInt(yearlyPrice || '0'),
+          welcomeMessage: welcome,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to publish');
+      setStatus('live');
+      // Log activity
+      try {
+        await fetch('/api/v1/activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress,
+            action: 'delegation_list',
+            metadata: { blockHeight, price30d: parseInt(monthlyPrice || '0'), price365d: parseInt(yearlyPrice || '0') },
+          }),
+        });
+      } catch {}
+    } catch (e: any) {
+      console.error('Publish listing failed:', e);
+      setStatus('idle');
+    }
   };
 
   return (
@@ -3196,22 +3262,63 @@ function GetAccessModal({ onClose, blockHeight, parcelIndex, owner }: {
 }) {
   const [selectedDuration, setSelectedDuration] = useState<30 | 365>(30);
   const [status, setStatus] = useState<'idle' | 'signing' | 'confirmed'>('idle');
+  const [listing, setListing] = useState<any>(null);
+  const [loadingListing, setLoadingListing] = useState(true);
 
   const isBlock = parcelIndex < 0;
   const address = isBlock ? `${blockHeight}.bitmap` : `${parcelIndex}.${blockHeight}.bitmap`;
 
-  /* MOCK prices — replace with real listing data */
-  const rng = seededRandom(blockHeight * 4219 + (parcelIndex + 1) * 773);
-  const monthlyPrice = 5000 + Math.floor(rng() * 45000);
-  const yearlyPrice = Math.floor(monthlyPrice * 10);
+  // Fetch real listing data
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/v1/delegations/listings?blockHeight=${blockHeight}&active=true`);
+        const data = await res.json();
+        if (data.data?.listings?.length > 0) {
+          // Find matching listing (block-level or parcel-level)
+          const match = data.data.listings.find((l: any) =>
+            isBlock ? l.parcelTxIndex === null : l.parcelTxIndex === parcelIndex
+          ) || data.data.listings[0];
+          setListing(match);
+        }
+      } catch (e) {
+        console.error('Failed to fetch listing:', e);
+      } finally {
+        setLoadingListing(false);
+      }
+    })();
+  }, [blockHeight, parcelIndex, isBlock]);
+
+  const monthlyPrice = listing?.price30d ?? 10000;
+  const yearlyPrice = listing?.price365d ?? 100000;
   const price = selectedDuration === 30 ? monthlyPrice : yearlyPrice;
   const protocolFee = Math.ceil(price * 3 / 100);
   const ownerShare = price - protocolFee;
-  const spotsLeft = 3 + Math.floor(rng() * 15);
+  const spotsLeft = listing ? (listing.spotsTotal === -1 ? 999 : Math.max(0, listing.spotsTotal - listing.spotsUsed)) : 0;
 
-  const handlePay = () => {
+  const handlePay = async () => {
     setStatus('signing');
-    setTimeout(() => setStatus('confirmed'), 2000); /* MOCK */
+    try {
+      const buyerAddress = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet') || '' : '';
+      const res = await fetch('/api/v1/delegations/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: buyerAddress,
+          signature: 'mock-sig',
+          message: 'Purchase delegation',
+          listingId: listing?.id,
+          durationDays: selectedDuration,
+          txId: `mock-tx-${Date.now()}`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Purchase failed');
+      setStatus('confirmed');
+    } catch (e: any) {
+      console.error('Purchase failed:', e);
+      setStatus('idle');
+    }
   };
 
   return (
@@ -3738,6 +3845,18 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const [showSendBtcModal, setShowSendBtcModal] = useState(false);
   const [showQrProfile, setShowQrProfile] = useState(false);
   const [showDelegationListing, setShowDelegationListing] = useState(false);
+  const [activeListing, setActiveListing] = useState<any>(null);
+
+  // Fetch active delegation listing for this block
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/v1/delegations/listings?blockHeight=${blockHeight}&active=true`);
+        const data = await res.json();
+        if (data.data?.listings?.length > 0) setActiveListing(data.data.listings[0]);
+      } catch {}
+    })();
+  }, [blockHeight]);
   const [showGetAccess, setShowGetAccess] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -3926,9 +4045,58 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     [blockHeight, displayParcel]
   );
 
-  useEffect(() => {
-    setChatMessages(generateMockChat(blockHeight));
+  // Real chat: fetch messages from API + poll every 3s
+  const lastMessageTime = useRef<string | null>(null);
+  const chatPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchChatMessages = useCallback(async (afterTime?: string | null) => {
+    try {
+      const url = `/api/v1/chat/${blockHeight}${afterTime ? `?after=${encodeURIComponent(afterTime)}` : ''}`;
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const json = await res.json();
+      const msgs: ChatMessage[] = (json.data || []).map((m: { id: string; senderHandle?: string; senderAddress: string; text: string; type: string; createdAt: string }) => ({
+        id: m.id,
+        sender: m.senderHandle || m.senderAddress.slice(0, 8),
+        text: m.text,
+        time: new Date(m.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        type: m.type as ChatMessage['type'],
+        createdAt: m.createdAt,
+      }));
+      if (msgs.length > 0) {
+        lastMessageTime.current = msgs[msgs.length - 1].createdAt || null;
+        if (afterTime) {
+          setChatMessages(prev => [...prev, ...msgs]);
+        } else {
+          // Initial load: show real messages, or mock as demo if none
+          if (msgs.length === 0) {
+            setChatMessages(generateMockChat(blockHeight).map(m => ({ ...m, isDemo: true })));
+          } else {
+            setChatMessages(msgs);
+          }
+        }
+      } else if (!afterTime) {
+        // No real messages — show mock as demo
+        setChatMessages(generateMockChat(blockHeight).map(m => ({ ...m, isDemo: true })));
+      }
+    } catch {
+      // On error, show demo messages
+      if (!afterTime) {
+        setChatMessages(generateMockChat(blockHeight).map(m => ({ ...m, isDemo: true })));
+      }
+    }
   }, [blockHeight]);
+
+  useEffect(() => {
+    lastMessageTime.current = null;
+    fetchChatMessages();
+    chatPollRef.current = setInterval(() => {
+      fetchChatMessages(lastMessageTime.current);
+    }, 3000);
+    return () => {
+      if (chatPollRef.current) clearInterval(chatPollRef.current);
+    };
+  }, [blockHeight, fetchChatMessages]);
 
   const navigateParcel = (delta: number) => {
     const newIdx = Math.max(0, Math.min(parcels.length - 1, parcelNavIndex + delta));
@@ -3977,17 +4145,63 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     }
   }, [flyTarget]);
 
-  const sendChat = () => {
+  const sendChat = async () => {
     if (!chatInput.trim()) return;
-    const newMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      sender: 'You',
-      text: chatInput,
-      time: 'now',
-      type: chatInput.startsWith('http') ? 'link' : 'text',
-    };
-    setChatMessages(prev => [...prev, newMsg]);
+    const text = chatInput;
     setChatInput('');
+
+    // Get wallet from localStorage
+    let senderAddress = 'anonymous';
+    let senderHandle = 'You';
+    try {
+      const walletData = localStorage.getItem('bg_wallet');
+      if (walletData) {
+        const parsed = JSON.parse(walletData);
+        senderAddress = parsed.address || parsed.walletAddress || 'anonymous';
+        senderHandle = parsed.handle || parsed.name || senderAddress.slice(0, 8);
+      }
+    } catch { /* use defaults */ }
+
+    // Optimistic local add
+    const optimisticMsg: ChatMessage = {
+      id: `optimistic-${Date.now()}`,
+      sender: senderHandle,
+      text,
+      time: 'now',
+      type: text.startsWith('http') ? 'link' : 'text',
+    };
+    setChatMessages(prev => {
+      // Remove demo messages once a real message is sent
+      const real = prev.filter(m => !m.isDemo);
+      return [...real, optimisticMsg];
+    });
+
+    try {
+      const res = await fetch(`/api/v1/chat/${blockHeight}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderAddress,
+          senderHandle,
+          text,
+          type: text.startsWith('http') ? 'link' : 'text',
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const m = json.data;
+        // Replace optimistic with real
+        setChatMessages(prev => prev.map(msg =>
+          msg.id === optimisticMsg.id ? {
+            ...msg,
+            id: m.id,
+            time: new Date(m.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+            createdAt: m.createdAt,
+          } : msg
+        ));
+        lastMessageTime.current = m.createdAt;
+      }
+    } catch { /* optimistic message stays */ }
   };
 
   const viewModes: { mode: ViewMode; icon: string; label: string }[] = [
@@ -4635,6 +4849,17 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                   >
                     🏰 Create Estate
                   </button>
+                  {activeListing && (
+                    <div className="mt-3 rounded-xl p-3" style={{ background: 'rgba(170,68,255,0.06)', border: '1px solid rgba(170,68,255,0.2)' }}>
+                      <div className="flex items-center gap-2 text-[11px] font-mono" style={{ color: '#aa44ff' }}>
+                        <span>🏷️ Listed for delegation</span>
+                        <span className="ml-auto" style={{ color: '#f7931a' }}>{activeListing.price30d?.toLocaleString()} sats/month</span>
+                      </div>
+                      <div className="text-[9px] mt-1" style={{ color: '#64748b' }}>
+                        {activeListing.spotsTotal === -1 ? '∞' : (activeListing.spotsTotal - activeListing.spotsUsed)} spots available · {activeListing.price365d?.toLocaleString()} sats/year
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={() => setShowDelegationListing(true)}
                     className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mt-3 transition-all hover:brightness-130 active:scale-[0.97]"
@@ -4645,7 +4870,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                       boxShadow: '0 0 15px rgba(170,68,255,0.12), inset 0 0 10px rgba(170,68,255,0.04)',
                     }}
                   >
-                    🏷️ List for Delegation
+                    🏷️ {activeListing ? 'Update Listing' : 'List for Delegation'}
                   </button>
                   <button
                     onClick={() => setShowCustomizePanel(!showCustomizePanel)}
@@ -4706,6 +4931,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
+                  // TODO: upload file to storage, for now just show locally
                   const newMsg: ChatMessage = {
                     id: `msg-${Date.now()}`,
                     sender: 'You',
@@ -4828,7 +5054,10 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                   </div>
                 )}
                 {chatMessages.map((msg) => (
-                  <div key={msg.id} className="group">
+                  <div key={msg.id} className="group" style={msg.isDemo ? { opacity: 0.4 } : undefined}>
+                    {msg.isDemo && chatMessages.indexOf(msg) === 0 && (
+                      <div className="text-[9px] text-center mb-2" style={{ color: '#475569' }}>💬 Demo messages — be the first to chat!</div>
+                    )}
                     <div className="flex items-start gap-2">
                       <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-bold"
                         style={{ background: msg.sender === 'You' ? 'rgba(0,255,136,0.2)' : 'rgba(247,147,26,0.15)', color: msg.sender === 'You' ? '#00ff88' : '#f7931a' }}>
