@@ -229,12 +229,43 @@ export default function VerifyPage() {
 
   /* Detect installed wallets on mount */
   useEffect(() => {
-    // Wallets inject after page load, so check after a delay too
     const check = () => setDetectedWallets(detectWallets());
     check();
     const t = setTimeout(check, 500);
     return () => clearTimeout(t);
   }, []);
+
+  /* Restore wallet session from localStorage on mount */
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('bg_wallet');
+      if (!saved) return;
+      const { type, address } = JSON.parse(saved);
+      if (type && address) {
+        setWallet(type);
+        setWalletAddr(address);
+      }
+    } catch {}
+  }, []);
+
+  /* Check for existing profile when wallet address is set */
+  useEffect(() => {
+    if (!walletAddr) return;
+    let cancelled = false;
+    fetch('/api/v1/users/by-wallet/' + walletAddr)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled || !data.success) return;
+        const u = data.data;
+        if (u.handle) setHandle(u.handle);
+        if (u.displayName) setDisplayName(u.displayName);
+        if (u.genomeHash) { setGenomeHash(u.genomeHash); setVerified(true); }
+        if (u.anchorBlock) setBlockInfo({ height: u.anchorBlock, txCount: 0 });
+        if (u.handle) { setProfileCreated(true); setHandleAvailable(true); }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [walletAddr]);
 
   /* Fetch bitmap inscriptions when wallet connects */
   useEffect(() => {
@@ -262,6 +293,7 @@ export default function VerifyPage() {
 
       setWallet(id);
       setWalletAddr(addr);
+      localStorage.setItem('bg_wallet', JSON.stringify({ type: id, address: addr }));
     } catch (e: any) {
       const msg = e?.message || 'Failed to connect';
       if (msg.includes('not installed')) {
@@ -490,6 +522,12 @@ export default function VerifyPage() {
                 <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
                 <span className="text-text-secondary">Connected via <strong className="text-text-primary capitalize">{wallet}</strong></span>
                 <code className="ml-auto text-xs text-accent-cyan bg-accent-cyan/10 px-2 py-1 rounded">{truncateAddress(walletAddr)}</code>
+                <button
+                  onClick={() => { setWallet(null); setWalletAddr(''); setBlockInfo(null); setVerified(false); setGenomeHash(''); setProfileCreated(false); setHandle(''); setDisplayName(''); setHandleAvailable(null); localStorage.removeItem('bg_wallet'); }}
+                  className="text-xs text-text-muted hover:text-red-400 transition-colors ml-2"
+                >
+                  Disconnect
+                </button>
               </div>
             )}
           </section>
@@ -679,7 +717,7 @@ export default function VerifyPage() {
                       <input
                         type="text"
                         value={handle}
-                        onChange={(e) => { setHandle(e.target.value); setHandleAvailable(null); setHandleError(''); }}
+                        onChange={(e) => { setHandle(e.target.value.toLowerCase()); setHandleAvailable(null); setHandleError(''); }}
                         placeholder="your_handle"
                         className="w-full rounded-lg border border-border bg-bg-tertiary/30 pl-8 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50"
                       />

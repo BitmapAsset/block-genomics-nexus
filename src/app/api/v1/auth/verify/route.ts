@@ -41,9 +41,12 @@ export async function POST(req: NextRequest) {
     // Tier 1 = block owner (has blockHeight), Tier 2 = parcel, Tier 3 = delegated
     const tier = blockHeight ? 1 : 3;
 
+    // Normalize handle to lowercase
+    const normalizedHandle = handle?.toLowerCase();
+
     // Check handle uniqueness if provided
-    if (handle) {
-      const existing = await prisma.user.findUnique({ where: { handle } });
+    if (normalizedHandle) {
+      const existing = await prisma.user.findUnique({ where: { handle: normalizedHandle } });
       if (existing && existing.walletAddress !== walletAddress) {
         return error('Handle already taken', 409);
       }
@@ -57,7 +60,7 @@ export async function POST(req: NextRequest) {
         tier,
         genomeHash,
         ...(blockHeight && { anchorBlock: blockHeight }),
-        ...(handle && { handle }),
+        ...(normalizedHandle && { handle: normalizedHandle }),
         ...(displayName !== undefined && { displayName }),
       },
       create: {
@@ -66,15 +69,15 @@ export async function POST(req: NextRequest) {
         tier,
         genomeHash,
         anchorBlock: blockHeight || null,
-        handle: handle || null,
+        handle: normalizedHandle || null,
         displayName: displayName || null,
       },
     });
 
     // Record handle history if handle was set
-    if (handle) {
+    if (normalizedHandle) {
       await prisma.handleHistory.create({
-        data: { handle, walletAddress, action: 'claimed' },
+        data: { handle: normalizedHandle, walletAddress, action: 'claimed' },
       });
     }
 
@@ -113,7 +116,8 @@ export async function GET(req: NextRequest) {
     if (handle.length < 3 || handle.length > 20) return error('Handle must be 3-20 characters', 400);
     if (!/^[a-zA-Z0-9_]+$/.test(handle)) return error('Only letters, numbers, underscores', 400);
 
-    const existing = await prisma.user.findUnique({ where: { handle } });
+    const normalizedHandle = handle.toLowerCase();
+    const existing = await prisma.user.findUnique({ where: { handle: normalizedHandle } });
     return success({ handle, available: !existing });
   } catch (e: any) {
     return error(e.message, 500);

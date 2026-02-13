@@ -4,17 +4,13 @@ import { success, error } from '@/lib/api-helpers';
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ handle: string }> }
+  { params }: { params: Promise<{ address: string }> }
 ) {
   try {
-    const { handle } = await params;
-    const normalizedHandle = handle.toLowerCase();
+    const { address } = await params;
 
     const user = await prisma.user.findUnique({
-      where: { handle: normalizedHandle },
-      include: {
-        _count: { select: { blocks: true, parcels: true, estates: true } },
-      },
+      where: { walletAddress: address },
     });
 
     if (!user) return error('User not found', 404);
@@ -23,15 +19,10 @@ export async function GET(
       walletAddress: user.walletAddress,
       handle: user.handle,
       displayName: user.displayName,
-      avatar: user.avatar,
       genomeHash: user.genomeHash,
       anchorBlock: user.anchorBlock,
       tier: user.tier,
       verified: user.verified,
-      createdAt: user.createdAt,
-      blockCount: user._count.blocks,
-      parcelCount: user._count.parcels,
-      estateCount: user._count.estates,
     });
   } catch (e: any) {
     return error(e.message, 500);
