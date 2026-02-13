@@ -162,3 +162,88 @@ model Estate {
   @@index([blockHeight])
   @@index([ownerAddress])
 }
+
+// ─── Bitmap Agent Protocol ───────────────────────────────────────
+
+model BitmapAgent {
+  id            String   @id @default(cuid())
+  walletAddress String
+  endpointUrl   String
+  blockHeight   Int
+  parcelIndex   Int?
+  tier          Int      @default(3) // 1=Block Owner, 2=Parcel, 3=Delegated
+  permissions   String   // JSON array of AgentPermission strings
+  status        String   @default("active") // active | inactive | revoked | suspended
+  createdAt     DateTime @default(now())
+  lastHeartbeat DateTime @default(now())
+
+  events   AgentEvent[]
+  briefs   AgentBrief[]
+  sessions AgentSession[]
+
+  @@index([walletAddress])
+  @@index([blockHeight])
+  @@index([status])
+}
+
+model AgentEvent {
+  id        String   @id @default(cuid())
+  agentId   String
+  type      String   // visitor_arrived | dm_received | offer_made | content_reported | permission_request | heartbeat
+  payload   String   // JSON
+  timestamp DateTime @default(now())
+
+  agent BitmapAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([type])
+  @@index([timestamp])
+}
+
+model AgentBrief {
+  id                 String   @id @default(cuid())
+  agentId            String
+  period             String   // ISO interval
+  summary            String
+  stats              String   // JSON { visitors, dms, offers, actions }
+  pendingPermissions String   // JSON array
+  createdAt          DateTime @default(now())
+
+  agent BitmapAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([createdAt])
+}
+
+model VPSLink {
+  id              String   @id @default(cuid())
+  walletAddress   String
+  blockHeight     Int
+  parcelIndex     Int?
+  serverUrl       String
+  connectionType  String   @default("https") // https | websocket | webrtc
+  status          String   @default("linked") // linked | unlinked | unhealthy
+  tlsVerified     Boolean  @default(false)
+  lastHealthCheck DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([walletAddress])
+  @@index([blockHeight])
+  @@index([status])
+}
+
+model AgentSession {
+  id          String   @id @default(cuid())
+  agentId     String
+  bitmapAddr  String
+  sandboxId   String   @unique
+  permissions String   // JSON array
+  activityLog String   @default("[]") // JSON array
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+
+  agent BitmapAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([sandboxId])
+}
