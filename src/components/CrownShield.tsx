@@ -181,24 +181,46 @@ const CrownShield: React.FC<CrownShieldProps> = ({
         filter={`url(#${uid}g)`}
       />
 
-      {/* ═══ GREEN ✓ (bottom center — scales well at all sizes) ═══ */}
+      {/* ═══ BITMAP BLOCK PATTERN (subtle background texture) ═══ */}
+      <g opacity="0.35" clipPath={`url(#${uid}clip)`}>
+        <defs>
+          <clipPath id={`${uid}clip`}>
+            <path d={innerShieldPath} />
+          </clipPath>
+        </defs>
+        {/* Grid of small blocks — Mondrian-style */}
+        <rect x="14" y="30" width="12" height="10" rx="1" fill={c.primary} opacity="0.3" />
+        <rect x="28" y="28" width="8" height="8" rx="1" fill={c.primary} opacity="0.25" />
+        <rect x="38" y="32" width="14" height="6" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="55" y="29" width="10" height="10" rx="1" fill={c.primary} opacity="0.3" />
+        <rect x="67" y="30" width="7" height="7" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="76" y="28" width="9" height="11" rx="1" fill={c.primary} opacity="0.25" />
+        <rect x="16" y="44" width="18" height="8" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="36" y="42" width="6" height="12" rx="1" fill={c.primary} opacity="0.25" />
+        <rect x="44" y="44" width="15" height="7" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="62" y="43" width="10" height="9" rx="1" fill={c.primary} opacity="0.3" />
+        <rect x="74" y="44" width="11" height="6" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="18" y="56" width="8" height="14" rx="1" fill={c.primary} opacity="0.25" />
+        <rect x="28" y="58" width="16" height="6" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="46" y="55" width="9" height="10" rx="1" fill={c.primary} opacity="0.3" />
+        <rect x="58" y="57" width="12" height="7" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="72" y="56" width="8" height="9" rx="1" fill={c.primary} opacity="0.25" />
+        <rect x="22" y="72" width="14" height="8" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="38" y="70" width="10" height="10" rx="1" fill={c.primary} opacity="0.25" />
+        <rect x="50" y="72" width="16" height="6" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="68" y="71" width="8" height="8" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="30" y="84" width="12" height="7" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="44" y="83" width="8" height="10" rx="1" fill={c.primary} opacity="0.25" />
+        <rect x="55" y="85" width="14" height="6" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="38" y="95" width="10" height="6" rx="1" fill={c.primary} opacity="0.2" />
+        <rect x="50" y="94" width="12" height="5" rx="1" fill={c.primary} opacity="0.2" />
+      </g>
+
+      {/* ═══ GREEN VERIFIED DOT (small, clean) ═══ */}
       {verified && (
         <g>
-          {/* Green circle background for visibility at small sizes */}
-          <circle cx="50" cy="95" r={size < 24 ? 12 : 10} fill="#0c0c1a" stroke="#22ff88" strokeWidth={size < 24 ? 3 : 2} />
-          <path
-            d={size < 24
-              ? "M 42 95 L 48 101 L 58 88"   /* larger check for tiny badges */
-              : "M 43 95 L 48 100 L 57 89"    /* normal check */
-            }
-            fill="none"
-            stroke="#22ff88"
-            strokeWidth={size < 24 ? 4 : 3.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {/* check glow */}
-          <circle cx="50" cy="95" r="14" fill="#22ff88" opacity="0.1" filter={`url(#${uid}g)`} />
+          <circle cx="50" cy="96" r="5" fill="#22ff88" />
+          <circle cx="50" cy="96" r="8" fill="#22ff88" opacity="0.15" filter={`url(#${uid}g)`} />
         </g>
       )}
     </svg>
@@ -236,7 +258,7 @@ export function crownShieldSVGString(tier: ShieldTier = 1, verified = true, size
   <path d="${crown}" fill="${c.primary}" opacity="0.7"/>
   <circle cx="34" cy="7" r="3" fill="${c.light}"/><circle cx="50" cy="3" r="3.5" fill="${c.light}"/><circle cx="66" cy="7" r="3" fill="${c.light}"/>
   <text x="50" y="65" text-anchor="middle" dominant-baseline="central" fill="url(#t)" font-family="system-ui" font-size="42" font-weight="bold">₿</text>
-  ${verified ? '<circle cx="50" cy="95" r="10" fill="#0c0c1a" stroke="#22ff88" stroke-width="2"/><path d="M 43 95 L 48 100 L 57 89" fill="none" stroke="#22ff88" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>' : ''}
+  ${verified ? '<circle cx="50" cy="96" r="5" fill="#22ff88"/>' : ''}
 </svg>`;
 }
 
@@ -251,8 +273,7 @@ export function CrownShieldInline({ size = 16, tier = 1 as ShieldTier }: { size?
       <path d="M 30 22 L 34 8 L 42 18 L 50 4 L 58 18 L 66 8 L 70 22 Z" fill={c.primary} opacity="0.7"/>
       <circle cx="34" cy="7" r="3" fill={c.light}/><circle cx="50" cy="3" r="3.5" fill={c.light}/><circle cx="66" cy="7" r="3" fill={c.light}/>
       <text x="50" y="65" textAnchor="middle" dominantBaseline="central" fill={c.primary} fontFamily="system-ui" fontSize="42" fontWeight="bold">₿</text>
-      <circle cx="50" cy="95" r="12" fill="#0c0c1a" stroke="#22ff88" strokeWidth="3"/>
-      <path d="M 42 95 L 48 101 L 58 88" fill="none" stroke="#22ff88" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="50" cy="96" r="5" fill="#22ff88"/>
     </svg>
   );
 }
