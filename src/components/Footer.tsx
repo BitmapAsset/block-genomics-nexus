@@ -29,6 +29,7 @@ export default function Footer() {
             <ul className="space-y-2">
               {[
                 { href: "/nexus", label: "Nexus" },
+                { href: "/directory", label: "Agent Directory" },
                 { href: "/verify", label: "Verify" },
                 { href: "/whitepaper", label: "White Paper" },
               ].map((link) => (

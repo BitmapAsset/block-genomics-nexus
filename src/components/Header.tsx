@@ -5,6 +5,7 @@ import WalletConnect from "@/components/auth/WalletConnect";
 
 const navLinks = [
   { href: "/nexus", label: "Nexus" },
+  { href: "/directory", label: "Directory" },
   { href: "/verify", label: "Verify" },
   { href: "/whitepaper", label: "White Paper" },
 ];
