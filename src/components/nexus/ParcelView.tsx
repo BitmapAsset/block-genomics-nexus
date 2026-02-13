@@ -158,7 +158,8 @@ function mondrianLayout(
   const scale = blockSize / gridWidth;
 
   // Proportional gap: ~12% of one grid cell in world units (matches Bitmap.Community aesthetic)
-  const cellGap = scale * 0.12;
+  // Minimum gap ensures gutters stay visible even with thousands of transactions
+  const cellGap = Math.max(scale * 0.12, blockSize * 0.003);
 
   // 2D occupancy grid for packing
   const gridH = gridWidth + 50; // extra rows for overflow
@@ -859,13 +860,110 @@ function GroundGlow() {
 }
 
 /* ─── Ground + Grid ─── */
-function GroundPlane() {
+function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?: string }) {
   const size = BLOCK_SIZE + 2;
+  const halfBlock = BLOCK_SIZE / 2;
+
+  // Road and park surfaces rendered in the gaps between parcels
+  const surfaces = useMemo(() => {
+    if (!parcels || parcels.length === 0) return { roads: [] as { x: number; z: number; w: number; d: number }[], parks: [] as { x: number; z: number; w: number; d: number }[] };
+
+    // Build occupancy grid to find gap areas
+    const resolution = 100; // grid cells
+    const cellSize = BLOCK_SIZE / resolution;
+    const occupied: boolean[][] = [];
+    for (let r = 0; r < resolution; r++) occupied.push(new Array(resolution).fill(false));
+
+    // Mark parcel areas as occupied
+    for (const p of parcels) {
+      const c0 = Math.max(0, Math.floor((p.x + halfBlock) / cellSize));
+      const r0 = Math.max(0, Math.floor((p.z + halfBlock) / cellSize));
+      const c1 = Math.min(resolution - 1, Math.floor((p.x + p.width + halfBlock) / cellSize));
+      const r1 = Math.min(resolution - 1, Math.floor((p.z + p.depth + halfBlock) / cellSize));
+      for (let r = r0; r <= r1; r++)
+        for (let c = c0; c <= c1; c++)
+          occupied[r][c] = true;
+    }
+
+    // Find horizontal runs of empty cells (gap strips)
+    const roads: { x: number; z: number; w: number; d: number }[] = [];
+    const parks: { x: number; z: number; w: number; d: number }[] = [];
+    const visited: boolean[][] = [];
+    for (let r = 0; r < resolution; r++) visited.push(new Array(resolution).fill(false));
+
+    for (let r = 0; r < resolution; r++) {
+      for (let c = 0; c < resolution; c++) {
+        if (occupied[r][c] || visited[r][c]) continue;
+
+        // Flood-fill to find rectangular gap region
+        let maxC = c;
+        while (maxC < resolution && !occupied[r][maxC] && !visited[r][maxC]) maxC++;
+        const w = maxC - c;
+
+        let maxR = r;
+        let valid = true;
+        while (maxR < resolution && valid) {
+          for (let cc = c; cc < c + w; cc++) {
+            if (occupied[maxR][cc] || visited[maxR][cc]) { valid = false; break; }
+          }
+          if (valid) maxR++;
+        }
+        const h = maxR - r;
+
+        // Mark visited
+        for (let rr = r; rr < r + h; rr++)
+          for (let cc = c; cc < c + w; cc++)
+            visited[rr][cc] = true;
+
+        const worldX = c * cellSize - halfBlock;
+        const worldZ = r * cellSize - halfBlock;
+        const worldW = w * cellSize;
+        const worldD = h * cellSize;
+        const area = worldW * worldD;
+
+        // Large gaps = parks, narrow gaps = roads
+        if (area > 2.0) {
+          parks.push({ x: worldX + worldW / 2, z: worldZ + worldD / 2, w: worldW, d: worldD });
+        } else if (area > 0.02) {
+          roads.push({ x: worldX + worldW / 2, z: worldZ + worldD / 2, w: worldW, d: worldD });
+        }
+      }
+    }
+    return { roads, parks };
+  }, [parcels, halfBlock]);
+
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-      <planeGeometry args={[size, size]} />
-      <meshStandardMaterial color="#06060c" roughness={1} metalness={0} />
-    </mesh>
+    <group>
+      {/* Base ground */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
+        <planeGeometry args={[size, size]} />
+        <meshStandardMaterial color="#06060c" roughness={1} metalness={0} />
+      </mesh>
+
+      {/* Roads — dark asphalt gray */}
+      {(viewMode === 'street' || viewMode === 'heights') && surfaces.roads.map((r, i) => (
+        <mesh key={`road-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[r.x, 0.001, r.z]}>
+          <planeGeometry args={[r.w, r.d]} />
+          <meshStandardMaterial color="#1a1a24" roughness={0.95} metalness={0} />
+        </mesh>
+      ))}
+
+      {/* Parks — dark green */}
+      {(viewMode === 'street' || viewMode === 'heights') && surfaces.parks.map((p, i) => (
+        <mesh key={`park-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[p.x, 0.001, p.z]}>
+          <planeGeometry args={[p.w, p.d]} />
+          <meshStandardMaterial color="#0a2a0a" roughness={0.9} metalness={0} />
+        </mesh>
+      ))}
+
+      {/* Road lane markings for street view */}
+      {viewMode === 'street' && surfaces.roads.filter(r => r.w > 0.3 || r.d > 0.3).slice(0, 50).map((r, i) => (
+        <mesh key={`mark-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[r.x, 0.002, r.z]}>
+          <planeGeometry args={[r.w > r.d ? r.w * 0.8 : r.w * 0.05, r.d > r.w ? r.d * 0.8 : r.d * 0.05]} />
+          <meshStandardMaterial color="#ffcc00" transparent opacity={0.3} roughness={1} metalness={0} />
+        </mesh>
+      ))}
+    </group>
   );
 }
 
@@ -3463,7 +3561,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           <StreetWalker active={viewMode === 'street'} parcels={parcels} teleportTo={streetTeleport} />
           <FlyToCamera flyTarget={flyTarget} onComplete={handleFlyComplete} />
 
-          <GroundPlane />
+          <GroundPlane parcels={parcels} viewMode={viewMode} />
           <GridLines />
           <GroundGlow />
 
