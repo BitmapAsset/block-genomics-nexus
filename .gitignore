@@ -5,3 +5,6 @@ prisma/dev.db
 .env.local
 .vercel
 .env*.local
+.env.vercel
+.env.sqlite.bak
+.env.sqlite.bak

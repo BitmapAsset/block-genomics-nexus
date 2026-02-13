@@ -2,12 +2,10 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// SQLite for dev — swap to PostgreSQL for prod
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-  // provider = "postgresql"
-  // url      = env("DATABASE_URL") // e.g. postgresql://user:pass@localhost:5432/nexus
+  provider  = "postgresql"
+  url       = env("DATABASE_POSTGRES_PRISMA_URL")
+  directUrl = env("DATABASE_POSTGRES_URL_NON_POOLING")
 }
 
 model User {
