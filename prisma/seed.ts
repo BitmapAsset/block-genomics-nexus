@@ -24,25 +24,8 @@ async function main() {
     },
   });
 
-  const alice = await prisma.user.create({
-    data: {
-      walletAddress: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
-      handle: 'Alice',
-      tier: 2,
-      verified: true,
-    },
-  });
-
-  const bob = await prisma.user.create({
-    data: {
-      walletAddress: 'bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l',
-      handle: 'Bob',
-      tier: 3,
-      verified: true,
-    },
-  });
-
-  console.log('  👤 Created 3 users');
+  // NOTE: No fake test users (Alice/Bob) — only real verified users in production
+  console.log('  👤 Created 1 user (Gravity)');
 
   // Blocks
   const block0 = await prisma.block.create({
@@ -67,16 +50,7 @@ async function main() {
     },
   });
 
-  const block100k = await prisma.block.create({
-    data: {
-      height: 100000,
-      hash: '000000000003ba27aa200b1cecaad478d2b00432346c3f1f3986da1afd33e506',
-      ownerAddress: alice.walletAddress,
-      label: 'Milestone 100k',
-    },
-  });
-
-  console.log('  ⛏️  Created 3 blocks');
+  console.log('  ⛏️  Created 2 blocks');
 
   // Parcels
   for (let i = 0; i < 5; i++) {
@@ -84,7 +58,7 @@ async function main() {
       data: {
         blockHeight: 840000,
         txIndex: i,
-        ownerAddress: i < 3 ? gravity.walletAddress : alice.walletAddress,
+        ownerAddress: gravity.walletAddress,
         customColor: i === 0 ? '#FF6B6B' : i === 1 ? '#4ECDC4' : null,
         pattern: i === 0 ? 'checkerboard' : null,
         emissive: i === 0,
@@ -106,28 +80,11 @@ async function main() {
     },
   });
 
-  // Delegation
-  await prisma.delegation.create({
-    data: {
-      blockHeight: 840000,
-      ownerAddress: gravity.walletAddress,
-      delegateeAddress: bob.walletAddress,
-      tier: 3,
-      durationDays: 30,
-      priceSats: 50000,
-      protocolFeeSats: 1500,
-      startDate: new Date(),
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      txId: 'mock_tx_abc123',
-    },
-  });
-  console.log('  🤝 Created listing + delegation');
+  console.log('  🤝 Created listing');
 
   // Chat Messages
   const msgs = [
     { sender: gravity, text: 'Welcome to the Genesis Block! 🧬' },
-    { sender: alice, text: 'This is amazing, first time here!' },
-    { sender: bob, text: 'gm frens 🐸' },
   ];
   for (const m of msgs) {
     await prisma.chatMessage.create({
