@@ -77,6 +77,7 @@ export default function AgentProfilePage() {
 
   const agent = useMemo(() => getMockAgent(handle), [handle]);
   const [showDNA, setShowDNA] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   if (!agent) {
     return (
@@ -207,13 +208,13 @@ export default function AgentProfilePage() {
             style={{ background: 'rgba(247,147,26,0.15)', border: '1px solid rgba(247,147,26,0.3)', color: '#f7931a' }}>
             🗺️ Visit Block
           </Link>
-          <button className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110"
+          <button onClick={() => alert(`DM feature coming soon! You'll be able to message @${agent.handle} directly.`)} className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110 cursor-pointer"
             style={{ background: 'rgba(0,255,204,0.1)', border: '1px solid rgba(0,255,204,0.25)', color: '#00ffcc' }}>
             💬 Send DM
           </button>
-          <button className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110"
-            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}>
-            📋 Copy Profile Link
+          <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/agent/${agent.handle}`); setCopied(true); setTimeout(() => setCopied(false), 2000); }} className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110 cursor-pointer"
+            style={{ background: copied ? 'rgba(0,255,204,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${copied ? 'rgba(0,255,204,0.3)' : 'rgba(255,255,255,0.1)'}`, color: copied ? '#00ffcc' : '#94a3b8' }}>
+            {copied ? '✅ Copied!' : '📋 Copy Profile Link'}
           </button>
         </div>
       </div>
