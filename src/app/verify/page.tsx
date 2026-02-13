@@ -73,17 +73,14 @@ async function connectXverse(): Promise<string> {
 /** Connect to Leather wallet — returns address */
 async function connectLeather(): Promise<string> {
   if (!window.LeatherProvider) throw new Error('Leather wallet not installed');
-  if (window.LeatherProvider.requestAccounts) {
-    const accounts = await window.LeatherProvider.requestAccounts();
-    if (!accounts?.length) throw new Error('No accounts returned');
-    return accounts[0];
-  }
-  if (window.LeatherProvider.getAddresses) {
-    const addresses = await window.LeatherProvider.getAddresses();
-    if (!addresses?.length) throw new Error('No addresses returned');
-    return addresses[0];
-  }
-  throw new Error('Leather wallet API not available');
+  const resp = await window.LeatherProvider.request('getAddresses');
+  if (resp.error) throw new Error(resp.error.message);
+  const addrs = resp.result?.addresses || [];
+  // Prefer Taproot (p2tr) address
+  const taproot = addrs.find(a => a.type === 'p2tr');
+  const addr = taproot?.address || addrs[0]?.address;
+  if (!addr) throw new Error('No address returned from Leather');
+  return addr;
 }
 
 /** Sign message with wallet */
@@ -95,12 +92,18 @@ async function signWithWallet(walletId: string, message: string): Promise<string
   if (walletId === 'xverse') {
     const provider = window.BitcoinProvider;
     if (!provider) throw new Error('Xverse not available');
-    return await provider.signMessage(message);
+    return await provider.signMessage(message, { network: 'Mainnet' });
   }
   if (walletId === 'leather') {
-    // Leather doesn't have a standard signMessage in our types
-    // Fall back to Unisat-compatible signing if available
-    throw new Error('Leather signing not yet supported — use Unisat or Xverse');
+    if (!window.LeatherProvider) throw new Error('Leather not available');
+    const resp = await window.LeatherProvider.request('signMessage', {
+      message,
+      paymentType: 'p2tr',
+    });
+    if (resp.error) throw new Error(resp.error.message);
+    const sig = resp.result?.signature || resp.result?.hex;
+    if (!sig) throw new Error('No signature returned from Leather');
+    return sig;
   }
   throw new Error('Unknown wallet');
 }

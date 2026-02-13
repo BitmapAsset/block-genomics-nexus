@@ -42,13 +42,23 @@ interface XverseAddress {
 
 interface BitcoinProvider {
   connect(): Promise<{ addresses: XverseAddress[] }>;
-  signMessage(message: string, options?: { address: string }): Promise<string>;
+  signMessage(message: string, options?: { address?: string; network?: string }): Promise<string>;
   disconnect(): Promise<void>;
+  // Xverse also supports request-based API
+  request?(method: string, params?: unknown): Promise<unknown>;
+}
+
+interface LeatherRpcResponse {
+  result?: {
+    addresses?: { address: string; type: string; publicKey?: string }[];
+    signature?: string;
+    hex?: string;
+  };
+  error?: { code: number; message: string };
 }
 
 interface LeatherProvider {
-  requestAccounts?: () => Promise<string[]>;
-  getAddresses?: () => Promise<string[]>;
+  request(method: string, params?: unknown): Promise<LeatherRpcResponse>;
 }
 
 interface Window {
