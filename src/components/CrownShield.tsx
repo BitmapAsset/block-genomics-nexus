@@ -23,6 +23,8 @@ interface CrownShieldProps {
   verified?: boolean;
   className?: string;
   glow?: boolean;
+  /** 'dot' for small inline shields, 'check' for large shields (verify page, profile hero, modals). Auto-selects based on size if omitted. */
+  verifiedStyle?: 'dot' | 'check';
 }
 
 const TIER_COLORS: Record<ShieldTier, { primary: string; light: string; glow: string; glowRgba: string }> = {
@@ -37,7 +39,10 @@ const CrownShield: React.FC<CrownShieldProps> = ({
   verified = true,
   className,
   glow = true,
+  verifiedStyle,
 }) => {
+  // Auto-select: dot for small shields (≤40px), checkmark for larger
+  const vStyle = verifiedStyle ?? (size <= 40 ? 'dot' : 'check');
   const c = TIER_COLORS[tier];
   const uid = `cs${tier}${Math.random().toString(36).slice(2, 5)}`;
 
@@ -216,11 +221,18 @@ const CrownShield: React.FC<CrownShieldProps> = ({
         <rect x="50" y="94" width="12" height="5" rx="1" fill={c.primary} opacity="0.2" />
       </g>
 
-      {/* ═══ GREEN VERIFIED DOT (small, clean) ═══ */}
-      {verified && (
+      {/* ═══ GREEN VERIFIED INDICATOR ═══ */}
+      {verified && vStyle === 'dot' && (
         <g>
           <circle cx="50" cy="96" r="5" fill="#22ff88" />
           <circle cx="50" cy="96" r="8" fill="#22ff88" opacity="0.15" filter={`url(#${uid}g)`} />
+        </g>
+      )}
+      {verified && vStyle === 'check' && (
+        <g>
+          <circle cx="50" cy="96" r="7" fill="#22ff88" opacity="0.2" />
+          <path d="M 41 96 L 48 103 L 60 89" stroke="#22ff88" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <path d="M 41 96 L 48 103 L 60 89" stroke="#22ff88" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.3" filter={`url(#${uid}g)`} />
         </g>
       )}
     </svg>

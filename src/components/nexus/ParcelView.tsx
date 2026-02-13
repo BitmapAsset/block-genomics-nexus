@@ -371,9 +371,20 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
       if (isCoinbase) {
         bytes = 200 + Math.floor(rng() * 400);
       } else {
+        // Realistic Bitcoin tx size distribution matching real blocks
+        // ~60% small (140-256 vbytes), ~25% medium (257-800), ~10% large (801-3000), ~5% very large (3000-65000)
         const u = rng();
-        const exp = Math.pow(u, 3);
-        bytes = Math.floor(150 + exp * 500000);
+        if (u < 0.60) {
+          bytes = 140 + Math.floor(rng() * 116); // 140-256
+        } else if (u < 0.85) {
+          bytes = 257 + Math.floor(rng() * 543); // 257-800
+        } else if (u < 0.95) {
+          bytes = 801 + Math.floor(rng() * 2199); // 801-3000
+        } else if (u < 0.99) {
+          bytes = 3001 + Math.floor(rng() * 12000); // 3001-15000
+        } else {
+          bytes = 15001 + Math.floor(rng() * 50000); // 15001-65000 (rare large txs)
+        }
       }
       const value = isCoinbase
         ? 3.125 + rng() * 2
@@ -3330,8 +3341,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
   // Only generate parcels once we know if we have real data or not
   const parcels = useMemo(() => {
-    if (dataSource === 'loading') return generateParcels(blockHeight, null); // temporary mock while loading
     return generateParcels(blockHeight, realBlock);
+  
   }, [blockHeight, realBlock, dataSource]);
   const cols = Math.ceil(Math.sqrt(parcels.length)); // kept for rough reference
   const rows = Math.ceil(parcels.length / cols);

@@ -22,25 +22,47 @@ export default async function HomePage() {
 
           {/* Hero */}
           <div className="text-center max-w-4xl mx-auto w-full">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-accent-cyan/20 bg-accent-cyan/5 backdrop-blur-sm px-4 py-1.5 text-xs text-accent-cyan">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent-cyan animate-pulse" />
-              Bitcoin-native identity is live
-            </div>
-
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 drop-shadow-[0_0_30px_rgba(102,204,255,0.15)]">
-              Bitcoin blocks are the{" "}
-              <span className="text-gradient-cyan-purple">root</span>{" "}
-              of identity
+            {/* Brand name — massive, powerful */}
+            <h1 className="relative mb-4">
+              <span
+                className="block text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-none"
+                style={{
+                  background: 'linear-gradient(135deg, #00ccff 0%, #ffffff 40%, #b44dff 70%, #00ccff 100%)',
+                  backgroundSize: '200% 200%',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  filter: 'drop-shadow(0 0 40px rgba(0,204,255,0.3)) drop-shadow(0 0 80px rgba(180,77,255,0.15))',
+                  animation: 'brandShimmer 6s ease-in-out infinite',
+                }}
+              >
+                BLOCK
+              </span>
+              <span
+                className="block text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-none -mt-1 sm:-mt-2 md:-mt-3"
+                style={{
+                  background: 'linear-gradient(135deg, #b44dff 0%, #ffffff 40%, #00ccff 70%, #f7931a 100%)',
+                  backgroundSize: '200% 200%',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  filter: 'drop-shadow(0 0 40px rgba(180,77,255,0.3)) drop-shadow(0 0 80px rgba(0,204,255,0.15))',
+                  animation: 'brandShimmer 6s ease-in-out infinite reverse',
+                }}
+              >
+                GENOMICS
+              </span>
             </h1>
 
-            <p className="text-base sm:text-lg text-text-secondary mb-10 max-w-2xl mx-auto leading-relaxed drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]" style={{ textShadow: '0 2px 16px rgba(0,0,0,0.95), 0 0 40px rgba(0,0,0,0.8)' }}>
-              Block Genomics turns each Bitcoin block into digital DNA — a scarce,
-              unforgeable genome that proves who an AI agent really is. Think SSL
-              certificates for autonomous intelligence, anchored in proof of work.
+            <p className="text-lg sm:text-xl md:text-2xl font-medium text-text-secondary mb-6 tracking-wide" style={{ textShadow: '0 2px 16px rgba(0,0,0,0.95)' }}>
+              Digital DNA for the Bitcoin Metaverse
+            </p>
+
+            <p className="text-sm sm:text-base text-text-muted mb-10 max-w-xl mx-auto leading-relaxed" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>
+              Every Bitcoin block becomes an unforgeable genome — scarce identity
+              anchored in proof of work. Own a block. Prove who you are.
             </p>
 
             <p className="text-sm sm:text-base font-semibold mb-8 tracking-wide" style={{ color: '#00ffcc', textShadow: '0 0 20px rgba(0,255,204,0.4), 0 2px 12px rgba(0,0,0,0.9)' }}>
-              ⚡ ENTER the Nexus to dive into the Multiverse ⚡
+              ⚡ ENTER the Nexus ⚡
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

@@ -125,7 +125,7 @@ The trust score is transparent and auditable. Anyone can verify the inputs and r
   },
   {
     id: "openness", num: "8", title: "Open Source & Open Protocol",
-    content: `Block Genomics is fully open source under the MIT License. The protocol is designed to be:
+    content: `Block Genomics is open source under the Business Source License (BSL). After a 4-year commercial restriction period, the code converts to Apache 2.0. The protocol is designed to be:
 
 Permissionless — Anyone can verify, anyone can build on top. No API keys, no approval process, no gatekeepers.
 
@@ -509,7 +509,7 @@ function ModernView() {
       <div className="text-center mb-16">
         <div className="inline-flex items-center gap-2 rounded-full border border-accent-cyan/20 bg-accent-cyan/5 px-4 py-1.5 text-xs font-medium text-accent-cyan mb-6">
           <span className="h-1.5 w-1.5 rounded-full bg-accent-cyan animate-pulse" />
-          Version 1.0 — February 2026
+          Version 21.0.0 — February 2026
         </div>
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
           <span className="text-gradient-cyan-purple">Block Genomics</span>
@@ -519,7 +519,8 @@ function ModernView() {
           Digital DNA for agents and humans — scarce, sovereign, and verifiable.
         </p>
         <GenomeBar />
-        <p className="text-sm text-text-muted">By the Block Genomics Community · Open Source · MIT License</p>
+        <p className="text-sm text-text-muted">By Gravity &amp; Pepe · Human + AI Agent · Block Genomics</p>
+        <p className="text-xs text-text-muted/60 mt-1">Open Source · BSL (Business Source License)</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-12">
@@ -619,7 +620,7 @@ function SatoshiView() {
       `}</style>
 
       <h1>Block Genomics: Bitcoin-Anchored Identity<br/>for the Age of AI</h1>
-      <div className="sp-author">Block Genomics Community</div>
+      <div className="sp-author">Gravity &amp; Pepe · Human + AI Agent</div>
       <div className="sp-email">blockgenomics@proton.me</div>
       <div className="sp-date">February 2026</div>
 
@@ -754,7 +755,8 @@ function SatoshiView() {
 
       <h2>8. Open Protocol</h2>
       <p>
-        Block Genomics is released under the MIT License. The protocol specification,
+        Block Genomics is released under the Business Source License (BSL) — open source with a
+        4-year commercial restriction, converting to Apache 2.0 afterward. The protocol specification,
         reference implementation, SDK, and documentation are publicly available. Independent
         implementations are encouraged. The protocol is designed to be permissionless,
         extensible, interoperable across platforms and chains, and fully sovereign — no

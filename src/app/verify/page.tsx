@@ -52,6 +52,7 @@ export default function VerifyPage() {
   const [genomeHash, setGenomeHash] = useState('');
 
   /* step 4 */
+  const [displayName, setDisplayName] = useState('');
   const [handle, setHandle] = useState('');
   const [handleError, setHandleError] = useState('');
   const [handleAvailable, setHandleAvailable] = useState<boolean | null>(null);
@@ -244,7 +245,7 @@ export default function VerifyPage() {
                 </div>
 
                 <div className="flex justify-center">
-                  <CrownShield tier={1} size={80} verified glow />
+                  <CrownShield tier={1} size={80} verified glow verifiedStyle="check" />
                 </div>
               </div>
             )}
@@ -258,32 +259,50 @@ export default function VerifyPage() {
             </div>
 
             {!profileCreated ? (
-              <div>
-                <div className="flex gap-2 mb-2">
-                  <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">@</span>
-                    <input
-                      type="text"
-                      value={handle}
-                      onChange={(e) => { setHandle(e.target.value); setHandleAvailable(null); setHandleError(''); }}
-                      placeholder="your_handle"
-                      className="w-full rounded-lg border border-border bg-bg-tertiary/30 pl-8 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50"
-                    />
-                  </div>
-                  <button
-                    onClick={checkAvailability}
-                    className="rounded-lg border border-border px-4 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:border-accent-cyan/40 transition-colors"
-                  >
-                    Check
-                  </button>
+              <div className="space-y-4">
+                {/* Display Name (optional) */}
+                <div>
+                  <label className="block text-xs text-text-muted mb-1.5">Display Name <span className="text-text-muted/50">(optional)</span></label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value.slice(0, 50))}
+                    placeholder="My Cool Name"
+                    className="w-full rounded-lg border border-border bg-bg-tertiary/30 px-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50"
+                  />
+                  <p className="text-xs text-text-muted/60 mt-1">Shown on your profile. You can change it anytime.</p>
                 </div>
-                {handleError && <p className="text-xs text-red-400 mb-2">{handleError}</p>}
-                {handleAvailable && <p className="text-xs text-green-400 mb-2">@{handle} is available!</p>}
+
+                {/* Handle (unique, required) */}
+                <div>
+                  <label className="block text-xs text-text-muted mb-1.5">Handle <span className="text-red-400/70">*</span></label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">@</span>
+                      <input
+                        type="text"
+                        value={handle}
+                        onChange={(e) => { setHandle(e.target.value); setHandleAvailable(null); setHandleError(''); }}
+                        placeholder="your_handle"
+                        className="w-full rounded-lg border border-border bg-bg-tertiary/30 pl-8 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50"
+                      />
+                    </div>
+                    <button
+                      onClick={checkAvailability}
+                      className="rounded-lg border border-border px-4 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:border-accent-cyan/40 transition-colors"
+                    >
+                      Check
+                    </button>
+                  </div>
+                  {handleError && <p className="text-xs text-red-400 mt-1">{handleError}</p>}
+                  {handleAvailable && <p className="text-xs text-green-400 mt-1">@{handle} is available!</p>}
+                  <p className="text-xs text-text-muted/60 mt-1">Unique identifier.</p>
+                </div>
 
                 <button
                   onClick={createProfile}
                   disabled={!handleAvailable}
-                  className="mt-2 rounded-lg bg-accent-cyan px-6 py-3 text-sm font-semibold text-bg-primary hover:bg-accent-cyan/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="rounded-lg bg-accent-cyan px-6 py-3 text-sm font-semibold text-bg-primary hover:bg-accent-cyan/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Create Profile
                 </button>
@@ -291,9 +310,10 @@ export default function VerifyPage() {
             ) : (
               <div className="rounded-lg border border-accent-cyan/30 bg-accent-cyan/5 p-6 text-center">
                 <div className="flex justify-center mb-4">
-                  <CrownShield tier={1} size={64} verified glow />
+                  <CrownShield tier={1} size={64} verified glow verifiedStyle="check" />
                 </div>
-                <p className="text-lg font-bold text-accent-cyan mb-1">@{handle}</p>
+                {displayName && <p className="text-xl font-bold text-text-primary mb-0.5">{displayName}</p>}
+                <p className={`font-bold text-accent-cyan mb-1 ${displayName ? 'text-sm' : 'text-lg'}`}>@{handle}</p>
                 <p className="text-xs text-text-muted mb-3">Block #{blockInfo?.height.toLocaleString()} · Tier 1 — Gold</p>
                 <div className="inline-flex items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs text-green-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
