@@ -1,5 +1,7 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import dynamic from "next/dynamic";
 
 const NexusMap = dynamic(() => import("@/components/nexus/NexusMap"), {
@@ -14,10 +16,22 @@ const NexusMap = dynamic(() => import("@/components/nexus/NexusMap"), {
   ),
 });
 
-export default function NexusPage() {
+function NexusContent() {
+  const searchParams = useSearchParams();
+  const blockParam = searchParams.get('block');
+  const initialBlock = blockParam ? parseInt(blockParam, 10) : undefined;
+
   return (
     <section className="h-[calc(100vh-4rem)] w-full" style={{ background: '#0a0a0f' }}>
-      <NexusMap />
+      <NexusMap initialBlock={isNaN(initialBlock as number) ? undefined : initialBlock} />
     </section>
+  );
+}
+
+export default function NexusPage() {
+  return (
+    <Suspense fallback={<div className="h-[calc(100vh-4rem)] w-full" style={{ background: '#0a0a0f' }} />}>
+      <NexusContent />
+    </Suspense>
   );
 }

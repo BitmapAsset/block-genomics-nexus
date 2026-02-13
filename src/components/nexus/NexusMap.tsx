@@ -14,7 +14,7 @@ import { generateBlock } from './NexusBlockData';
 import { getLandmark } from './NexusLandmarks';
 import { useNexusSocial, type Visitor } from './NexusSocial';
 
-export default function NexusMap() {
+export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<NexusCanvasEngine | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<number | null>(null);
@@ -63,6 +63,15 @@ export default function NexusMap() {
     eng.resize();
     eng.setCyberpunk(true);
     eng.start();
+
+    // Auto-navigate to block from URL param
+    if (initialBlock !== undefined && initialBlock >= 0) {
+      setTimeout(() => {
+        eng.navigateToBlock(initialBlock);
+        eng.selectBlock(initialBlock);
+        setEnteredBlock(initialBlock);
+      }, 500);
+    }
 
     const onResize = () => eng.resize();
     window.addEventListener('resize', onResize);
