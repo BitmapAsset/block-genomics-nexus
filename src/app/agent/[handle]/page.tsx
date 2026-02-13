@@ -319,6 +319,7 @@ export default function AgentProfilePage() {
                 ) : (
                   <h1 className="text-2xl sm:text-3xl font-bold" style={{ color: '#e2e8f0' }}>{displayName || agent.displayName}</h1>
                 )}
+                {isMock && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10 flex-shrink-0" style={{ color: '#64748b' }}>🤖 Demo</span>}
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0" style={{ background: tierBg, border: `1px solid ${tierBorder}`, color: tierColor }}>
                   {tierLabel}
                 </span>

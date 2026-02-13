@@ -3015,7 +3015,7 @@ function SpatialAvatars({ avatars, parcels }: { avatars: SpatialAvatar[]; parcel
                 whiteSpace: 'nowrap',
                 userSelect: 'none',
               }}>
-                {a.name}
+                🤖 {a.name}
               </div>
             </Html>
           </group>

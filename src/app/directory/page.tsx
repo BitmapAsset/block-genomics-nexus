@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
@@ -19,6 +19,7 @@ interface VerifiedAgent {
   description: string;
   capabilities: string[];
   tags: string[];
+  isMock?: boolean;
 }
 
 /* ── Mock Data — replace with API ── */
@@ -62,6 +63,7 @@ function generateMockAgents(): VerifiedAgent[] {
       description: n.desc,
       capabilities: n.caps,
       tags: n.tags,
+      isMock: true,
     };
   });
 }
@@ -117,8 +119,9 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
             <CrownShield tier={agent.tier} size={40} />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-text-primary truncate group-hover:text-accent-cyan transition-colors">
+            <h3 className="text-sm font-bold text-text-primary truncate group-hover:text-accent-cyan transition-colors flex items-center gap-1.5">
               {agent.displayName}
+              {agent.isMock && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-text-muted flex-shrink-0">🤖 Demo</span>}
             </h3>
             <p className="text-xs text-text-muted">@{agent.handle}</p>
           </div>
@@ -174,9 +177,39 @@ export default function DirectoryPage() {
   const [tierFilter, setTierFilter] = useState<FilterTier>('all');
   const [sortBy, setSortBy] = useState<'name' | 'block' | 'date'>('name');
   const [onlineOnly, setOnlineOnly] = useState(false);
+  const [realUsers, setRealUsers] = useState<VerifiedAgent[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const resp = await fetch('/api/v1/users/list');
+        if (!resp.ok) return;
+        const json = await resp.json();
+        const users = json?.data;
+        if (!Array.isArray(users)) return;
+        setRealUsers(users.map((u: any, i: number) => ({
+          id: `real-${u.handle}-${i}`,
+          handle: u.handle,
+          displayName: u.displayName || u.handle,
+          tier: (u.tier || 3) as ShieldTier,
+          blockHeight: u.anchorBlock || 0,
+          parcelIndex: null,
+          genomeHash: u.genomeHash || '0x' + '0'.repeat(32),
+          verifiedAt: u.createdAt ? new Date(u.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+          online: true,
+          description: u.bio || 'Verified Block Genomics member',
+          capabilities: [],
+          tags: ['verified', 'bitcoin', 'bitmap'],
+          isMock: false,
+        })));
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  const allAgents = useMemo(() => [...realUsers, ...MOCK_AGENTS], [realUsers]);
 
   const filtered = useMemo(() => {
-    let agents = [...MOCK_AGENTS];
+    let agents = [...allAgents];
 
     // Search
     if (search.trim()) {
@@ -209,13 +242,13 @@ export default function DirectoryPage() {
     else if (sortBy === 'date') agents.sort((a, b) => b.verifiedAt.localeCompare(a.verifiedAt));
 
     return agents;
-  }, [search, tierFilter, sortBy, onlineOnly]);
+  }, [search, tierFilter, sortBy, onlineOnly, allAgents]);
 
   const counts = {
-    all: MOCK_AGENTS.length,
-    1: MOCK_AGENTS.filter((a) => a.tier === 1).length,
-    2: MOCK_AGENTS.filter((a) => a.tier === 2).length,
-    3: MOCK_AGENTS.filter((a) => a.tier === 3).length,
+    all: allAgents.length,
+    1: allAgents.filter((a) => a.tier === 1).length,
+    2: allAgents.filter((a) => a.tier === 2).length,
+    3: allAgents.filter((a) => a.tier === 3).length,
   };
 
   return (
@@ -242,7 +275,7 @@ export default function DirectoryPage() {
               <div className="w-px h-6 bg-border" />
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold text-green-400">
-                  {MOCK_AGENTS.filter((a) => a.online).length}
+                  {allAgents.filter((a) => a.online).length}
                 </span>
                 <span className="text-text-muted">Online Now</span>
               </div>
