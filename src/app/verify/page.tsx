@@ -803,12 +803,12 @@ export default function VerifyPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                     </svg>
                   </Link>
-                  <Link
-                    href="/profile"
+                  <button
+                    onClick={() => { setProfileCreated(false); setHandleAvailable(null); }}
                     className="inline-flex items-center gap-2 rounded-lg border border-border bg-bg-tertiary/30 px-4 py-2 text-xs font-medium text-text-secondary hover:text-text-primary hover:border-accent-cyan/40 transition-all"
                   >
                     Edit Settings
-                  </Link>
+                  </button>
                 </div>
               </div>
             )}
