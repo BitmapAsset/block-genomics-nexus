@@ -90,11 +90,11 @@ export default function WalletConnect() {
 
       {/* ── Modern Wallet Connect Modal ── */}
       {open && !isConnected && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.75)' }} onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }} onClick={() => setOpen(false)}>
           <div
             ref={modalRef}
             onClick={e => e.stopPropagation()}
-            className="w-full sm:w-[420px] sm:rounded-2xl rounded-t-2xl overflow-hidden"
+            className="w-full sm:w-[420px] rounded-2xl overflow-y-auto"
             style={{
               background: 'linear-gradient(180deg, #0f0f1e 0%, #0a0a14 100%)',
               border: '1px solid rgba(255,255,255,0.06)',
