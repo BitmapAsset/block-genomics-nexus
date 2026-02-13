@@ -871,21 +871,22 @@ function GroundGlow() {
 }
 
 /* ─── Ground + Grid ─── */
+type RoadRect = { x: number; z: number; w: number; d: number };
+
 function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?: string }) {
   const size = BLOCK_SIZE + 2;
   const halfBlock = BLOCK_SIZE / 2;
+  const isStreet = viewMode === 'street';
 
   // Road and park surfaces rendered in the gaps between parcels
   const surfaces = useMemo(() => {
-    if (!parcels || parcels.length === 0) return { roads: [] as { x: number; z: number; w: number; d: number }[], parks: [] as { x: number; z: number; w: number; d: number }[] };
+    if (!parcels || parcels.length === 0) return { roads: [] as RoadRect[], parks: [] as RoadRect[] };
 
-    // Build occupancy grid to find gap areas
-    const resolution = 100; // grid cells
+    const resolution = 100;
     const cellSize = BLOCK_SIZE / resolution;
     const occupied: boolean[][] = [];
     for (let r = 0; r < resolution; r++) occupied.push(new Array(resolution).fill(false));
 
-    // Mark parcel areas as occupied
     for (const p of parcels) {
       const c0 = Math.max(0, Math.floor((p.x + halfBlock) / cellSize));
       const r0 = Math.max(0, Math.floor((p.z + halfBlock) / cellSize));
@@ -896,21 +897,17 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
           occupied[r][c] = true;
     }
 
-    // Find horizontal runs of empty cells (gap strips)
-    const roads: { x: number; z: number; w: number; d: number }[] = [];
-    const parks: { x: number; z: number; w: number; d: number }[] = [];
+    const roads: RoadRect[] = [];
+    const parks: RoadRect[] = [];
     const visited: boolean[][] = [];
     for (let r = 0; r < resolution; r++) visited.push(new Array(resolution).fill(false));
 
     for (let r = 0; r < resolution; r++) {
       for (let c = 0; c < resolution; c++) {
         if (occupied[r][c] || visited[r][c]) continue;
-
-        // Flood-fill to find rectangular gap region
         let maxC = c;
         while (maxC < resolution && !occupied[r][maxC] && !visited[r][maxC]) maxC++;
         const w = maxC - c;
-
         let maxR = r;
         let valid = true;
         while (maxR < resolution && valid) {
@@ -920,8 +917,6 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
           if (valid) maxR++;
         }
         const h = maxR - r;
-
-        // Mark visited
         for (let rr = r; rr < r + h; rr++)
           for (let cc = c; cc < c + w; cc++)
             visited[rr][cc] = true;
@@ -932,7 +927,6 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
         const worldD = h * cellSize;
         const area = worldW * worldD;
 
-        // Large gaps = parks, narrow gaps = roads
         if (area > 1.0) {
           parks.push({ x: worldX + worldW / 2, z: worldZ + worldD / 2, w: worldW, d: worldD });
         } else if (area > 0.005) {
@@ -943,38 +937,471 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
     return { roads, parks };
   }, [parcels, halfBlock]);
 
+  // Asphalt grid shader for ground plane
+  const groundMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(isStreet ? '#1a1a1a' : '#0e0e14') },
+        uGridColor: { value: new THREE.Color(isStreet ? '#252525' : '#14141c') },
+        uGridScale: { value: isStreet ? 2.0 : 2.0 },
+        uOpacity: { value: 1.0 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vWorldPos;
+        void main() {
+          vUv = uv;
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorldPos = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        uniform vec3 uGridColor;
+        uniform float uGridScale;
+        uniform float uOpacity;
+        varying vec2 vUv;
+        varying vec3 vWorldPos;
+        void main() {
+          vec2 grid = abs(fract(vWorldPos.xz / uGridScale - 0.5) - 0.5);
+          float line = min(grid.x, grid.y);
+          float gridAlpha = 1.0 - smoothstep(0.0, 0.03, line);
+          vec3 col = mix(uColor, uGridColor, gridAlpha * 0.6);
+          gl_FragColor = vec4(col, uOpacity);
+        }
+      `,
+    });
+  }, [isStreet]);
+
+  // Dashed lane markings for street view — instanced
+  const laneMarkings = useMemo(() => {
+    if (!isStreet) return { matrices: new Float32Array(0), count: 0 };
+    const bigRoads = surfaces.roads.filter(r => r.w > 0.15 || r.d > 0.15);
+    const matrices: THREE.Matrix4[] = [];
+    const dashLen = 0.06;
+    const dashGap = 0.04;
+    const dashWidth = 0.008;
+
+    for (const r of bigRoads) {
+      const isHorizontal = r.w > r.d;
+      const length = isHorizontal ? r.w : r.d;
+      const numDashes = Math.floor(length / (dashLen + dashGap));
+      if (numDashes < 1) continue;
+
+      for (let d = 0; d < Math.min(numDashes, 15); d++) {
+        const t = (d + 0.5) / numDashes;
+        const m = new THREE.Matrix4();
+        if (isHorizontal) {
+          const dx = r.x - r.w / 2 + t * r.w;
+          m.compose(
+            new THREE.Vector3(dx, 0.003, r.z),
+            new THREE.Quaternion(),
+            new THREE.Vector3(dashLen, 1, dashWidth)
+          );
+        } else {
+          const dz = r.z - r.d / 2 + t * r.d;
+          m.compose(
+            new THREE.Vector3(r.x, 0.003, dz),
+            new THREE.Quaternion(),
+            new THREE.Vector3(dashWidth, 1, dashLen)
+          );
+        }
+        matrices.push(m);
+        if (matrices.length >= 600) break;
+      }
+      if (matrices.length >= 600) break;
+    }
+
+    const arr = new Float32Array(matrices.length * 16);
+    matrices.forEach((m, i) => m.toArray(arr, i * 16));
+    return { matrices: arr, count: matrices.length };
+  }, [isStreet, surfaces.roads]);
+
+  // Sidewalk edges — slightly raised along parcel borders (street view only)
+  const sidewalks = useMemo(() => {
+    if (!isStreet || !parcels || parcels.length === 0) return { matrices: new Float32Array(0), count: 0 };
+    const matrices: THREE.Matrix4[] = [];
+    const sw = 0.012; // sidewalk width in world units
+    const sh = 0.004; // sidewalk height
+
+    for (const p of parcels) {
+      // 4 edges per parcel
+      const edges = [
+        { x: p.x + p.width / 2, z: p.z - sw / 2, sx: p.width, sz: sw },           // front
+        { x: p.x + p.width / 2, z: p.z + p.depth + sw / 2, sx: p.width, sz: sw }, // back
+        { x: p.x - sw / 2, z: p.z + p.depth / 2, sx: sw, sz: p.depth },           // left
+        { x: p.x + p.width + sw / 2, z: p.z + p.depth / 2, sx: sw, sz: p.depth }, // right
+      ];
+      for (const e of edges) {
+        const m = new THREE.Matrix4();
+        m.compose(
+          new THREE.Vector3(e.x, sh / 2, e.z),
+          new THREE.Quaternion(),
+          new THREE.Vector3(e.sx, sh, e.sz)
+        );
+        matrices.push(m);
+        if (matrices.length >= 2000) break;
+      }
+      if (matrices.length >= 2000) break;
+    }
+
+    const arr = new Float32Array(matrices.length * 16);
+    matrices.forEach((m, i) => m.toArray(arr, i * 16));
+    return { matrices: arr, count: matrices.length };
+  }, [isStreet, parcels]);
+
+  // Road surface instanced meshes
+  const roadInstances = useMemo(() => {
+    const show = isStreet || viewMode === 'heights';
+    if (!show) return { matrices: new Float32Array(0), count: 0 };
+    const matrices: THREE.Matrix4[] = [];
+    for (const r of surfaces.roads) {
+      const m = new THREE.Matrix4();
+      m.compose(
+        new THREE.Vector3(r.x, 0.001, r.z),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2),
+        new THREE.Vector3(r.w, r.d, 1)
+      );
+      matrices.push(m);
+    }
+    const arr = new Float32Array(matrices.length * 16);
+    matrices.forEach((m, i) => m.toArray(arr, i * 16));
+    return { matrices: arr, count: matrices.length };
+  }, [isStreet, viewMode, surfaces.roads]);
+
+  const parkInstances = useMemo(() => {
+    const show = isStreet || viewMode === 'heights';
+    if (!show) return { matrices: new Float32Array(0), count: 0 };
+    const matrices: THREE.Matrix4[] = [];
+    for (const p of surfaces.parks) {
+      const m = new THREE.Matrix4();
+      m.compose(
+        new THREE.Vector3(p.x, 0.001, p.z),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2),
+        new THREE.Vector3(p.w, p.d, 1)
+      );
+      matrices.push(m);
+    }
+    const arr = new Float32Array(matrices.length * 16);
+    matrices.forEach((m, i) => m.toArray(arr, i * 16));
+    return { matrices: arr, count: matrices.length };
+  }, [isStreet, viewMode, surfaces.parks]);
+
+  // Refs for instanced meshes
+  const roadRef = useRef<THREE.InstancedMesh>(null);
+  const parkRef = useRef<THREE.InstancedMesh>(null);
+  const dashRef = useRef<THREE.InstancedMesh>(null);
+  const swRef = useRef<THREE.InstancedMesh>(null);
+
+  useEffect(() => {
+    if (roadRef.current && roadInstances.count > 0) {
+      for (let i = 0; i < roadInstances.count; i++) {
+        const m = new THREE.Matrix4();
+        m.fromArray(roadInstances.matrices, i * 16);
+        roadRef.current.setMatrixAt(i, m);
+      }
+      roadRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [roadInstances]);
+
+  useEffect(() => {
+    if (parkRef.current && parkInstances.count > 0) {
+      for (let i = 0; i < parkInstances.count; i++) {
+        const m = new THREE.Matrix4();
+        m.fromArray(parkInstances.matrices, i * 16);
+        parkRef.current.setMatrixAt(i, m);
+      }
+      parkRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [parkInstances]);
+
+  useEffect(() => {
+    if (dashRef.current && laneMarkings.count > 0) {
+      for (let i = 0; i < laneMarkings.count; i++) {
+        const m = new THREE.Matrix4();
+        m.fromArray(laneMarkings.matrices, i * 16);
+        dashRef.current.setMatrixAt(i, m);
+      }
+      dashRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [laneMarkings]);
+
+  useEffect(() => {
+    if (swRef.current && sidewalks.count > 0) {
+      for (let i = 0; i < sidewalks.count; i++) {
+        const m = new THREE.Matrix4();
+        m.fromArray(sidewalks.matrices, i * 16);
+        swRef.current.setMatrixAt(i, m);
+      }
+      swRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [sidewalks]);
+
   return (
     <group>
-      {/* Base ground — lighter in street view so roads contrast */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
+      {/* Base ground — textured asphalt with grid pattern */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow material={groundMaterial}>
         <planeGeometry args={[size, size]} />
-        <meshStandardMaterial color={viewMode === 'street' ? '#101018' : '#06060c'} roughness={1} metalness={0} />
       </mesh>
 
-      {/* Roads — visible asphalt gray */}
-      {(viewMode === 'street' || viewMode === 'heights') && surfaces.roads.map((r, i) => (
-        <mesh key={`road-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[r.x, 0.001, r.z]}>
-          <planeGeometry args={[r.w, r.d]} />
-          <meshStandardMaterial color="#2a2a3a" roughness={0.85} metalness={0.1} />
-        </mesh>
-      ))}
+      {/* Roads — instanced */}
+      {roadInstances.count > 0 && (
+        <instancedMesh ref={roadRef} args={[undefined, undefined, roadInstances.count]}>
+          <planeGeometry args={[1, 1]} />
+          <meshStandardMaterial color="#2a2a2a" roughness={0.85} metalness={0.1} />
+        </instancedMesh>
+      )}
 
-      {/* Parks — visible green */}
-      {(viewMode === 'street' || viewMode === 'heights') && surfaces.parks.map((p, i) => (
-        <mesh key={`park-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[p.x, 0.001, p.z]}>
-          <planeGeometry args={[p.w, p.d]} />
+      {/* Parks — instanced */}
+      {parkInstances.count > 0 && (
+        <instancedMesh ref={parkRef} args={[undefined, undefined, parkInstances.count]}>
+          <planeGeometry args={[1, 1]} />
           <meshStandardMaterial color="#1a3a1a" roughness={0.85} metalness={0} />
-        </mesh>
-      ))}
+        </instancedMesh>
+      )}
 
-      {/* Road lane markings for street view */}
-      {viewMode === 'street' && surfaces.roads.filter(r => r.w > 0.2 || r.d > 0.2).slice(0, 80).map((r, i) => (
-        <mesh key={`mark-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[r.x, 0.002, r.z]}>
-          <planeGeometry args={[r.w > r.d ? r.w * 0.8 : r.w * 0.05, r.d > r.w ? r.d * 0.8 : r.d * 0.05]} />
-          <meshStandardMaterial color="#ffcc00" transparent opacity={0.5} roughness={1} metalness={0} />
-        </mesh>
+      {/* Dashed lane markings — instanced (street view) */}
+      {laneMarkings.count > 0 && (
+        <instancedMesh ref={dashRef} args={[undefined, undefined, laneMarkings.count]}>
+          <planeGeometry args={[1, 1]} />
+          <meshStandardMaterial color="#ffcc00" transparent opacity={0.6} roughness={1} metalness={0} side={THREE.DoubleSide} />
+        </instancedMesh>
+      )}
+
+      {/* Sidewalk edges — instanced (street view) */}
+      {sidewalks.count > 0 && (
+        <instancedMesh ref={swRef} args={[undefined, undefined, sidewalks.count]}>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshStandardMaterial color="#3a3a3a" roughness={0.9} metalness={0} />
+        </instancedMesh>
+      )}
+    </group>
+  );
+}
+
+/* ─── Street Signs at Intersections ─── */
+function StreetSigns({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: string }) {
+  const isStreet = viewMode === 'street';
+  const signHeight = 3 / METERS_PER_UNIT; // ~3m in world units
+
+  // Find intersection points (corners of parcels where gaps meet)
+  const signs = useMemo(() => {
+    if (!isStreet || !parcels || parcels.length === 0) return [];
+
+    // Collect unique parcel corner points that are NOT inside another parcel
+    const halfBlock = BLOCK_SIZE / 2;
+    const corners: { x: number; z: number; hash: string }[] = [];
+
+    for (const p of parcels) {
+      const pts = [
+        { x: p.x, z: p.z },
+        { x: p.x + p.width, z: p.z },
+        { x: p.x, z: p.z + p.depth },
+        { x: p.x + p.width, z: p.z + p.depth },
+      ];
+      for (const pt of pts) {
+        // Check this corner is in a gap (not inside another parcel)
+        let inParcel = false;
+        for (const q of parcels) {
+          if (q === p) continue;
+          if (pt.x > q.x + 0.001 && pt.x < q.x + q.width - 0.001 &&
+              pt.z > q.z + 0.001 && pt.z < q.z + q.depth - 0.001) {
+            inParcel = true; break;
+          }
+        }
+        if (!inParcel && pt.x > -halfBlock && pt.x < halfBlock && pt.z > -halfBlock && pt.z < halfBlock) {
+          // Generate pseudo-hash from txIndex
+          const hex = (p.txIndex * 2654435761 >>> 0).toString(16).padStart(8, '0');
+          corners.push({ x: pt.x, z: pt.z, hash: `0x${hex.slice(0, 4)}…` });
+        }
+      }
+    }
+
+    // Deduplicate by proximity and limit to 25
+    const unique: typeof corners = [];
+    for (const c of corners) {
+      const tooClose = unique.some(u => Math.abs(u.x - c.x) < 0.3 && Math.abs(u.z - c.z) < 0.3);
+      if (!tooClose) unique.push(c);
+      if (unique.length >= 25) break;
+    }
+    return unique;
+  }, [isStreet, parcels]);
+
+  if (!isStreet || signs.length === 0) return null;
+
+  return (
+    <group>
+      {signs.map((s, i) => (
+        <group key={`sign-${i}`} position={[s.x, signHeight, s.z]}>
+          {/* Sign pole */}
+          <mesh position={[0, -signHeight / 2, 0]}>
+            <cylinderGeometry args={[0.002, 0.002, signHeight, 4]} />
+            <meshStandardMaterial color="#333" metalness={0.8} roughness={0.3} />
+          </mesh>
+          {/* Holographic sign panel */}
+          <Html center distanceFactor={1.5} style={{ pointerEvents: 'none' }}>
+            <div style={{
+              background: 'rgba(0,255,200,0.12)',
+              border: '1px solid rgba(0,255,200,0.4)',
+              borderRadius: '4px',
+              padding: '2px 8px',
+              fontFamily: 'monospace',
+              fontSize: '10px',
+              color: '#00ffc8',
+              textShadow: '0 0 8px rgba(0,255,200,0.6)',
+              whiteSpace: 'nowrap',
+              backdropFilter: 'blur(4px)',
+            }}>
+              {s.hash} Ave
+            </div>
+          </Html>
+        </group>
       ))}
     </group>
+  );
+}
+
+/* ─── Direction Indicators ─── */
+function DirectionIndicators({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: string }) {
+  const isStreet = viewMode === 'street';
+
+  const indicators = useMemo(() => {
+    if (!isStreet || !parcels || parcels.length === 0) return [];
+
+    const coinbase = parcels.find(p => p.isCoinbase || p.txIndex === 0);
+    const largest = parcels.reduce((a, b) => (b.bytes > a.bytes ? b : a), parcels[0]);
+
+    const result: { x: number; z: number; label: string; targetX: number; targetZ: number }[] = [];
+    const signY = 2.5 / METERS_PER_UNIT;
+
+    // Place indicators at a few road intersections near center
+    const spots = [
+      { x: 0, z: 0 },
+      { x: -3, z: -3 },
+      { x: 3, z: 3 },
+    ];
+
+    for (const spot of spots) {
+      if (coinbase) {
+        result.push({
+          x: spot.x, z: spot.z,
+          label: '← Coinbase',
+          targetX: coinbase.x + coinbase.width / 2,
+          targetZ: coinbase.z + coinbase.depth / 2,
+        });
+      }
+      if (largest && largest !== coinbase) {
+        result.push({
+          x: spot.x + 0.05, z: spot.z,
+          label: '→ Largest TX',
+          targetX: largest.x + largest.width / 2,
+          targetZ: largest.z + largest.depth / 2,
+        });
+      }
+    }
+    return result;
+  }, [isStreet, parcels]);
+
+  if (!isStreet || indicators.length === 0) return null;
+
+  const arrowHeight = 2.5 / METERS_PER_UNIT;
+
+  return (
+    <group>
+      {indicators.map((ind, i) => {
+        const angle = Math.atan2(ind.targetX - ind.x, ind.targetZ - ind.z);
+        return (
+          <group key={`dir-${i}`} position={[ind.x, arrowHeight, ind.z]} rotation={[0, angle, 0]}>
+            <Html center distanceFactor={2} style={{ pointerEvents: 'none' }}>
+              <div style={{
+                background: 'rgba(247,147,26,0.15)',
+                border: '1px solid rgba(247,147,26,0.4)',
+                borderRadius: '4px',
+                padding: '2px 8px',
+                fontFamily: 'monospace',
+                fontSize: '9px',
+                color: '#f7931a',
+                textShadow: '0 0 6px rgba(247,147,26,0.5)',
+                whiteSpace: 'nowrap',
+              }}>
+                {ind.label}
+              </div>
+            </Html>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+/* ─── Mini-map HUD ─── */
+function MiniMap({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: string }) {
+  const { camera } = useThree();
+  const [pos, setPos] = useState({ x: 0, z: 0 });
+  const isStreet = viewMode === 'street';
+
+  useFrame(() => {
+    if (!isStreet) return;
+    setPos({ x: camera.position.x, z: camera.position.z });
+  });
+
+  if (!isStreet || !parcels || parcels.length === 0) return null;
+
+  const mapSize = 140;
+  const half = BLOCK_SIZE / 2;
+  const scale = mapSize / BLOCK_SIZE;
+
+  return (
+    <Html fullscreen style={{ pointerEvents: 'none' }}>
+      <div style={{
+        position: 'fixed',
+        bottom: '80px',
+        right: '16px',
+        width: `${mapSize}px`,
+        height: `${mapSize}px`,
+        background: 'rgba(10,10,15,0.85)',
+        border: '1px solid rgba(0,255,200,0.3)',
+        borderRadius: '8px',
+        overflow: 'hidden',
+        pointerEvents: 'none',
+      }}>
+        <svg width={mapSize} height={mapSize} viewBox={`0 0 ${mapSize} ${mapSize}`}>
+          {parcels.map((p, i) => (
+            <rect
+              key={i}
+              x={(p.x + half) * scale}
+              y={(p.z + half) * scale}
+              width={Math.max(1, p.width * scale)}
+              height={Math.max(1, p.depth * scale)}
+              fill={p.isCoinbase ? '#f7931a' : '#334'}
+              stroke="#444"
+              strokeWidth={0.3}
+            />
+          ))}
+          {/* Player dot */}
+          <circle
+            cx={(pos.x + half) * scale}
+            cy={(pos.z + half) * scale}
+            r={3}
+            fill="#00ffc8"
+            stroke="#fff"
+            strokeWidth={1}
+          />
+        </svg>
+        <div style={{
+          position: 'absolute',
+          bottom: '2px',
+          left: '4px',
+          fontSize: '8px',
+          fontFamily: 'monospace',
+          color: '#00ffc8',
+          opacity: 0.7,
+        }}>
+          MINIMAP
+        </div>
+      </div>
+    </Html>
   );
 }
 
@@ -3630,6 +4057,9 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           <FlyToCamera flyTarget={flyTarget} onComplete={handleFlyComplete} />
 
           <GroundPlane parcels={parcels} viewMode={viewMode} />
+          <StreetSigns parcels={parcels} viewMode={viewMode} />
+          <DirectionIndicators parcels={parcels} viewMode={viewMode} />
+          <MiniMap parcels={parcels} viewMode={viewMode} />
           <GridLines />
           <GroundGlow />
 
