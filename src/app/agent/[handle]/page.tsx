@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
@@ -76,9 +76,62 @@ export default function AgentProfilePage() {
   const params = useParams();
   const handle = params.handle as string;
 
-  const agent = useMemo(() => getMockAgent(handle), [handle]);
+  // Try real DB first, fall back to mock
+  const [dbAgent, setDbAgent] = useState<{
+    displayName: string; tier: ShieldTier; desc: string; caps: string[];
+    blockHeight: number; parcelIndex: number | null; verifiedAt: string; online: boolean;
+    bio: string; tags: string[]; handle: string; genomeHash: string;
+  } | null | undefined>(undefined); // undefined = loading
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch(`/api/v1/users/by-handle/${encodeURIComponent(handle)}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          const user = data?.data;
+          if (user && !cancelled) {
+            setDbAgent({
+              handle: user.handle,
+              displayName: user.displayName || user.handle,
+              tier: (user.tier || 3) as ShieldTier,
+              desc: 'Verified Block Genomics member',
+              caps: [],
+              blockHeight: user.anchorBlock || 0,
+              parcelIndex: null,
+              verifiedAt: user.createdAt ? new Date(user.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+              online: true,
+              bio: `Verified owner of Block #${(user.anchorBlock || 0).toLocaleString()} on the Bitcoin blockchain.`,
+              tags: ['verified', 'bitcoin', 'bitmap'],
+              genomeHash: user.genomeHash || '0x' + '0'.repeat(64),
+            });
+            return;
+          }
+        }
+      } catch { /* API failed, try mock */ }
+      if (!cancelled) setDbAgent(null);
+    })();
+    return () => { cancelled = true; };
+  }, [handle]);
+
+  const mockAgent = useMemo(() => getMockAgent(handle), [handle]);
+  const agent = dbAgent === undefined ? null : (dbAgent || mockAgent);
+  const loading = dbAgent === undefined;
+
   const [showDNA, setShowDNA] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm" style={{ color: '#64748b' }}>Loading profile…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!agent) {
     return (
