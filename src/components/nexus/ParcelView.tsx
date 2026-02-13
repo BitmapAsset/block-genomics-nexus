@@ -3319,6 +3319,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   useEffect(() => {
     let cancelled = false;
     setDataSource('loading');
+    setRealBlock(null);
     fetchRealBlock(blockHeight).then(data => {
       if (cancelled) return;
       setRealBlock(data);
@@ -3327,7 +3328,11 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     return () => { cancelled = true; };
   }, [blockHeight]);
 
-  const parcels = useMemo(() => generateParcels(blockHeight, realBlock), [blockHeight, realBlock]);
+  // Only generate parcels once we know if we have real data or not
+  const parcels = useMemo(() => {
+    if (dataSource === 'loading') return generateParcels(blockHeight, null); // temporary mock while loading
+    return generateParcels(blockHeight, realBlock);
+  }, [blockHeight, realBlock, dataSource]);
   const cols = Math.ceil(Math.sqrt(parcels.length)); // kept for rough reference
   const rows = Math.ceil(parcels.length / cols);
   const block = generateBlock(blockHeight);
@@ -3567,7 +3572,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
           {viewMode !== 'dna' ? (
             <>
-              <InstancedParcels customizations={parcelCustomizations}
+              <InstancedParcels key={`${blockHeight}-${dataSource}-${parcels.length}`} customizations={parcelCustomizations}
                 parcels={parcels} viewMode={viewMode}
                 hoveredIndex={hoveredParcel?.txIndex ?? -1}
                 selectedIndex={selectedParcel?.txIndex ?? -1}
