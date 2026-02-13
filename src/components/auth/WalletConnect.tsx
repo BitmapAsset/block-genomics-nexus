@@ -94,12 +94,12 @@ export default function WalletConnect() {
           <div
             ref={modalRef}
             onClick={e => e.stopPropagation()}
-            className="w-full sm:w-[420px] rounded-2xl overflow-y-auto"
+            className="w-full sm:w-[420px] rounded-2xl overflow-y-auto my-auto"
             style={{
               background: 'linear-gradient(180deg, #0f0f1e 0%, #0a0a14 100%)',
               border: '1px solid rgba(255,255,255,0.06)',
               boxShadow: '0 -8px 60px rgba(0,255,204,0.08), 0 0 80px rgba(0,0,0,0.5)',
-              maxHeight: '90vh',
+              maxHeight: 'min(90vh, 500px)',
             }}
           >
             {/* Header */}
