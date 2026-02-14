@@ -955,8 +955,8 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
   const groundMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
       uniforms: {
-        uColor: { value: new THREE.Color(isStreet ? '#1a1a1a' : '#0e0e14') },
-        uGridColor: { value: new THREE.Color(isStreet ? '#252525' : '#14141c') },
+        uColor: { value: new THREE.Color(isStreet ? '#2a2a2a' : '#181825') },
+        uGridColor: { value: new THREE.Color(isStreet ? '#3a3a3a' : '#252535') },
         uGridScale: { value: isStreet ? 2.0 : 2.0 },
         uOpacity: { value: 1.0 },
       },
@@ -990,7 +990,6 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
 
   // Dashed lane markings for street view — instanced
   const laneMarkings = useMemo(() => {
-    if (false) return { matrices: new Float32Array(0), count: 0 };
     const bigRoads = surfaces.roads.filter(r => r.w > 0.15 || r.d > 0.15);
     const matrices: THREE.Matrix4[] = [];
     const dashLen = 0.06;
@@ -1163,7 +1162,7 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
       {roadInstances.count > 0 && (
         <instancedMesh ref={roadRef} args={[undefined, undefined, roadInstances.count]}>
           <planeGeometry args={[1, 1]} />
-          <meshStandardMaterial color="#2a2a2a" roughness={0.85} metalness={0.1} />
+          <meshStandardMaterial color="#3d3d4a" roughness={0.8} metalness={0.05} />
         </instancedMesh>
       )}
 
@@ -1171,7 +1170,7 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
       {parkInstances.count > 0 && (
         <instancedMesh ref={parkRef} args={[undefined, undefined, parkInstances.count]}>
           <planeGeometry args={[1, 1]} />
-          <meshStandardMaterial color="#1a3a1a" roughness={0.85} metalness={0} />
+          <meshStandardMaterial color="#1e4a1e" roughness={0.85} metalness={0} />
         </instancedMesh>
       )}
 
@@ -1187,7 +1186,7 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
       {sidewalks.count > 0 && (
         <instancedMesh ref={swRef} args={[undefined, undefined, sidewalks.count]}>
           <boxGeometry args={[1, 1, 1]} />
-          <meshStandardMaterial color="#3a3a3a" roughness={0.9} metalness={0} />
+          <meshStandardMaterial color="#4a4a55" roughness={0.9} metalness={0} />
         </instancedMesh>
       )}
     </group>
