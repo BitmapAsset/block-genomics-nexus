@@ -386,3 +386,75 @@ model FlagStrike {
 
   @@unique([walletAddress])
 }
+
+// ─── Guardian Shell Agent System ─────────────────────────────────
+
+model GuardianAgent {
+  id            String   @id @default(cuid())
+  blockHeight   Int
+  ownerAddress  String
+
+  // Soul & Identity
+  name          String
+  soulMd        String   @db.Text
+  agentMd       String?  @db.Text
+  skillsMd      String?  @db.Text
+  memoryMd      String?  @db.Text
+  personality   String?  @db.Text
+
+  // BYOK LLM Config
+  llmProvider   String?
+  llmModel      String?
+  llmApiKey     String?
+  llmEndpoint   String?
+
+  // Self-hosted option
+  selfHosted       Boolean  @default(false)
+  agentEndpoint    String?
+  endpointVerified Boolean  @default(false)
+  lastHeartbeat    DateTime?
+
+  // Auto-responses (JSON array of {trigger, response})
+  autoResponses String? @db.Text
+
+  // Escalation config
+  escalateTelegram          String?
+  escalateEmail             String?
+  autoApproveDelegationUnder Int?
+
+  // Status
+  status        String   @default("active")
+  totalVisitors Int      @default(0)
+  totalMessages Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([blockHeight, ownerAddress])
+  @@index([blockHeight])
+  @@index([ownerAddress])
+}
+
+model GuardianConversation {
+  id             String   @id @default(cuid())
+  guardianId     String
+  visitorAddress String?
+  visitorHandle  String?
+  messages       String   @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([guardianId])
+}
+
+model GuardianEvent {
+  id         String   @id @default(cuid())
+  guardianId String
+  eventType  String
+  data       String?  @db.Text
+  handled    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([guardianId])
+  @@index([eventType])
+}

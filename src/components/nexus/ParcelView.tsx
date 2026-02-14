@@ -11,6 +11,8 @@ import CrownShield from '../CrownShield';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
+import GuardianConfigPanel from '../GuardianConfigPanel';
+import GuardianChatWidget from '../GuardianChatWidget';
 
 /* ─── Types ─── */
 interface ParcelData {
@@ -4163,6 +4165,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const [parcelNavIndex, setParcelNavIndex] = useState(0);
   const [showVPSModal, setShowVPSModal] = useState(false);
   const [showAgentModal, setShowAgentModal] = useState(false);
+  const [guardianStatus, setGuardianStatus] = useState<'active' | 'paused' | 'none'>('none');
+  const [guardianName, setGuardianName] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatMode, setChatMode] = useState<'block' | 'dm' | 'global'>('block');
@@ -4496,6 +4500,25 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const blockOwner = realBlockOwner || generateMockOwner(blockHeight, -1);
   // Check if current wallet user is the block owner
   const isBlockOwner = false; // TODO: compare walletAddress against on-chain ownership — for now, owner actions are gated on wallet connection
+  // Fetch guardian status
+  useEffect(() => {
+    fetch(`/api/v1/guardian?blockHeight=${blockHeight}`)
+      .then(r => r.json())
+      .then(data => {
+        const g = data.guardians?.[0];
+        if (g && g.status === 'active') {
+          setGuardianStatus('active');
+          setGuardianName(g.name || `Guardian #${blockHeight}`);
+        } else if (g && g.status === 'paused') {
+          setGuardianStatus('paused');
+          setGuardianName(g.name || `Guardian #${blockHeight}`);
+        } else {
+          setGuardianStatus('none');
+        }
+      })
+      .catch(() => setGuardianStatus('none'));
+  }, [blockHeight]);
+
   const visitorCount = useMemo(() => generateMockVisitors(blockHeight), [blockHeight]);
   const spatialAvatars = useMemo(() => generateMockAvatars(blockHeight, parcels.length), [blockHeight, parcels.length]);
   const mockActivities = useMemo(() => generateMockActivities(blockHeight), [blockHeight]);
@@ -4754,7 +4777,17 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   return (
     <div ref={containerRef} className="relative w-full h-full flex" style={{ background: '#0a0a0f' }}>
       {showVPSModal && <VPSLinkModal onClose={() => setShowVPSModal(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? 0} />}
-      {showAgentModal && <AgentLinkModal onClose={() => setShowAgentModal(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? 0} />}
+      {showAgentModal && <GuardianConfigPanel
+        blockHeight={blockHeight}
+        ownerAddress={localStorage.getItem('bg_wallet') || ''}
+        onClose={() => setShowAgentModal(false)}
+        walletSign={async (msg: string) => {
+          if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).unisat) {
+            return await ((window as unknown as Record<string, unknown>).unisat as { signMessage: (m: string) => Promise<string> }).signMessage(msg);
+          }
+          return '';
+        }}
+      />}
       {showEstateModal && <EstateModal onClose={() => setShowEstateModal(false)} blockHeight={blockHeight} parcels={parcels} />}
       {showLivestreamModal && <LivestreamModal onClose={() => setShowLivestreamModal(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? 0} isStreaming={isStreaming} onStartStream={handleStartStream} onEndStream={handleEndStream} />}
       {showSendBtcModal && <SendBitcoinModal onClose={() => setShowSendBtcModal(false)} blockHeight={blockHeight} recipientOwner={displayParcelOwner ?? blockOwner} />}
@@ -5390,7 +5423,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                         opacity: ownerLock ? 0.6 : 1,
                       }}
                     >
-                      🤖 Link AI Agent
+                      {guardianStatus === 'active' ? '🟢 Guardian Active' : guardianStatus === 'paused' ? '⏸ Guardian Paused' : '🛡️ Setup Guardian Agent'}
                     </button>
                     {ownerLock && (
                       <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>
@@ -5794,6 +5827,14 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           </div>
         )}
       </div>
+      {/* Guardian Chat Widget for visitors */}
+      {guardianStatus === 'active' && (
+        <GuardianChatWidget
+          blockHeight={blockHeight}
+          guardianName={guardianName}
+          visitorAddress={typeof window !== 'undefined' ? localStorage.getItem('bg_wallet') || undefined : undefined}
+        />
+      )}
     </div>
   );
 }

@@ -226,6 +226,24 @@ export default function AgentProfilePage() {
   const isMock = agent?.isMock ?? true;
   const loading = dbAgent === undefined;
 
+  const [guardianActive, setGuardianActive] = useState(false);
+  const [guardianName, setGuardianNameState] = useState('');
+
+  // Check for active guardian on this agent's block
+  useEffect(() => {
+    if (!agent?.blockHeight) return;
+    fetch(`/api/v1/guardian?blockHeight=${agent.blockHeight}`)
+      .then(r => r.json())
+      .then(data => {
+        const g = data.guardians?.[0];
+        if (g?.status === 'active') {
+          setGuardianActive(true);
+          setGuardianNameState(g.name || 'Guardian');
+        }
+      })
+      .catch(() => {});
+  }, [agent?.blockHeight]);
+
   const [showDNA, setShowDNA] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showDM, setShowDM] = useState(false);
@@ -330,6 +348,32 @@ export default function AgentProfilePage() {
       if (res.ok) {
         const json = await res.json();
         setDmMessages(prev => prev.map(m => m.id === optimisticMsg.id ? { ...m, id: json.data.id } : m));
+      }
+
+      // If guardian is active, also get AI response
+      if (guardianActive && agent.blockHeight) {
+        try {
+          const gRes = await fetch('/api/v1/guardian/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              blockHeight: agent.blockHeight,
+              message: text,
+              visitorAddress: globalWallet.walletAddress,
+              visitorHandle: globalWallet.profile?.handle,
+            }),
+          });
+          const gData = await gRes.json();
+          if (gData.response) {
+            setDmMessages(prev => [...prev, {
+              id: `guardian-${Date.now()}`,
+              text: `🛡️ ${gData.response}`,
+              sender: 'them' as const,
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              encrypted: false,
+            }]);
+          }
+        } catch { /* guardian unavailable, regular DM was still sent */ }
       }
     } catch { /* optimistic stays */ }
   }, [dmDraft, globalWallet, agent]);
@@ -442,6 +486,11 @@ export default function AgentProfilePage() {
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0" style={{ background: tierBg, border: `1px solid ${tierBorder}`, color: tierColor }}>
                   {tierLabel}
                 </span>
+                {guardianActive && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0" style={{ background: 'rgba(0,255,136,0.08)', border: '1px solid rgba(0,255,136,0.2)', color: '#00ff88' }}>
+                    🤖 AI Guardian Active
+                  </span>
+                )}
               </div>
               <p className="text-sm font-mono mb-2" style={{ color: '#64748b' }}>@{agent.handle}</p>
 
