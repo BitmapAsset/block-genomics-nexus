@@ -198,7 +198,7 @@ export class NexusCanvasEngine {
     const totalGridArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
     const gridW = Math.ceil(Math.sqrt(totalGridArea));
     const pxPerGrid = size / gridW;
-    cellGap = pxPerGrid * 0.12; // ~12% of cell = proportional dark gutters (matches Bitmap.Community)
+    cellGap = pxPerGrid * 0.5; // Bitfeed standard: 50% gap (gridSize/4 padding each side)
 
     // Occupancy grid
     const gridH = gridW + 20;

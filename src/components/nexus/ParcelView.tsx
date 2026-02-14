@@ -161,9 +161,9 @@ function mondrianLayout(
   // Scale factor: map grid units to world units
   const scale = blockSize / gridWidth;
 
-  // Proportional gap: ~12% of one grid cell in world units (matches Bitmap.Community aesthetic)
-  // Minimum gap ensures gutters stay visible even with thousands of transactions
-  const cellGap = Math.max(scale * 0.12, blockSize * 0.003);
+  // Bitfeed uses gridSize/4 padding per side = 50% of cell is gap
+  // This is the canonical bitmap look — wide visible gutters between parcels
+  const cellGap = scale * 0.5;
 
   // 2D occupancy grid for packing
   const gridH = gridWidth + 50; // extra rows for overflow
@@ -3982,6 +3982,156 @@ function EmojiReactionBar({ onReact }: { onReact: (emoji: string) => void }) {
 }
 
 /* ═══════════════════════════════════════════
+   Standard Bitmap Canvas (2D Bitfeed-style rendering)
+   ═══════════════════════════════════════════ */
+
+function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; parcels: ParcelData[] }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [magicEdenUrl, setMagicEdenUrl] = useState<string | null>(null);
+  const [showME, setShowME] = useState(false);
+
+  // Try to fetch Magic Eden image for comparison
+  useEffect(() => {
+    fetch(`/api/v1/bitmap-image/${blockHeight}`)
+      .then(r => r.json())
+      .then(json => {
+        if (json.success && json.data?.imageUrl) setMagicEdenUrl(json.data.imageUrl);
+      })
+      .catch(() => {});
+  }, [blockHeight]);
+
+  // Render bitmap on canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || parcels.length === 0) return;
+
+    const SIZE = 576; // Match Magic Eden's 576×576
+    canvas.width = SIZE;
+    canvas.height = SIZE;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Background
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+
+    // Calculate grid sizes (Bitfeed formula)
+    const squares = parcels.map((p, i) => ({
+      index: i,
+      gridSize: Math.max(1, Math.ceil(Math.sqrt(p.bytes / 256))),
+      vbytes: p.bytes,
+      isCoinbase: p.isCoinbase,
+    }));
+
+    // Grid dimensions from total area
+    const totalArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
+    const gridW = Math.ceil(Math.sqrt(totalArea));
+    const pxPerGrid = SIZE / gridW;
+
+    // Padding: Bitfeed uses gridSize/4 per side = 50% gap
+    const padding = pxPerGrid * 0.25; // 25% each side
+
+    // Occupancy grid
+    const gridH = gridW + 50;
+    const occupied: boolean[][] = [];
+    for (let r = 0; r < gridH; r++) occupied.push(new Array(gridW).fill(false));
+
+    // Uniform orange with slight brightness variation (standard bitmap color)
+    const baseHue = 28;
+    const baseSat = 90;
+
+    for (const sq of squares) {
+      const size = sq.gridSize;
+      let placed = false;
+
+      for (let row = 0; row < gridH - size + 1 && !placed; row++) {
+        for (let col = 0; col <= gridW - size && !placed; col++) {
+          let fits = true;
+          for (let dr = 0; dr < size && fits; dr++) {
+            for (let dc = 0; dc < size && fits; dc++) {
+              if (occupied[row + dr]?.[col + dc]) fits = false;
+            }
+          }
+          if (fits) {
+            for (let dr = 0; dr < size; dr++) {
+              for (let dc = 0; dc < size; dc++) {
+                if (occupied[row + dr]) occupied[row + dr][col + dc] = true;
+              }
+            }
+
+            // Draw the parcel square
+            const x = col * pxPerGrid + padding;
+            const y = row * pxPerGrid + padding;
+            const w = size * pxPerGrid - padding * 2;
+            const h = size * pxPerGrid - padding * 2;
+
+            // Color: uniform orange with slight brightness variation
+            const lightness = sq.isCoinbase ? 65 : 45 + (sq.vbytes % 20);
+            ctx.fillStyle = `hsl(${baseHue}, ${baseSat}%, ${lightness}%)`;
+            ctx.fillRect(x, y, Math.max(0.5, w), Math.max(0.5, h));
+
+            placed = true;
+          }
+        }
+      }
+    }
+  }, [parcels, blockHeight]);
+
+  return (
+    <div className="relative flex flex-col items-center gap-4">
+      <div className="relative">
+        {/* Our rendering */}
+        <canvas
+          ref={canvasRef}
+          className="rounded-lg shadow-2xl"
+          style={{
+            border: '2px solid rgba(247,147,26,0.3)',
+            imageRendering: 'pixelated',
+            width: 'min(70vh, 576px)',
+            height: 'min(70vh, 576px)',
+            display: showME ? 'none' : 'block',
+          }}
+        />
+        {/* Magic Eden image (when available and toggled) */}
+        {showME && magicEdenUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={magicEdenUrl}
+            alt={`${blockHeight}.bitmap`}
+            className="rounded-lg shadow-2xl"
+            style={{
+              border: '2px solid rgba(0,245,212,0.3)',
+              imageRendering: 'pixelated',
+              width: 'min(70vh, 576px)',
+              height: 'min(70vh, 576px)',
+            }}
+          />
+        )}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="text-[10px] font-mono" style={{ color: '#64748b' }}>
+          {showME ? '🟦 Magic Eden Official' : '🟧 Block Genomics Render'} · {blockHeight.toLocaleString()}.bitmap · {parcels.length} transactions
+        </div>
+        {magicEdenUrl && (
+          <button
+            onClick={() => setShowME(!showME)}
+            className="px-3 py-1 rounded-md text-[10px] font-mono transition-all hover:brightness-125"
+            style={{
+              background: showME ? 'rgba(0,245,212,0.15)' : 'rgba(247,147,26,0.15)',
+              border: `1px solid ${showME ? 'rgba(0,245,212,0.3)' : 'rgba(247,147,26,0.3)'}`,
+              color: showME ? '#00f5d4' : '#f7931a',
+            }}
+          >
+            {showME ? '← Our Render' : 'Compare Magic Eden →'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
    Main Component
    ═══════════════════════════════════════════ */
 
@@ -4220,24 +4370,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const [realBlock, setRealBlock] = useState<RealBlockData | null>(null);
   const [dataSource, setDataSource] = useState<'loading' | 'real' | 'mock'>('loading');
   
-  // Standard bitmap image from Magic Eden
-  const [standardBitmapUrl, setStandardBitmapUrl] = useState<string | null>(null);
-  const [standardBitmapLoading, setStandardBitmapLoading] = useState(false);
-  
-  useEffect(() => {
-    if (viewMode !== 'standard') return;
-    if (standardBitmapUrl) return; // already fetched
-    setStandardBitmapLoading(true);
-    fetch(`/api/v1/bitmap-image/${blockHeight}`)
-      .then(r => r.json())
-      .then(json => {
-        if (json.success && json.data?.imageUrl) {
-          setStandardBitmapUrl(json.data.imageUrl);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setStandardBitmapLoading(false));
-  }, [viewMode, blockHeight, standardBitmapUrl]);
+  // (Standard bitmap rendering handled by StandardBitmapCanvas component)
 
   useEffect(() => {
     let cancelled = false;
@@ -4608,34 +4741,10 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         </div>
       )}
 
-      {/* Standard Bitmap View (2D Magic Eden image) */}
+      {/* Standard Bitmap View (2D Bitfeed-style canvas rendering) */}
       {viewMode === 'standard' && (
         <div className="flex-1 relative flex items-center justify-center" style={{ background: '#0a0a0f' }}>
-          {standardBitmapLoading ? (
-            <div className="text-center">
-              <div className="text-2xl mb-2 animate-pulse">🟧</div>
-              <div className="text-sm font-mono" style={{ color: '#64748b' }}>Loading standard bitmap...</div>
-            </div>
-          ) : standardBitmapUrl ? (
-            <div className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={standardBitmapUrl}
-                alt={`${blockHeight}.bitmap standard view`}
-                className="max-w-full max-h-[70vh] rounded-lg shadow-2xl"
-                style={{ border: '2px solid rgba(247,147,26,0.3)', imageRendering: 'pixelated' }}
-              />
-              <div className="absolute -bottom-8 left-0 right-0 text-center text-[10px] font-mono" style={{ color: '#64748b' }}>
-                Standard bitmap visualization · Source: Magic Eden Ordinals · {blockHeight.toLocaleString()}.bitmap
-              </div>
-            </div>
-          ) : (
-            <div className="text-center">
-              <div className="text-4xl mb-3">🟧</div>
-              <div className="text-sm font-mono mb-1" style={{ color: '#94a3b8' }}>No .bitmap inscription found</div>
-              <div className="text-[10px] font-mono" style={{ color: '#475569' }}>This block may not have been inscribed as a bitmap yet</div>
-            </div>
-          )}
+          <StandardBitmapCanvas blockHeight={blockHeight} parcels={parcels} />
         </div>
       )}
 
