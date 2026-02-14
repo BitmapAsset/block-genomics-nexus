@@ -419,13 +419,13 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
 
     let color: string;
     if (raw.isCoinbase) {
-      color = '#f7931a';
+      color = '#f7931a'; // coinbase = standard Bitcoin orange
     } else {
+      // Standard bitmap orange with slight brightness variation based on tx size
+      // Matches Magic Eden / Bitmap.Community / Bitfeed standard
       const rngC = seededRandom(blockHeight * 1000 + raw.txIndex);
-      const hue = 20 + rngC() * 25;
-      const sat = 75 + rngC() * 20;
-      const light = 35 + buildHeight * 30;
-      color = `hsl(${hue}, ${sat}%, ${light}%)`;
+      const light = 40 + buildHeight * 20 + rngC() * 8;
+      color = `hsl(28, 90%, ${light}%)`;
     }
 
     return {

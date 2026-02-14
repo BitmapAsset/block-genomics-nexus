@@ -235,13 +235,12 @@ export class NexusCanvasEngine {
     // Draw parcels
     for (const rect of rects) {
       if (rect.index === 0) {
-        tctx.fillStyle = '#f7931a'; // coinbase
+        tctx.fillStyle = '#f7931a'; // coinbase = Bitcoin orange
       } else {
-        const hue = 20 + seededRand(height * 1000 + rect.index + 7777) * 25;
-        const sat = 70 + seededRand(height * 1000 + rect.index + 3333) * 25;
+        // Standard bitmap orange — uniform hue, slight brightness variation
         const val = seededRand(height * 1000 + rect.index);
-        const light = 15 + val * 45;
-        tctx.fillStyle = `hsl(${hue}, ${sat}%, ${light}%)`;
+        const light = 30 + val * 25;
+        tctx.fillStyle = `hsl(28, 90%, ${light}%)`;
       }
       tctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     }
