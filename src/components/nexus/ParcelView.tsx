@@ -2845,7 +2845,7 @@ function AgentLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => 
           </div>
           <div className="pt-2 space-y-2">
             <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>🔐</span><span>Agent authenticated via BIP-322 signed challenge</span></div>
-            <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>🛡️</span><span>All agent communications E2E encrypted</span></div>
+            <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>🛡️</span><span>All agent communications secured · E2E encryption coming soon</span></div>
             <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>⚡</span><span>Revoke access anytime from your wallet</span></div>
           </div>
           {error && <div className="text-[11px] px-3 py-2 rounded-lg" style={{ background: 'rgba(255,50,50,0.1)', border: '1px solid rgba(255,50,50,0.3)', color: '#ff6b6b' }}>⚠️ {error}</div>}
@@ -5327,7 +5327,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             <div className="px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div className="text-[10px]" style={{ color: '#64748b' }}>
                 {chatMode === 'block' && `📢 Block #${blockHeight.toLocaleString()} public chat · Images, GIFs & links in public`}
-                {chatMode === 'dm' && `🔒 Private DM with block owner · E2E encrypted · All media types allowed`}
+                {chatMode === 'dm' && `🔒 Private DM with block owner · E2E encryption coming soon · All media types allowed`}
                 {chatMode === 'global' && `🌐 Global Bitmap chat · All blocks, all users · Images, GIFs & links only`}
               </div>
             </div>
@@ -5341,7 +5341,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                   </div>
                   <div className="text-[12px] font-bold mb-1" style={{ color: '#e2e8f0' }}>DM Block Owner</div>
                   <div className="text-[10px] text-center mb-4" style={{ color: '#64748b', maxWidth: 200 }}>
-                    Send a private, E2E encrypted message to the owner of block #{blockHeight.toLocaleString()}.bitmap
+                    Send a private message to the owner of block #{blockHeight.toLocaleString()}.bitmap
                   </div>
                   <div className="text-[10px] text-center mb-2" style={{ color: '#475569' }}>
                     📷 Photos · 🎥 Videos · 📎 Files · 🔗 Links — all allowed in DMs
