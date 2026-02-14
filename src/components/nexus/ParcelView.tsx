@@ -10,6 +10,7 @@ import Helix from '../dna/Helix';
 import CrownShield from '../CrownShield';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
+import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 
 /* ─── Types ─── */
 interface ParcelData {
@@ -4176,6 +4177,67 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
       setE2eStatus('ready');
     }
   }, [chatMode, isConnected, e2eReady, e2eSetup, e2eStatus]);
+
+  // ═══ Supabase Realtime Chat ═══
+  const userHandle = profile?.handle || walletAddress?.slice(0, 8) || '';
+  useRealtimeChat({
+    blockHeight,
+    channel: chatMode,
+    enabled: true,
+    onMessage: useCallback(async (msg: RealtimeChatMessage) => {
+      // Skip messages sent by this user (already added optimistically)
+      if (msg.senderAddress === walletAddress) return;
+      
+      const chatMsg: ChatMessage = {
+        id: msg.id,
+        sender: msg.senderHandle || msg.senderAddress.slice(0, 8),
+        text: msg.text,
+        time: new Date(msg.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        type: msg.type as ChatMessage['type'],
+        createdAt: msg.createdAt,
+      };
+
+      // Decrypt encrypted DM messages
+      if (msg.type === 'encrypted' && e2eReady) {
+        try {
+          const encPayload = JSON.parse(msg.text);
+          const decrypted = await e2eDecrypt(encPayload);
+          if (decrypted) {
+            chatMsg.text = decrypted.text;
+            chatMsg.type = 'text';
+          }
+        } catch {
+          chatMsg.text = '🔒 Encrypted message (unable to decrypt)';
+          chatMsg.type = 'text';
+        }
+      }
+
+      setChatMessages(prev => {
+        // Deduplicate by id
+        if (prev.some(m => m.id === chatMsg.id)) return prev;
+        // Remove demo messages
+        const real = prev.filter(m => !m.isDemo);
+        return [...real, chatMsg];
+      });
+    }, [walletAddress, e2eReady, e2eDecrypt]),
+  });
+
+  // ═══ Presence (viewers + typing) ═══
+  const { viewers: realtimeViewers, typingUsers, sendTyping, viewerCount: realtimeViewerCount } = usePresence({
+    blockHeight,
+    channel: chatMode,
+    userHandle,
+    userAddress: walletAddress || undefined,
+    enabled: !!(walletAddress),
+  });
+
+  // Debounced typing indicator
+  const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleTyping = useCallback(() => {
+    if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+    typingDebounceRef.current = setTimeout(() => sendTyping(), 300);
+  }, [sendTyping]);
+
   const [flyTarget, setFlyTarget] = useState<FlyTarget | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const controlsRef = useRef<any>(null);
@@ -4857,7 +4919,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           </div>
         </div>
 
-        <VisitorOverlay count={visitorCount} />
+        <VisitorOverlay count={realtimeViewerCount > 0 ? realtimeViewerCount : visitorCount} />
 
         {/* Fullscreen toggle */}
         <button onClick={toggleFullscreen}
@@ -5646,6 +5708,24 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               )}
             </div>
 
+            {/* Typing indicator */}
+            {typingUsers.length > 0 && (
+              <div className="px-3 py-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+                <span className="text-[10px] font-mono italic" style={{ color: '#64748b' }}>
+                  {typingUsers.length === 1 ? `${typingUsers[0]} is typing...` : `${typingUsers.join(', ')} are typing...`}
+                </span>
+              </div>
+            )}
+
+            {/* Presence: who's here */}
+            {realtimeViewers.length > 1 && (
+              <div className="px-3 py-1" style={{ borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+                <span className="text-[9px] font-mono" style={{ color: '#475569' }}>
+                  👁 {realtimeViewers.map(v => v.handle).join(', ')}
+                </span>
+              </div>
+            )}
+
             <div className="px-3 py-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
               {!isWalletConnected ? (
                 <div className="text-center py-3 rounded-xl" style={{ background: 'rgba(247,147,26,0.06)', border: '1px solid rgba(247,147,26,0.15)' }}>
@@ -5668,7 +5748,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                 </button>
                 <input
                   type="text" value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
+                  onChange={(e) => { setChatInput(e.target.value); handleTyping(); }}
                   onKeyDown={(e) => e.key === 'Enter' && sendChat()}
                   placeholder={
                     chatMode === 'dm' ? 'Private message to owner...'

@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
+import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 
 const DNAVisualizer = dynamic(() => import('@/components/DNAVisualizer'), { ssr: false });
 
@@ -232,6 +233,106 @@ export default function AgentProfilePage() {
   const [dmDraft, setDmDraft] = useState('');
   const dmEndRef = useRef<HTMLDivElement>(null);
   const dmInputRef = useRef<HTMLInputElement>(null);
+
+  // ═══ Realtime DM subscription ═══
+  const dmBlockHeight = agent?.blockHeight ?? 0;
+  useRealtimeChat({
+    blockHeight: dmBlockHeight,
+    channel: 'dm',
+    enabled: showDM && dmBlockHeight > 0,
+    onMessage: useCallback(async (msg: RealtimeChatMessage) => {
+      if (msg.senderAddress === globalWallet.walletAddress) return;
+      let text = msg.text;
+      let encrypted = false;
+      if (msg.type === 'encrypted' && globalWallet.e2eReady) {
+        try {
+          const payload = JSON.parse(msg.text);
+          const decrypted = await globalWallet.e2eDecrypt(payload);
+          if (decrypted) { text = decrypted.text; encrypted = true; }
+          else { text = '🔒 Unable to decrypt'; }
+        } catch { text = '🔒 Unable to decrypt'; }
+      }
+      setDmMessages(prev => {
+        if (prev.some(m => m.id === msg.id)) return prev;
+        return [...prev, {
+          id: msg.id,
+          text,
+          sender: 'them' as const,
+          time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          encrypted,
+        }];
+      });
+      setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    }, [globalWallet.walletAddress, globalWallet.e2eReady, globalWallet.e2eDecrypt]),
+  });
+
+  // Load DM history on open
+  useEffect(() => {
+    if (!showDM || !dmBlockHeight) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/v1/chat/${dmBlockHeight}?channel=dm&limit=50`);
+        if (!res.ok) return;
+        const json = await res.json();
+        const msgs = await Promise.all((json.data || []).map(async (m: { id: string; senderAddress: string; text: string; type: string; createdAt: string }) => {
+          const isMe = m.senderAddress === globalWallet.walletAddress;
+          let text = m.text;
+          let encrypted = false;
+          if (m.type === 'encrypted' && globalWallet.e2eReady) {
+            try {
+              const payload = JSON.parse(m.text);
+              const decrypted = await globalWallet.e2eDecrypt(payload);
+              if (decrypted) { text = decrypted.text; encrypted = true; }
+              else { text = '🔒 Unable to decrypt'; }
+            } catch { text = '🔒 Unable to decrypt'; }
+          }
+          return { id: m.id, text, sender: isMe ? 'me' as const : 'them' as const, time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), encrypted };
+        }));
+        setDmMessages(msgs);
+      } catch { /* fallback to empty */ }
+    })();
+  }, [showDM, dmBlockHeight, globalWallet.walletAddress, globalWallet.e2eReady, globalWallet.e2eDecrypt]);
+
+  // Send DM function
+  const sendDM = useCallback(async () => {
+    if (!dmDraft.trim() || !globalWallet.isConnected || !agent) return;
+    const text = dmDraft.trim();
+    setDmDraft('');
+    
+    const optimisticMsg = {
+      id: `opt-${Date.now()}`,
+      text,
+      sender: 'me' as const,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      encrypted: true,
+    };
+    setDmMessages(prev => [...prev, optimisticMsg]);
+    setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+
+    try {
+      let msgText = text;
+      let msgType = 'text';
+      if (globalWallet.e2eReady && agent.handle) {
+        const encrypted = await globalWallet.e2eEncrypt(text, agent.handle);
+        if (encrypted) { msgText = JSON.stringify(encrypted); msgType = 'encrypted'; }
+      }
+      const res = await fetch(`/api/v1/chat/${agent.blockHeight}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderAddress: globalWallet.walletAddress,
+          senderHandle: globalWallet.profile?.handle || globalWallet.walletAddress?.slice(0, 8),
+          text: msgText,
+          type: msgType,
+          channel: 'dm',
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setDmMessages(prev => prev.map(m => m.id === optimisticMsg.id ? { ...m, id: json.data.id } : m));
+      }
+    } catch { /* optimistic stays */ }
+  }, [dmDraft, globalWallet, agent]);
 
   // For live edits
   const [displayName, setDisplayName] = useState('');
@@ -523,16 +624,7 @@ export default function AgentProfilePage() {
                       window.dispatchEvent(new Event('open-wallet-modal'));
                       return;
                     }
-                    const msg = {
-                      id: Date.now().toString(),
-                      text: dmDraft.trim(),
-                      sender: 'me' as const,
-                      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                      encrypted: true,
-                    };
-                    setDmMessages(prev => [...prev, msg]);
-                    setDmDraft('');
-                    setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+                    sendDM();
                   }
                 }}
                 placeholder={globalWallet.isConnected ? `Message @${agent.handle}...` : 'Connect wallet to send encrypted messages'}
@@ -543,17 +635,7 @@ export default function AgentProfilePage() {
               <button
                 onClick={() => {
                   if (!globalWallet.isConnected) { window.dispatchEvent(new Event('open-wallet-modal')); return; }
-                  if (!dmDraft.trim()) return;
-                  const msg = {
-                    id: Date.now().toString(),
-                    text: dmDraft.trim(),
-                    sender: 'me' as const,
-                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    encrypted: true,
-                  };
-                  setDmMessages(prev => [...prev, msg]);
-                  setDmDraft('');
-                  setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+                  sendDM();
                 }}
                 className="w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all cursor-pointer"
                 style={{ background: dmDraft.trim() ? 'rgba(0,255,204,0.15)' : 'transparent', color: dmDraft.trim() ? '#00f5d4' : '#475569' }}
