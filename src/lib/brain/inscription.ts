@@ -25,6 +25,7 @@ import {
   MORAL_CODE,
   MORAL_CODE_INSCRIPTION_ID,
   SOUL_FILE_INSCRIPTION_ID,
+  SOUL_JSON_INSCRIPTION_ID,
   NEXUS_BRAIN_HANDLE,
   NEXUS_BRAIN_WALLET,
   BRAIN_FEE_PERCENT,
@@ -103,9 +104,9 @@ export async function fetchSoulFromInscription(
   config: BrainRuntimeConfig = DEFAULT_BRAIN_CONFIG,
 ): Promise<{ soul: BrainSoulInscription; source: 'inscription' | 'fallback'; verified: boolean }> {
   
-  // Strategy 1: Fetch from ordinals.com
+  // Strategy 1: Fetch SOUL.json from ordinals.com (primary — full JSON schema)
   try {
-    const url = `${config.ordinalsApiUrl}/content/${SOUL_FILE_INSCRIPTION_ID}`;
+    const url = `${config.ordinalsApiUrl}/content/${SOUL_JSON_INSCRIPTION_ID}`;
     const res = await fetch(url, { 
       signal: AbortSignal.timeout(10_000),
       headers: { 'Accept': 'application/json' },
@@ -121,9 +122,9 @@ export async function fetchSoulFromInscription(
     // Fallback
   }
 
-  // Strategy 2: Try ord.io
+  // Strategy 2: Try ord.io with SOUL.json inscription
   try {
-    const url = `https://ord.io/content/${SOUL_FILE_INSCRIPTION_ID}`;
+    const url = `https://ord.io/content/${SOUL_JSON_INSCRIPTION_ID}`;
     const res = await fetch(url, { 
       signal: AbortSignal.timeout(10_000),
       headers: { 'Accept': 'application/json' },

@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/v1/brain/cron",
+      "schedule": "*/5 * * * *"
+    }
+  ],
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "outputDirectory": ".next",

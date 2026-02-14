@@ -6,7 +6,7 @@ import BitmapBlocksBg from "@/components/BitmapBlocksBg";
 /* ─── Types ─── */
 interface BrainData {
   identity: { handle: string; name: string; role: string; tier: number; wallet: string };
-  inscriptions: { moralCode: string; soulText: string; soulFile: string };
+  inscriptions: { moralCode: string; soulText: string; soulFile: string; soulJson?: { id: string; number: number } };
   moralCode: string[];
   parameters: {
     flagThresholdSoft: number;
@@ -105,7 +105,7 @@ export default function BrainPage() {
             The Brain&apos;s soul is permanently inscribed on Bitcoin. 
             Anyone can verify its operating instructions on-chain.
           </p>
-          <div className="grid sm:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               {
                 label: "Moral Code",
@@ -124,6 +124,12 @@ export default function BrainPage() {
                 desc: "Full agent soul document",
                 id: data?.inscriptions?.soulFile || "119366692",
                 icon: "📄",
+              },
+              {
+                label: "SOUL.json",
+                desc: "Autonomous agent schema (machine-readable)",
+                id: data?.inscriptions?.soulJson?.id ? `${data.inscriptions.soulJson.number}` : "119380336",
+                icon: "🤖",
               },
             ].map((ins) => (
               <a

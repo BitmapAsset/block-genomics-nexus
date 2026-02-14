@@ -60,6 +60,8 @@ export const MORAL_CODE = [
 export const MORAL_CODE_INSCRIPTION_ID = '119366628'; // Inscribed on Bitcoin — permanent
 export const SOUL_TEXT_INSCRIPTION_ID = '119366684'; // Soul as text — inscribed on Bitcoin
 export const SOUL_FILE_INSCRIPTION_ID = '119366692'; // SOUL.md file — inscribed on Bitcoin
+export const SOUL_JSON_INSCRIPTION_ID = '75abd6987e756f042e1ac5e714169e35f5086993bd176eac3156abc9e118291fi0'; // SOUL.json — full autonomous agent schema
+export const SOUL_JSON_INSCRIPTION_NUMBER = 119380336;
 
 /* ═══════════════════════════════════════════
    TIER SYSTEM
