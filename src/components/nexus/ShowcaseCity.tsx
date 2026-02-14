@@ -1,9 +1,9 @@
 /**
- * ShowcaseCity — Curated 3D Art Installations on Featured Bitmap Blocks
+ * ShowcaseCity — Detailed Era-Themed Cities Built ON Bitmap Parcels
  * 
- * Philosophy: Less is more. Each block is a gallery piece, not a random city.
- * Parcels merge into mega-structures. Open spaces breathe. One cohesive palette.
- * Central landmark dominates. Everything intentional.
+ * Every parcel gets a building. Together they form a cohesive, beautiful city.
+ * From above: a stunning planned cityscape matching the Mondrian layout.
+ * In street view: intricate details on every building to explore.
  */
 
 import { useMemo } from 'react';
@@ -42,7 +42,7 @@ function rng(seed: number) {
   return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
 }
 
-// ═══ Era & Theme ═══
+// ═══ Era System ═══
 type Era = 'genesis' | 'ancient' | 'classical' | 'industrial' | 'modern' | 'cyber';
 
 function getEra(h: number): Era {
@@ -54,264 +54,313 @@ function getEra(h: number): Era {
   return 'cyber';
 }
 
-interface ArtTheme {
-  name: string;
-  primary: string;
-  accent: string;
-  glow: string;
-  emissiveIntensity: number;
-  roughness: number;
+interface EraStyle {
+  wallColor: string;
+  accentColor: string;
+  roofColor: string;
+  glowColor: string;
+  windowColor: string;
+  emissive: number;
   metalness: number;
-  transparent: boolean;
-  opacity: number;
+  roughness: number;
+  heightMult: number; // era-based height scaling
 }
 
-const ERA_THEMES: Record<Era, ArtTheme[]> = {
-  genesis: [
-    { name: 'Golden Monolith', primary: '#c8a050', accent: '#f7931a', glow: '#f7931a', emissiveIntensity: 0.8, roughness: 0.2, metalness: 0.9, transparent: false, opacity: 1 },
-    { name: 'Obsidian Dawn', primary: '#1a1a2e', accent: '#f7931a', glow: '#ff6600', emissiveIntensity: 1.2, roughness: 0.05, metalness: 1, transparent: false, opacity: 1 },
-  ],
-  ancient: [
-    { name: 'Sandstone Temple', primary: '#d4a574', accent: '#8b6914', glow: '#c8a050', emissiveIntensity: 0.3, roughness: 0.8, metalness: 0.1, transparent: false, opacity: 1 },
-    { name: 'Desert Crystal', primary: '#e8d5b7', accent: '#f7931a', glow: '#ffd700', emissiveIntensity: 0.5, roughness: 0.1, metalness: 0.6, transparent: true, opacity: 0.85 },
-  ],
-  classical: [
-    { name: 'Marble Palace', primary: '#e8e0d0', accent: '#b8860b', glow: '#daa520', emissiveIntensity: 0.2, roughness: 0.3, metalness: 0.4, transparent: false, opacity: 1 },
-    { name: 'Bronze Age', primary: '#8b6914', accent: '#cd853f', glow: '#daa520', emissiveIntensity: 0.4, roughness: 0.4, metalness: 0.8, transparent: false, opacity: 1 },
-  ],
-  industrial: [
-    { name: 'Steel Cathedral', primary: '#4a5568', accent: '#f7931a', glow: '#ff4500', emissiveIntensity: 0.6, roughness: 0.3, metalness: 0.9, transparent: false, opacity: 1 },
-    { name: 'Iron Garden', primary: '#2d3748', accent: '#48bb78', glow: '#38a169', emissiveIntensity: 0.5, roughness: 0.5, metalness: 0.7, transparent: false, opacity: 1 },
-  ],
-  modern: [
-    { name: 'Glass Horizon', primary: '#e2e8f0', accent: '#4fc3f7', glow: '#29b6f6', emissiveIntensity: 0.4, roughness: 0.05, metalness: 0.95, transparent: true, opacity: 0.7 },
-    { name: 'White Oasis', primary: '#f7fafc', accent: '#f7931a', glow: '#f7931a', emissiveIntensity: 0.3, roughness: 0.2, metalness: 0.5, transparent: false, opacity: 1 },
-  ],
-  cyber: [
-    { name: 'Neon Nexus', primary: '#0d0d1a', accent: '#00f5d4', glow: '#00f5d4', emissiveIntensity: 2, roughness: 0, metalness: 1, transparent: false, opacity: 1 },
-    { name: 'Plasma Core', primary: '#1a0a2e', accent: '#ff006e', glow: '#ff006e', emissiveIntensity: 1.8, roughness: 0.05, metalness: 0.95, transparent: true, opacity: 0.9 },
-    { name: 'Aurora Circuit', primary: '#0a1628', accent: '#8338ec', glow: '#a855f7', emissiveIntensity: 1.5, roughness: 0.1, metalness: 0.9, transparent: false, opacity: 1 },
-  ],
+const ERA_STYLES: Record<Era, EraStyle> = {
+  genesis: {
+    wallColor: '#c8a050', accentColor: '#f7931a', roofColor: '#8b6914',
+    glowColor: '#f7931a', windowColor: '#fff8e1', emissive: 0.3,
+    metalness: 0.7, roughness: 0.3, heightMult: 0.6,
+  },
+  ancient: {
+    wallColor: '#d4a574', accentColor: '#c8a050', roofColor: '#8b7355',
+    glowColor: '#daa520', windowColor: '#ffe4b5', emissive: 0.1,
+    metalness: 0.1, roughness: 0.8, heightMult: 0.5,
+  },
+  classical: {
+    wallColor: '#e8e0d0', accentColor: '#b8860b', roofColor: '#8b4513',
+    glowColor: '#daa520', windowColor: '#ffefd5', emissive: 0.15,
+    metalness: 0.3, roughness: 0.4, heightMult: 0.7,
+  },
+  industrial: {
+    wallColor: '#4a5568', accentColor: '#f7931a', roofColor: '#2d3748',
+    glowColor: '#ff6600', windowColor: '#ffd700', emissive: 0.4,
+    metalness: 0.8, roughness: 0.4, heightMult: 1.0,
+  },
+  modern: {
+    wallColor: '#cbd5e0', accentColor: '#4fc3f7', roofColor: '#90a4ae',
+    glowColor: '#29b6f6', windowColor: '#e1f5fe', emissive: 0.3,
+    metalness: 0.9, roughness: 0.1, heightMult: 1.4,
+  },
+  cyber: {
+    wallColor: '#1a1a2e', accentColor: '#00f5d4', roofColor: '#0d0d1a',
+    glowColor: '#00f5d4', windowColor: '#00f5d4', emissive: 1.2,
+    metalness: 0.95, roughness: 0.05, heightMult: 1.8,
+  },
 };
 
-// ═══ Art Installation Types ═══
+// ═══ Building Detail Meshes ═══
 
-interface ArtPiece {
+interface BuildingMesh {
   geometry: THREE.BufferGeometry;
   material: THREE.Material;
   position: [number, number, number];
-  rotation?: [number, number, number];
-  scale?: [number, number, number];
 }
 
-function createCentralMonument(theme: ArtTheme, blockSize: number, r: () => number): ArtPiece[] {
-  const pieces: ArtPiece[] = [];
-  const h = blockSize * (0.4 + r() * 0.3);
-  const baseW = blockSize * 0.15;
+function createBuilding(
+  px: number, pz: number, pw: number, pd: number,
+  style: EraStyle, rand: () => number, isCoinbase: boolean, bytes: number,
+): BuildingMesh[] {
+  const meshes: BuildingMesh[] = [];
+  const inset = 0.02; // small inset from parcel edges
+  const bw = pw - inset * 2;
+  const bd = pd - inset * 2;
+  const bx = px + pw / 2;
+  const bz = pz + pd / 2;
 
-  // Main spire
-  pieces.push({
-    geometry: new THREE.CylinderGeometry(baseW * 0.15, baseW, h, 6),
-    material: new THREE.MeshStandardMaterial({
-      color: theme.primary,
-      roughness: theme.roughness,
-      metalness: theme.metalness,
-      transparent: theme.transparent,
-      opacity: theme.opacity,
-    }),
-    position: [0, h / 2, 0],
+  // Building height based on tx size + era + randomness
+  const sizeRatio = Math.min(bytes / 5000, 1);
+  const baseH = (0.3 + sizeRatio * 2 + rand() * 1.5) * style.heightMult;
+  const h = isCoinbase ? baseH * 2.5 : baseH;
+  const minDim = Math.min(bw, bd);
+
+  // ─── Main building body ───
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: isCoinbase ? style.accentColor : style.wallColor,
+    roughness: style.roughness,
+    metalness: style.metalness,
+    emissive: isCoinbase ? style.glowColor : '#000000',
+    emissiveIntensity: isCoinbase ? style.emissive * 0.5 : 0,
   });
 
-  // Glowing crown
-  pieces.push({
-    geometry: new THREE.OctahedronGeometry(baseW * 0.4),
-    material: new THREE.MeshStandardMaterial({
-      color: theme.accent,
-      emissive: theme.glow,
-      emissiveIntensity: theme.emissiveIntensity,
-      roughness: 0,
-      metalness: 1,
-      transparent: true,
-      opacity: 0.9,
-    }),
-    position: [0, h + baseW * 0.4, 0],
-  });
-
-  // Base platform (3 concentric rings)
-  for (let i = 0; i < 3; i++) {
-    const ringR = baseW * (2.5 - i * 0.6);
-    const ringH = 0.08 * (3 - i);
-    pieces.push({
-      geometry: new THREE.CylinderGeometry(ringR, ringR * 1.1, ringH, 32),
-      material: new THREE.MeshStandardMaterial({
-        color: i === 0 ? theme.primary : theme.accent,
-        roughness: theme.roughness + 0.1,
-        metalness: theme.metalness * 0.8,
-        emissive: i === 2 ? theme.glow : '#000000',
-        emissiveIntensity: i === 2 ? theme.emissiveIntensity * 0.3 : 0,
-      }),
-      position: [0, ringH / 2 + i * 0.05, 0],
+  // Building shape varies by era and size
+  const shapeRoll = rand();
+  if (minDim > 0.4 && shapeRoll < 0.15) {
+    // Cylinder (tower)
+    meshes.push({
+      geometry: new THREE.CylinderGeometry(minDim * 0.4, minDim * 0.45, h, 8),
+      material: wallMat,
+      position: [bx, h / 2, bz],
+    });
+  } else if (minDim > 0.5 && shapeRoll < 0.25) {
+    // Hexagonal prism
+    meshes.push({
+      geometry: new THREE.CylinderGeometry(minDim * 0.42, minDim * 0.42, h, 6),
+      material: wallMat,
+      position: [bx, h / 2, bz],
+    });
+  } else {
+    // Box (most common)
+    meshes.push({
+      geometry: new THREE.BoxGeometry(bw, h, bd),
+      material: wallMat,
+      position: [bx, h / 2, bz],
     });
   }
 
-  return pieces;
-}
+  // ─── Roof / Top detail ───
+  if (minDim > 0.2) {
+    const roofRoll = rand();
+    const roofMat = new THREE.MeshStandardMaterial({
+      color: style.roofColor,
+      roughness: style.roughness + 0.1,
+      metalness: style.metalness * 0.7,
+    });
 
-function createFloatingRings(theme: ArtTheme, blockSize: number, r: () => number): ArtPiece[] {
-  const pieces: ArtPiece[] = [];
-  const count = 3 + Math.floor(r() * 3);
+    if (roofRoll < 0.3 && minDim > 0.4) {
+      // Pyramid roof
+      meshes.push({
+        geometry: new THREE.ConeGeometry(minDim * 0.5, h * 0.3, 4),
+        material: roofMat,
+        position: [bx, h + h * 0.15, bz],
+      });
+    } else if (roofRoll < 0.5) {
+      // Flat roof ledge
+      meshes.push({
+        geometry: new THREE.BoxGeometry(bw + 0.04, 0.03, bd + 0.04),
+        material: roofMat,
+        position: [bx, h + 0.015, bz],
+      });
+    } else if (roofRoll < 0.7 && minDim > 0.3) {
+      // Dome
+      meshes.push({
+        geometry: new THREE.SphereGeometry(minDim * 0.35, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+        material: roofMat,
+        position: [bx, h, bz],
+      });
+    }
+  }
 
-  for (let i = 0; i < count; i++) {
-    const ringR = blockSize * (0.08 + r() * 0.12);
-    const height = 1 + i * 1.5 + r() * 2;
-    const tilt = (r() - 0.5) * Math.PI * 0.4;
+  // ─── Windows (rows of glowing strips on sides) ───
+  if (h > 0.4 && minDim > 0.15) {
+    const windowMat = new THREE.MeshStandardMaterial({
+      color: style.windowColor,
+      emissive: style.windowColor,
+      emissiveIntensity: style.emissive * 0.6,
+      roughness: 0.1,
+      metalness: 0.5,
+      transparent: true,
+      opacity: 0.85,
+    });
 
-    pieces.push({
-      geometry: new THREE.TorusGeometry(ringR, ringR * 0.06, 16, 48),
+    const floors = Math.min(Math.floor(h / 0.25), 12);
+    const windowW = bw * 0.6;
+    const windowD = bd * 0.6;
+    const windowH = 0.04;
+
+    for (let f = 0; f < floors; f++) {
+      const fy = 0.15 + f * (h / floors);
+      // Front and back windows
+      if (rand() > 0.3) {
+        meshes.push({
+          geometry: new THREE.BoxGeometry(windowW, windowH, 0.005),
+          material: windowMat,
+          position: [bx, fy, bz + bd / 2 + 0.003],
+        });
+        meshes.push({
+          geometry: new THREE.BoxGeometry(windowW, windowH, 0.005),
+          material: windowMat,
+          position: [bx, fy, bz - bd / 2 - 0.003],
+        });
+      }
+      // Side windows
+      if (rand() > 0.4) {
+        meshes.push({
+          geometry: new THREE.BoxGeometry(0.005, windowH, windowD),
+          material: windowMat,
+          position: [bx + bw / 2 + 0.003, fy, bz],
+        });
+        meshes.push({
+          geometry: new THREE.BoxGeometry(0.005, windowH, windowD),
+          material: windowMat,
+          position: [bx - bw / 2 - 0.003, fy, bz],
+        });
+      }
+    }
+  }
+
+  // ─── Antenna / Spire (tall buildings) ───
+  if (h > 1.5 && rand() > 0.5) {
+    const antennaH = h * 0.25;
+    meshes.push({
+      geometry: new THREE.CylinderGeometry(0.008, 0.015, antennaH, 4),
       material: new THREE.MeshStandardMaterial({
-        color: i % 2 === 0 ? theme.accent : theme.primary,
-        emissive: theme.glow,
-        emissiveIntensity: theme.emissiveIntensity * (0.5 + r() * 0.5),
+        color: style.accentColor,
+        metalness: 0.9,
+        roughness: 0.2,
+      }),
+      position: [bx, h + antennaH / 2, bz],
+    });
+    // Blinking light on top
+    meshes.push({
+      geometry: new THREE.SphereGeometry(0.02, 6, 4),
+      material: new THREE.MeshStandardMaterial({
+        color: '#ff0000',
+        emissive: '#ff0000',
+        emissiveIntensity: 2,
+      }),
+      position: [bx, h + antennaH, bz],
+    });
+  }
+
+  // ─── Ground-level awning / entrance (medium+ buildings) ───
+  if (minDim > 0.3 && h > 0.6 && rand() > 0.5) {
+    meshes.push({
+      geometry: new THREE.BoxGeometry(bw * 0.4, 0.02, 0.08),
+      material: new THREE.MeshStandardMaterial({
+        color: style.accentColor,
+        roughness: 0.5,
+        metalness: 0.3,
+      }),
+      position: [bx, 0.2, bz + bd / 2 + 0.04],
+    });
+  }
+
+  // ─── Neon accent strip (cyber/modern eras) ───
+  if ((style.emissive > 0.3) && minDim > 0.2 && rand() > 0.4) {
+    const stripH = 0.02;
+    const stripY = h * (0.3 + rand() * 0.5);
+    meshes.push({
+      geometry: new THREE.BoxGeometry(bw + 0.01, stripH, bd + 0.01),
+      material: new THREE.MeshStandardMaterial({
+        color: style.glowColor,
+        emissive: style.glowColor,
+        emissiveIntensity: style.emissive,
+        roughness: 0,
+        metalness: 1,
+      }),
+      position: [bx, stripY, bz],
+    });
+  }
+
+  // ─── Rooftop AC / mechanical box (industrial+) ───
+  if (h > 0.8 && minDim > 0.3 && rand() > 0.6) {
+    const boxS = minDim * 0.2;
+    const ox = (rand() - 0.5) * bw * 0.3;
+    const oz = (rand() - 0.5) * bd * 0.3;
+    meshes.push({
+      geometry: new THREE.BoxGeometry(boxS, boxS * 0.6, boxS),
+      material: new THREE.MeshStandardMaterial({
+        color: '#666666',
+        roughness: 0.7,
+        metalness: 0.5,
+      }),
+      position: [bx + ox, h + boxS * 0.3, bz + oz],
+    });
+  }
+
+  // ─── Coinbase landmark extras ───
+  if (isCoinbase) {
+    // Glowing orb above
+    meshes.push({
+      geometry: new THREE.SphereGeometry(minDim * 0.3, 16, 12),
+      material: new THREE.MeshStandardMaterial({
+        color: style.accentColor,
+        emissive: style.glowColor,
+        emissiveIntensity: style.emissive * 2,
         roughness: 0,
         metalness: 1,
         transparent: true,
         opacity: 0.8,
       }),
-      position: [0, height, 0],
-      rotation: [tilt, r() * Math.PI, 0],
+      position: [bx, h + minDim * 0.5, bz],
     });
-  }
 
-  return pieces;
-}
-
-function createCrystalFormation(theme: ArtTheme, x: number, z: number, r: () => number): ArtPiece[] {
-  const pieces: ArtPiece[] = [];
-  const count = 2 + Math.floor(r() * 4);
-
-  for (let i = 0; i < count; i++) {
-    const h = 0.5 + r() * 3;
-    const w = 0.1 + r() * 0.3;
-    const ox = (r() - 0.5) * 1.5;
-    const oz = (r() - 0.5) * 1.5;
-    const tilt = (r() - 0.5) * 0.3;
-
-    pieces.push({
-      geometry: new THREE.ConeGeometry(w, h, 5 + Math.floor(r() * 3)),
+    // Base glow ring
+    meshes.push({
+      geometry: new THREE.RingGeometry(minDim * 0.3, minDim * 0.55, 32),
       material: new THREE.MeshStandardMaterial({
-        color: theme.accent,
-        emissive: theme.glow,
-        emissiveIntensity: theme.emissiveIntensity * (0.3 + r() * 0.7),
-        roughness: theme.roughness,
-        metalness: theme.metalness,
+        color: style.glowColor,
+        emissive: style.glowColor,
+        emissiveIntensity: style.emissive,
         transparent: true,
-        opacity: 0.7 + r() * 0.3,
+        opacity: 0.4,
+        side: THREE.DoubleSide,
       }),
-      position: [x + ox, h / 2, z + oz],
-      rotation: [tilt, r() * Math.PI * 2, tilt],
+      position: [bx, 0.005, bz],
     });
+
+    // 4 pillars at corners
+    const pillarR = minDim * 0.04;
+    const pillarH = h * 0.6;
+    for (let c = 0; c < 4; c++) {
+      const cx2 = bx + (c < 2 ? -1 : 1) * bw * 0.45;
+      const cz2 = bz + (c % 2 === 0 ? -1 : 1) * bd * 0.45;
+      meshes.push({
+        geometry: new THREE.CylinderGeometry(pillarR, pillarR, pillarH, 6),
+        material: new THREE.MeshStandardMaterial({
+          color: style.accentColor,
+          emissive: style.glowColor,
+          emissiveIntensity: style.emissive * 0.3,
+          metalness: 0.8,
+          roughness: 0.2,
+        }),
+        position: [cx2, pillarH / 2, cz2],
+      });
+    }
   }
 
-  return pieces;
-}
-
-function createArchway(theme: ArtTheme, x: number, z: number, angle: number, r: () => number): ArtPiece[] {
-  const pieces: ArtPiece[] = [];
-  const h = 2 + r() * 2;
-  const w = 1.5 + r();
-  const thickness = 0.12;
-
-  // Two pillars
-  for (const side of [-1, 1]) {
-    pieces.push({
-      geometry: new THREE.BoxGeometry(thickness, h, thickness),
-      material: new THREE.MeshStandardMaterial({
-        color: theme.primary,
-        roughness: theme.roughness,
-        metalness: theme.metalness,
-      }),
-      position: [x + Math.cos(angle) * w * 0.5 * side, h / 2, z + Math.sin(angle) * w * 0.5 * side],
-    });
-  }
-
-  // Arch top
-  pieces.push({
-    geometry: new THREE.TorusGeometry(w * 0.5, thickness * 0.6, 8, 16, Math.PI),
-    material: new THREE.MeshStandardMaterial({
-      color: theme.accent,
-      emissive: theme.glow,
-      emissiveIntensity: theme.emissiveIntensity * 0.5,
-      roughness: 0.1,
-      metalness: 0.9,
-    }),
-    position: [x, h, z],
-    rotation: [0, angle, 0],
-  });
-
-  return pieces;
-}
-
-function createReflectingPool(theme: ArtTheme, blockSize: number): ArtPiece[] {
-  const poolW = blockSize * 0.3;
-  const poolD = blockSize * 0.12;
-
-  return [{
-    geometry: new THREE.BoxGeometry(poolW, 0.02, poolD),
-    material: new THREE.MeshStandardMaterial({
-      color: '#0a1628',
-      roughness: 0,
-      metalness: 1,
-      transparent: true,
-      opacity: 0.6,
-      emissive: theme.glow,
-      emissiveIntensity: 0.15,
-    }),
-    position: [0, 0.01, blockSize * 0.2],
-  }];
-}
-
-function createOrbitingSpheres(theme: ArtTheme, centerY: number, r: () => number): ArtPiece[] {
-  const pieces: ArtPiece[] = [];
-  const count = 4 + Math.floor(r() * 4);
-
-  for (let i = 0; i < count; i++) {
-    const angle = (i / count) * Math.PI * 2;
-    const radius = 1.5 + r() * 2;
-    const y = centerY + (r() - 0.5) * 2;
-    const size = 0.08 + r() * 0.15;
-
-    pieces.push({
-      geometry: new THREE.SphereGeometry(size, 12, 8),
-      material: new THREE.MeshStandardMaterial({
-        color: theme.accent,
-        emissive: theme.glow,
-        emissiveIntensity: theme.emissiveIntensity * 1.5,
-        roughness: 0,
-        metalness: 1,
-      }),
-      position: [Math.cos(angle) * radius, y, Math.sin(angle) * radius],
-    });
-  }
-
-  return pieces;
-}
-
-function createGroundGlow(theme: ArtTheme, blockSize: number): ArtPiece[] {
-  return [{
-    geometry: new THREE.RingGeometry(blockSize * 0.02, blockSize * 0.35, 64),
-    material: new THREE.MeshStandardMaterial({
-      color: theme.glow,
-      emissive: theme.glow,
-      emissiveIntensity: theme.emissiveIntensity * 0.2,
-      roughness: 1,
-      metalness: 0,
-      transparent: true,
-      opacity: 0.15,
-      side: THREE.DoubleSide,
-    }),
-    position: [0, 0.005, 0],
-    rotation: [-Math.PI / 2, 0, 0],
-  }];
+  return meshes;
 }
 
 // ═══ Main Generator ═══
@@ -319,7 +368,12 @@ function createGroundGlow(theme: ArtTheme, blockSize: number): ArtPiece[] {
 export interface ShowcaseBuildingData {
   parcelIndex: number;
   position: [number, number, number];
-  building: { position: [number, number, number]; geometry: THREE.BufferGeometry; material: THREE.Material; extras: { geometry: THREE.BufferGeometry; material: THREE.Material; position: [number, number, number] }[] };
+  building: {
+    position: [number, number, number];
+    geometry: THREE.BufferGeometry;
+    material: THREE.Material;
+    extras: { geometry: THREE.BufferGeometry; material: THREE.Material; position: [number, number, number] }[];
+  };
 }
 
 export function useShowcaseBuildings(
@@ -331,92 +385,43 @@ export function useShowcaseBuildings(
     if (parcels.length === 0) return null;
 
     const era = getEra(blockHeight);
-    const themes = ERA_THEMES[era];
-    const r0 = rng(blockHeight * 7919);
-    const theme = themes[Math.floor(r0() * themes.length)];
+    const style = ERA_STYLES[era];
     const rand = rng(blockHeight * 31337);
 
-    // Block dimensions from parcels
-    const minX = Math.min(...parcels.map(p => p.x));
-    const maxX = Math.max(...parcels.map(p => p.x + p.width));
-    const minZ = Math.min(...parcels.map(p => p.z));
-    const maxZ = Math.max(...parcels.map(p => p.z + p.depth));
-    const blockSize = Math.max(maxX - minX, maxZ - minZ);
-    const cx = (minX + maxX) / 2;
-    const cz = (minZ + maxZ) / 2;
+    const allMeshes: BuildingMesh[] = [];
 
-    const allPieces: ArtPiece[] = [];
-
-    // 1. Central monument (always)
-    const monument = createCentralMonument(theme, blockSize, rand);
-    monument.forEach(p => { p.position[0] += cx; p.position[2] += cz; });
-    allPieces.push(...monument);
-
-    // 2. Floating rings around monument
-    const rings = createFloatingRings(theme, blockSize, rand);
-    rings.forEach(p => { p.position[0] += cx; p.position[2] += cz; });
-    allPieces.push(...rings);
-
-    // 3. Orbiting spheres
-    const spheres = createOrbitingSpheres(theme, blockSize * 0.25, rand);
-    spheres.forEach(p => { p.position[0] += cx; p.position[2] += cz; });
-    allPieces.push(...spheres);
-
-    // 4. Crystal formations at 3-5 strategic points (not every parcel!)
-    const crystalCount = 3 + Math.floor(rand() * 3);
-    for (let i = 0; i < crystalCount; i++) {
-      const angle = (i / crystalCount) * Math.PI * 2 + rand() * 0.5;
-      const dist = blockSize * (0.2 + rand() * 0.15);
-      const crystals = createCrystalFormation(theme, cx + Math.cos(angle) * dist, cz + Math.sin(angle) * dist, rand);
-      allPieces.push(...crystals);
+    // Build on EVERY parcel
+    for (const p of parcels) {
+      const building = createBuilding(
+        p.x, p.z, p.width, p.depth,
+        style, rand, p.isCoinbase, p.bytes
+      );
+      allMeshes.push(...building);
     }
 
-    // 5. Archways (2-3 gateways)
-    const archCount = 2 + Math.floor(rand() * 2);
-    for (let i = 0; i < archCount; i++) {
-      const angle = (i / archCount) * Math.PI * 2;
-      const dist = blockSize * 0.25;
-      const arches = createArchway(theme, cx + Math.cos(angle) * dist, cz + Math.sin(angle) * dist, angle, rand);
-      allPieces.push(...arches);
-    }
-
-    // 6. Reflecting pool
-    const pool = createReflectingPool(theme, blockSize);
-    pool.forEach(p => { p.position[0] += cx; p.position[2] += cz; });
-    allPieces.push(...pool);
-
-    // 7. Ground glow
-    const glow = createGroundGlow(theme, blockSize);
-    glow.forEach(p => { p.position[0] += cx; p.position[2] += cz; });
-    allPieces.push(...glow);
-
-    // Convert to ShowcaseBuildingData format (one entry per piece)
-    return allPieces.map((piece, i) => ({
+    // Convert to ShowcaseBuildingData format
+    return allMeshes.map((mesh, i) => ({
       parcelIndex: i,
       position: [0, 0, 0] as [number, number, number],
       building: {
-        position: piece.position,
-        geometry: piece.geometry,
-        material: piece.material,
-        extras: [] as { geometry: THREE.BufferGeometry; material: THREE.Material; position: [number, number, number] }[],
+        position: mesh.position,
+        geometry: mesh.geometry,
+        material: mesh.material,
+        extras: [],
       },
-      rotation: piece.rotation,
-      scale: piece.scale,
     }));
   }, [blockHeight, parcels]);
 }
 
 // ═══ Renderer ═══
 
-export function ShowcaseCityRenderer({ buildings }: { buildings: (ShowcaseBuildingData & { rotation?: [number, number, number]; scale?: [number, number, number] })[] }) {
+export function ShowcaseCityRenderer({ buildings }: { buildings: ShowcaseBuildingData[] }) {
   return (
-    <group name="showcase-art">
+    <group name="showcase-city">
       {buildings.map((b, i) => (
         <mesh
           key={i}
           position={b.building.position}
-          rotation={b.rotation ? [b.rotation[0], b.rotation[1], b.rotation[2]] : undefined}
-          scale={b.scale}
           geometry={b.building.geometry}
           material={b.building.material}
           castShadow
