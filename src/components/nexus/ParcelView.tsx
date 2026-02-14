@@ -9,6 +9,7 @@ import { fetchRealBlock, type RealBlockData } from '@/lib/blockchainApi';
 import Helix from '../dna/Helix';
 import CrownShield from '../CrownShield';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
+import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 
 /* ─── Types ─── */
 interface ParcelData {
@@ -4236,6 +4237,13 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     return generateParcels(blockHeight, realBlock);
   
   }, [blockHeight, realBlock, dataSource]);
+  // Showcase city buildings for featured blocks
+  const showcaseInput = useMemo(() =>
+    parcels.map(p => ({ txIndex: p.txIndex, x: p.x, z: p.z, width: p.width, depth: p.depth, bytes: p.bytes, isCoinbase: p.isCoinbase })),
+    [parcels]
+  );
+  const showcaseBuildings = useShowcaseBuildings(blockHeight, showcaseInput);
+
   const cols = Math.ceil(Math.sqrt(parcels.length)); // kept for rough reference
   const rows = Math.ceil(parcels.length / cols);
   const block = generateBlock(blockHeight);
@@ -4662,6 +4670,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                   <LivestreamBeam parcel={selectedParcel} />
                 </>
               )}
+              {/* Showcase city buildings on featured blocks */}
+              {showcaseBuildings && <ShowcaseCityRenderer buildings={showcaseBuildings} />}
             </>
           ) : (
             <>
@@ -4675,6 +4685,11 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         <div className="absolute top-3 left-16 z-20">
           <div className="text-lg font-mono font-bold" style={{ color: '#c8a050', textShadow: '0 0 20px rgba(247,147,26,0.3)' }}>
             {blockHeight.toLocaleString()}.BITMAP
+            {isFeaturedBlock(blockHeight) && (
+              <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold animate-pulse" style={{ background: 'rgba(255,215,0,0.15)', border: '1px solid rgba(255,215,0,0.3)', color: '#ffd700' }}>
+                ✨ Featured City
+              </span>
+            )}
           </div>
           <div className="text-[10px] font-mono" style={{ color: '#64748b' }}>
             {viewMode === 'dna' ? 'GENOME VIEW' : `${parcels.length.toLocaleString()} parcels / txs · Treemap layout · Drag to rotate · Scroll to zoom`}
