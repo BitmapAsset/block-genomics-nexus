@@ -312,3 +312,75 @@ model SearchLog {
 
   @@index([createdAt])
 }
+
+model ContentFlag {
+  id          String   @id @default(cuid())
+  contentType String   // 'chat_message' | 'parcel_content' | 'profile' | 'estate'
+  contentId   String   // ID of the flagged content
+  flaggedBy   String   // Wallet address of flagger
+  isBrainFlag Boolean  @default(false) // true if flagged by Nexus Brain AI
+  reason      String?  // Optional reason
+  ruleIndex   Int?     // Which moral rule (0-4) was violated, if applicable
+  createdAt   DateTime @default(now())
+
+  @@unique([contentId, flaggedBy])
+  @@index([contentId])
+  @@index([flaggedBy])
+}
+
+model ContentVerdict {
+  id          String   @id @default(cuid())
+  contentType String
+  contentId   String   @unique
+  status      String   @default("visible") // 'visible' | 'hidden' | 'permanent_hide' | 'restored'
+  flagCount   Int      @default(0)
+  hiddenAt    DateTime?
+  restoredAt  DateTime?
+  appealId    String?
+  auditLog    String?  // JSON array of actions taken
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([contentId])
+  @@index([status])
+}
+
+model Appeal {
+  id           String   @id @default(cuid())
+  contentId    String
+  appealedBy   String   // Wallet address of content owner
+  reason       String?
+  votesFor     Int      @default(0) // Votes to restore
+  votesAgainst Int      @default(0) // Votes to keep hidden
+  voters       String?  // JSON array of wallet addresses who voted
+  status       String   @default("pending") // 'pending' | 'restored' | 'upheld'
+  expiresAt    DateTime
+  resolvedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([contentId])
+  @@index([status])
+}
+
+model BrainAction {
+  id         String   @id @default(cuid())
+  actionType String   // 'flag' | 'scan' | 'alert' | 'threshold_hide'
+  contentId  String?
+  details    String?  // JSON details
+  txHash     String?  // Bitcoin tx if fee-related
+  createdAt  DateTime @default(now())
+
+  @@index([actionType])
+  @@index([createdAt])
+}
+
+model FlagStrike {
+  id            String   @id @default(cuid())
+  walletAddress String
+  strikeCount   Int      @default(1)
+  lastStrikeAt  DateTime @default(now())
+  suspended     Boolean  @default(false)
+  suspendedAt   DateTime?
+
+  @@unique([walletAddress])
+}

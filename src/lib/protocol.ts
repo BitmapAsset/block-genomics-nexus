@@ -30,10 +30,34 @@ export const HUMAN_AVATAR_HEIGHT_METERS = 1.8;
 export const PROTOCOL_FEE_ADDRESS = 'bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978';
 
 /** Protocol fee percentage (3% of delegation rental fee) */
-export const PROTOCOL_FEE_PERCENT = 3;
+export const PROTOCOL_FEE_PERCENT = 3; // Split: 2.5% treasury + 0.5% Nexus Brain
 
 /** Owner share percentage (97% of delegation rental fee) */
 export const OWNER_SHARE_PERCENT = 97;
+
+// ─── Nexus Brain: Autonomous Moral Guardian ───
+export const NEXUS_BRAIN_HANDLE = 'nexus-brain';
+export const NEXUS_BRAIN_WALLET = ''; // To be assigned — Brain's own Bitcoin wallet
+export const BRAIN_FEE_PERCENT = 0.5; // 0.5% of protocol fees fund the Brain
+export const PROTOCOL_TREASURY_PERCENT = 2.5; // Remaining 2.5% to treasury (was 3%)
+
+// Content Moderation Thresholds (immutable once deployed)
+export const FLAG_THRESHOLD_SOFT = 10; // Auto-hide content
+export const FLAG_THRESHOLD_HARD = 25; // Permanent hide + owner notified
+export const APPEAL_DURATION_HOURS = 48; // Hours for community vote on appeal
+export const APPEAL_RESTORE_MAJORITY = 0.6; // 60% vote needed to restore
+export const FALSE_FLAG_STRIKE_LIMIT = 3; // Strikes before flagging privileges revoked
+export const AGENT_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24hr between registrations
+
+// The 5 Immutable Moral Rules
+export const MORAL_CODE = [
+  'No exploitation of minors — zero tolerance',
+  'No direct threats of violence',
+  'No doxxing (sharing private info without consent)',
+  'No fraud/scam content designed to steal',
+  'No impersonation of verified identities',
+] as const;
+export const MORAL_CODE_INSCRIPTION_ID = ''; // Bitcoin inscription ID — set after inscribing
 
 /* ═══════════════════════════════════════════
    TIER SYSTEM

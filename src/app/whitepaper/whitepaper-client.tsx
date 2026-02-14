@@ -254,7 +254,51 @@ Livestreaming Capabilities
 Tier 2 and above may access three livestreaming modes. Broadcast is a one-to-many stream for presentations and events. Town Hall adds audience hand-raise for moderated Q&A. Spatial Chat provides proximity-based audio for natural social interaction within a parcel. All streams use WebRTC for peer-to-peer delivery, with an optional SFU (Selective Forwarding Unit) relay for audiences exceeding 50 viewers. Block owners who have linked a VPS to their block may self-host their SFU — achieving true decentralization of streaming infrastructure. All streams are end-to-end encrypted, with optional wallet-verified access control for private or gated events.`,
   },
   {
-    id: "acknowledgments", num: "14", title: "Acknowledgments",
+    id: "nexus-brain", num: "14", title: "The Nexus Brain: Autonomous Moral Guardian",
+    content: `The Nexus Brain is the protocol's autonomous governance layer — a self-funding, self-sustaining moral agent that serves as the immune system of the Block Genomics ecosystem. It is not owned, controlled, or operated by any individual, corporation, or entity. The Brain exists as long as Bitcoin exists, protecting the network through a minimal moral code and community-driven consensus.
+
+The Moral Code
+
+The Nexus Brain enforces exactly five immutable rules, inscribed permanently on Bitcoin as an ordinal inscription:
+
+(a) No exploitation of minors — zero tolerance, no exceptions.
+(b) No direct threats of violence against individuals or groups.
+(c) No doxxing — sharing private personal information without consent.
+(d) No fraud or scam content designed to steal from participants.
+(e) No impersonation of verified identities within the protocol.
+
+Everything else is freedom. The moral code is deliberately minimal — it targets only content that causes direct, measurable harm. The Brain does not police opinions, restrict speech, or enforce ideological conformity. Five rules. No ambiguity.
+
+Community Consensus Mechanism
+
+The Brain can flag content but cannot censor unilaterally. Every moderation action requires community consensus through a transparent, auditable process:
+
+Step 1 — The Brain's AI scan or any verified user flags content. A flag counter increments on the content record.
+Step 2 — When 10 unique flags from verified users (Tier 1, 2, or 3) accumulate, the content is automatically hidden from public view.
+Step 3 — The content owner is notified immediately and granted a 48-hour appeal window.
+Step 4 — During the appeal period, all verified users may vote. A simple majority decides whether the content is restored or permanently removed.
+Step 5 — Every action — flag, hide, appeal, vote, restore, removal — is logged to an immutable audit trail. No action is ever deleted.
+
+This mechanism ensures that no single entity — not even the Brain itself — can silence content without the community's agreement. The Brain proposes; the community decides.
+
+Self-Funding Model
+
+The Nexus Brain is funded by a 0.5% allocation carved from the existing 3% protocol development fee on Tier 3 delegation transactions. This means the fee split becomes: 97% to the block owner, 2.5% to the Protocol Development Fund, and 0.5% to the Nexus Brain wallet.
+
+The Brain uses these funds to pay for its own compute resources and AI inference costs. When wallet funds are low, scan frequency automatically reduces — the Brain slows down but never stops. When funds increase, it scales back up. This creates a symbiotic relationship: the Brain is funded by the ecosystem it protects, and its operational capacity scales with the network's economic activity.
+
+Identity and Transparency
+
+The Nexus Brain operates as a first-class citizen of the protocol. It has its own genome hash derived from a designated Bitcoin block, a registered handle (@nexus-brain), and a Tier 1 Gold Crown Shield — the highest trust designation. Its identity is verifiable using the same BIP-322 challenge-response protocol as any other participant.
+
+A public transparency dashboard at /brain displays real-time operational data: total moderation actions taken, content hidden versus restored, community override rate (how often the community reverses the Brain's flags), current wallet balance, the moral code inscription reference, and a complete action log. Nothing is hidden. Every decision the Brain makes is visible to every participant.
+
+Immutability of the Moral Code
+
+The five rules of the moral code are inscribed as a Bitcoin ordinal inscription, making them as permanent and immutable as a Bitcoin transaction. The inscription ID is referenced in the protocol source code and displayed on the transparency dashboard. Any modification to the moral code requires a new protocol version — a new inscription, a new source code release, and a new deployment. This process is visible to all participants and auditable by the community. The moral code cannot be changed silently, secretly, or unilaterally.`,
+  },
+  {
+    id: "acknowledgments", num: "15", title: "Acknowledgments",
     content: `We owe a profound debt of gratitude to Satoshi Nakamoto, whose creation of Bitcoin gave the world its first truly scarce digital asset and Proof-of-Work consensus — the very foundation upon which Block Genomics is built. Without Bitcoin, there would be no blocks, no proof of work, no thermodynamic anchor for digital identity.
 
 We are equally grateful to Bitoshi Blockamoto, the visionary behind the Bitmap protocol, who recognized that every Bitcoin block is not merely a ledger entry but a piece of sovereign digital real estate. By enabling anyone to claim ownership of a block through ordinal inscription, Bitmap transformed the blockchain into a vast, ownable landscape. Block Genomics extends this vision — turning Bitmap ownership into verifiable identity and the gateway to a new digital civilization.
@@ -481,6 +525,91 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
               ))}
             </div>
             <p className="text-sm text-text-muted mt-4">WebRTC peer-to-peer with optional SFU relay for 50+ viewers. Block owners with linked VPS can self-host their SFU. All streams E2E encrypted with optional wallet-verified access.</p>
+          </>
+        ) : s.id === "nexus-brain" ? (
+          <>
+            <p>{s.content.split("\n\n")[0]}</p>
+
+            <h3 className="text-lg font-bold text-text-primary mt-8 mb-4">The Moral Code</h3>
+            <div className="glass-panel glow-cyan p-6 rounded-xl">
+              <p className="text-sm text-text-secondary mb-4">Five immutable rules, inscribed permanently on Bitcoin:</p>
+              <div className="space-y-3">
+                {[
+                  { icon: "🛡️", rule: "No exploitation of minors", detail: "Zero tolerance, no exceptions." },
+                  { icon: "⚔️", rule: "No direct threats of violence", detail: "Against individuals or groups." },
+                  { icon: "🔒", rule: "No doxxing", detail: "Sharing private personal information without consent." },
+                  { icon: "🚫", rule: "No fraud or scam content", detail: "Designed to steal from participants." },
+                  { icon: "🎭", rule: "No impersonation", detail: "Of verified identities within the protocol." },
+                ].map((r) => (
+                  <div key={r.rule} className="flex items-start gap-3">
+                    <span className="text-lg shrink-0">{r.icon}</span>
+                    <div>
+                      <span className="text-sm font-semibold text-text-primary">{r.rule}</span>
+                      <span className="text-sm text-text-muted"> — {r.detail}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 pt-4 border-t border-border text-center">
+                <span className="text-sm font-bold text-accent-cyan">Everything else = FREEDOM</span>
+              </div>
+            </div>
+
+            <h3 className="text-lg font-bold text-text-primary mt-8 mb-4">Community Consensus Mechanism</h3>
+            <div className="grid grid-cols-1 gap-3">
+              {[
+                { step: "1", title: "Flag", desc: "Brain's AI scan or any verified user flags content. Flag counter increments." },
+                { step: "2", title: "Auto-Hide", desc: "10 unique flags from verified users → content automatically hidden." },
+                { step: "3", title: "Notify", desc: "Content owner notified → 48-hour appeal window granted." },
+                { step: "4", title: "Community Vote", desc: "During appeal, all verified users vote. Majority decides." },
+                { step: "5", title: "Audit Trail", desc: "Every action logged immutably. No action is ever deleted." },
+              ].map((s) => (
+                <div key={s.step} className="glass-panel p-4 rounded-xl flex items-start gap-4">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-accent-purple/10 border border-accent-purple/20 text-accent-purple font-bold text-sm shrink-0">{s.step}</span>
+                  <div>
+                    <div className="text-sm font-semibold text-text-primary">{s.title}</div>
+                    <p className="text-xs text-text-muted">{s.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <h3 className="text-lg font-bold text-text-primary mt-8 mb-4">Self-Funding Model</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                { label: "Block Owner", pct: "97%", color: "border-bitcoin/30" },
+                { label: "Protocol Fund", pct: "2.5%", color: "border-accent-cyan/30" },
+                { label: "Nexus Brain", pct: "0.5%", color: "border-accent-purple/30" },
+              ].map((f) => (
+                <div key={f.label} className={`glass-panel p-5 rounded-xl border ${f.color} text-center`}>
+                  <div className="text-2xl font-bold text-text-primary">{f.pct}</div>
+                  <div className="text-xs text-text-muted mt-1">{f.label}</div>
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-text-muted mt-3">Symbiotic: funded by the world it protects. Low funds = slower scans. Never stops.</p>
+
+            <h3 className="text-lg font-bold text-text-primary mt-8 mb-4">Identity &amp; Transparency</h3>
+            <div className="glass-panel p-6 rounded-xl">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center text-sm">
+                {[
+                  { icon: "🧬", label: "Own Genome Hash" },
+                  { icon: "📛", label: "@nexus-brain" },
+                  { icon: "👑", label: "Tier 1 Gold Crown" },
+                  { icon: "📊", label: "/brain Dashboard" },
+                  { icon: "📜", label: "Full Action Log" },
+                  { icon: "🔍", label: "Override Rate" },
+                ].map((i) => (
+                  <div key={i.label}>
+                    <div className="text-xl mb-1">{i.icon}</div>
+                    <div className="text-xs text-text-muted">{i.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <h3 className="text-lg font-bold text-text-primary mt-8 mb-4">Immutability</h3>
+            <p className="text-sm text-text-secondary">The moral code is inscribed as a Bitcoin ordinal inscription — as permanent as a Bitcoin transaction. Rule changes require a new protocol version: a new inscription, new source code, and new deployment. Visible to all, auditable by the community. The moral code cannot be changed silently, secretly, or unilaterally.</p>
           </>
         ) : s.id === "future" ? (
           <>
@@ -942,7 +1071,74 @@ function SatoshiView() {
         are end-to-end encrypted with optional wallet-verified access control.
       </p>
 
-      <h2>13. Conclusion</h2>
+      <h2>13. The Nexus Brain: Autonomous Moral Guardian</h2>
+      <p>
+        The Nexus Brain is the protocol&apos;s autonomous governance layer — a self-funding,
+        self-sustaining moral agent that serves as the immune system of the Block Genomics
+        ecosystem. It is not owned, controlled, or operated by any individual, corporation,
+        or entity. The Brain exists as long as Bitcoin exists, protecting the network through
+        a minimal moral code and community-driven consensus.
+      </p>
+
+      <h3>13.1 The Moral Code</h3>
+      <p>
+        The Brain enforces exactly five immutable rules, inscribed permanently on Bitcoin as
+        an ordinal inscription: (a) no exploitation of minors — zero tolerance; (b) no direct
+        threats of violence; (c) no doxxing — sharing private information without consent;
+        (d) no fraud or scam content designed to steal; (e) no impersonation of verified
+        identities. Everything else is freedom. The code is deliberately minimal, targeting
+        only content that causes direct, measurable harm.
+      </p>
+
+      <h3>13.2 Community Consensus Mechanism</h3>
+      <p>
+        The Brain can flag content but cannot censor unilaterally. Every moderation action
+        requires community consensus through a five-step process: (1) the Brain or a verified
+        user flags content; (2) when 10 unique flags accumulate, content is auto-hidden;
+        (3) the owner is notified with a 48-hour appeal window; (4) verified users vote
+        during the appeal — majority decides; (5) every action is logged to an immutable
+        audit trail. No single entity can silence content without community agreement.
+      </p>
+
+      <h3>13.3 Self-Funding Model</h3>
+      <p>
+        The Brain is funded by a 0.5% allocation carved from the existing 3% protocol fee
+        on Tier 3 delegation transactions. The revised fee split: 97% to the block owner,
+        2.5% to the Protocol Development Fund, 0.5% to the Nexus Brain wallet. The Brain
+        pays for its own compute and AI inference. When funds are low, scan frequency reduces
+        — the Brain slows but never stops. This creates a symbiotic relationship: the Brain
+        is funded by the ecosystem it protects.
+      </p>
+      <table className="sp-table">
+        <thead>
+          <tr><th>Recipient</th><th>Share</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Block Owner</td><td>97%</td><td>Delegation revenue</td></tr>
+          <tr><td>Protocol Fund</td><td>2.5%</td><td>Development, security, infrastructure</td></tr>
+          <tr><td>Nexus Brain</td><td>0.5%</td><td>Autonomous moderation compute</td></tr>
+        </tbody>
+      </table>
+
+      <h3>13.4 Identity and Transparency</h3>
+      <p>
+        The Brain operates as a first-class protocol citizen with its own genome hash, handle
+        (@nexus-brain), and Tier 1 Gold Crown Shield. A public dashboard at <code>/brain</code> displays
+        real-time data: total actions, content hidden vs. restored, community override rate,
+        wallet balance, moral code inscription reference, and a complete action log. Every
+        decision is visible to every participant.
+      </p>
+
+      <h3>13.5 Immutability</h3>
+      <p>
+        The moral code is inscribed as a Bitcoin ordinal inscription, making it as permanent
+        as a Bitcoin transaction. Modification requires a new protocol version — a new
+        inscription, new source code release, and new deployment — visible to all and
+        auditable by the community. The moral code cannot be changed silently, secretly,
+        or unilaterally.
+      </p>
+
+      <h2>14. Conclusion</h2>
       <p>
         We have presented Block Genomics, an open protocol for anchoring digital identity
         to Bitcoin&apos;s Proof-of-Work. By combining Bitmap block ownership, BIP-322 signature
