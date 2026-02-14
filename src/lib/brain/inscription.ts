@@ -115,7 +115,9 @@ export async function fetchSoulFromInscription(
       const raw = await res.text();
       const soul = parseSoulDocument(raw);
       if (soul) {
-        return { soul, source: 'inscription', verified: verifySoulIntegrity(soul) };
+        // Inscription won't have integrityHash (added post-creation), so verify by content match
+        const verified = verifySoulIntegrity(soul) || verifySoulContent(soul);
+        return { soul, source: 'inscription', verified };
       }
     }
   } catch {
@@ -133,7 +135,8 @@ export async function fetchSoulFromInscription(
       const raw = await res.text();
       const soul = parseSoulDocument(raw);
       if (soul) {
-        return { soul, source: 'inscription', verified: verifySoulIntegrity(soul) };
+        const verified = verifySoulIntegrity(soul) || verifySoulContent(soul);
+        return { soul, source: 'inscription', verified };
       }
     }
   } catch {
@@ -180,6 +183,21 @@ export function parseSoulDocument(raw: string): BrainSoulInscription | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Verify soul content by checking key fields match protocol constants.
+ * Used when inscription doesn't have integrityHash (inscribed without it).
+ */
+export function verifySoulContent(soul: BrainSoulInscription): boolean {
+  if (soul.protocol !== 'block-genomics-brain') return false;
+  if (soul.identity?.handle !== NEXUS_BRAIN_HANDLE) return false;
+  if (soul.wallet !== NEXUS_BRAIN_WALLET) return false;
+  if (soul.moralCode?.length !== 5) return false;
+  // Verify moral code matches protocol constants
+  const allMatch = MORAL_CODE.every((rule, i) => soul.moralCode[i] === rule);
+  if (!allMatch) return false;
+  return true;
 }
 
 /**

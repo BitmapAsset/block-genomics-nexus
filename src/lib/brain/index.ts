@@ -48,6 +48,7 @@ export {
   fetchSoulFromInscription,
   parseSoulDocument,
   verifySoulIntegrity,
+  verifySoulContent,
   verifyMoralCodeInscription,
   fetchBrainWalletBalance,
   generateInscriptionJSON,
