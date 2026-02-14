@@ -42,8 +42,19 @@ export default function Header() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center group">
-          <span className="text-lg font-semibold tracking-tight">
-            <span className="text-gradient-cyan-purple">Block Genomics</span>
+          <span
+            className="text-xl sm:text-2xl font-black tracking-tight"
+            style={{
+              background: 'linear-gradient(135deg, #00ffcc 0%, #ffffff 30%, #aa44ff 60%, #ff8800 100%)',
+              backgroundSize: '200% 200%',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              animation: 'brandShimmer 4s ease-in-out infinite',
+              filter: 'drop-shadow(0 0 12px rgba(0,255,204,0.3))',
+            }}
+          >
+            Block Genomics
           </span>
         </Link>
 

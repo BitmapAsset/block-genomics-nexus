@@ -8,7 +8,18 @@ export default function Footer() {
           {/* Brand */}
           <div className="md:col-span-1">
             <div className="flex items-center mb-3">
-              <span className="text-sm font-semibold text-gradient-cyan-purple">
+              <span
+                className="text-xl font-black tracking-tight"
+                style={{
+                  background: 'linear-gradient(135deg, #00ffcc 0%, #ffffff 30%, #aa44ff 60%, #ff8800 100%)',
+                  backgroundSize: '200% 200%',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  animation: 'brandShimmer 4s ease-in-out infinite',
+                  filter: 'drop-shadow(0 0 10px rgba(0,255,204,0.25))',
+                }}
+              >
                 Block Genomics
               </span>
             </div>
