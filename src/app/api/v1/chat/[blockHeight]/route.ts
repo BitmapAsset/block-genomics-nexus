@@ -95,7 +95,7 @@ export async function POST(
       }
     }
 
-    const validTypes = ['text', 'image', 'gif', 'link'];
+    const validTypes = ['text', 'image', 'gif', 'link', 'encrypted'];
     const msgType = type && validTypes.includes(type) ? type : 'text';
 
     const validChannels = ['block', 'dm', 'global'];

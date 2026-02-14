@@ -32,7 +32,7 @@ interface ChatMessage {
   sender: string;
   text: string;
   time: string;
-  type: 'text' | 'image' | 'gif' | 'link';
+  type: 'text' | 'image' | 'gif' | 'link' | 'encrypted';
   isOwner?: boolean;
   ownerData?: OwnerData;
   isDemo?: boolean; // true for mock/seed messages
@@ -3985,7 +3985,7 @@ function EmojiReactionBar({ onReact }: { onReact: (emoji: string) => void }) {
    ═══════════════════════════════════════════ */
 
 export default function ParcelView({ blockHeight, onBack }: Props) {
-  const { walletAddress, isConnected, profile } = useGlobalWallet();
+  const { walletAddress, isConnected, profile, e2eReady, e2eSetup, e2eEncrypt, e2eDecrypt } = useGlobalWallet();
   const isVerified = !!(isConnected && walletAddress && profile);
   const isWalletConnected = !!(isConnected && walletAddress);
   const ownerLock = !isWalletConnected ? 'connect' : (!isVerified ? 'verify' : null);
@@ -4013,6 +4013,17 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatMode, setChatMode] = useState<'block' | 'dm' | 'global'>('block');
+  const [e2eStatus, setE2eStatus] = useState<'idle' | 'setting-up' | 'ready' | 'failed'>('idle');
+
+  // Auto-setup E2E encryption when switching to DM tab
+  useEffect(() => {
+    if (chatMode === 'dm' && isConnected && !e2eReady && e2eStatus === 'idle') {
+      setE2eStatus('setting-up');
+      e2eSetup().then(ok => setE2eStatus(ok ? 'ready' : 'failed')).catch(() => setE2eStatus('failed'));
+    } else if (chatMode === 'dm' && e2eReady) {
+      setE2eStatus('ready');
+    }
+  }, [chatMode, isConnected, e2eReady, e2eSetup, e2eStatus]);
   const [flyTarget, setFlyTarget] = useState<FlyTarget | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const controlsRef = useRef<any>(null);
@@ -4326,7 +4337,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
       const res = await fetch(url);
       if (!res.ok) return;
       const json = await res.json();
-      const msgs: ChatMessage[] = (json.data || []).map((m: { id: string; senderHandle?: string; senderAddress: string; text: string; type: string; createdAt: string; senderTier?: number; senderVerified?: boolean }) => ({
+      const rawMsgs = (json.data || []).map((m: { id: string; senderHandle?: string; senderAddress: string; text: string; type: string; createdAt: string; senderTier?: number; senderVerified?: boolean }) => ({
         id: m.id,
         sender: m.senderHandle || m.senderAddress.slice(0, 8),
         text: m.text,
@@ -4335,6 +4346,21 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         createdAt: m.createdAt,
         ownerData: m.senderTier ? { handle: m.senderHandle || m.senderAddress.slice(0, 8), tier: m.senderTier as 1 | 2 | 3 } : undefined,
         isOwner: m.senderTier === 1,
+      }));
+
+      // Decrypt encrypted DM messages client-side
+      const msgs: ChatMessage[] = await Promise.all(rawMsgs.map(async (m: ChatMessage) => {
+        if (m.type === 'encrypted' && e2eReady) {
+          try {
+            const encPayload = JSON.parse(m.text);
+            const decrypted = await e2eDecrypt(encPayload);
+            if (decrypted) {
+              return { ...m, text: decrypted.text, type: 'text' as const, encrypted: true };
+            }
+          } catch { /* decryption failed — show as locked */ }
+          return { ...m, text: '🔒 Encrypted message (unable to decrypt)', type: 'text' as const };
+        }
+        return m;
       }));
       if (msgs.length > 0) {
         lastMessageTime.current = msgs[msgs.length - 1].createdAt || null;
@@ -4358,7 +4384,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         setChatMessages(generateMockChat(blockHeight).map(m => ({ ...m, isDemo: true })));
       }
     }
-  }, [blockHeight]);
+  }, [blockHeight, e2eReady, e2eDecrypt]);
 
   useEffect(() => {
     lastMessageTime.current = null;
@@ -4451,14 +4477,25 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     });
 
     try {
+      // E2E encrypt DMs — server stores only ciphertext
+      let msgText = text;
+      let msgType = text.startsWith('http') ? 'link' : 'text';
+      if (chatMode === 'dm' && e2eReady && realBlockOwner?.handle) {
+        const encrypted = await e2eEncrypt(text, realBlockOwner.handle);
+        if (encrypted) {
+          msgText = JSON.stringify(encrypted);
+          msgType = 'encrypted';
+        }
+      }
+
       const res = await fetch(`/api/v1/chat/${blockHeight}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           senderAddress,
           senderHandle,
-          text,
-          type: text.startsWith('http') ? 'link' : 'text',
+          text: msgText,
+          type: msgType,
           channel: chatMode,
         }),
       });
@@ -5327,7 +5364,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             <div className="px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div className="text-[10px]" style={{ color: '#64748b' }}>
                 {chatMode === 'block' && `📢 Block #${blockHeight.toLocaleString()} public chat · Images, GIFs & links in public`}
-                {chatMode === 'dm' && `🔒 Private DM with block owner · E2E encryption coming soon · All media types allowed`}
+                {chatMode === 'dm' && (e2eStatus === 'ready' ? `🔒 Private DM with block owner · E2E encrypted · All media types allowed` : e2eStatus === 'setting-up' ? `🔒 Setting up encryption...` : `🔒 Private DM with block owner · Connect wallet to enable E2E encryption`)}
                 {chatMode === 'global' && `🌐 Global Bitmap chat · All blocks, all users · Images, GIFs & links only`}
               </div>
             </div>
@@ -5341,7 +5378,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                   </div>
                   <div className="text-[12px] font-bold mb-1" style={{ color: '#e2e8f0' }}>DM Block Owner</div>
                   <div className="text-[10px] text-center mb-4" style={{ color: '#64748b', maxWidth: 200 }}>
-                    Send a private message to the owner of block #{blockHeight.toLocaleString()}.bitmap
+                    Send an E2E encrypted message to the owner of block #{blockHeight.toLocaleString()}.bitmap
                   </div>
                   <div className="text-[10px] text-center mb-2" style={{ color: '#475569' }}>
                     📷 Photos · 🎥 Videos · 📎 Files · 🔗 Links — all allowed in DMs

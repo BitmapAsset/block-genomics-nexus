@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -18,6 +19,18 @@ import {
   saveSession,
   clearSession,
 } from "@/lib/wallet-utils";
+import {
+  deriveEncryptionKeypair,
+  exportPublicKey,
+  encryptMessage,
+  decryptMessage,
+  wipeKeypair,
+  getDerivationMessage,
+  isValidPublicKey,
+  type EncryptionKeypair,
+  type EncryptedMessage,
+  type DecryptedMessage,
+} from "@/lib/e2e-crypto";
 
 export type { WalletType };
 
@@ -48,6 +61,11 @@ interface GlobalWalletContextValue extends GlobalWalletState {
   signMessage: (msg: string) => Promise<string>;
   refreshProfile: () => Promise<void>;
   clearError: () => void;
+  // E2E Encryption
+  e2eReady: boolean;
+  e2eSetup: () => Promise<boolean>;
+  e2eEncrypt: (text: string, recipientIdentifier: string) => Promise<EncryptedMessage | null>;
+  e2eDecrypt: (msg: EncryptedMessage) => Promise<DecryptedMessage | null>;
 }
 
 const GlobalWalletContext = createContext<GlobalWalletContextValue | undefined>(undefined);
@@ -167,6 +185,10 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
 
   const disconnect = useCallback(() => {
     clearSession();
+    // Wipe E2E keys from memory
+    if (keypairRef.current) { wipeKeypair(keypairRef.current); keypairRef.current = null; }
+    setE2eReady(false);
+    pubKeyCacheRef.current.clear();
     setState(prev => ({
       ...prev,
       isConnected: false,
@@ -193,6 +215,61 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, error: null }));
   }, []);
 
+  // ═══ E2E Encryption ═══
+  const [e2eReady, setE2eReady] = useState(false);
+  const keypairRef = useRef<EncryptionKeypair | null>(null);
+  const pubKeyCacheRef = useRef<Map<string, string>>(new Map());
+
+  const e2eSetup = useCallback(async (): Promise<boolean> => {
+    if (!state.walletType || !state.walletAddress) return false;
+    try {
+      const sig = await signWithWallet(state.walletType, getDerivationMessage());
+      if (!sig) return false;
+      const kp = deriveEncryptionKeypair(sig);
+      keypairRef.current = kp;
+      const pubHex = exportPublicKey(kp);
+      // Register on server
+      await fetch('/api/v1/encryption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: state.walletAddress, encryptionPubKey: pubHex }),
+      }).catch(() => {});
+      setE2eReady(true);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [state.walletType, state.walletAddress]);
+
+  const fetchRecipientPubKey = useCallback(async (id: string): Promise<string | null> => {
+    const cached = pubKeyCacheRef.current.get(id.toLowerCase());
+    if (cached) return cached;
+    try {
+      const isAddr = id.startsWith('bc1') || id.startsWith('1') || id.startsWith('3');
+      const res = await fetch(`/api/v1/encryption?${isAddr ? 'wallet' : 'handle'}=${encodeURIComponent(id.toLowerCase())}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const pk = json.data?.encryptionPubKey;
+      if (!pk || !isValidPublicKey(pk)) return null;
+      pubKeyCacheRef.current.set(id.toLowerCase(), pk);
+      return pk;
+    } catch { return null; }
+  }, []);
+
+  const e2eEncrypt = useCallback(async (text: string, recipientId: string): Promise<EncryptedMessage | null> => {
+    if (!keypairRef.current) return null;
+    const rpk = await fetchRecipientPubKey(recipientId);
+    if (!rpk) return null;
+    try { return await encryptMessage(text, keypairRef.current, rpk); }
+    catch { return null; }
+  }, [fetchRecipientPubKey]);
+
+  const e2eDecrypt = useCallback(async (msg: EncryptedMessage): Promise<DecryptedMessage | null> => {
+    if (!keypairRef.current) return null;
+    try { return await decryptMessage(msg, keypairRef.current); }
+    catch { return null; }
+  }, []);
+
   const value = useMemo<GlobalWalletContextValue>(
     () => ({
       ...state,
@@ -201,8 +278,12 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
       signMessage: signMessageFn,
       refreshProfile,
       clearError,
+      e2eReady,
+      e2eSetup,
+      e2eEncrypt,
+      e2eDecrypt,
     }),
-    [state, connect, disconnect, signMessageFn, refreshProfile, clearError]
+    [state, connect, disconnect, signMessageFn, refreshProfile, clearError, e2eReady, e2eSetup, e2eEncrypt, e2eDecrypt]
   );
 
   return (
