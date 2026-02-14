@@ -97,7 +97,7 @@ interface Props {
   onBack: () => void;
 }
 
-type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street';
+type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street' | 'standard';
 type RightTab = 'properties' | 'chat' | 'rank';
 type PanelSize = 'quarter' | 'half' | 'hidden';
 const PANEL_WIDTHS: Record<PanelSize, string> = { quarter: 'w-80', half: 'w-[50vw]', hidden: 'w-0' };
@@ -4219,6 +4219,25 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   // Fetch real blockchain data, fall back to mock
   const [realBlock, setRealBlock] = useState<RealBlockData | null>(null);
   const [dataSource, setDataSource] = useState<'loading' | 'real' | 'mock'>('loading');
+  
+  // Standard bitmap image from Magic Eden
+  const [standardBitmapUrl, setStandardBitmapUrl] = useState<string | null>(null);
+  const [standardBitmapLoading, setStandardBitmapLoading] = useState(false);
+  
+  useEffect(() => {
+    if (viewMode !== 'standard') return;
+    if (standardBitmapUrl) return; // already fetched
+    setStandardBitmapLoading(true);
+    fetch(`/api/v1/bitmap-image/${blockHeight}`)
+      .then(r => r.json())
+      .then(json => {
+        if (json.success && json.data?.imageUrl) {
+          setStandardBitmapUrl(json.data.imageUrl);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setStandardBitmapLoading(false));
+  }, [viewMode, blockHeight, standardBitmapUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -4525,6 +4544,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   };
 
   const viewModes: { mode: ViewMode; icon: string; label: string }[] = [
+    { mode: 'standard', icon: '🟧', label: 'Standard Bitmap' },
     { mode: 'flat', icon: '▦', label: 'Grid View' },
     { mode: 'isometric', icon: '◇', label: 'Isometric' },
     { mode: 'heights', icon: '▥', label: 'Heights' },
@@ -4588,8 +4608,39 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         </div>
       )}
 
+      {/* Standard Bitmap View (2D Magic Eden image) */}
+      {viewMode === 'standard' && (
+        <div className="flex-1 relative flex items-center justify-center" style={{ background: '#0a0a0f' }}>
+          {standardBitmapLoading ? (
+            <div className="text-center">
+              <div className="text-2xl mb-2 animate-pulse">🟧</div>
+              <div className="text-sm font-mono" style={{ color: '#64748b' }}>Loading standard bitmap...</div>
+            </div>
+          ) : standardBitmapUrl ? (
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={standardBitmapUrl}
+                alt={`${blockHeight}.bitmap standard view`}
+                className="max-w-full max-h-[70vh] rounded-lg shadow-2xl"
+                style={{ border: '2px solid rgba(247,147,26,0.3)', imageRendering: 'pixelated' }}
+              />
+              <div className="absolute -bottom-8 left-0 right-0 text-center text-[10px] font-mono" style={{ color: '#64748b' }}>
+                Standard bitmap visualization · Source: Magic Eden Ordinals · {blockHeight.toLocaleString()}.bitmap
+              </div>
+            </div>
+          ) : (
+            <div className="text-center">
+              <div className="text-4xl mb-3">🟧</div>
+              <div className="text-sm font-mono mb-1" style={{ color: '#94a3b8' }}>No .bitmap inscription found</div>
+              <div className="text-[10px] font-mono" style={{ color: '#475569' }}>This block may not have been inscribed as a bitmap yet</div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 3D Canvas */}
-      <div className="flex-1 relative">
+      {viewMode !== 'standard' && <div className="flex-1 relative">
         <Canvas
           shadows
           camera={{ position: [15, 12, 15], fov: 50, near: 0.01, far: 2000 }}
@@ -4776,7 +4827,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
         {/* Emoji Reaction Bar */}
         {viewMode !== 'dna' && selectedParcel && <EmojiReactionBar onReact={handleEmojiReact} />}
-      </div>
+      </div>}
 
       {/* ═══ Panel Toggle (when hidden) ═══ */}
       {panelSize === 'hidden' && (
