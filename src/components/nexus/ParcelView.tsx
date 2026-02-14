@@ -3102,17 +3102,63 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
   const protocolFeeMonthly = Math.ceil(parseInt(monthlyPrice || '0') * 3 / 100);
   const protocolFeeYearly = Math.ceil(parseInt(yearlyPrice || '0') * 3 / 100);
 
+  const [errorMsg, setErrorMsg] = useState('');
+
   const handlePublish = async () => {
+    setErrorMsg('');
     setStatus('publishing');
     try {
       const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet') || '' : '';
+      const walletType = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet_type') || '' : '';
+      if (!walletAddress) {
+        window.dispatchEvent(new Event('open-wallet-modal'));
+        setStatus('idle');
+        return;
+      }
+
+      // Request real wallet signature
+      const message = `List delegation for block ${blockHeight} on Block Genomics`;
+      let signature = '';
+      try {
+        if (walletType === 'unisat' && window.unisat) {
+          signature = await window.unisat.signMessage(message);
+        } else if (walletType === 'xverse' && window.BitcoinProvider) {
+          const resp = await window.BitcoinProvider.signMessage(message, { network: 'Mainnet' });
+          signature = typeof resp === 'string' ? resp : (resp as any)?.signature || '';
+        } else if (walletType === 'leather' && window.LeatherProvider) {
+          const resp = await window.LeatherProvider.request('signMessage', { message, paymentType: 'p2tr' });
+          signature = (resp as any)?.result?.signature || '';
+        } else {
+          // Fallback — try unisat
+          if (window.unisat) {
+            signature = await window.unisat.signMessage(message);
+          } else {
+            throw new Error('No wallet detected');
+          }
+        }
+      } catch (signErr: any) {
+        if (signErr?.message?.includes('User rejected') || signErr?.message?.includes('cancel')) {
+          setErrorMsg('Signing cancelled');
+        } else {
+          setErrorMsg(signErr?.message || 'Wallet signing failed');
+        }
+        setStatus('idle');
+        return;
+      }
+
+      if (!signature) {
+        setErrorMsg('No signature received from wallet');
+        setStatus('idle');
+        return;
+      }
+
       const res = await fetch('/api/v1/delegations/listings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           walletAddress,
-          signature: 'mock-sig',
-          message: 'List delegation',
+          signature,
+          message,
           blockHeight,
           parcelTxIndex: isBlock ? null : parcelIndex,
           tier: 3,
@@ -3139,6 +3185,7 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
       } catch {}
     } catch (e: any) {
       console.error('Publish listing failed:', e);
+      setErrorMsg(e?.message || 'Failed to publish listing');
       setStatus('idle');
     }
   };
@@ -3272,6 +3319,13 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
           <div className="flex justify-between text-[10px]"><span style={{ color: '#94a3b8' }}>Your share</span><span style={{ color: '#00ff88' }}>97%</span></div>
           <div className="flex justify-between text-[10px]"><span style={{ color: '#94a3b8' }}>Protocol fee</span><span style={{ color: '#64748b' }}>3%</span></div>
         </div>
+
+        {/* Error message */}
+        {errorMsg && (
+          <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'rgba(255,50,50,0.1)', border: '1px solid rgba(255,50,50,0.3)', color: '#ff6b6b' }}>
+            ⚠️ {errorMsg}
+          </div>
+        )}
 
         {/* Publish */}
         <button onClick={handlePublish} disabled={status === 'publishing' || !monthlyPrice || !yearlyPrice}
