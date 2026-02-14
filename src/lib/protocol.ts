@@ -57,7 +57,9 @@ export const MORAL_CODE = [
   'No fraud/scam content designed to steal',
   'No impersonation of verified identities',
 ] as const;
-export const MORAL_CODE_INSCRIPTION_ID = ''; // Bitcoin inscription ID — set after inscribing
+export const MORAL_CODE_INSCRIPTION_ID = '119366628'; // Inscribed on Bitcoin — permanent
+export const SOUL_TEXT_INSCRIPTION_ID = '119366684'; // Soul as text — inscribed on Bitcoin
+export const SOUL_FILE_INSCRIPTION_ID = ''; // SOUL.md file — pending confirmation
 
 /* ═══════════════════════════════════════════
    TIER SYSTEM

@@ -112,7 +112,7 @@ export default function BrainPage() {
                 Everything else = FREEDOM
               </p>
               <p className={`text-xs mt-3 ${dim} italic`}>
-                Moral code will be inscribed as a Bitcoin inscription — permanently immutable
+                Moral Code inscribed on Bitcoin — <a href="https://ordinals.com/inscription/119366628" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#00ffcc]">View Inscription #119366628</a>
               </p>
             </div>
           </div>
@@ -164,7 +164,7 @@ export default function BrainPage() {
               &ldquo;The Brain is funded by the world it protects&rdquo;
             </p>
             <div className={`mt-4 ${mono} text-xs ${dim} break-all`}>
-              Brain Wallet: bc1q...brain_placeholder
+              Brain Wallet: bc1p6gnhrkmxfggytctzyq6qsenkzjlvkdapmap73guy5g8kuvtkwjzq7xpr4d
             </div>
           </div>
         </section>
@@ -222,6 +222,9 @@ export default function BrainPage() {
                 { k: "Tier", v: "👑 1 — Gold Crown Shield" },
                 { k: "Status", v: "🟢 Online" },
                 { k: "Genome Hash", v: "0x00...brain" },
+                { k: "Moral Code", v: "Inscription #119366628" },
+                { k: "Soul", v: "Inscription #119366684" },
+                { k: "Wallet", v: "bc1p6gnh...7xpr4d" },
                 { k: "Owner", v: "None — it IS the protocol" },
               ].map((row) => (
                 <div key={row.k} className="flex justify-between items-center">
