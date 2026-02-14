@@ -575,13 +575,15 @@ function generatePatternTexture(pattern: PatternType, color: string, size = 128)
 
 /* MOCK — replace with API */
 const CustomizeLandPanel = memo(function CustomizeLandPanel({
-  parcel, customization, onChange, onImageUpload, onClose,
+  parcel, customization, onChange, onImageUpload, onClose, onSave, isSaving,
 }: {
   parcel: ParcelData;
   customization: ParcelCustomization;
   onChange: (c: ParcelCustomization) => void;
   onImageUpload: (file: File) => void;
   onClose: () => void;
+  onSave?: () => void;
+  isSaving?: boolean;
 }) {
   const imgInputRef = useRef<HTMLInputElement>(null);
   const [activeSection, setActiveSection] = useState<'color' | 'pattern' | 'image'>('color');
@@ -766,13 +768,22 @@ const CustomizeLandPanel = memo(function CustomizeLandPanel({
         </div>
       )}
 
-      {/* Reset button */}
-      {(customization.color || customization.pattern || customization.imageUrl) && (
-        <button onClick={() => onChange({})}
-          className="w-full py-2 rounded-lg text-[10px] font-mono transition-all hover:brightness-130"
-          style={{ background: 'rgba(255,68,68,0.1)', border: '1px solid rgba(255,68,68,0.2)', color: '#ff4444' }}>
-          🗑 Reset to Default
-        </button>
+      {/* Save & Reset buttons */}
+      {(customization.color || customization.pattern || customization.imageUrl || customization.emissive) && (
+        <div className="flex gap-2">
+          {onSave && (
+            <button onClick={onSave} disabled={isSaving}
+              className="flex-1 py-2 rounded-lg text-[10px] font-mono font-bold transition-all hover:brightness-130 disabled:opacity-50"
+              style={{ background: 'rgba(247,147,26,0.15)', border: '1px solid rgba(247,147,26,0.4)', color: '#f7931a' }}>
+              {isSaving ? '⏳ Saving...' : '💾 Save to Chain'}
+            </button>
+          )}
+          <button onClick={() => onChange({})}
+            className={`${onSave ? 'flex-1' : 'w-full'} py-2 rounded-lg text-[10px] font-mono transition-all hover:brightness-130`}
+            style={{ background: 'rgba(255,68,68,0.1)', border: '1px solid rgba(255,68,68,0.2)', color: '#ff4444' }}>
+            🗑 Reset
+          </button>
+        </div>
       )}
     </div>
   );
@@ -2864,15 +2875,55 @@ function SendBitcoinModal({ onClose, blockHeight, recipientOwner }: {
   const [amount, setAmount] = useState('');
   const [unit, setUnit] = useState<'sats' | 'btc'>('sats');
   const [memo, setMemo] = useState('');
-  const [status, setStatus] = useState<'idle' | 'signing' | 'sent'>('idle');
+  const [status, setStatus] = useState<'idle' | 'signing' | 'sent' | 'error'>('idle');
+  const [txId, setTxId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  /* MOCK — replace with real wallet signing */
+  /* MOCK address fallback — real address would come from recipient's profile */
   const mockAddress = `bc1q${blockHeight.toString(16).padStart(8, '0')}${recipientOwner.handle.slice(0, 20).replace(/[^a-z0-9]/g, '')}`.slice(0, 42);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!amount || parseFloat(amount) <= 0) return;
     setStatus('signing');
-    setTimeout(() => setStatus('sent'), 2000); /* MOCK — replace with wallet tx signing */
+    setErrorMsg('');
+
+    const sats = unit === 'btc' ? Math.round(parseFloat(amount) * 1e8) : parseInt(amount);
+    if (sats <= 0 || isNaN(sats)) { setStatus('idle'); setErrorMsg('Invalid amount'); return; }
+
+    try {
+      const walletType = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet_type') || '' : '';
+      const toAddress = mockAddress; // TODO: replace with real recipient address from profile
+
+      if (walletType === 'unisat' && window.unisat) {
+        const result = await window.unisat.sendBitcoin(toAddress, sats);
+        setTxId(typeof result === 'string' ? result : (result as any)?.txid || null);
+        setStatus('sent');
+      } else if (walletType === 'xverse' && window.BitcoinProvider) {
+        // Xverse uses a different API for sending
+        const resp = await window.BitcoinProvider!.request!('sendTransfer', {
+          recipients: [{ address: toAddress, amount: sats }],
+        });
+        setTxId((resp as any)?.result?.txid || null);
+        setStatus('sent');
+      } else if (window.unisat) {
+        // Fallback to unisat if available
+        const result = await window.unisat.sendBitcoin(toAddress, sats);
+        setTxId(typeof result === 'string' ? result : (result as any)?.txid || null);
+        setStatus('sent');
+      } else {
+        throw new Error('No compatible wallet detected. Please connect Unisat or Xverse.');
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Transaction failed';
+      if (msg.includes('User rejected') || msg.includes('cancel') || msg.includes('denied')) {
+        setErrorMsg('Transaction cancelled by user');
+      } else if (msg.includes('Insufficient') || msg.includes('insufficient') || msg.includes('not enough')) {
+        setErrorMsg('Insufficient balance');
+      } else {
+        setErrorMsg(msg);
+      }
+      setStatus('error');
+    }
   };
 
   const satsAmount = unit === 'btc' ? Math.round(parseFloat(amount || '0') * 1e8) : parseInt(amount || '0');
@@ -2963,18 +3014,36 @@ function SendBitcoinModal({ onClose, blockHeight, recipientOwner }: {
           <div className="ml-auto px-2 py-0.5 rounded text-[8px] font-bold" style={{ background: 'rgba(255,204,0,0.15)', color: '#ffcc00' }}>SOON</div>
         </div>
 
+        {/* Error message */}
+        {errorMsg && (
+          <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'rgba(255,50,50,0.1)', border: '1px solid rgba(255,50,50,0.3)', color: '#ff6b6b' }}>
+            ⚠️ {errorMsg}
+          </div>
+        )}
+
         {/* Send button */}
         <button onClick={handleSend} disabled={!amount || parseFloat(amount) <= 0 || status === 'signing'}
           className="w-full py-3 rounded-xl text-sm font-mono font-bold transition-all active:scale-[0.97]"
           style={{
-            background: status === 'sent' ? 'rgba(0,255,136,0.2)' : 'rgba(247,147,26,0.15)',
-            border: `1.5px solid ${status === 'sent' ? '#00ff88' : 'rgba(247,147,26,0.4)'}`,
-            color: status === 'sent' ? '#00ff88' : '#f7931a',
+            background: status === 'sent' ? 'rgba(0,255,136,0.2)' : status === 'error' ? 'rgba(255,50,50,0.15)' : 'rgba(247,147,26,0.15)',
+            border: `1.5px solid ${status === 'sent' ? '#00ff88' : status === 'error' ? 'rgba(255,50,50,0.4)' : 'rgba(247,147,26,0.4)'}`,
+            color: status === 'sent' ? '#00ff88' : status === 'error' ? '#ff6b6b' : '#f7931a',
             opacity: (!amount || parseFloat(amount) <= 0) ? 0.4 : 1,
             boxShadow: status === 'sent' ? '0 0 20px rgba(0,255,136,0.2)' : '0 0 20px rgba(247,147,26,0.15)',
           }}>
-          {status === 'idle' ? `⚡ Send ${satsAmount > 0 ? satsAmount.toLocaleString() + ' sats' : 'Bitcoin'}` : status === 'signing' ? '🔐 Sign with wallet...' : '✅ Sent!'}
+          {status === 'idle' ? `⚡ Send ${satsAmount > 0 ? satsAmount.toLocaleString() + ' sats' : 'Bitcoin'}` : status === 'signing' ? '🔐 Waiting for wallet...' : status === 'sent' ? '✅ Sent!' : '🔄 Try Again'}
         </button>
+
+        {/* Tx confirmation */}
+        {status === 'sent' && txId && (
+          <div className="rounded-lg px-3 py-2 text-center" style={{ background: 'rgba(0,255,136,0.06)', border: '1px solid rgba(0,255,136,0.15)' }}>
+            <div className="text-[10px] font-bold mb-1" style={{ color: '#00ff88' }}>Transaction Broadcast ✓</div>
+            <a href={`https://mempool.space/tx/${txId}`} target="_blank" rel="noopener noreferrer"
+              className="text-[9px] font-mono hover:underline" style={{ color: '#f7931a' }}>
+              {txId.slice(0, 16)}...{txId.slice(-8)} ↗
+            </a>
+          </div>
+        )}
 
         <div className="text-[9px] text-center" style={{ color: '#475569' }}>
           Transaction signed with your connected wallet · On-chain BTC
@@ -4023,6 +4092,93 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     reader.readAsDataURL(file);
   }, []);
 
+  const [isSavingCustomization, setIsSavingCustomization] = useState(false);
+  const [customizeSaveMsg, setCustomizeSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Load saved customizations from DB on block load
+  useEffect(() => {
+    if (!blockHeight) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/v1/blocks/${blockHeight}/parcels`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const parcelsArr = data.data || data;
+        const loaded = new Map<number, ParcelCustomization>();
+        for (const p of parcelsArr) {
+          if (p.customColor || p.pattern || p.imageUrl || p.emissive) {
+            loaded.set(p.txIndex, {
+              color: p.customColor || undefined,
+              pattern: p.pattern || undefined,
+              imageUrl: p.imageUrl || undefined,
+              rotation: p.rotation ?? 0,
+              facing: p.facing || 'north',
+              emissive: p.emissive || false,
+            });
+          }
+        }
+        if (loaded.size > 0) setParcelCustomizations(loaded);
+      } catch { /* silent */ }
+    })();
+  }, [blockHeight]);
+
+  const handleSaveCustomization = useCallback(async (txIndex: number) => {
+    if (!walletAddress || isSavingCustomization) return;
+    const custom = parcelCustomizations.get(txIndex);
+    if (!custom) return;
+
+    setIsSavingCustomization(true);
+    setCustomizeSaveMsg(null);
+
+    try {
+      // Sign message with wallet
+      const message = `Customize parcel ${txIndex} on block ${blockHeight} at ${Date.now()}`;
+      let signature = '';
+
+      const walletType = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet_type') : null;
+      if (walletType === 'unisat' && (window as any).unisat?.signMessage) {
+        signature = await (window as any).unisat.signMessage(message);
+      } else if (walletType === 'xverse' && (window as any).XverseProviders?.signMessage) {
+        const resp = await (window as any).XverseProviders.signMessage({ message, address: walletAddress });
+        signature = resp?.signature || resp;
+      } else if ((window as any).unisat?.signMessage) {
+        signature = await (window as any).unisat.signMessage(message);
+      } else {
+        // Fallback: use a mock signature for development
+        signature = 'dev-sig-' + Date.now();
+      }
+
+      const res = await fetch(`/api/v1/blocks/${blockHeight}/parcels/${txIndex}/customize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress,
+          signature,
+          message,
+          customColor: custom.color || null,
+          pattern: custom.pattern || null,
+          imageUrl: custom.imageUrl || null,
+          rotation: custom.rotation ?? 0,
+          facing: custom.facing || 'north',
+          emissive: custom.emissive || false,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Save failed' }));
+        throw new Error(err.error || 'Save failed');
+      }
+
+      setCustomizeSaveMsg({ type: 'success', text: '✅ Customization saved!' });
+      setTimeout(() => setCustomizeSaveMsg(null), 3000);
+    } catch (e: any) {
+      setCustomizeSaveMsg({ type: 'error', text: `❌ ${e.message || 'Save failed'}` });
+      setTimeout(() => setCustomizeSaveMsg(null), 5000);
+    } finally {
+      setIsSavingCustomization(false);
+    }
+  }, [walletAddress, blockHeight, parcelCustomizations, isSavingCustomization]);
+
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeStreamType, setActiveStreamType] = useState<StreamType>('broadcast');
   const [streamStartTime, setStreamStartTime] = useState<number | null>(null);
@@ -4168,13 +4324,15 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
       const res = await fetch(url);
       if (!res.ok) return;
       const json = await res.json();
-      const msgs: ChatMessage[] = (json.data || []).map((m: { id: string; senderHandle?: string; senderAddress: string; text: string; type: string; createdAt: string }) => ({
+      const msgs: ChatMessage[] = (json.data || []).map((m: { id: string; senderHandle?: string; senderAddress: string; text: string; type: string; createdAt: string; senderTier?: number; senderVerified?: boolean }) => ({
         id: m.id,
         sender: m.senderHandle || m.senderAddress.slice(0, 8),
         text: m.text,
         time: new Date(m.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
         type: m.type as ChatMessage['type'],
         createdAt: m.createdAt,
+        ownerData: m.senderTier ? { handle: m.senderHandle || m.senderAddress.slice(0, 8), tier: m.senderTier as 1 | 2 | 3 } : undefined,
+        isOwner: m.senderTier === 1,
       }));
       if (msgs.length > 0) {
         lastMessageTime.current = msgs[msgs.length - 1].createdAt || null;
@@ -5064,7 +5222,18 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                       onChange={(c) => handleParcelCustomize(displayParcel.txIndex, c)}
                       onImageUpload={(f) => handleImageUpload(displayParcel.txIndex, f)}
                       onClose={() => setShowCustomizePanel(false)}
+                      onSave={() => handleSaveCustomization(displayParcel.txIndex)}
+                      isSaving={isSavingCustomization}
                     />
+                    {customizeSaveMsg && (
+                      <div className="mt-2 px-3 py-1.5 rounded-md text-[10px] font-mono" style={{
+                        background: customizeSaveMsg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                        border: `1px solid ${customizeSaveMsg.type === 'success' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                        color: customizeSaveMsg.type === 'success' ? '#22c55e' : '#ef4444',
+                      }}>
+                        {customizeSaveMsg.text}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

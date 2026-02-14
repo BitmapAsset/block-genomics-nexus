@@ -24,6 +24,7 @@ interface UnisatWallet {
   getNetwork(): Promise<string>;
   switchNetwork(network: string): Promise<void>;
   signMessage(message: string, type?: string): Promise<string>;
+  sendBitcoin(toAddress: string, satoshis: number, options?: unknown): Promise<string>;
   signPsbt(psbtHex: string, options?: unknown): Promise<string>;
   getBalance(): Promise<{ confirmed: number; unconfirmed: number; total: number }>;
   getInscriptions(

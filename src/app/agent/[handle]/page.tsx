@@ -170,6 +170,7 @@ export default function AgentProfilePage() {
     blockHeight: number; parcelIndex: number | null; verifiedAt: string; online: boolean;
     bio: string; tags: string[]; handle: string; genomeHash: string;
     walletAddress?: string; isMock?: boolean;
+    profileViews?: number; activityCount?: number; blockCount?: number; createdAt?: string;
   } | null | undefined>(undefined);
 
   // Owner detection via global wallet context
@@ -205,6 +206,10 @@ export default function AgentProfilePage() {
               genomeHash: user.genomeHash || '0x' + '0'.repeat(64),
               walletAddress: user.walletAddress,
               isMock: false,
+              profileViews: user.profileViews || 0,
+              activityCount: user.activityCount || 0,
+              blockCount: user.blockCount || 0,
+              createdAt: user.createdAt,
             });
             return;
           }
@@ -276,17 +281,20 @@ export default function AgentProfilePage() {
   const tierBg = agent.tier === 1 ? 'rgba(251,191,36,0.08)' : agent.tier === 2 ? 'rgba(34,211,238,0.08)' : 'rgba(167,139,250,0.08)';
   const tierBorder = agent.tier === 1 ? 'rgba(251,191,36,0.2)' : agent.tier === 2 ? 'rgba(34,211,238,0.2)' : 'rgba(167,139,250,0.2)';
 
-  /* Stats — mock agents get random values, real users start at 0 */
+  /* Stats — mock agents get random demo values, real users get real data */
+  const verifiedSince = agent.createdAt
+    ? new Date(agent.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    : 'N/A';
   const profileStats = isMock ? {
-    visitors: Math.floor(Math.random() * 5000) + 200,
-    dmsHandled: Math.floor(Math.random() * 1200) + 50,
-    uptime: (95 + Math.random() * 4.9).toFixed(1),
-    trustScore: (85 + Math.random() * 14).toFixed(0),
+    profileViews: Math.floor(Math.random() * 5000) + 200,
+    actions: Math.floor(Math.random() * 1200) + 50,
+    verifiedSince: agent.verifiedAt || 'N/A',
+    blocksOwned: Math.floor(Math.random() * 10) + 1,
   } : {
-    visitors: 0,
-    dmsHandled: 0,
-    uptime: '100.0',
-    trustScore: '0',
+    profileViews: agent.profileViews || 0,
+    actions: agent.activityCount || 0,
+    verifiedSince,
+    blocksOwned: agent.blockCount || 0,
   };
 
   return (
@@ -371,10 +379,10 @@ export default function AgentProfilePage() {
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Stats Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard icon="👁" label="Total Visitors" value={profileStats.visitors.toLocaleString()} />
-          <StatCard icon="💬" label="DMs Handled" value={profileStats.dmsHandled.toLocaleString()} />
-          <StatCard icon="⏱" label="Uptime" value={`${profileStats.uptime}%`} />
-          <StatCard icon="🛡" label="Trust Score" value={`${profileStats.trustScore}/100`} />
+          <StatCard icon="👁" label="Profile Views" value={profileStats.profileViews.toLocaleString()} />
+          <StatCard icon="⚡" label="Actions" value={profileStats.actions.toLocaleString()} />
+          <StatCard icon="📅" label="Verified Since" value={profileStats.verifiedSince} />
+          <StatCard icon="⛓" label="Blocks Owned" value={profileStats.blocksOwned.toLocaleString()} />
         </div>
 
         {/* Block Info */}

@@ -20,6 +20,14 @@ export async function GET(
 
     if (!user) return error('User not found', 404);
 
+    // Fire-and-forget: log profile view + fetch stats in parallel
+    const [profileViews, activityCount, pageViews] = await Promise.all([
+      prisma.profileView.count({ where: { viewedHandle: normalizedHandle } }).catch(() => 0),
+      prisma.activityLog.count({ where: { walletAddress: user.walletAddress } }).catch(() => 0),
+      prisma.pageView.count({ where: { walletAddress: user.walletAddress } }).catch(() => 0),
+    ]);
+
+    // Log this visit (fire-and-forget)
     logProfileView(normalizedHandle);
 
     return success({
@@ -36,6 +44,9 @@ export async function GET(
       blockCount: user._count.blocks,
       parcelCount: user._count.parcels,
       estateCount: user._count.estates,
+      profileViews,
+      activityCount,
+      pageViews,
     });
   } catch (e: any) {
     return error(e.message, 500);

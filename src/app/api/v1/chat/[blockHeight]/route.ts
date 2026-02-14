@@ -22,9 +22,33 @@ export async function GET(
       where,
       orderBy: { createdAt: 'desc' },
       take: limit,
+      include: {
+        sender: {
+          select: {
+            handle: true,
+            tier: true,
+            verified: true,
+          },
+        },
+      },
     });
 
-    return success(messages.reverse());
+    // Flatten sender data into each message
+    const data = messages.reverse().map((m) => ({
+      id: m.id,
+      blockHeight: m.blockHeight,
+      senderAddress: m.senderAddress,
+      senderHandle: m.sender?.handle || m.senderHandle || 'anon',
+      senderTier: m.sender?.tier ?? 3,
+      senderVerified: m.sender?.verified ?? false,
+      text: m.text,
+      type: m.type,
+      mediaUrl: m.mediaUrl,
+      replyToId: m.replyToId,
+      createdAt: m.createdAt,
+    }));
+
+    return success(data);
   } catch (e: unknown) {
     return error(e instanceof Error ? e.message : 'Unknown error', 500);
   }
