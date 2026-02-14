@@ -9,6 +9,7 @@ const navLinks = [
   { href: "/directory", label: "Directory" },
   { href: "/verify", label: "Verify" },
   { href: "/whitepaper", label: "White Paper" },
+  { href: "/brain", label: "🧠 Brain" },
 ];
 
 const nexusStyle = {
