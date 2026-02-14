@@ -5384,7 +5384,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                     📷 Photos · 🎥 Videos · 📎 Files · 🔗 Links — all allowed in DMs
                   </div>
                   <div className="text-[9px] px-3 py-1.5 rounded-full" style={{ background: 'rgba(0,255,136,0.08)', border: '1px solid rgba(0,255,136,0.15)', color: '#22c55e' }}>
-                    🛡️ Signal Protocol encryption
+                    ₿ Bitcoin-native E2E encryption · secp256k1 · AES-256-GCM
                   </div>
                 </div>
               ) : chatMode === 'global' ? (
