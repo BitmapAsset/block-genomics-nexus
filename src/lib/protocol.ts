@@ -59,7 +59,7 @@ export const MORAL_CODE = [
 ] as const;
 export const MORAL_CODE_INSCRIPTION_ID = '119366628'; // Inscribed on Bitcoin — permanent
 export const SOUL_TEXT_INSCRIPTION_ID = '119366684'; // Soul as text — inscribed on Bitcoin
-export const SOUL_FILE_INSCRIPTION_ID = ''; // SOUL.md file — pending confirmation
+export const SOUL_FILE_INSCRIPTION_ID = '119366692'; // SOUL.md file — inscribed on Bitcoin
 
 /* ═══════════════════════════════════════════
    TIER SYSTEM

@@ -223,7 +223,8 @@ export default function BrainPage() {
                 { k: "Status", v: "🟢 Online" },
                 { k: "Genome Hash", v: "0x00...brain" },
                 { k: "Moral Code", v: "Inscription #119366628" },
-                { k: "Soul", v: "Inscription #119366684" },
+                { k: "Soul (text)", v: "Inscription #119366684" },
+                { k: "SOUL.md", v: "Inscription #119366692" },
                 { k: "Wallet", v: "bc1p6gnh...7xpr4d" },
                 { k: "Owner", v: "None — it IS the protocol" },
               ].map((row) => (
