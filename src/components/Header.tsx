@@ -9,7 +9,7 @@ const navLinks = [
   { href: "/directory", label: "Directory" },
   { href: "/verify", label: "Verify" },
   { href: "/whitepaper", label: "White Paper" },
-  { href: "/brain", label: "🧠 Brain" },
+  { href: "/brain", label: "Brain", isBrain: true },
 ];
 
 const nexusStyle = {
@@ -21,15 +21,33 @@ const nexusStyle = {
   animation: 'nexusPulse 2s ease-in-out infinite',
 };
 
-function NavLink({ link }: { link: { href: string; label: string } }) {
+const brainStyle = {
+  color: '#a78bfa',
+  background: 'rgba(167,139,250,0.08)',
+  border: '1px solid rgba(167,139,250,0.2)',
+  boxShadow: '0 0 12px rgba(167,139,250,0.15)',
+};
+
+function NavLink({ link }: { link: { href: string; label: string; isBrain?: boolean } }) {
   const isNexus = link.href === '/nexus';
+  const isBrain = !!(link as any).isBrain;
   return (
     <Link
       href={link.href}
-      className={`px-3 py-2 text-sm rounded-lg transition-all ${isNexus ? 'font-bold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
-      style={isNexus ? nexusStyle : undefined}
+      className={`px-3 py-2 text-sm rounded-lg transition-all ${isNexus ? 'font-bold' : isBrain ? 'font-semibold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
+      style={isNexus ? nexusStyle : isBrain ? brainStyle : undefined}
     >
-      {isNexus ? '⚡ ' : ''}{link.label}
+      {isNexus ? '⚡ ' : ''}
+      {isBrain ? (
+        <span className="inline-flex items-center gap-1.5">
+          🧠
+          <span>{link.label}</span>
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+        </span>
+      ) : link.label}
     </Link>
   );
 }
@@ -86,10 +104,20 @@ export default function Header() {
               key={link.href}
               href={link.href}
               onClick={() => setMenuOpen(false)}
-              className={`px-4 py-3 text-sm rounded-lg transition-all ${link.href === '/nexus' ? 'font-bold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
-              style={link.href === '/nexus' ? nexusStyle : undefined}
+              className={`px-4 py-3 text-sm rounded-lg transition-all ${link.href === '/nexus' ? 'font-bold' : (link as any).isBrain ? 'font-semibold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
+              style={link.href === '/nexus' ? nexusStyle : (link as any).isBrain ? brainStyle : undefined}
             >
-              {link.href === '/nexus' ? '⚡ ' : ''}{link.label}
+              {link.href === '/nexus' ? '⚡ ' : ''}
+              {(link as any).isBrain ? (
+                <span className="inline-flex items-center gap-1.5">
+                  🧠
+                  <span>{link.label}</span>
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                  </span>
+                </span>
+              ) : link.label}
             </Link>
           ))}
         </nav>
