@@ -110,10 +110,10 @@ export class NexusCanvasEngine {
     this.ctx = canvas.getContext('2d', { alpha: false })!;
     // Center mobile on recent blocks (~850k area) so users see content immediately
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      const startBlock = 850000;
+      const startBlock = 850500; // mid-row for center of grid
       const col = startBlock % COLS;
       const row = Math.floor(startBlock / COLS);
-      this.camera.x = col * UNIT + (COLS * UNIT) / 2;
+      this.camera.x = col * UNIT;
       this.camera.y = row * UNIT;
       this.targetCamera.x = this.camera.x;
       this.targetCamera.y = this.camera.y;
