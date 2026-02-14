@@ -22,7 +22,7 @@ export interface BrainSoulInscription {
   version: 1;
   /** Identity */
   identity: {
-    handle: string;        // @nexus-brain
+    handle: string;        // @nexus_brain
     name: string;          // "Nexus Brain"
     role: string;          // "Autonomous Moral Guardian"
     tier: 1;               // Always Tier 1 — Gold Crown Shield

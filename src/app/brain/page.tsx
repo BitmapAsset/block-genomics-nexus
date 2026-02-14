@@ -357,7 +357,7 @@ export default function BrainPage() {
               <div className="text-5xl">🧠</div>
               <div>
                 <div className="font-bold text-lg">
-                  <span className={cyan}>@{data?.identity?.handle || "nexus-brain"}</span>
+                  <span className={cyan}>@{data?.identity?.handle || "nexus_brain"}</span>
                 </div>
                 <div className={`text-xs ${dim}`}>{data?.identity?.role || "Autonomous Moral Guardian"}</div>
               </div>

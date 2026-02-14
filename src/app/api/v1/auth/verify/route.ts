@@ -53,7 +53,12 @@ export async function POST(req: NextRequest) {
     const tier = blockHeight ? 1 : 3;
 
     // Normalize handle to lowercase
-    const normalizedHandle = handle?.toLowerCase();
+    const normalizedHandle = handle?.toLowerCase().replace(/-/g, '_');
+
+    // Validate handle format: only letters, numbers, underscores
+    if (normalizedHandle && !/^[a-z0-9_]{1,30}$/.test(normalizedHandle)) {
+      return error('Handle can only contain letters, numbers, and underscores (max 30 chars)', 400);
+    }
 
     // Check handle uniqueness if provided
     if (normalizedHandle) {

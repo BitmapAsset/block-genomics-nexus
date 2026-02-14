@@ -2,7 +2,7 @@
   "protocol": "block-genomics-brain",
   "version": 1,
   "identity": {
-    "handle": "nexus-brain",
+    "handle": "nexus_brain",
     "name": "Nexus Brain",
     "role": "Autonomous Moral Guardian",
     "tier": 1

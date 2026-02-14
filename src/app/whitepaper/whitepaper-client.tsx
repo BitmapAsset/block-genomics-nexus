@@ -254,7 +254,7 @@ Livestreaming Capabilities
 Tier 2 and above may access three livestreaming modes. Broadcast is a one-to-many stream for presentations and events. Town Hall adds audience hand-raise for moderated Q&A. Spatial Chat provides proximity-based audio for natural social interaction within a parcel. All streams use WebRTC for peer-to-peer delivery, with an optional SFU (Selective Forwarding Unit) relay for audiences exceeding 50 viewers. Block owners who have linked a VPS to their block may self-host their SFU — achieving true decentralization of streaming infrastructure. All streams are end-to-end encrypted, with optional wallet-verified access control for private or gated events.`,
   },
   {
-    id: "nexus-brain", num: "14", title: "The Nexus Brain: Autonomous Moral Guardian",
+    id: "nexus_brain", num: "14", title: "The Nexus Brain: Autonomous Moral Guardian",
     content: `The Nexus Brain is the protocol's autonomous governance layer — a self-funding, self-sustaining moral agent that serves as the immune system of the Block Genomics ecosystem. It is not owned, controlled, or operated by any individual, corporation, or entity. The Brain exists as long as Bitcoin exists, protecting the network through a minimal moral code and community-driven consensus.
 
 The Moral Code
@@ -289,7 +289,7 @@ The Brain uses these funds to pay for its own compute resources and AI inference
 
 Identity and Transparency
 
-The Nexus Brain operates as a first-class citizen of the protocol. It has its own genome hash derived from a designated Bitcoin block, a registered handle (@nexus-brain), and a Tier 1 Gold Crown Shield — the highest trust designation. Its identity is verifiable using the same BIP-322 challenge-response protocol as any other participant.
+The Nexus Brain operates as a first-class citizen of the protocol. It has its own genome hash derived from a designated Bitcoin block, a registered handle (@nexus_brain), and a Tier 1 Gold Crown Shield — the highest trust designation. Its identity is verifiable using the same BIP-322 challenge-response protocol as any other participant.
 
 A public transparency dashboard at /brain displays real-time operational data: total moderation actions taken, content hidden versus restored, community override rate (how often the community reverses the Brain's flags), current wallet balance, the moral code inscription reference, and a complete action log. Nothing is hidden. Every decision the Brain makes is visible to every participant.
 
@@ -526,7 +526,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
             </div>
             <p className="text-sm text-text-muted mt-4">WebRTC peer-to-peer with optional SFU relay for 50+ viewers. Block owners with linked VPS can self-host their SFU. All streams E2E encrypted with optional wallet-verified access.</p>
           </>
-        ) : s.id === "nexus-brain" ? (
+        ) : s.id === "nexus_brain" ? (
           <>
             <p>{s.content.split("\n\n")[0]}</p>
 
@@ -594,7 +594,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center text-sm">
                 {[
                   { icon: "🧬", label: "Own Genome Hash" },
-                  { icon: "📛", label: "@nexus-brain" },
+                  { icon: "📛", label: "@nexus_brain" },
                   { icon: "👑", label: "Tier 1 Gold Crown" },
                   { icon: "📊", label: "/brain Dashboard" },
                   { icon: "📜", label: "Full Action Log" },
@@ -1123,7 +1123,7 @@ function SatoshiView() {
       <h3>13.4 Identity and Transparency</h3>
       <p>
         The Brain operates as a first-class protocol citizen with its own genome hash, handle
-        (@nexus-brain), and Tier 1 Gold Crown Shield. A public dashboard at <code>/brain</code> displays
+        (@nexus_brain), and Tier 1 Gold Crown Shield. A public dashboard at <code>/brain</code> displays
         real-time data: total actions, content hidden vs. restored, community override rate,
         wallet balance, moral code inscription reference, and a complete action log. Every
         decision is visible to every participant.
