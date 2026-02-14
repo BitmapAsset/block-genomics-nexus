@@ -83,19 +83,19 @@ const ERA_STYLES: Record<Era, EraStyle> = {
     metalness: 0.3, roughness: 0.4, heightMult: 0.7,
   },
   industrial: {
-    wallColor: '#4a5568', accentColor: '#f7931a', roofColor: '#2d3748',
-    glowColor: '#ff6600', windowColor: '#ffd700', emissive: 0.4,
-    metalness: 0.8, roughness: 0.4, heightMult: 1.0,
+    wallColor: '#a0aec0', accentColor: '#f7931a', roofColor: '#718096',
+    glowColor: '#ff6600', windowColor: '#ffd700', emissive: 0.2,
+    metalness: 0.6, roughness: 0.4, heightMult: 1.0,
   },
   modern: {
-    wallColor: '#cbd5e0', accentColor: '#4fc3f7', roofColor: '#90a4ae',
-    glowColor: '#29b6f6', windowColor: '#e1f5fe', emissive: 0.3,
-    metalness: 0.9, roughness: 0.1, heightMult: 1.4,
+    wallColor: '#e2e8f0', accentColor: '#4fc3f7', roofColor: '#b0bec5',
+    glowColor: '#29b6f6', windowColor: '#e1f5fe', emissive: 0.2,
+    metalness: 0.8, roughness: 0.1, heightMult: 1.4,
   },
   cyber: {
-    wallColor: '#1a1a2e', accentColor: '#00f5d4', roofColor: '#0d0d1a',
-    glowColor: '#00f5d4', windowColor: '#00f5d4', emissive: 1.2,
-    metalness: 0.95, roughness: 0.05, heightMult: 1.8,
+    wallColor: '#b0c4de', accentColor: '#4fc3f7', roofColor: '#708090',
+    glowColor: '#00bcd4', windowColor: '#e0f7fa', emissive: 0.4,
+    metalness: 0.85, roughness: 0.1, heightMult: 1.8,
   },
 };
 

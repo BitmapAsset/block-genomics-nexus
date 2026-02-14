@@ -161,9 +161,9 @@ function mondrianLayout(
   // Scale factor: map grid units to world units
   const scale = blockSize / gridWidth;
 
-  // Bitfeed uses gridSize/4 padding per side = 50% of cell is gap
-  // This is the canonical bitmap look — wide visible gutters between parcels
-  const cellGap = scale * 0.5;
+  // Standard bitmap images use thin gaps (~2-3% of cell)
+  // Bitfeed's 50% padding is only for the animated live view, not the standard bitmap
+  const cellGap = Math.max(scale * 0.06, blockSize * 0.002);
 
   // 2D occupancy grid for packing
   const gridH = gridWidth + 50; // extra rows for overflow
@@ -4011,8 +4011,8 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Background
-    ctx.fillStyle = '#000000';
+    // White background (matches Magic Eden / Bitmap.Community standard)
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, SIZE, SIZE);
 
     // Calculate grid sizes (Bitfeed formula)
@@ -4028,8 +4028,8 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
     const gridW = Math.ceil(Math.sqrt(totalArea));
     const pxPerGrid = SIZE / gridW;
 
-    // Padding: Bitfeed uses gridSize/4 per side = 50% gap
-    const padding = pxPerGrid * 0.25; // 25% each side
+    // Thin gaps (~1-2px) matching Magic Eden standard bitmap images
+    const padding = Math.max(pxPerGrid * 0.03, 0.5);
 
     // Occupancy grid
     const gridH = gridW + 50;
@@ -4085,7 +4085,8 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
           ref={canvasRef}
           className="rounded-lg shadow-2xl"
           style={{
-            border: '2px solid rgba(247,147,26,0.3)',
+            border: '2px solid rgba(247,147,26,0.4)',
+            borderRadius: '8px',
             imageRendering: 'pixelated',
             width: 'min(70vh, 576px)',
             height: 'min(70vh, 576px)',
