@@ -37,7 +37,7 @@ export const OWNER_SHARE_PERCENT = 97;
 
 // ─── Nexus Brain: Autonomous Moral Guardian ───
 export const NEXUS_BRAIN_HANDLE = 'nexus-brain';
-export const NEXUS_BRAIN_WALLET = ''; // To be assigned — Brain's own Bitcoin wallet
+export const NEXUS_BRAIN_WALLET = 'bc1p6gnhrkmxfggytctzyq6qsenkzjlvkdapmap73guy5g8kuvtkwjzq7xpr4d';
 export const BRAIN_FEE_PERCENT = 0.5; // 0.5% of protocol fees fund the Brain
 export const PROTOCOL_TREASURY_PERCENT = 2.5; // Remaining 2.5% to treasury (was 3%)
 
