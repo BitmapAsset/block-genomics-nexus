@@ -18,6 +18,7 @@ model User {
   anchorBlock   Int?     // The block/parcel they verified ownership of
   tier          Int      @default(3) // 1=Block Owner, 2=Parcel Owner, 3=Delegated
   verified      Boolean  @default(false)
+  encryptionPubKey String? // secp256k1 public key (hex) for E2E encrypted DMs
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
