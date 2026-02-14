@@ -59,8 +59,8 @@ interface GlitchSegment {
 export class NexusCanvasEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private camera: Camera = { x: 0, y: 0, zoom: typeof window !== 'undefined' && window.innerWidth < 768 ? 0.8 : 0.05 };
-  private targetCamera: Camera = { x: 0, y: 0, zoom: typeof window !== 'undefined' && window.innerWidth < 768 ? 0.8 : 0.05 };
+  private camera: Camera = { x: 0, y: 0, zoom: 0.05 };
+  private targetCamera: Camera = { x: 0, y: 0, zoom: 0.05 };
   private animFrameId = 0;
   private hoveredBlock: number | null = null;
   private selectedBlock: number | null = null;
@@ -108,16 +108,13 @@ export class NexusCanvasEngine {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: false })!;
-    // Center mobile on recent blocks (~850k area) so users see content immediately
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      const startBlock = 850500; // mid-row for center of grid
-      const col = startBlock % COLS;
-      const row = Math.floor(startBlock / COLS);
-      this.camera.x = col * UNIT;
-      this.camera.y = row * UNIT;
-      this.targetCamera.x = this.camera.x;
-      this.targetCamera.y = this.camera.y;
-    }
+    // Center camera on middle of the grid so blocks are visible on load
+    const midCol = Math.floor(COLS / 2);
+    const midRow = Math.floor(TOTAL_BLOCKS / COLS / 2);
+    this.camera.x = midCol * UNIT;
+    this.camera.y = midRow * UNIT;
+    this.targetCamera.x = this.camera.x;
+    this.targetCamera.y = this.camera.y;
     this.initParticles();
     this.initRain();
   }
