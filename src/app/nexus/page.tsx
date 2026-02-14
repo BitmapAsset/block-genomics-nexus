@@ -22,7 +22,7 @@ function NexusContent() {
   const initialBlock = blockParam ? parseInt(blockParam, 10) : undefined;
 
   return (
-    <section className="h-[calc(100vh-4rem)] w-full" style={{ background: '#0a0a0f' }}>
+    <section className="w-full overflow-hidden" style={{ background: '#0a0a0f', height: 'calc(100dvh - 4rem)' }}>
       <NexusMap initialBlock={isNaN(initialBlock as number) ? undefined : initialBlock} />
     </section>
   );

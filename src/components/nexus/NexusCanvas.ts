@@ -487,6 +487,8 @@ export class NexusCanvasEngine {
   }
 
   handleTouchStart(e: TouchEvent) {
+    // Prevent native browser zoom/scroll for all touch gestures on the map
+    e.preventDefault();
     if (e.touches.length === 1) {
       this.isDragging = true;
       this.lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
