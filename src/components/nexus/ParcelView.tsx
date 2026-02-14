@@ -8,6 +8,7 @@ import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
 import { fetchRealBlock, type RealBlockData } from '@/lib/blockchainApi';
 import Helix from '../dna/Helix';
 import CrownShield from '../CrownShield';
+import { useGlobalWallet } from '@/context/GlobalWalletContext';
 
 /* ─── Types ─── */
 interface ParcelData {
@@ -3862,6 +3863,9 @@ function EmojiReactionBar({ onReact }: { onReact: (emoji: string) => void }) {
    ═══════════════════════════════════════════ */
 
 export default function ParcelView({ blockHeight, onBack }: Props) {
+  const { walletAddress, isConnected, profile } = useGlobalWallet();
+  const isVerified = !!(isConnected && walletAddress && profile);
+  const isWalletConnected = !!(isConnected && walletAddress);
   const [viewMode, setViewMode] = useState<ViewMode>('isometric');
   const [streetTeleport, setStreetTeleport] = useState<ParcelData | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>('properties');
@@ -4034,6 +4038,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     return () => { cancelled = true; };
   }, [blockHeight]);
   const blockOwner = realBlockOwner || generateMockOwner(blockHeight, -1);
+  // Check if current wallet user is the block owner
+  const isBlockOwner = false; // TODO: compare walletAddress against on-chain ownership — for now, owner actions are gated on wallet connection
   const visitorCount = useMemo(() => generateMockVisitors(blockHeight), [blockHeight]);
   const spatialAvatars = useMemo(() => generateMockAvatars(blockHeight, parcels.length), [blockHeight, parcels.length]);
   const mockActivities = useMemo(() => generateMockActivities(blockHeight), [blockHeight]);
@@ -4187,6 +4193,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
   const sendChat = async () => {
     if (!chatInput.trim()) return;
+    if (!isVerified) return; // Security: require verified wallet to send
     const text = chatInput;
     setChatInput('');
 
@@ -4784,7 +4791,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                     <CrownShield tier={displayParcelOwner.tier} size={12} />
                     <div className="flex-1" />
                     <button onClick={() => setShowQrProfile(true)} className="text-[11px] hover:brightness-150 transition-all active:scale-90" title="View Bitcoin address & QR">₿</button>
-                    <button onClick={() => setShowSendBtcModal(true)} className="text-[11px] hover:brightness-150 transition-all active:scale-90" title="Send sats">⚡</button>
+                    {isWalletConnected && <button onClick={() => setShowSendBtcModal(true)} className="text-[11px] hover:brightness-150 transition-all active:scale-90" title="Send sats">⚡</button>}
                   </div>
                 )}
 
@@ -4841,6 +4848,16 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
                 <div className="pt-3 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                   <div className="text-[10px] uppercase tracking-wider mb-3" style={{ color: '#475569' }}>Owner Actions</div>
+                  {!isWalletConnected ? (
+                    <div className="text-center py-4 rounded-xl" style={{ background: 'rgba(247,147,26,0.06)', border: '1px solid rgba(247,147,26,0.15)' }}>
+                      <span className="text-[11px] font-mono" style={{ color: '#f7931a' }}>🔐 Connect wallet to access owner actions</span>
+                    </div>
+                  ) : !isVerified ? (
+                    <div className="text-center py-4 rounded-xl" style={{ background: 'rgba(170,68,255,0.06)', border: '1px solid rgba(170,68,255,0.15)' }}>
+                      <span className="text-[11px] font-mono" style={{ color: '#aa44ff' }}>🔐 Verify your identity to access owner actions</span>
+                    </div>
+                  ) : (
+                  <>
                   <button
                     onClick={() => setShowVPSModal(true)}
                     className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mb-3 transition-all hover:brightness-130 active:scale-[0.97]"
@@ -4924,10 +4941,12 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                   >
                     🎨 Customize Land
                   </button>
+                  </>
+                  )}
                 </div>
 
                 {/* ─── Land Customization Panel ─── */}
-                {showCustomizePanel && displayParcel && (
+                {showCustomizePanel && displayParcel && isVerified && (
                   <div className="px-4 py-3" style={{ borderTop: '1px solid rgba(255,204,0,0.15)' }}>
                     <CustomizeLandPanel
                       parcel={displayParcel}
@@ -5006,6 +5025,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                 </button>
               ))}
               <div className="flex-1" />
+              {isWalletConnected && (
               <button
                 onClick={() => setShowSendBtcModal(true)}
                 className="px-2.5 py-1.5 rounded-lg text-[14px] font-bold transition-all active:scale-90 hover:brightness-130"
@@ -5019,6 +5039,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               >
                 ⚡
               </button>
+              )}
             </div>
 
             <div className="px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -5068,7 +5089,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="text-[10px] font-bold" style={{ color: '#e2e8f0' }}>{msg.sender}</span>
                           <span className="text-[9px]" style={{ color: '#334155' }}>{msg.time}</span>
-                          <button className="text-[9px] opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#475569' }}>🚩</button>
+                          {isWalletConnected && <button className="text-[9px] opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#475569' }}>🚩</button>}
                         </div>
                         <div className="text-[11px]" style={{ color: '#94a3b8' }}>{msg.text}</div>
                       </div>
@@ -5111,7 +5132,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                           {msg.ownerData && <CrownShield tier={msg.ownerData.tier} size={10} />}
                           {msg.isOwner && <span className="text-[8px]" style={{ color: '#f7931a' }}>👑 OWNER</span>}
                           <span className="text-[9px]" style={{ color: '#334155' }}>{msg.time}</span>
-                          <button className="text-[9px] opacity-0 group-hover:opacity-100 transition-opacity ml-auto" style={{ color: '#475569' }} title="Report">🚩</button>
+                          {isWalletConnected && <button className="text-[9px] opacity-0 group-hover:opacity-100 transition-opacity ml-auto" style={{ color: '#475569' }} title="Report">🚩</button>}
                         </div>
                         <div className="text-[11px]" style={{ color: msg.type === 'link' ? '#66ccff' : '#94a3b8', wordBreak: 'break-all' }}>
                           {msg.type === 'image' ? (
@@ -5131,6 +5152,16 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             </div>
 
             <div className="px-3 py-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              {!isWalletConnected ? (
+                <div className="text-center py-3 rounded-xl" style={{ background: 'rgba(247,147,26,0.06)', border: '1px solid rgba(247,147,26,0.15)' }}>
+                  <span className="text-[11px] font-mono" style={{ color: '#f7931a' }}>🔐 Connect wallet to chat</span>
+                </div>
+              ) : !isVerified ? (
+                <div className="text-center py-3 rounded-xl" style={{ background: 'rgba(170,68,255,0.06)', border: '1px solid rgba(170,68,255,0.15)' }}>
+                  <span className="text-[11px] font-mono" style={{ color: '#aa44ff' }}>🔐 Verify your identity to chat</span>
+                </div>
+              ) : (
+                <>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => fileInputRef.current?.click()}
@@ -5182,6 +5213,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                   🔗 Link
                 </button>
               </div>
+                </>
+              )}
             </div>
           </div>
         )}
