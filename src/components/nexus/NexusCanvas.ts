@@ -193,7 +193,7 @@ export class NexusCanvasEngine {
     const rects: TexRect[] = [];
 
     const squares = txBytes.map((b, i) => ({ idx: i, gridSize: Math.max(1, Math.ceil(Math.sqrt(b / 256))) }));
-    squares.sort((a, b) => b.gridSize - a.gridSize);
+    // Natural tx order — matches Bitfeed/Magic Eden standard (no sort by size)
 
     const totalGridArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
     const gridW = Math.ceil(Math.sqrt(totalGridArea));

@@ -151,8 +151,8 @@ function mondrianLayout(
     gridSize: txSquareSize(it.weight),
   }));
 
-  // Sort descending by size (largest placed first, like Bitfeed)
-  squares.sort((a, b) => b.gridSize - a.gridSize);
+  // Natural transaction order (as they appear in the block) — matches Bitfeed/Magic Eden standard
+  // Bitfeed places txs in arrival order, NOT sorted by size
 
   // Calculate total grid area to determine grid dimensions
   const totalGridArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
