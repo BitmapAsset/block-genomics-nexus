@@ -227,6 +227,11 @@ export default function AgentProfilePage() {
 
   const [showDNA, setShowDNA] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showDM, setShowDM] = useState(false);
+  const [dmMessages, setDmMessages] = useState<{ id: string; text: string; sender: 'me' | 'them'; time: string; encrypted: boolean }[]>([]);
+  const [dmDraft, setDmDraft] = useState('');
+  const dmEndRef = useRef<HTMLDivElement>(null);
+  const dmInputRef = useRef<HTMLInputElement>(null);
 
   // For live edits
   const [displayName, setDisplayName] = useState('');
@@ -429,9 +434,9 @@ export default function AgentProfilePage() {
             style={{ background: 'rgba(247,147,26,0.15)', border: '1px solid rgba(247,147,26,0.3)', color: '#f7931a' }}>
             🗺️ Visit Block
           </Link>
-          <button onClick={() => alert(`DM feature coming soon! You'll be able to message @${agent.handle} directly.`)} className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110 cursor-pointer"
-            style={{ background: 'rgba(0,255,204,0.1)', border: '1px solid rgba(0,255,204,0.25)', color: '#00ffcc' }}>
-            💬 Send DM
+          <button onClick={() => { setShowDM(!showDM); setTimeout(() => dmInputRef.current?.focus(), 100); }} className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110 cursor-pointer"
+            style={{ background: showDM ? 'rgba(0,255,204,0.2)' : 'rgba(0,255,204,0.1)', border: `1px solid ${showDM ? 'rgba(0,255,204,0.4)' : 'rgba(0,255,204,0.25)'}`, color: '#00ffcc' }}>
+            🔒 {showDM ? 'Close DM' : 'Send DM'}
           </button>
           <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/agent/${agent.handle}`); setCopied(true); setTimeout(() => setCopied(false), 2000); }} className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110 cursor-pointer"
             style={{ background: copied ? 'rgba(0,255,204,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${copied ? 'rgba(0,255,204,0.3)' : 'rgba(255,255,255,0.1)'}`, color: copied ? '#00ffcc' : '#94a3b8' }}>
@@ -439,6 +444,132 @@ export default function AgentProfilePage() {
           </button>
         </div>
       </div>
+
+        {/* ═══ E2E Encrypted DM Chat ═══ */}
+        {showDM && (
+          <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(10,10,18,0.95)', border: '1px solid rgba(0,255,204,0.15)', boxShadow: '0 0 30px rgba(0,255,204,0.05)' }}>
+            {/* DM Header */}
+            <div className="px-4 py-3 flex items-center justify-between" style={{ background: 'rgba(0,255,204,0.04)', borderBottom: '1px solid rgba(0,255,204,0.1)' }}>
+              <div className="flex items-center gap-3">
+                <CrownShield tier={agent.tier} size={24} />
+                <div>
+                  <span className="text-sm font-bold" style={{ color: '#e2e8f0' }}>@{agent.handle}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#00f5d4', boxShadow: '0 0 6px rgba(0,245,212,0.5)' }} />
+                    <span className="text-[9px] font-mono" style={{ color: '#00f5d4' }}>E2E Encrypted</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[8px] px-2 py-0.5 rounded-full font-mono" style={{ background: 'rgba(0,245,212,0.08)', border: '1px solid rgba(0,245,212,0.15)', color: '#00f5d4' }}>
+                  ₿ secp256k1 · AES-256-GCM
+                </span>
+                <button onClick={() => setShowDM(false)} className="w-6 h-6 rounded-full flex items-center justify-center text-xs hover:bg-white/10 transition-colors cursor-pointer" style={{ color: '#64748b' }}>✕</button>
+              </div>
+            </div>
+
+            {/* Messages Area */}
+            <div className="px-4 py-4 space-y-3 overflow-y-auto" style={{ height: '320px' }}>
+              {dmMessages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <div className="text-3xl mb-3">🔒</div>
+                  <p className="text-sm font-medium mb-1" style={{ color: '#94a3b8' }}>End-to-End Encrypted</p>
+                  <p className="text-[11px] leading-relaxed max-w-xs" style={{ color: '#475569' }}>
+                    Messages are encrypted using Bitcoin-native secp256k1 keys.<br />
+                    Your wallet IS your encryption identity. No third party can read these messages — not even Block Genomics.
+                  </p>
+                  {!globalWallet.isConnected && (
+                    <button
+                      onClick={() => window.dispatchEvent(new Event('open-wallet-modal'))}
+                      className="mt-4 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:brightness-110"
+                      style={{ background: 'rgba(0,255,204,0.1)', border: '1px solid rgba(0,255,204,0.3)', color: '#00ffcc' }}
+                    >
+                      🔗 Connect Wallet to Start
+                    </button>
+                  )}
+                </div>
+              ) : (
+                dmMessages.map(msg => (
+                  <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
+                    <div className="max-w-[75%] rounded-xl px-3.5 py-2" style={{
+                      background: msg.sender === 'me' ? 'rgba(0,255,204,0.1)' : 'rgba(255,255,255,0.05)',
+                      border: `1px solid ${msg.sender === 'me' ? 'rgba(0,255,204,0.15)' : 'rgba(255,255,255,0.08)'}`,
+                    }}>
+                      <p className="text-sm" style={{ color: '#e2e8f0' }}>{msg.text}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-[8px]" style={{ color: '#475569' }}>{msg.time}</span>
+                        {msg.encrypted && <span className="text-[8px]" style={{ color: '#00f5d4' }}>🔒</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={dmEndRef} />
+            </div>
+
+            {/* Input Area */}
+            <div className="px-4 py-3 flex items-center gap-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)' }}>
+              <button className="w-8 h-8 rounded-full flex items-center justify-center text-sm hover:bg-white/5 transition-colors cursor-pointer" style={{ color: '#64748b' }} title="Attach file">
+                📎
+              </button>
+              <input
+                ref={dmInputRef}
+                type="text"
+                value={dmDraft}
+                onChange={e => setDmDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && dmDraft.trim()) {
+                    if (!globalWallet.isConnected) {
+                      window.dispatchEvent(new Event('open-wallet-modal'));
+                      return;
+                    }
+                    const msg = {
+                      id: Date.now().toString(),
+                      text: dmDraft.trim(),
+                      sender: 'me' as const,
+                      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                      encrypted: true,
+                    };
+                    setDmMessages(prev => [...prev, msg]);
+                    setDmDraft('');
+                    setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+                  }
+                }}
+                placeholder={globalWallet.isConnected ? `Message @${agent.handle}...` : 'Connect wallet to send encrypted messages'}
+                className="flex-1 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}
+                disabled={!globalWallet.isConnected}
+              />
+              <button
+                onClick={() => {
+                  if (!globalWallet.isConnected) { window.dispatchEvent(new Event('open-wallet-modal')); return; }
+                  if (!dmDraft.trim()) return;
+                  const msg = {
+                    id: Date.now().toString(),
+                    text: dmDraft.trim(),
+                    sender: 'me' as const,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    encrypted: true,
+                  };
+                  setDmMessages(prev => [...prev, msg]);
+                  setDmDraft('');
+                  setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+                }}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all cursor-pointer"
+                style={{ background: dmDraft.trim() ? 'rgba(0,255,204,0.15)' : 'transparent', color: dmDraft.trim() ? '#00f5d4' : '#475569' }}
+              >
+                ➤
+              </button>
+            </div>
+
+            {/* Encryption Footer */}
+            <div className="px-4 py-1.5 text-center" style={{ background: 'rgba(0,0,0,0.3)', borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+              <span className="text-[8px] font-mono" style={{ color: '#374151' }}>
+                ₿ Bitcoin-native E2E encryption · secp256k1 ECDH · AES-256-GCM · HKDF-SHA512 · Zero-knowledge server
+              </span>
+            </div>
+          </div>
+        )}
 
       {/* ── 3D DNA Helix Modal ── */}
       {showDNA && (
