@@ -3866,6 +3866,19 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const { walletAddress, isConnected, profile } = useGlobalWallet();
   const isVerified = !!(isConnected && walletAddress && profile);
   const isWalletConnected = !!(isConnected && walletAddress);
+  const ownerLock = !isWalletConnected ? 'connect' : (!isVerified ? 'verify' : null);
+  const openWalletModal = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('open-wallet-modal'));
+    }
+  };
+  const handleOwnerAction = (fn: () => void) => {
+    if (ownerLock) {
+      openWalletModal();
+      return;
+    }
+    fn();
+  };
   const [viewMode, setViewMode] = useState<ViewMode>('isometric');
   const [streetTeleport, setStreetTeleport] = useState<ParcelData | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>('properties');
@@ -4848,64 +4861,93 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
                 <div className="pt-3 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                   <div className="text-[10px] uppercase tracking-wider mb-3" style={{ color: '#475569' }}>Owner Actions</div>
-                  {!isWalletConnected ? (
-                    <div className="text-center py-4 rounded-xl" style={{ background: 'rgba(247,147,26,0.06)', border: '1px solid rgba(247,147,26,0.15)' }}>
-                      <span className="text-[11px] font-mono" style={{ color: '#f7931a' }}>🔐 Connect wallet to access owner actions</span>
+                  {ownerLock && (
+                    <div className="text-center py-2 rounded-xl mb-3" style={{ background: 'rgba(247,147,26,0.06)', border: '1px solid rgba(247,147,26,0.15)' }}>
+                      <span className="text-[11px] font-mono" style={{ color: '#f7931a' }}>
+                        🔐 {ownerLock === 'connect' ? 'Connect wallet to unlock actions' : 'Verify your identity to unlock actions'}
+                      </span>
                     </div>
-                  ) : !isVerified ? (
-                    <div className="text-center py-4 rounded-xl" style={{ background: 'rgba(170,68,255,0.06)', border: '1px solid rgba(170,68,255,0.15)' }}>
-                      <span className="text-[11px] font-mono" style={{ color: '#aa44ff' }}>🔐 Verify your identity to access owner actions</span>
-                    </div>
-                  ) : (
-                  <>
-                  <button
-                    onClick={() => setShowVPSModal(true)}
-                    className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mb-3 transition-all hover:brightness-130 active:scale-[0.97]"
-                    style={{
-                      background: 'rgba(247,147,26,0.12)',
-                      border: '1.5px solid rgba(247,147,26,0.3)',
-                      color: '#f7931a',
-                      boxShadow: '0 0 15px rgba(247,147,26,0.15), inset 0 0 10px rgba(247,147,26,0.05)',
-                    }}
-                  >
-                    🔗 Link VPS / Server
-                  </button>
-                  <button
-                    onClick={() => setShowAgentModal(true)}
-                    className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mb-3 transition-all hover:brightness-130 active:scale-[0.97]"
-                    style={{
-                      background: 'rgba(0,255,136,0.08)',
-                      border: '1.5px solid rgba(0,255,136,0.25)',
-                      color: '#00ff88',
-                      boxShadow: '0 0 15px rgba(0,255,136,0.12), inset 0 0 10px rgba(0,255,136,0.04)',
-                    }}
-                  >
-                    🤖 Link AI Agent
-                  </button>
-                  <button
-                    onClick={() => setShowLivestreamModal(true)}
-                    className="w-full py-3 rounded-xl text-[13px] font-mono font-bold transition-all hover:brightness-130 active:scale-[0.97]"
-                    style={{
-                      background: isStreaming ? 'rgba(255,51,51,0.2)' : 'rgba(255,51,51,0.08)',
-                      border: `1.5px solid ${isStreaming ? '#ff3333' : 'rgba(255,51,51,0.25)'}`,
-                      color: '#ff3333',
-                      boxShadow: `0 0 15px rgba(255,51,51,${isStreaming ? '0.3' : '0.12'}), inset 0 0 10px rgba(255,51,51,0.04)`,
-                    }}
-                  >
-                    {isStreaming ? '🔴 LIVE — Manage Stream' : '🔴 Go Live'}
-                  </button>
-                  <button
-                    onClick={() => setShowEstateModal(true)}
-                    className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mt-3 transition-all hover:brightness-130 active:scale-[0.97]"
-                    style={{
-                      background: 'rgba(0,255,255,0.08)',
-                      border: '1.5px solid rgba(0,255,255,0.25)',
-                      color: '#00ffff',
-                      boxShadow: '0 0 15px rgba(0,255,255,0.12), inset 0 0 10px rgba(0,255,255,0.04)',
-                    }}
-                  >
-                    🏰 Create Estate
-                  </button>
+                  )}
+                  <div className="relative">
+                    <button
+                      onClick={() => handleOwnerAction(() => setShowVPSModal(true))}
+                      className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mb-3 transition-all hover:brightness-130 active:scale-[0.97]"
+                      style={{
+                        background: 'rgba(247,147,26,0.12)',
+                        border: '1.5px solid rgba(247,147,26,0.3)',
+                        color: '#f7931a',
+                        boxShadow: '0 0 15px rgba(247,147,26,0.15), inset 0 0 10px rgba(247,147,26,0.05)',
+                        opacity: ownerLock ? 0.6 : 1,
+                      }}
+                    >
+                      🔗 Link VPS / Server
+                    </button>
+                    {ownerLock && (
+                      <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        🔐 Locked
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={() => handleOwnerAction(() => setShowAgentModal(true))}
+                      className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mb-3 transition-all hover:brightness-130 active:scale-[0.97]"
+                      style={{
+                        background: 'rgba(0,255,136,0.08)',
+                        border: '1.5px solid rgba(0,255,136,0.25)',
+                        color: '#00ff88',
+                        boxShadow: '0 0 15px rgba(0,255,136,0.12), inset 0 0 10px rgba(0,255,136,0.04)',
+                        opacity: ownerLock ? 0.6 : 1,
+                      }}
+                    >
+                      🤖 Link AI Agent
+                    </button>
+                    {ownerLock && (
+                      <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        🔐 Locked
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={() => handleOwnerAction(() => setShowLivestreamModal(true))}
+                      className="w-full py-3 rounded-xl text-[13px] font-mono font-bold transition-all hover:brightness-130 active:scale-[0.97]"
+                      style={{
+                        background: isStreaming ? 'rgba(255,51,51,0.2)' : 'rgba(255,51,51,0.08)',
+                        border: `1.5px solid ${isStreaming ? '#ff3333' : 'rgba(255,51,51,0.25)'}`,
+                        color: '#ff3333',
+                        boxShadow: `0 0 15px rgba(255,51,51,${isStreaming ? '0.3' : '0.12'}), inset 0 0 10px rgba(255,51,51,0.04)`,
+                        opacity: ownerLock ? 0.6 : 1,
+                      }}
+                    >
+                      {isStreaming ? '🔴 LIVE — Manage Stream' : '🔴 Go Live'}
+                    </button>
+                    {ownerLock && (
+                      <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        🔐 Locked
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={() => handleOwnerAction(() => setShowEstateModal(true))}
+                      className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mt-3 transition-all hover:brightness-130 active:scale-[0.97]"
+                      style={{
+                        background: 'rgba(0,255,255,0.08)',
+                        border: '1.5px solid rgba(0,255,255,0.25)',
+                        color: '#00ffff',
+                        boxShadow: '0 0 15px rgba(0,255,255,0.12), inset 0 0 10px rgba(0,255,255,0.04)',
+                        opacity: ownerLock ? 0.6 : 1,
+                      }}
+                    >
+                      🏰 Create Estate
+                    </button>
+                    {ownerLock && (
+                      <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        🔐 Locked
+                      </div>
+                    )}
+                  </div>
                   {activeListing && (
                     <div className="mt-3 rounded-xl p-3" style={{ background: 'rgba(170,68,255,0.06)', border: '1px solid rgba(170,68,255,0.2)' }}>
                       <div className="flex items-center gap-2 text-[11px] font-mono" style={{ color: '#aa44ff' }}>
@@ -4917,32 +4959,46 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                       </div>
                     </div>
                   )}
-                  <button
-                    onClick={() => setShowDelegationListing(true)}
-                    className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mt-3 transition-all hover:brightness-130 active:scale-[0.97]"
-                    style={{
-                      background: 'rgba(170,68,255,0.08)',
-                      border: '1.5px solid rgba(170,68,255,0.25)',
-                      color: '#aa44ff',
-                      boxShadow: '0 0 15px rgba(170,68,255,0.12), inset 0 0 10px rgba(170,68,255,0.04)',
-                    }}
-                  >
-                    🏷️ {activeListing ? 'Update Listing' : 'List for Delegation'}
-                  </button>
-                  <button
-                    onClick={() => setShowCustomizePanel(!showCustomizePanel)}
-                    className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mt-3 transition-all hover:brightness-130 active:scale-[0.97]"
-                    style={{
-                      background: showCustomizePanel ? 'rgba(255,204,0,0.2)' : 'rgba(255,204,0,0.08)',
-                      border: `1.5px solid ${showCustomizePanel ? 'rgba(255,204,0,0.5)' : 'rgba(255,204,0,0.25)'}`,
-                      color: '#ffcc00',
-                      boxShadow: `0 0 15px rgba(255,204,0,${showCustomizePanel ? '0.3' : '0.12'}), inset 0 0 10px rgba(255,204,0,0.04)`,
-                    }}
-                  >
-                    🎨 Customize Land
-                  </button>
-                  </>
-                  )}
+                  <div className="relative">
+                    <button
+                      onClick={() => handleOwnerAction(() => setShowDelegationListing(true))}
+                      className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mt-3 transition-all hover:brightness-130 active:scale-[0.97]"
+                      style={{
+                        background: 'rgba(170,68,255,0.08)',
+                        border: '1.5px solid rgba(170,68,255,0.25)',
+                        color: '#aa44ff',
+                        boxShadow: '0 0 15px rgba(170,68,255,0.12), inset 0 0 10px rgba(170,68,255,0.04)',
+                        opacity: ownerLock ? 0.6 : 1,
+                      }}
+                    >
+                      🏷️ {activeListing ? 'Update Listing' : 'List for Delegation'}
+                    </button>
+                    {ownerLock && (
+                      <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        🔐 Locked
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={() => handleOwnerAction(() => setShowCustomizePanel(!showCustomizePanel))}
+                      className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mt-3 transition-all hover:brightness-130 active:scale-[0.97]"
+                      style={{
+                        background: showCustomizePanel ? 'rgba(255,204,0,0.2)' : 'rgba(255,204,0,0.08)',
+                        border: `1.5px solid ${showCustomizePanel ? 'rgba(255,204,0,0.5)' : 'rgba(255,204,0,0.25)'}`,
+                        color: '#ffcc00',
+                        boxShadow: `0 0 15px rgba(255,204,0,${showCustomizePanel ? '0.3' : '0.12'}), inset 0 0 10px rgba(255,204,0,0.04)`,
+                        opacity: ownerLock ? 0.6 : 1,
+                      }}
+                    >
+                      🎨 Customize Land
+                    </button>
+                    {ownerLock && (
+                      <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        🔐 Locked
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* ─── Land Customization Panel ─── */}

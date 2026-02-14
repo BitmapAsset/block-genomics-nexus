@@ -34,6 +34,13 @@ export default function WalletConnect() {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
+  // Allow other parts of the app to open the wallet modal
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener('open-wallet-modal', handler as EventListener);
+    return () => window.removeEventListener('open-wallet-modal', handler as EventListener);
+  }, []);
+
   // Lock body scroll when modal is open (disconnected state)
   useEffect(() => {
     if (open && !isConnected) document.body.style.overflow = 'hidden';
