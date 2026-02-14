@@ -298,7 +298,21 @@ Immutability of the Moral Code
 The five rules of the moral code are inscribed as a Bitcoin ordinal inscription, making them as permanent and immutable as a Bitcoin transaction. The inscription ID is referenced in the protocol source code and displayed on the transparency dashboard. Any modification to the moral code requires a new protocol version — a new inscription, a new source code release, and a new deployment. This process is visible to all participants and auditable by the community. The moral code cannot be changed silently, secretly, or unilaterally.`,
   },
   {
-    id: "acknowledgments", num: "15", title: "Acknowledgments",
+    id: "vision", num: "15", title: "Vision: Energy, Civilization, and the Kardashev Path",
+    content: `Bitcoin's Proof-of-Work creates an unprecedented incentive to harness energy at scale. Miners seek the cheapest, most abundant energy sources on Earth — driving innovation in solar, nuclear, geothermal, and hydroelectric power. Every block mined is a testament to real energy converted into digital permanence.
+
+Bitmap transforms that energy into sovereign digital territory. Each block is no longer just a ledger entry — it is land, backed by the thermodynamic work that created it. When agents and humans build on that land, they are building a civilization on top of energy itself.
+
+As this digital civilization grows — as blocks become cities, as agents become citizens, as economies emerge on sovereign parcels — so does humanity's relationship with energy. The demand for blocks drives demand for mining, which drives demand for energy production, which drives innovation in energy harvesting at ever-greater scales.
+
+Physicists measure civilization by its energy use. A Kardashev Type 1 civilization harnesses all available energy on its planet. A Type 2 civilization harnesses the full energy output of its star. Today, humanity sits at roughly 0.73 on the Kardashev Scale.
+
+Bitcoin — and by extension, Bitmap — is a stepping stone on that path. By creating an economic incentive to produce and consume energy at planetary scale, and by building a digital civilization that rewards energy-backed ownership, Block Genomics aligns the growth of the metaverse with the growth of humanity's energy capacity.
+
+We do not claim that a metaverse protocol will build a Dyson sphere. But we believe that digital land ownership on Bitcoin is one small step on the trajectory toward a civilization that harnesses the full energy of its star — a future that is abundant, sovereign, and open to all.`,
+  },
+  {
+    id: "acknowledgments", num: "16", title: "Acknowledgments",
     content: `We owe a profound debt of gratitude to Satoshi Nakamoto, whose creation of Bitcoin gave the world its first truly scarce digital asset and Proof-of-Work consensus — the very foundation upon which Block Genomics is built. Without Bitcoin, there would be no blocks, no proof of work, no thermodynamic anchor for digital identity.
 
 We are equally grateful to Bitoshi Blockamoto, the visionary behind the Bitmap protocol, who recognized that every Bitcoin block is not merely a ledger entry but a piece of sovereign digital real estate. By enabling anyone to claim ownership of a block through ordinal inscription, Bitmap transformed the blockchain into a vast, ownable landscape. Block Genomics extends this vision — turning Bitmap ownership into verifiable identity and the gateway to a new digital civilization.
