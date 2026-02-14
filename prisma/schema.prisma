@@ -127,6 +127,7 @@ model ChatMessage {
   senderHandle  String?
   text          String
   type          String   @default("text") // text, image, gif, link
+  channel       String   @default("block") // block, dm, global
   mediaUrl      String?
   replyToId     String?
   reported      Boolean  @default(false)

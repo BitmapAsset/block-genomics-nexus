@@ -15,7 +15,14 @@ export async function GET(
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 200);
     const after = url.searchParams.get('after'); // ISO timestamp for polling
 
-    const where: Record<string, unknown> = { blockHeight: h };
+    const channel = url.searchParams.get('channel') || 'block';
+    const validChannels = ['block', 'dm', 'global'];
+    const where: Record<string, unknown> = {
+      blockHeight: channel === 'global' ? undefined : h,
+      channel: validChannels.includes(channel) ? channel : 'block',
+    };
+    // Global chat has no block filter
+    if (channel === 'global') delete where.blockHeight;
     if (after) where.createdAt = { gt: new Date(after) };
 
     const messages = await prisma.chatMessage.findMany({
@@ -67,7 +74,7 @@ export async function POST(
     if (isNaN(h) || h < 0) return error('Invalid block height', 400);
 
     const body = await req.json();
-    const { senderAddress, senderHandle, text, type } = body;
+    const { senderAddress, senderHandle, text, type, channel } = body;
 
     if (!senderAddress || typeof senderAddress !== 'string') return error('senderAddress is required', 400);
     if (!text || typeof text !== 'string' || !text.trim()) return error('text is required', 400);
@@ -91,6 +98,9 @@ export async function POST(
     const validTypes = ['text', 'image', 'gif', 'link'];
     const msgType = type && validTypes.includes(type) ? type : 'text';
 
+    const validChannels = ['block', 'dm', 'global'];
+    const msgChannel = channel && validChannels.includes(channel) ? channel : 'block';
+
     const chatMsg = await prisma.chatMessage.create({
       data: {
         blockHeight: h,
@@ -98,6 +108,7 @@ export async function POST(
         senderHandle: senderHandle ? sanitizeString(senderHandle, 50) : 'anon',
         text: sanitizeString(text, 2000),
         type: msgType,
+        channel: msgChannel,
       },
     });
 

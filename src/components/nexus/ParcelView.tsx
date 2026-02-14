@@ -4317,9 +4317,12 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const lastMessageTime = useRef<string | null>(null);
   const chatPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchChatMessages = useCallback(async (afterTime?: string | null) => {
+  const fetchChatMessages = useCallback(async (afterTime?: string | null, channel?: string) => {
     try {
-      const url = `/api/v1/chat/${blockHeight}${afterTime ? `?after=${encodeURIComponent(afterTime)}` : ''}`;
+      const ch = channel || 'block';
+      const params = new URLSearchParams({ channel: ch });
+      if (afterTime) params.set('after', afterTime);
+      const url = `/api/v1/chat/${blockHeight}?${params.toString()}`;
       const res = await fetch(url);
       if (!res.ok) return;
       const json = await res.json();
@@ -4359,14 +4362,14 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
   useEffect(() => {
     lastMessageTime.current = null;
-    fetchChatMessages();
+    fetchChatMessages(null, chatMode);
     chatPollRef.current = setInterval(() => {
-      fetchChatMessages(lastMessageTime.current);
+      fetchChatMessages(lastMessageTime.current, chatMode);
     }, 3000);
     return () => {
       if (chatPollRef.current) clearInterval(chatPollRef.current);
     };
-  }, [blockHeight, fetchChatMessages]);
+  }, [blockHeight, chatMode, fetchChatMessages]);
 
   const navigateParcel = (delta: number) => {
     const newIdx = Math.max(0, Math.min(parcels.length - 1, parcelNavIndex + delta));
@@ -4456,6 +4459,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           senderHandle,
           text,
           type: text.startsWith('http') ? 'link' : 'text',
+          channel: chatMode,
         }),
       });
       if (res.ok) {
