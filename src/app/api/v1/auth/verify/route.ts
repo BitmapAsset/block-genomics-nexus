@@ -48,13 +48,41 @@ export async function POST(req: NextRequest) {
       deleteChallenge(walletAddress); // one-time use
     }
 
-    // Generate genome hash: SHA-256 of wallet + block + signature
-    const genomeInput = `${walletAddress}:${blockHeight || 0}:${signature}`;
-    const genomeHash = '0x' + crypto.createHash('sha256').update(genomeInput).digest('hex');
+    // ─── ON-CHAIN BITMAP OWNERSHIP VERIFICATION ─────────────────────
+    // If claiming a block, we MUST verify the wallet actually holds a .bitmap inscription for it.
+    // BIP-322 only proves wallet control — not bitmap ownership.
+    let verifiedBlockHeight = null;
+    let tier = 3; // default: no block ownership
 
-    // Determine tier based on block ownership
-    // Tier 1 = block owner (has blockHeight), Tier 2 = parcel, Tier 3 = delegated
-    const tier = blockHeight ? 1 : 3;
+    if (blockHeight) {
+      // If inscriptionId provided, verify it belongs to this wallet on-chain
+      if (inscriptionId) {
+        const ownerCheck = await verifyInscriptionOwnership(walletAddress, inscriptionId, blockHeight);
+        if (ownerCheck.verified) {
+          verifiedBlockHeight = blockHeight;
+          tier = 1;
+        } else {
+          return error(`Ownership verification failed: ${ownerCheck.reason}`, 403);
+        }
+      } else {
+        // No inscriptionId — scan wallet for .bitmap inscriptions matching this block
+        const scanResult = await scanWalletForBitmap(walletAddress, blockHeight);
+        if (scanResult.found) {
+          verifiedBlockHeight = blockHeight;
+          tier = 1;
+        } else {
+          return error(
+            `No .bitmap inscription for block ${blockHeight} found in this wallet. ` +
+            `You must own the .bitmap inscription to verify as Tier 1.`,
+            403
+          );
+        }
+      }
+    }
+
+    // Generate genome hash: SHA-256 of wallet + block + signature
+    const genomeInput = `${walletAddress}:${verifiedBlockHeight || 0}:${signature}`;
+    const genomeHash = '0x' + crypto.createHash('sha256').update(genomeInput).digest('hex');
 
     // Normalize handle to lowercase
     const normalizedHandle = handle?.toLowerCase().replace(/-/g, '_');
@@ -79,7 +107,7 @@ export async function POST(req: NextRequest) {
         verified: true,
         tier,
         genomeHash,
-        ...(blockHeight && { anchorBlock: blockHeight }),
+        ...(verifiedBlockHeight && { anchorBlock: verifiedBlockHeight }),
         ...(normalizedHandle && { handle: normalizedHandle }),
         ...(displayName !== undefined && { displayName }),
       },
@@ -88,7 +116,7 @@ export async function POST(req: NextRequest) {
         verified: true,
         tier,
         genomeHash,
-        anchorBlock: blockHeight || null,
+        anchorBlock: verifiedBlockHeight || null,
         handle: normalizedHandle || null,
         displayName: displayName || null,
       },
@@ -101,16 +129,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Create/update block record if blockHeight provided
-    if (blockHeight) {
+    // Create/update block record only if ownership was verified on-chain
+    if (verifiedBlockHeight) {
       await prisma.block.upsert({
-        where: { height: blockHeight },
+        where: { height: verifiedBlockHeight },
         update: {
           ownerAddress: walletAddress,
           ...(inscriptionId && { inscriptionId }),
         },
         create: {
-          height: blockHeight,
+          height: verifiedBlockHeight,
           ownerAddress: walletAddress,
           ...(inscriptionId && { inscriptionId }),
         },
@@ -118,7 +146,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Log activity
-    logActivity(walletAddress, 'verification', { tier, blockHeight, handle: normalizedHandle });
+    logActivity(walletAddress, 'verification', { tier, blockHeight: verifiedBlockHeight, handle: normalizedHandle });
 
     return success({
       verified: true,
@@ -151,5 +179,143 @@ export async function GET(req: NextRequest) {
     return success({ handle, available: !existing });
   } catch (e: any) {
     return error(e.message, 500);
+  }
+}
+
+// ─── ON-CHAIN OWNERSHIP VERIFICATION HELPERS ──────────────────────
+
+/**
+ * Verify a specific inscription is owned by the wallet and maps to the claimed block
+ */
+async function verifyInscriptionOwnership(
+  walletAddress: string,
+  inscriptionId: string,
+  blockHeight: number
+): Promise<{ verified: boolean; reason?: string }> {
+  try {
+    // 1. Check inscription exists and get its current owner
+    const res = await fetch(`https://ordinals.com/api/inscription/${inscriptionId}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      return { verified: false, reason: 'Could not fetch inscription from ordinals.com' };
+    }
+    const data = await res.json();
+
+    // 2. Verify the inscription address matches the wallet
+    if (data.address !== walletAddress) {
+      return { verified: false, reason: 'Inscription is not held by this wallet' };
+    }
+
+    // 3. Verify the inscription content is a .bitmap for the claimed block
+    // Fetch inscription content to check it matches the block
+    try {
+      const contentRes = await fetch(`https://ordinals.com/content/${inscriptionId}`);
+      if (contentRes.ok) {
+        const content = await contentRes.text();
+        const trimmed = content.trim();
+        // .bitmap inscriptions contain just the block number or "blocknum.bitmap"
+        const isMatch =
+          trimmed === `${blockHeight}` ||
+          trimmed === `${blockHeight}.bitmap` ||
+          trimmed === String(blockHeight);
+        if (!isMatch) {
+          return { verified: false, reason: `Inscription content "${trimmed}" does not match block ${blockHeight}` };
+        }
+      }
+    } catch {
+      // Content fetch failed — still accept if address matches (content check is best-effort)
+    }
+
+    return { verified: true };
+  } catch (e) {
+    console.error('[verify] Inscription ownership check failed:', e);
+    return { verified: false, reason: 'On-chain verification temporarily unavailable' };
+  }
+}
+
+/**
+ * Scan a wallet's inscriptions on Unisat API for a .bitmap matching the claimed block
+ */
+async function scanWalletForBitmap(
+  walletAddress: string,
+  blockHeight: number
+): Promise<{ found: boolean; inscriptionId?: string }> {
+  try {
+    // Use Unisat open API to list inscriptions
+    const res = await fetch(
+      `https://open-api.unisat.io/v1/indexer/address/${walletAddress}/inscription-data?cursor=0&size=100`,
+      { headers: { Accept: 'application/json' } }
+    );
+
+    if (!res.ok) {
+      // Fallback: try ordinals.com
+      return await scanViaOrdinals(walletAddress, blockHeight);
+    }
+
+    const data = await res.json();
+    const inscriptions = data?.data?.inscription || [];
+
+    // Check each inscription's content for .bitmap match
+    for (const insc of inscriptions) {
+      const id = insc.inscriptionId || insc.id;
+      if (!id) continue;
+
+      try {
+        const contentRes = await fetch(`https://ordinals.com/content/${id}`);
+        if (contentRes.ok) {
+          const content = await contentRes.text();
+          const trimmed = content.trim();
+          if (
+            trimmed === `${blockHeight}` ||
+            trimmed === `${blockHeight}.bitmap` ||
+            trimmed === String(blockHeight)
+          ) {
+            return { found: true, inscriptionId: id };
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return { found: false };
+  } catch (e) {
+    console.error('[verify] Wallet bitmap scan failed:', e);
+    // If scan fails, do NOT grant Tier 1 — fail closed
+    return { found: false };
+  }
+}
+
+/**
+ * Fallback: scan via ordinals.com
+ */
+async function scanViaOrdinals(
+  walletAddress: string,
+  blockHeight: number
+): Promise<{ found: boolean; inscriptionId?: string }> {
+  try {
+    const res = await fetch(`https://ordinals.com/api/address/${walletAddress}/inscriptions?limit=100`);
+    if (!res.ok) return { found: false };
+    const data = await res.json();
+    const inscriptions = data?.inscriptions || data || [];
+
+    for (const insc of inscriptions) {
+      const id = typeof insc === 'string' ? insc : insc.id || insc.inscriptionId;
+      if (!id) continue;
+      try {
+        const contentRes = await fetch(`https://ordinals.com/content/${id}`);
+        if (contentRes.ok) {
+          const content = await contentRes.text();
+          const trimmed = content.trim();
+          if (trimmed === `${blockHeight}` || trimmed === `${blockHeight}.bitmap`) {
+            return { found: true, inscriptionId: id };
+          }
+        }
+      } catch { continue; }
+    }
+    return { found: false };
+  } catch {
+    return { found: false };
   }
 }
