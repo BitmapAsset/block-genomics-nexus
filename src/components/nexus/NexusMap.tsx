@@ -75,6 +75,14 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
 
     const onResize = () => eng.resize();
     window.addEventListener('resize', onResize);
+    
+    // ResizeObserver for more reliable mobile resize detection
+    const resizeObs = new ResizeObserver(() => eng.resize());
+    resizeObs.observe(canvas);
+    
+    // Force resize after a short delay (mobile layout may settle late)
+    setTimeout(() => eng.resize(), 100);
+    setTimeout(() => eng.resize(), 500);
 
     // Zoom level tracking
     const zoomCheck = setInterval(() => {
@@ -103,6 +111,7 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
     return () => {
       eng.stop();
       clearInterval(zoomCheck);
+      resizeObs.disconnect();
       window.removeEventListener('resize', onResize);
       canvas.removeEventListener('wheel', handleWheel);
       canvas.removeEventListener('mousedown', handleMouseDown);
@@ -183,8 +192,8 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
       {/* Canvas */}
       <canvas
         ref={canvasRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-        style={{ touchAction: 'none' }}
+        className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"
+        style={{ touchAction: 'none', display: 'block' }}
       />
 
       {/* Hover tooltip */}
