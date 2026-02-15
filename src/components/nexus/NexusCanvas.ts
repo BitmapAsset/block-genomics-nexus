@@ -84,8 +84,8 @@ export class NexusCanvasEngine {
   private static readonly PARCEL_CACHE_MAX = 500;
   private static readonly PARCEL_TEX_SIZE = 128;
 
-  // Async texture generation budget (max textures generated per frame)
-  private static readonly TEX_BUDGET_PER_FRAME = 3; // reduced from 6 for smoother frame rate
+  // Async texture generation budget — lower on mobile for smooth scrolling
+  private static readonly TEX_BUDGET_PER_FRAME = typeof window !== 'undefined' && window.innerWidth < 768 ? 1 : 3;
   private texGenQueue: number[] = []; // blocks waiting for texture generation
   private texGenSet = new Set<number>(); // fast lookup for queue membership
 
@@ -670,8 +670,10 @@ export class NexusCanvasEngine {
     const rowEnd = Math.ceil(bottomRight.wy / UNIT) + 1;
     const maxRow = Math.ceil(TOTAL_BLOCKS / COLS);
 
-    // Ground surface — subtle background and grid lines
-    if (unitScreen > 2) {
+    // Ground surface — subtle background and grid lines (skip when too many cells visible)
+    const visibleCols = colEnd - colStart;
+    const visibleRows = rowEnd - rowStart;
+    if (unitScreen > 2 && visibleCols * visibleRows < 5000) {
       // Subtle ground fill behind blocks
       ctx.fillStyle = '#0d0d18';
       for (let row = rowStart; row <= Math.min(rowEnd, maxRow); row++) {
@@ -728,19 +730,16 @@ export class NexusCanvasEngine {
           ctx.fillRect(sx, sy, cellScreen, cellScreen);
           ctx.globalAlpha = 1;
 
-          // Special block glow
+          // Special block glow (no shadowBlur — use double-draw for perf)
           if (special) {
             const glowAlpha = 0.3 + 0.15 * Math.sin(this.pulseTime * 3 + height);
-            ctx.shadowColor = baseColor;
-            ctx.shadowBlur = 12 * zoom;
             ctx.fillStyle = baseColor;
             ctx.globalAlpha = glowAlpha;
-            ctx.fillRect(sx, sy, cellScreen, cellScreen);
+            ctx.fillRect(sx - 2, sy - 2, cellScreen + 4, cellScreen + 4);
             ctx.globalAlpha = 1;
-            ctx.shadowBlur = 0;
           }
 
-          // Landmark marker
+          // Landmark marker (no shadowBlur)
           if (landmark) {
             const markerSize = Math.max(6, cellScreen * 0.6);
             const centerX = sx + cellScreen / 2;
@@ -748,9 +747,11 @@ export class NexusCanvasEngine {
             ctx.save();
             ctx.translate(centerX, centerY);
             ctx.rotate(Math.PI / 4);
-            ctx.shadowColor = landmark.color;
-            ctx.shadowBlur = 16 * zoom;
+            // Glow layer
             ctx.fillStyle = landmark.color;
+            ctx.globalAlpha = 0.3;
+            ctx.fillRect(-markerSize / 2 - 3, -markerSize / 2 - 3, markerSize + 6, markerSize + 6);
+            // Solid layer
             ctx.globalAlpha = 0.9;
             ctx.fillRect(-markerSize / 2, -markerSize / 2, markerSize, markerSize);
             ctx.globalAlpha = 1;
@@ -819,38 +820,43 @@ export class NexusCanvasEngine {
             ctx.globalAlpha = 1;
           }
 
-          // Estate glow (~3% of blocks)
-          if (seededRand(height * 7) < 0.03) {
+          // Estate glow (~3% of blocks, no shadowBlur)
+          if (seededRand(height * 7) < 0.03 && cellScreen > 8) {
             const neonColors = ['#00ffff', '#ff00ff', '#00ff66'];
             const neonColor = neonColors[Math.floor(seededRand(height * 13) * 3)];
             const glowPulse = 0.3 + 0.3 * Math.sin(this.pulseTime * 2 + height * 0.1);
-            ctx.save();
             ctx.strokeStyle = neonColor;
             ctx.lineWidth = 2;
             ctx.globalAlpha = glowPulse;
-            ctx.shadowColor = neonColor;
-            ctx.shadowBlur = 10;
             ctx.strokeRect(sx - 1, sy - 1, cellScreen + 2, cellScreen + 2);
-            ctx.restore();
+            ctx.globalAlpha = 1;
           }
         }
       }
     }
 
-    // Visitor presence dots
+    // Visitor presence dots (no shadowBlur)
     if (this.visitors.length > 0 && level !== 'galaxy') {
       for (const visitor of this.visitors) {
         const { sx, sy } = this.blockToScreen(visitor.blockHeight);
         if (sx < -20 || sy < -20 || sx > w + 20 || sy > h + 20) continue;
         const pulse = 1 + Math.sin(this.pulseTime * 3 + visitor.blockHeight) * 0.15;
         const radius = 3.5 * pulse;
-        ctx.beginPath();
+        const isHovered = visitor.id === this.hoveredVisitorId;
+        // Glow layer (larger, transparent)
+        if (isHovered) {
+          ctx.fillStyle = visitor.color;
+          ctx.globalAlpha = 0.3;
+          ctx.beginPath();
+          ctx.arc(sx, sy, radius * 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Solid dot
+        ctx.globalAlpha = 1;
         ctx.fillStyle = visitor.color;
-        ctx.shadowColor = visitor.color;
-        ctx.shadowBlur = visitor.id === this.hoveredVisitorId ? 12 : 6;
+        ctx.beginPath();
         ctx.arc(sx, sy, radius, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
       }
     }
 
@@ -884,19 +890,19 @@ export class NexusCanvasEngine {
       ctx.fill();
     }
 
-    // New block pulse animation (simulated at edge)
-    const pulseAlpha = (Math.sin(this.pulseTime) + 1) * 0.15;
-    if (pulseAlpha > 0.1) {
-      const lastRow = Math.floor(TOTAL_BLOCKS / COLS);
-      const lastCol = TOTAL_BLOCKS % COLS;
-      const { sx, sy } = this.worldToScreen(this.worldX(lastCol), this.worldY(lastRow));
-      if (sx > -50 && sx < w + 50 && sy > -50 && sy < h + 50) {
-        const radius = 20 + pulseAlpha * 60;
-        const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius * zoom);
-        grad.addColorStop(0, `rgba(16,185,129,${pulseAlpha})`);
-        grad.addColorStop(1, 'rgba(16,185,129,0)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(sx - radius * zoom, sy - radius * zoom, radius * 2 * zoom, radius * 2 * zoom);
+    // New block pulse animation (simulated at edge, skip at galaxy level)
+    if (level !== 'galaxy') {
+      const pulseAlpha = (Math.sin(this.pulseTime) + 1) * 0.15;
+      if (pulseAlpha > 0.1) {
+        const lastRow = Math.floor(TOTAL_BLOCKS / COLS);
+        const lastCol = TOTAL_BLOCKS % COLS;
+        const { sx, sy } = this.worldToScreen(this.worldX(lastCol), this.worldY(lastRow));
+        if (sx > -50 && sx < w + 50 && sy > -50 && sy < h + 50) {
+          ctx.fillStyle = `rgba(16,185,129,${pulseAlpha})`;
+          ctx.beginPath();
+          ctx.arc(sx, sy, (20 + pulseAlpha * 60) * zoom, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
 
@@ -922,38 +928,39 @@ export class NexusCanvasEngine {
 
     // === CYBERPUNK EFFECTS ===
     if (this._cyberpunk) {
-      // 1. Neon rain
+      // 1. Neon rain — batch draw with single style (no per-drop gradient)
       ctx.save();
+      ctx.strokeStyle = `rgba(0, 255, 200, ${0.35 * this.neonFlicker})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
       for (const drop of this.rainDrops) {
         const rx = ((drop.x - this.camera.x * 0.01) % w + w) % w;
         const ry = ((drop.y) % h + h) % h;
-        const grad = ctx.createLinearGradient(rx, ry, rx, ry + drop.length);
-        grad.addColorStop(0, `rgba(0, 255, 200, ${drop.opacity * this.neonFlicker})`);
-        grad.addColorStop(1, 'rgba(0, 255, 200, 0)');
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
         ctx.moveTo(rx, ry);
         ctx.lineTo(rx, ry + drop.length);
-        ctx.stroke();
       }
+      ctx.stroke();
       ctx.restore();
 
-      // 2. Scanlines
-      ctx.save();
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
-      for (let y = 0; y < h; y += 3) {
-        ctx.fillRect(0, y, w, 1);
+      // 2. Scanlines — single semi-transparent overlay (skip on mobile for perf)
+      if (w > 600) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
+        for (let y = 0; y < h; y += 4) {
+          ctx.fillRect(0, y, w, 1);
+        }
+        ctx.restore();
       }
-      ctx.restore();
 
-      // 3. Glitch displacement
+      // 3. Glitch displacement — skip getImageData (too expensive), use visual fake
       if (this.glitchSegments.length > 0) {
+        ctx.save();
         for (const seg of this.glitchSegments) {
           const gy = seg.y % h;
-          const imageData = ctx.getImageData(0, gy, w, seg.h);
-          ctx.putImageData(imageData, seg.offset, gy);
+          ctx.fillStyle = `rgba(0, 255, 200, 0.08)`;
+          ctx.fillRect(seg.offset, gy, w, seg.h);
         }
+        ctx.restore();
       }
 
       // 4. Edge neon border glow
