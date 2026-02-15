@@ -115,14 +115,19 @@ function createBuilding(
   const inset = 0.02; // small inset from parcel edges
   const bw = pw - inset * 2;
   const bd = pd - inset * 2;
+  
+  // Skip buildings with tiny dimensions (prevents "orange rod" artifacts)
+  if (bw < 0.05 || bd < 0.05) return meshes;
+  
   const bx = px + pw / 2;
   const bz = pz + pd / 2;
 
   // Building height based on tx size + era + randomness
   const sizeRatio = Math.min(bytes / 5000, 1);
   const baseH = (0.3 + sizeRatio * 2 + rand() * 1.5) * style.heightMult;
-  const h = isCoinbase ? baseH * 2.5 : baseH;
   const minDim = Math.min(bw, bd);
+  // Cap height: never exceed 8x the smallest dimension
+  const h = Math.min(isCoinbase ? baseH * 2.5 : baseH, minDim * 8);
 
   // ─── Main building body ───
   const wallMat = new THREE.MeshStandardMaterial({
@@ -382,7 +387,7 @@ export function useShowcaseBuildings(
 ): ShowcaseBuildingData[] | null {
   return useMemo(() => {
     if (!isFeaturedBlock(blockHeight)) return null;
-    if (parcels.length === 0) return null;
+    if (parcels.length < 10) return null; // Avoid rendering on incomplete data
 
     const era = getEra(blockHeight);
     const style = ERA_STYLES[era];

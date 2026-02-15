@@ -106,7 +106,7 @@ interface Props {
   onBack: () => void;
 }
 
-type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street' | 'standard';
+type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street' | 'standard' | 'flyover';
 type RightTab = 'properties' | 'chat' | 'rank' | 'gaming';
 type PanelSize = 'quarter' | 'half' | 'hidden';
 const PANEL_WIDTHS: Record<PanelSize, string> = { quarter: 'w-80', half: 'w-[50vw]', hidden: 'w-0' };
@@ -2117,6 +2117,15 @@ function FlyToCamera({ flyTarget, onComplete }: { flyTarget: FlyTarget | null; o
 const WALK_SPEED = 3.0 / METERS_PER_UNIT;  // ~3 m/s brisk walk (was 1.4 — too slow)
 const RUN_SPEED = 8.0 / METERS_PER_UNIT;  // ~8 m/s fast run (was 3.5)
 const EYE_HEIGHT = 1.7 / METERS_PER_UNIT;
+
+// ─── Flyover Mode Constants ───
+const FLY_HEIGHT = 100 / METERS_PER_UNIT;
+const FLY_SPEED = 27.8 / METERS_PER_UNIT;       // 100 km/h
+const FLY_BOOST_SPEED = 55.6 / METERS_PER_UNIT; // 200 km/h
+const FLY_MOUSE_SENSITIVITY = 0.003;
+const FLY_MIN_HEIGHT = 20 / METERS_PER_UNIT;
+const FLY_MAX_HEIGHT = 300 / METERS_PER_UNIT;
+const AUTO_TOUR_SPEED = 20 / METERS_PER_UNIT;   // 72 km/h
 const MOUSE_SENSITIVITY = 0.004;
 const BLOCK_HALF = BLOCK_SIZE / 2;
 
@@ -2342,6 +2351,172 @@ function StreetWalker({ active, parcels, teleportTo }: { active: boolean; parcel
   return null;
 }
 
+// ═══════════════════════════════════════════
+// FlyoverController — Drone/Helicopter Camera
+// ═══════════════════════════════════════════
+
+function FlyoverController({ active, parcels, autoTour, onExitAutoTour }: {
+  active: boolean; parcels: ParcelData[]; autoTour: boolean; onExitAutoTour: () => void;
+}) {
+  const { camera } = useThree();
+  const velocity = useRef(new THREE.Vector3());
+  const yaw = useRef(0);
+  const pitch = useRef(-Math.PI / 4); // -45° default
+  const targetHeight = useRef(FLY_HEIGHT);
+  const keys = useRef<Set<string>>(new Set());
+  const dragging = useRef(false);
+  const initialized = useRef(false);
+  const tourProgress = useRef(0);
+  const speed = useRef(0);
+
+  // Precompute auto-tour path (figure-8 around block)
+  const tourPath = useMemo(() => {
+    const r = BLOCK_SIZE * 0.6;
+    const points: THREE.Vector3[] = [];
+    const segments = 200;
+    for (let i = 0; i <= segments; i++) {
+      const t = (i / segments) * Math.PI * 2;
+      // Figure-8 (lemniscate)
+      const scale = 1 / (1 + Math.sin(t) * Math.sin(t) * 0.3);
+      const x = r * Math.sin(t) * scale;
+      const z = r * Math.sin(t) * Math.cos(t) * scale;
+      points.push(new THREE.Vector3(x, FLY_HEIGHT, z));
+    }
+    return points;
+  }, []);
+
+  useEffect(() => {
+    if (!active) { initialized.current = false; return; }
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      keys.current.add(e.code);
+      // Any WASD exits auto tour
+      if (autoTour && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
+        onExitAutoTour();
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => keys.current.delete(e.code);
+    const onMouseDown = (e: MouseEvent) => { if (e.button === 0) dragging.current = true; };
+    const onMouseUp = () => { dragging.current = false; };
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragging.current) return;
+      yaw.current -= e.movementX * FLY_MOUSE_SENSITIVITY;
+      pitch.current = Math.max(-80 * Math.PI / 180, Math.min(20 * Math.PI / 180,
+        pitch.current - e.movementY * FLY_MOUSE_SENSITIVITY));
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('mousemove', onMouseMove);
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('mousemove', onMouseMove);
+      keys.current.clear();
+    };
+  }, [active, autoTour, onExitAutoTour]);
+
+  useFrame((_, delta) => {
+    if (!active) return;
+    const dt = Math.min(delta, 0.05);
+
+    if (!initialized.current) {
+      camera.position.set(0, FLY_HEIGHT, 0);
+      yaw.current = 0;
+      pitch.current = -Math.PI / 4;
+      targetHeight.current = FLY_HEIGHT;
+      velocity.current.set(0, 0, 0);
+      tourProgress.current = 0;
+      initialized.current = true;
+    }
+
+    if (autoTour) {
+      // Auto tour: follow precomputed path
+      tourProgress.current += (AUTO_TOUR_SPEED * dt) / (BLOCK_SIZE * 0.6 * Math.PI * 2) * tourPath.length;
+      if (tourProgress.current >= tourPath.length) tourProgress.current -= tourPath.length;
+
+      const idx = Math.floor(tourProgress.current) % tourPath.length;
+      const nextIdx = (idx + 1) % tourPath.length;
+      const frac = tourProgress.current - Math.floor(tourProgress.current);
+      const target = tourPath[idx].clone().lerp(tourPath[nextIdx], frac);
+
+      camera.position.lerp(target, dt * 3);
+
+      // Look toward center with slight bank
+      const toCenter = new THREE.Vector3(0, FLY_HEIGHT * 0.5, 0).sub(camera.position).normalize();
+      const lookTarget = camera.position.clone().add(toCenter);
+      camera.lookAt(lookTarget);
+
+      // Subtle banking
+      const dir = tourPath[nextIdx].clone().sub(tourPath[idx]).normalize();
+      const cross = new THREE.Vector3(0, 1, 0).cross(dir);
+      camera.rotateZ(-cross.length() * 0.08);
+
+      speed.current = AUTO_TOUR_SPEED * METERS_PER_UNIT;
+    } else {
+      // Free fly mode
+      const k = keys.current;
+      const boost = k.has('ShiftLeft') || k.has('ShiftRight');
+      const moveSpeed = boost ? FLY_BOOST_SPEED : FLY_SPEED;
+
+      // Movement input
+      const input = new THREE.Vector3();
+      if (k.has('KeyW') || k.has('ArrowUp')) input.z -= 1;
+      if (k.has('KeyS') || k.has('ArrowDown')) input.z += 1;
+      if (k.has('KeyA') || k.has('ArrowLeft')) input.x -= 1;
+      if (k.has('KeyD') || k.has('ArrowRight')) input.x += 1;
+
+      // Height
+      if (k.has('Space')) targetHeight.current = Math.min(targetHeight.current + dt * moveSpeed, FLY_MAX_HEIGHT);
+      if (k.has('ControlLeft') || k.has('ControlRight') || k.has('KeyC'))
+        targetHeight.current = Math.max(targetHeight.current - dt * moveSpeed, FLY_MIN_HEIGHT);
+
+      // Rotate input by yaw
+      if (input.length() > 0) {
+        input.normalize();
+        const cosY = Math.cos(yaw.current), sinY = Math.sin(yaw.current);
+        const rx = input.x * cosY + input.z * sinY;
+        const rz = -input.x * sinY + input.z * cosY;
+        velocity.current.x += rx * moveSpeed * dt * 4;
+        velocity.current.z += rz * moveSpeed * dt * 4;
+      }
+
+      // Dampening
+      velocity.current.multiplyScalar(Math.pow(0.05, dt));
+
+      // Clamp velocity
+      const maxV = boost ? FLY_BOOST_SPEED : FLY_SPEED;
+      if (velocity.current.length() > maxV) velocity.current.setLength(maxV);
+
+      // Apply
+      camera.position.x += velocity.current.x * dt;
+      camera.position.z += velocity.current.z * dt;
+      camera.position.y += (targetHeight.current - camera.position.y) * dt * 5;
+
+      // Camera rotation from yaw/pitch
+      const euler = new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ');
+      camera.quaternion.setFromEuler(euler);
+
+      // Subtle bank based on lateral velocity
+      const lateralSpeed = Math.sqrt(velocity.current.x ** 2 + velocity.current.z ** 2);
+      const bankAngle = Math.atan2(
+        velocity.current.x * Math.cos(yaw.current) - velocity.current.z * Math.sin(yaw.current),
+        1
+      ) * 0.05;
+      camera.rotateZ(-bankAngle);
+
+      speed.current = lateralSpeed * METERS_PER_UNIT;
+    }
+  });
+
+  return null;
+}
+
 function CameraManager({ viewMode }: { viewMode: ViewMode }) {
   const { camera } = useThree();
   const animating = useRef(false);
@@ -2352,8 +2527,8 @@ function CameraManager({ viewMode }: { viewMode: ViewMode }) {
   useEffect(() => {
     if (prevMode.current !== viewMode) {
       prevMode.current = viewMode;
-      // Street view is handled by StreetWalker — don't animate
-      if (viewMode !== 'street') {
+      // Street/flyover views are handled by their own controllers
+      if (viewMode !== 'street' && viewMode !== 'flyover') {
         animating.current = true;
         frameCount.current = 0;
       } else {
@@ -2368,6 +2543,7 @@ function CameraManager({ viewMode }: { viewMode: ViewMode }) {
       case 'heights': targetPos.current.set(dist * 0.6, dist * 1.2, dist * 0.6); break;
       case 'dna': targetPos.current.set(8, 2, 8); break;
       case 'street': break; // StreetWalker handles positioning
+      case 'flyover': break; // FlyoverController handles positioning
     }
   }, [viewMode]);
 
@@ -4169,6 +4345,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     fn();
   };
   const [viewMode, setViewMode] = useState<ViewMode>('isometric');
+  const [autoTour, setAutoTour] = useState(true);
   const [streetTeleport, setStreetTeleport] = useState<ParcelData | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>('properties');
   const [panelSize, setPanelSize] = useState<PanelSize>('quarter');
@@ -4723,9 +4900,9 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const handleParcelClick = useCallback((p: ParcelData) => {
     setSelectedParcel(p);
     setParcelNavIndex(p.txIndex);
-    if (viewMode === 'street') {
-      // Teleport warp in street view
-      setStreetTeleport({ ...p }); // new ref to trigger effect
+    if (viewMode === 'street' || viewMode === 'flyover') {
+      // Teleport warp in street/flyover view
+      if (viewMode === 'street') setStreetTeleport({ ...p }); // new ref to trigger effect
     } else {
       const target = computeFlyTarget(p, false);
       setFlyTarget(target);
@@ -4830,6 +5007,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     { mode: 'heights', icon: '▥', label: 'Heights' },
     { mode: 'dna', icon: '🧬', label: 'Genome' },
     { mode: 'street', icon: '🚶', label: 'Street View' },
+    { mode: 'flyover', icon: '🦅', label: 'Flyover' },
   ];
 
   // Dimension display helpers
@@ -4916,6 +5094,55 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         </div>
       )}
 
+      {/* Flyover HUD */}
+      {viewMode === 'flyover' && (
+        <>
+          {/* Top-left: altitude & speed */}
+          <div className="absolute top-4 left-4 z-40 flex flex-col gap-2 px-4 py-3 rounded-xl"
+            style={{ background: 'rgba(10,10,15,0.85)', border: '1px solid rgba(247,147,26,0.2)', backdropFilter: 'blur(12px)', fontFamily: 'monospace' }}>
+            <span className="text-[13px] text-amber-400">ALT: {Math.round(FLY_HEIGHT * METERS_PER_UNIT)}m</span>
+            <span className="text-[13px] text-slate-400">SPD: <span className="text-amber-300">{autoTour ? '72' : '—'} km/h</span></span>
+          </div>
+          {/* Top-right: auto tour toggle */}
+          <div className="absolute top-4 right-4 z-40">
+            <button
+              onClick={() => setAutoTour(!autoTour)}
+              className="px-4 py-2 rounded-lg text-[12px] font-mono transition-all"
+              style={{
+                background: autoTour ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)',
+                border: autoTour ? '1.5px solid rgba(34,197,94,0.5)' : '1.5px solid rgba(255,255,255,0.1)',
+                color: autoTour ? '#22c55e' : '#64748b',
+              }}
+            >
+              🎬 Auto Tour {autoTour ? 'ON' : 'OFF'}
+            </button>
+          </div>
+          {/* Bottom: controls */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-5 py-3 rounded-2xl"
+            style={{ background: 'rgba(10,10,15,0.85)', border: '1px solid rgba(247,147,26,0.2)', backdropFilter: 'blur(12px)' }}>
+            <span className="text-[11px] font-mono text-slate-400">
+              <span className="text-amber-400">WASD</span> Move
+            </span>
+            <span className="text-slate-600">·</span>
+            <span className="text-[11px] font-mono text-slate-400">
+              <span className="text-amber-400">Space</span> ↑
+            </span>
+            <span className="text-slate-600">·</span>
+            <span className="text-[11px] font-mono text-slate-400">
+              <span className="text-amber-400">Ctrl</span> ↓
+            </span>
+            <span className="text-slate-600">·</span>
+            <span className="text-[11px] font-mono text-slate-400">
+              <span className="text-amber-400">Shift</span> Boost
+            </span>
+            <span className="text-slate-600">·</span>
+            <span className="text-[11px] font-mono text-slate-400">
+              <span className="text-amber-400">Mouse</span> Look
+            </span>
+          </div>
+        </>
+      )}
+
       {/* Standard Bitmap View (2D Bitfeed-style canvas rendering) */}
       {viewMode === 'standard' && (
         <div className="flex-1 relative flex items-center justify-center" style={{ background: '#0a0a0f' }}>
@@ -4946,9 +5173,9 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           <pointLight position={[-10, 8, -10]} intensity={0.3} color="#ff6622" distance={30} />
           <pointLight position={[10, 5, 10]} intensity={0.2} color="#ffaa44" distance={25} />
 
-          <fog attach="fog" args={viewMode === 'street' ? ['#0a0a0f', 0.5, 3] : ['#0a0a0f', 50, 300]} />
+          <fog attach="fog" args={viewMode === 'street' ? ['#0a0a0f', 0.5, 3] : viewMode === 'flyover' ? ['#0a0a0f', 5, 50] : ['#0a0a0f', 50, 300]} />
 
-          {viewMode !== 'street' && (
+          {viewMode !== 'street' && viewMode !== 'flyover' && (
             <OrbitControls
               ref={controlsRef}
               enableDamping dampingFactor={0.06}
@@ -4962,6 +5189,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           )}
           <CameraManager viewMode={viewMode} />
           <StreetWalker active={viewMode === 'street'} parcels={parcels} teleportTo={streetTeleport} />
+          <FlyoverController active={viewMode === 'flyover'} parcels={parcels} autoTour={autoTour} onExitAutoTour={() => setAutoTour(false)} />
           <FlyToCamera flyTarget={flyTarget} onComplete={handleFlyComplete} />
 
           <GroundPlane parcels={parcels} viewMode={viewMode} />
