@@ -319,7 +319,7 @@ We are equally grateful to Bitoshi Blockamoto, the visionary behind the Bitmap p
 
 We also thank the developers of Bitfeed (bitfeed.live), whose open-source visualization of transactions within Bitcoin blocks — rendering each transaction as a rectangle proportional to its byte size — provided the spatial insight that inspired Bitmap's interpretation of blocks as digital land and transactions as parcels. Their work bridged the gap between raw blockchain data and spatial imagination.
 
-Special thanks to Matt Odell, Marty Bent, Max Keiser & Stacy Herbert, American HODL, and Michael Saylor for their tireless education and advocacy — helping millions understand why Bitcoin matters and inspiring the next generation of builders.
+Special thanks to Matt Odell, Marty Bent, Max Keiser & Stacy Herbert, American HODL, Michael Saylor, and Preston Pysh for their tireless education and advocacy — helping millions understand why Bitcoin matters and inspiring the next generation of builders.
 
 To all: thank you for laying the foundation. We build on the shoulders of giants.`,
   },
@@ -1196,7 +1196,7 @@ function SatoshiView() {
         Bitmap&apos;s interpretation of blocks as digital land and transactions as parcels.
       </p>
       <p>
-        Special thanks to <strong>Matt Odell</strong>, <strong>Marty Bent</strong>, <strong>Max Keiser &amp; Stacy Herbert</strong>, <strong>American HODL</strong>, and <strong>Michael Saylor</strong> for
+        Special thanks to <strong>Matt Odell</strong>, <strong>Marty Bent</strong>, <strong>Max Keiser &amp; Stacy Herbert</strong>, <strong>American HODL</strong>, <strong>Michael Saylor</strong>, and <strong>Preston Pysh</strong> for
         their tireless education and advocacy — helping millions understand why Bitcoin matters
         and inspiring the next generation of builders.
       </p>
