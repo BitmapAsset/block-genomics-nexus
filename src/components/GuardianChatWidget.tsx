@@ -68,9 +68,9 @@ export default function GuardianChatWidget({ blockHeight, guardianName, visitorA
 
   return (
     <div
-      className="fixed bottom-6 right-6 z-[9998] w-80 rounded-2xl overflow-hidden flex flex-col"
+      className="fixed bottom-6 right-6 z-[9998] w-[400px] rounded-2xl overflow-hidden flex flex-col"
       style={{
-        height: 420,
+        height: 520,
         background: 'linear-gradient(135deg, #0a0e17 0%, #111827 100%)',
         border: '1px solid rgba(0,255,136,0.2)',
         boxShadow: '0 0 40px rgba(0,255,136,0.1)',
@@ -81,8 +81,8 @@ export default function GuardianChatWidget({ blockHeight, guardianName, visitorA
         <div className="flex items-center gap-2">
           <span>🛡️</span>
           <div>
-            <div className="text-sm font-bold" style={{ color: '#e2e8f0' }}>{guardianName}</div>
-            <div className="text-[10px]" style={{ color: '#00ff88' }}>● Online</div>
+            <div className="text-base font-bold" style={{ color: '#e2e8f0' }}>{guardianName}</div>
+            <div className="text-xs" style={{ color: '#00ff88' }}>● Online</div>
           </div>
         </div>
         <button onClick={() => setOpen(false)} style={{ color: '#64748b' }}>✕</button>
@@ -91,14 +91,14 @@ export default function GuardianChatWidget({ blockHeight, guardianName, visitorA
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
         {messages.length === 0 && (
-          <div className="text-center text-xs py-8" style={{ color: '#64748b' }}>
+          <div className="text-center text-sm py-8" style={{ color: '#64748b' }}>
             👋 Say hello to the guardian of Block #{blockHeight}
           </div>
         )}
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className="max-w-[85%] px-3 py-2 rounded-xl text-xs"
+              className="max-w-[85%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed"
               style={{
                 background: m.role === 'user' ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.04)',
                 color: m.role === 'user' ? '#00ff88' : '#e2e8f0',
@@ -126,13 +126,13 @@ export default function GuardianChatWidget({ blockHeight, guardianName, visitorA
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && send()}
             placeholder="Type a message..."
-            className="flex-1 px-3 py-2 rounded-lg text-xs outline-none"
+            className="flex-1 px-3.5 py-2.5 rounded-lg text-sm outline-none"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}
           />
           <button
             onClick={send}
             disabled={sending || !input.trim()}
-            className="px-3 py-2 rounded-lg text-xs"
+            className="px-4 py-2.5 rounded-lg text-sm font-medium"
             style={{ background: 'rgba(0,255,136,0.15)', color: '#00ff88', opacity: sending || !input.trim() ? 0.4 : 1 }}
           >
             ▶

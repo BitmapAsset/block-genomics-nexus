@@ -110,8 +110,8 @@ interface Props {
 
 type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street' | 'standard' | 'flyover';
 type RightTab = 'properties' | 'chat' | 'rank' | 'gaming';
-type PanelSize = 'quarter' | 'half' | 'hidden';
-const PANEL_WIDTHS: Record<PanelSize, string> = { quarter: 'w-80', half: 'w-[50vw]', hidden: 'w-0' };
+type PanelSize = 'compact' | 'quarter' | 'third' | 'half' | 'hidden';
+const PANEL_WIDTHS: Record<PanelSize, string> = { compact: 'w-80', quarter: 'w-96', third: 'w-[33vw]', half: 'w-[50vw]', hidden: 'w-0' };
 
 /* ─── Deterministic RNG ─── */
 function seededRandom(seed: number): () => number {
@@ -5401,11 +5401,13 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         <div className="flex items-center justify-between px-2 py-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <div className="flex gap-1">
             {([
-              { size: 'quarter' as PanelSize, icon: '◧', title: '1/4 screen' },
+              { size: 'compact' as PanelSize, icon: '▐', title: 'Compact' },
+              { size: 'quarter' as PanelSize, icon: '◧', title: 'Default' },
+              { size: 'third' as PanelSize, icon: '◫', title: '1/3 screen' },
               { size: 'half' as PanelSize, icon: '◨', title: '1/2 screen' },
             ]).map(s => (
               <button key={s.size} onClick={() => setPanelSize(s.size)} title={s.title}
-                className="w-6 h-6 rounded flex items-center justify-center text-[11px] transition-all hover:brightness-150"
+                className="w-7 h-7 rounded flex items-center justify-center text-xs transition-all hover:brightness-150"
                 style={{
                   background: panelSize === s.size ? 'rgba(247,147,26,0.2)' : 'rgba(255,255,255,0.03)',
                   color: panelSize === s.size ? '#f7931a' : '#475569',
@@ -5431,7 +5433,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             <button
               key={tab.key}
               onClick={() => setRightTab(tab.key)}
-              className="px-3 py-3 text-[11px] font-bold tracking-wider transition-colors flex-1"
+              className="px-3 py-3 text-xs font-bold tracking-wider transition-colors flex-1"
               style={{
                 color: rightTab === tab.key ? '#f7931a' : '#475569',
                 borderBottom: rightTab === tab.key ? '2px solid #f7931a' : '2px solid transparent',
@@ -5601,23 +5603,23 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div className="flex items-center gap-2">
                 <button onClick={onBack} className="text-[#64748b] hover:text-[#f7931a] transition-colors text-sm">‹</button>
-                <span className="text-[11px] font-bold tracking-wider" style={{ color: '#94a3b8' }}>Block</span>
+                <span className="text-xs font-bold tracking-wider" style={{ color: '#94a3b8' }}>Block</span>
               </div>
-              <span className="font-mono text-sm font-bold" style={{ color: '#f7931a' }}>{blockHeight.toLocaleString()}</span>
+              <span className="font-mono text-base font-bold" style={{ color: '#f7931a' }}>{blockHeight.toLocaleString()}</span>
             </div>
 
             <div className="px-4 py-2 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px]"
                 style={{ background: 'rgba(247,147,26,0.15)', color: '#f7931a' }}>{blockOwner.avatar}</div>
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                <span className="text-[11px] font-mono truncate" style={{ color: '#e2e8f0' }}>@{blockOwner.handle}</span>
-                <CrownShield tier={blockOwner.tier} size={14} />
+                <span className="text-xs font-mono truncate" style={{ color: '#e2e8f0' }}>@{blockOwner.handle}</span>
+                <CrownShield tier={blockOwner.tier} size={16} />
                 {blockOwner.verified && <span className="text-[9px]" style={{ color: '#66ccff' }}>✓</span>}
               </div>
               <button onClick={() => setShowQrProfile(true)} className="text-[12px] hover:brightness-150 transition-all active:scale-90" title="View Bitcoin address & QR">₿</button>
             </div>
 
-            <div className="px-4 py-3 space-y-1.5 text-[11px] font-mono" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <div className="px-4 py-3 space-y-2 text-xs font-mono" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <PropRow label="PARCELS / TXS" value={parcels.length.toLocaleString()} />
               <PropRow label="VALUE" value={`₿ ${totalValue.toFixed(4)}`} highlight />
               <PropRow label="VBYTES" value={(blockStats.vbytes ?? totalBytes).toLocaleString()} />
@@ -5653,7 +5655,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <button onClick={() => navigateParcel(-1)} className="text-[#64748b] hover:text-[#f7931a] transition-colors text-lg px-1.5 active:scale-90">‹</button>
-                  <span className="text-[11px] font-bold tracking-wider" style={{ color: '#94a3b8' }}>Parcel <span className="text-[8px] font-normal" style={{ color: '#475569' }}>(child inscription)</span></span>
+                  <span className="text-xs font-bold tracking-wider" style={{ color: '#94a3b8' }}>Parcel <span className="text-[10px] font-normal" style={{ color: '#475569' }}>(child inscription)</span></span>
                 </div>
                 <div className="flex items-center gap-1">
                   <input
@@ -5668,7 +5670,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             </div>
 
             {displayParcel && (
-              <div className="px-4 py-3 space-y-1.5 text-[11px] font-mono" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="px-4 py-3 space-y-2 text-xs font-mono" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                 {displayParcelOwner && (
                   <div className="flex items-center gap-2 pb-2 mb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px]"
@@ -5975,7 +5977,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                 <button
                   key={tab.key}
                   onClick={() => setChatMode(tab.key)}
-                  className="px-3 py-1.5 rounded-lg text-[12px] font-mono font-medium transition-all active:scale-95"
+                  className="px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all active:scale-95"
                   style={{
                     background: chatMode === tab.key ? 'rgba(247,147,26,0.18)' : 'rgba(255,255,255,0.04)',
                     border: `1px solid ${chatMode === tab.key ? 'rgba(247,147,26,0.3)' : 'rgba(255,255,255,0.08)'}`,
@@ -6082,21 +6084,21 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                       <div className="text-[9px] text-center mb-2" style={{ color: '#475569' }}>💬 Demo messages — be the first to chat!</div>
                     )}
                     <div className="flex items-start gap-2">
-                      <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-bold"
+                      <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold"
                         style={{ background: msg.sender === 'You' ? 'rgba(0,255,136,0.2)' : 'rgba(247,147,26,0.15)', color: msg.sender === 'You' ? '#00ff88' : '#f7931a' }}>
                         {msg.sender[0].toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
-                          <span className="text-[10px] font-bold" style={{ color: msg.isOwner ? '#f7931a' : '#e2e8f0' }}>
+                          <span className="text-xs font-bold" style={{ color: msg.isOwner ? '#f7931a' : '#e2e8f0' }}>
                             {msg.sender}
                           </span>
-                          {msg.ownerData && <CrownShield tier={msg.ownerData.tier} size={10} />}
-                          {msg.isOwner && <span className="text-[8px]" style={{ color: '#f7931a' }}>👑 OWNER</span>}
-                          <span className="text-[9px]" style={{ color: '#334155' }}>{msg.time}</span>
-                          {isWalletConnected && <button className="text-[9px] opacity-0 group-hover:opacity-100 transition-opacity ml-auto" style={{ color: '#475569' }} title="Report">🚩</button>}
+                          {msg.ownerData && <CrownShield tier={msg.ownerData.tier} size={12} />}
+                          {msg.isOwner && <span className="text-[10px]" style={{ color: '#f7931a' }}>👑 OWNER</span>}
+                          <span className="text-[10px]" style={{ color: '#334155' }}>{msg.time}</span>
+                          {isWalletConnected && <button className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity ml-auto" style={{ color: '#475569' }} title="Report">🚩</button>}
                         </div>
-                        <div className="text-[11px]" style={{ color: msg.type === 'link' ? '#66ccff' : '#94a3b8', wordBreak: 'break-all' }}>
+                        <div className="text-xs leading-relaxed" style={{ color: msg.type === 'link' ? '#66ccff' : '#94a3b8', wordBreak: 'break-all' }}>
                           {msg.type === 'image' ? (
                             <MediaPreviewImage msgId={msg.id} />
                           ) : msg.type === 'gif' ? (
@@ -6134,11 +6136,11 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             <div className="px-3 py-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
               {!isWalletConnected ? (
                 <div className="text-center py-3 rounded-xl" style={{ background: 'rgba(247,147,26,0.06)', border: '1px solid rgba(247,147,26,0.15)' }}>
-                  <span className="text-[11px] font-mono" style={{ color: '#f7931a' }}>🔐 Connect wallet to chat</span>
+                  <span className="text-xs font-mono" style={{ color: '#f7931a' }}>🔐 Connect wallet to chat</span>
                 </div>
               ) : !isVerified ? (
                 <div className="text-center py-3 rounded-xl" style={{ background: 'rgba(170,68,255,0.06)', border: '1px solid rgba(170,68,255,0.15)' }}>
-                  <span className="text-[11px] font-mono" style={{ color: '#aa44ff' }}>🔐 Verify your identity to chat</span>
+                  <span className="text-xs font-mono" style={{ color: '#aa44ff' }}>🔐 Verify your identity to chat</span>
                 </div>
               ) : (
                 <>
@@ -6160,7 +6162,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                     : chatMode === 'global' ? 'Message all of Bitmap...'
                     : 'Message this block...'
                   }
-                  className="flex-1 px-3 py-2 rounded-lg text-[11px] font-mono outline-none"
+                  className="flex-1 px-3 py-2.5 rounded-lg text-xs font-mono outline-none"
                   style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#e2e8f0' }}
                 />
                 <button
@@ -6214,9 +6216,9 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 /* ─── Property Row ─── */
 function PropRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className="flex justify-between items-center">
-      <span style={{ color: '#64748b' }}>{label}</span>
-      <span className="text-right" style={{ color: highlight ? '#f7931a' : '#e2e8f0', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</span>
+    <div className="flex justify-between items-center py-0.5">
+      <span className="text-xs" style={{ color: '#64748b' }}>{label}</span>
+      <span className="text-right text-xs font-medium truncate ml-3" style={{ color: highlight ? '#f7931a' : '#e2e8f0', maxWidth: '60%' }}>{value}</span>
     </div>
   );
 }
