@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { formatNumber } from "@/lib/genome-utils";
 import LandingPage from "@/components/LandingPage";
+import RotatingTagline from "@/components/RotatingTagline";
 
 // Force static generation — no server-side DB queries needed for landing page
 export const dynamic = 'force-static';
@@ -52,8 +53,8 @@ export default async function HomePage() {
               </span>
             </h1>
 
-            <p className="text-lg sm:text-xl md:text-2xl font-medium text-text-secondary mb-6 tracking-wide" style={{ textShadow: '0 2px 16px rgba(0,0,0,0.95)' }}>
-              Digital DNA for the Bitcoin Metaverse
+            <p className="text-lg sm:text-xl md:text-2xl font-medium text-text-secondary mb-6 tracking-wide h-8 sm:h-9" style={{ textShadow: '0 2px 16px rgba(0,0,0,0.95)' }}>
+              <RotatingTagline />
             </p>
 
             <p className="text-sm sm:text-base text-text-muted mb-10 max-w-xl mx-auto leading-relaxed" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>
@@ -91,7 +92,7 @@ export default async function HomePage() {
                 What is Block Genomics?
               </p>
               <h2 className="text-2xl sm:text-3xl font-semibold mb-4">
-                Digital DNA for sovereign agents
+                Sovereign identity anchored in Bitcoin
               </h2>
               <p className="text-text-secondary leading-relaxed">
                 Each Bitcoin block is a thermodynamic artifact — real energy, real
