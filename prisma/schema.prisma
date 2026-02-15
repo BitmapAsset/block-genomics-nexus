@@ -41,7 +41,8 @@ model Block {
   groundColor  String?  @default("#2d5a27")
   skyColor     String?  @default("#87CEEB")
   inscriptionId  String?   // The .bitmap inscription ID for on-chain verification
-  lastOwnerCheck DateTime? // When we last verified on-chain ownership
+  lastOwnerCheck   DateTime? // When we last verified on-chain ownership
+  transferPrepped  Boolean   @default(false) // Owner prepped memory wipe before selling
   createdAt      DateTime @default(now())
 
   owner                User?               @relation(fields: [ownerAddress], references: [walletAddress])

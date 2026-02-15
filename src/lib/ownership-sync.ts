@@ -7,6 +7,53 @@
 
 import prisma from '@/lib/prisma';
 
+// ─── Memory Wipe Types ──────────────────────────────────────────
+
+export type MemoryWipeOption = 'full' | 'selective' | 'none';
+
+/**
+ * Wipe guardian agent memories before transfer
+ * - 'full': Clear MEMORY.md + reset conversation count. Keep SOUL.md, AGENT.md, SKILLS.md
+ * - 'selective': Owner already cleaned up manually (we just mark it prepped)
+ * - 'none': Transfer as-is — everything passes to new owner (premium option)
+ */
+export async function wipeGuardianMemories(
+  blockHeight: number,
+  wipeOption: MemoryWipeOption,
+  ownerAddress: string,
+): Promise<{ wiped: number }> {
+  if (wipeOption === 'none') return { wiped: 0 };
+
+  const guardians = await prisma.guardianAgent.findMany({
+    where: { blockHeight, ownerAddress },
+  });
+
+  if (wipeOption === 'full') {
+    // Full wipe: clear memory, reset conversations
+    for (const g of guardians) {
+      await prisma.guardianAgent.update({
+        where: { id: g.id },
+        data: {
+          memoryMd: `# MEMORY.md — ${g.name}\n\n*This agent was prepared for transfer on ${new Date().toISOString().split('T')[0]}.*\n*Previous memories were cleared at the former owner's request.*\n*Ready to learn and serve my new owner.*\n\n---\n`,
+          totalMessages: 0,
+        },
+      });
+    }
+    // Clear conversation history
+    await prisma.guardianConversation.deleteMany({
+      where: { guardianId: { in: guardians.map(g => g.id) } },
+    });
+  }
+
+  // Mark block as transfer-prepped
+  await prisma.block.update({
+    where: { height: blockHeight },
+    data: { transferPrepped: true } as any,
+  });
+
+  return { wiped: guardians.length };
+}
+
 // ─── Types ───────────────────────────────────────────────────────
 
 export interface OwnershipCheck {
@@ -160,7 +207,15 @@ export async function processOwnershipTransfer(
     } as any,
   });
 
-  // 2. Pause all Guardian Agents on this block
+  // 2. If owner didn't prep, apply default full memory wipe for privacy
+  const blockData = await prisma.block.findUnique({ where: { height: blockHeight } });
+  if (!(blockData as any)?.transferPrepped) {
+    await wipeGuardianMemories(blockHeight, 'full', previousOwner);
+  }
+  // Reset transfer prep flag
+  await prisma.block.update({ where: { height: blockHeight }, data: { transferPrepped: false } as any });
+
+  // 3. Pause all Guardian Agents on this block
   await prisma.guardianAgent.updateMany({
     where: { blockHeight, status: 'active' },
     data: { status: 'paused_transfer' },

@@ -19,6 +19,7 @@ import GameObjects3D from './GameObjects3D';
 import GameHUD from './GameHUD';
 import type { GameElement } from './GameElementsPanel';
 import UpgradeModal from './UpgradeModal';
+import TransferPrepModal from './TransferPrepModal';
 
 /* ─── Types ─── */
 interface ParcelData {
@@ -4327,6 +4328,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const isWalletConnected = !!(isConnected && walletAddress);
   const ownerLock = !isWalletConnected ? 'connect' : (!isVerified ? 'verify' : null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showTransferPrep, setShowTransferPrep] = useState(false);
   const openWalletModal = () => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('open-wallet-modal'));
@@ -5051,6 +5053,18 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
       {showSendBtcModal && <SendBitcoinModal onClose={() => setShowSendBtcModal(false)} blockHeight={blockHeight} recipientOwner={displayParcelOwner ?? blockOwner} />}
       {showQrProfile && <QrProfileModal onClose={() => setShowQrProfile(false)} owner={displayParcelOwner ?? blockOwner} blockHeight={blockHeight} />}
       {showUpgradeModal && <UpgradeModal onClose={() => setShowUpgradeModal(false)} currentTier={3} />}
+      {showTransferPrep && <TransferPrepModal
+        onClose={() => setShowTransferPrep(false)}
+        blockHeight={blockHeight}
+        guardianCount={guardianStatus ? 1 : 0}
+        walletAddress={walletAddress || ''}
+        walletSign={async (msg: string) => {
+          if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).unisat) {
+            return await ((window as unknown as Record<string, unknown>).unisat as { signMessage: (m: string) => Promise<string> }).signMessage(msg);
+          }
+          return '';
+        }}
+      />}
       {showDelegationListing && <DelegationListingModal onClose={() => setShowDelegationListing(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? -1} owner={displayParcelOwner ?? blockOwner} />}
       {showGetAccess && <GetAccessModal onClose={() => setShowGetAccess(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? -1} owner={displayParcelOwner ?? blockOwner} />}
 
@@ -5859,6 +5873,27 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* ─── Prepare for Transfer ─── */}
+                <div className="relative mt-3">
+                  <button
+                    onClick={() => handleOwnerAction(() => setShowTransferPrep(true))}
+                    className="w-full py-2.5 rounded-xl text-[12px] font-mono transition-all hover:brightness-130 active:scale-[0.97]"
+                    style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      color: '#64748b',
+                      opacity: ownerLock ? 0.6 : 1,
+                    }}
+                  >
+                    🔄 Prepare for Transfer
+                  </button>
+                  {ownerLock && (
+                    <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>
+                      🔐 Locked
+                    </div>
+                  )}
                 </div>
 
                 {/* ─── Land Customization Panel ─── */}
