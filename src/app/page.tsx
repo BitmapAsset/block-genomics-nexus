@@ -58,8 +58,9 @@ export default async function HomePage() {
             </p>
 
             <p className="text-sm sm:text-base text-text-muted mb-10 max-w-xl mx-auto leading-relaxed" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>
-              Every Bitcoin block becomes an unforgeable genome — scarce identity
-              anchored in proof of work. Own a block. Prove who you are.
+              Own a Bitcoin block. Build a world on it. Give it a mind.
+              Welcome to sovereign digital land — where every block is territory,
+              every owner is king, and every AI agent has a soul.
             </p>
 
             <p className="text-sm sm:text-base font-semibold mb-8 tracking-wide" style={{ color: '#00ffcc', textShadow: '0 0 20px rgba(0,255,204,0.4), 0 2px 12px rgba(0,0,0,0.9)' }}>
