@@ -429,6 +429,10 @@ model GuardianAgent {
   protocolVersion String?  @default("1.0.0")
   configJson      String?  @db.Text
 
+  // Monitor Token
+  monitorTokenHash      String?
+  monitorTokenCreatedAt DateTime?
+
   // Status
   status        String   @default("active")
   totalVisitors Int      @default(0)
