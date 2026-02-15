@@ -176,7 +176,7 @@ export default function VerifyPage() {
   /* step 2 */
   const [blockInput, setBlockInput] = useState('');
   const [blockError, setBlockError] = useState('');
-  const [blockInfo, setBlockInfo] = useState<{ height: number; txCount: number } | null>(null);
+  const [blockInfo, setBlockInfo] = useState<{ height: number; txCount: number; inscriptionId?: string } | null>(null);
   const [inscriptions, setInscriptions] = useState<BitmapInscription[]>([]);
   const [loadingInscriptions, setLoadingInscriptions] = useState(false);
 
@@ -290,12 +290,12 @@ export default function VerifyPage() {
         const blockResp = await fetch(`https://mempool.space/api/block/${blockHash}`);
         if (blockResp.ok) {
           const blockData = await blockResp.json();
-          setBlockInfo({ height: insc.height, txCount: blockData.tx_count || 0 });
+          setBlockInfo({ height: insc.height, txCount: blockData.tx_count || 0, inscriptionId: insc.inscriptionId });
           return;
         }
       }
     } catch { /* fallback */ }
-    setBlockInfo({ height: insc.height, txCount: 0 });
+    setBlockInfo({ height: insc.height, txCount: 0, inscriptionId: insc.inscriptionId });
   }, []);
 
   const submitBlock = useCallback(async () => {
@@ -347,6 +347,7 @@ export default function VerifyPage() {
           signature,
           message,
           blockHeight: blockInfo.height,
+          ...(blockInfo.inscriptionId && { inscriptionId: blockInfo.inscriptionId }),
         }),
       });
       const verifyData = await verifyResp.json();
@@ -413,6 +414,7 @@ export default function VerifyPage() {
           signature,
           message: challengeData.data.message,
           blockHeight: blockInfo.height,
+          ...(blockInfo.inscriptionId && { inscriptionId: blockInfo.inscriptionId }),
           handle,
           displayName: displayName || undefined,
         }),
