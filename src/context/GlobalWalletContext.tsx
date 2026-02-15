@@ -115,18 +115,15 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
     check();
     const t = setTimeout(check, 500);
 
-    // Listen for Unisat account switching
+    // Listen for Unisat account switching (native event)
     const handleAccountsChanged = async (...args: unknown[]) => {
       const accounts = args[0] as string[];
       if (!accounts?.length) return;
       const newAddr = accounts[0];
-      // If address actually changed, clear old profile and fetch new one
       setState(prev => {
         if (prev.walletAddress === newAddr) return prev;
-        // Clear old state immediately
         return { ...prev, walletAddress: newAddr, profile: null };
       });
-      // Fetch profile for new address
       const profile = await fetchProfileByWallet(newAddr);
       saveSession('unisat', newAddr);
       setState(prev => ({
@@ -141,8 +138,50 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
       try { window.unisat.on('accountsChanged', handleAccountsChanged); } catch {}
     }
 
+    // Poll for address changes on ALL wallet types (Xverse/Leather don't have events)
+    // Check every 5 seconds if the extension's current address differs from our state
+    const pollInterval = setInterval(async () => {
+      // Use a ref-like approach: read current state via setState callback
+      setState(prev => {
+        if (!prev.isConnected || !prev.walletType || !prev.walletAddress) return prev;
+        // Fire async check outside setState
+        (async () => {
+          try {
+            let currentAddr: string | null = null;
+            if (prev.walletType === 'unisat' && window.unisat) {
+              const accts = await window.unisat.getAccounts();
+              currentAddr = accts?.[0] || null;
+            } else if (prev.walletType === 'xverse' && window.BitcoinProvider) {
+              // Xverse: re-connect returns current addresses without prompting
+              const resp = await window.BitcoinProvider.connect();
+              currentAddr = resp?.addresses?.[0]?.address || null;
+            } else if (prev.walletType === 'leather' && window.LeatherProvider) {
+              const resp = await window.LeatherProvider.request('getAddresses');
+              const addrs = resp.result?.addresses || [];
+              const taproot = addrs.find((a: { type: string }) => a.type === 'p2tr');
+              currentAddr = taproot?.address || addrs[0]?.address || null;
+            }
+            if (currentAddr && currentAddr !== prev.walletAddress) {
+              // Address changed! Update everything
+              const profile = await fetchProfileByWallet(currentAddr);
+              saveSession(prev.walletType!, currentAddr);
+              setState(p => ({
+                ...p,
+                walletAddress: currentAddr!,
+                profile,
+              }));
+            }
+          } catch {
+            // Extension unavailable or locked — ignore
+          }
+        })();
+        return prev; // Don't change state synchronously
+      });
+    }, 5000);
+
     return () => {
       clearTimeout(t);
+      clearInterval(pollInterval);
       if (typeof window !== 'undefined' && window.unisat) {
         try { window.unisat.removeListener('accountsChanged', handleAccountsChanged); } catch {}
       }
@@ -158,12 +197,16 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
     (async () => {
       setState(prev => ({ ...prev, isConnecting: true }));
       try {
-        // Try to reconnect to verify extension is still available
+        // Always get the LIVE address from the extension (not the saved one)
+        // This ensures if user switched accounts while the tab was closed, we pick up the new one
         const address = await connectWalletByType(saved.type);
         if (cancelled) return;
+        if (address !== saved.address) {
+          // User switched wallets since last session — use the new address
+          saveSession(saved.type, address);
+        }
         const profile = await fetchProfileByWallet(address);
         if (cancelled) return;
-        saveSession(saved.type, address);
         setState(prev => ({
           ...prev,
           isConnected: true,
@@ -174,17 +217,15 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
         }));
       } catch {
         if (cancelled) return;
-        // Extension not available anymore — still set address from saved session
-        // so UI shows connected state, but mark that we used cached data
-        const profile = await fetchProfileByWallet(saved.address);
-        if (cancelled) return;
+        // Extension not available — clear session, don't trust stale data
+        clearSession();
         setState(prev => ({
           ...prev,
-          isConnected: true,
+          isConnected: false,
           isConnecting: false,
-          walletAddress: saved.address,
-          walletType: saved.type,
-          profile,
+          walletAddress: null,
+          walletType: null,
+          profile: null,
         }));
       }
     })();
