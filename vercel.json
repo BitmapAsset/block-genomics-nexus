@@ -3,6 +3,10 @@
     {
       "path": "/api/v1/brain/cron",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/v1/ownership/cron",
+      "schedule": "*/15 * * * *"
     }
   ],
   "framework": "nextjs",

@@ -50,15 +50,19 @@ export async function POST(req: NextRequest) {
     /* MOCK — replace with real BIP-322 */
     if (!verifyWalletSignature(walletAddress, message, signature)) return error('Invalid signature', 401);
 
-    // Verify owner owns the block
+    // Verify owner owns the block — check DB first, then on-chain as fallback
     const block = await prisma.block.findUnique({ where: { height: blockHeight } });
     if (!block) {
-      console.log(`[Delegation] Block ${blockHeight} not found in DB`);
-      return error(`Block ${blockHeight} not found in database. Verify ownership first.`, 404);
+      return error(`Block ${blockHeight} not found. Verify ownership first at /verify.`, 404);
     }
     if (block.ownerAddress !== walletAddress) {
-      console.log(`[Delegation] Owner mismatch: DB="${block.ownerAddress}" vs Request="${walletAddress}"`);
-      return error(`Wallet mismatch. Block owner: ${block.ownerAddress?.slice(0, 12)}... Your wallet: ${walletAddress?.slice(0, 12)}...`, 403);
+      // DB mismatch — try on-chain verification as fallback
+      const { verifyAndSyncBlock } = await import('@/lib/ownership-sync');
+      const check = await verifyAndSyncBlock(blockHeight, walletAddress);
+      if (!check.isOwner) {
+        return error(`Not the block owner. DB owner: ${block.ownerAddress?.slice(0, 12)}... On-chain check also failed.`, 403);
+      }
+      // If on-chain check passed, the sync function already updated the DB
     }
 
     const listing = await prisma.delegationListing.upsert({

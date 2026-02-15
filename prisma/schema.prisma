@@ -40,7 +40,9 @@ model Block {
   label        String?
   groundColor  String?  @default("#2d5a27")
   skyColor     String?  @default("#87CEEB")
-  createdAt    DateTime @default(now())
+  inscriptionId  String?   // The .bitmap inscription ID for on-chain verification
+  lastOwnerCheck DateTime? // When we last verified on-chain ownership
+  createdAt      DateTime @default(now())
 
   owner                User?               @relation(fields: [ownerAddress], references: [walletAddress])
   parcels              Parcel[]
@@ -637,6 +639,24 @@ model GameLeaderboard {
 
   @@unique([blockHeight, walletAddress, category])
   @@index([blockHeight, category, value])
+}
+
+model OwnershipTransfer {
+  id              String   @id @default(cuid())
+  blockHeight     Int
+  inscriptionId   String?
+  previousOwner   String
+  newOwner        String
+
+  buildingsKept   Boolean  @default(true)
+  guardiansKept   Boolean  @default(true)
+  guardiansPaused Boolean  @default(true)
+
+  detectedAt      DateTime @default(now())
+
+  @@index([blockHeight])
+  @@index([previousOwner])
+  @@index([newOwner])
 }
 
 model GameQuest {

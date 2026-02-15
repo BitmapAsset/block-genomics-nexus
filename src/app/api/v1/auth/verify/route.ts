@@ -15,7 +15,7 @@ import { logActivity } from '@/lib/activity';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { walletAddress, signature, message, blockHeight, handle, displayName } = body;
+    const { walletAddress, signature, message, blockHeight, handle, displayName, inscriptionId } = body;
 
     if (!walletAddress || !signature || !message) {
       return error('walletAddress, signature, and message are required', 400);
@@ -101,8 +101,15 @@ export async function POST(req: NextRequest) {
     if (blockHeight) {
       await prisma.block.upsert({
         where: { height: blockHeight },
-        update: { ownerAddress: walletAddress },
-        create: { height: blockHeight, ownerAddress: walletAddress },
+        update: {
+          ownerAddress: walletAddress,
+          ...(inscriptionId && { inscriptionId }),
+        },
+        create: {
+          height: blockHeight,
+          ownerAddress: walletAddress,
+          ...(inscriptionId && { inscriptionId }),
+        },
       });
     }
 
