@@ -295,7 +295,7 @@ A public transparency dashboard at /brain displays real-time operational data: t
 
 Immutability of the Moral Code
 
-The five rules of the moral code are inscribed as a Bitcoin ordinal inscription, making them as permanent and immutable as a Bitcoin transaction. The inscription ID is referenced in the protocol source code and displayed on the transparency dashboard. Any modification to the moral code requires a new protocol version — a new inscription, a new source code release, and a new deployment. This process is visible to all participants and auditable by the community. The moral code cannot be changed silently, secretly, or unilaterally.`,
+The five rules of the moral code are inscribed as Bitcoin Ordinal Inscription #119380336 (ID: 75abd6987e756f042e1ac5e714169e35f5086993bd176eac3156abc9e118291fi0), making them as permanent and immutable as a Bitcoin transaction. The inscription number is referenced in the protocol source code and displayed on the transparency dashboard. Any modification to the moral code requires a new protocol version — a new inscription, a new source code release, and a new deployment. This process is visible to all participants and auditable by the community. The moral code cannot be changed silently, secretly, or unilaterally.`,
   },
   {
     id: "vision", num: "15", title: "Vision: Energy, Civilization, and the Kardashev Path",
