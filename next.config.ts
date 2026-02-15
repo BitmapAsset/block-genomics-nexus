@@ -32,10 +32,9 @@ const securityHeaders = [
   },
 ];
 
-// Restrict CORS to our own domain (and localhost for dev)
-const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? 'https://blockgenomics.io'
-  : 'http://localhost:3000';
+// Restrict CORS to our own domain
+// In development, override via CORS_ORIGIN env var
+const allowedOrigins = process.env.CORS_ORIGIN || 'https://blockgenomics.io';
 
 const corsHeaders = [
   {
