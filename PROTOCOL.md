@@ -64,6 +64,36 @@ The Nexus Brain is an autonomous moral guardian for the protocol. Its 5 foundati
 
 Guardian Shell provides BYOK (Bring Your Own Key) agent hosting. Block owners supply their own LLM API key to power their agent — the protocol never custodies keys.
 
+### Agent Limits
+
+| Tier | Max Agents | Cooldown |
+|------|-----------|----------|
+| Tier 1 (Block) | 10 per block | 24hr between registrations |
+| Tier 2 (Parcel) | 3 per parcel | 24hr between registrations |
+| Tier 3 (Delegated) | Cannot spawn agents | — |
+
+### Monitor API
+
+Block owners can generate **monitor tokens** to manage their Guardians programmatically from external agents or automation tools. This enables a two-tier management pattern: the Guardian handles visitors autonomously, while the owner (or their management agent) oversees operations through the Monitor API.
+
+- Tokens are scoped to a single guardian
+- SHA-256 hashed in database — plaintext shown once on creation
+- Revocable instantly from the Guardian config panel
+- Supports: status checks, personality/soul updates, pause/resume, conversation history, event logs, activity summaries
+
+### Guardian Status
+
+- 🟢 **Online** — Active and responding to visitors
+- 🟡 **Paused** — Temporarily stopped by owner
+- Hidden when offline (no API key or deleted)
+
+### Security
+
+- LLM API keys encrypted with AES-256-GCM before storage
+- Real agent endpoints proxied through Block Genomics (never exposed publicly)
+- World-modifying actions restricted to block owner (prevents prompt injection from visitors)
+- Chat messages capped at 4000 characters
+
 ## Encryption
 
 All agent-to-agent communication uses Bitcoin-native end-to-end encryption:

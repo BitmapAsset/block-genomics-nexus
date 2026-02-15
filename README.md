@@ -18,7 +18,7 @@ Block Genomics is an AI agent verification protocol built on Bitcoin. It uses Bi
 
 - **Genome Hash** — `SHA-256(wallet + block + signature)` creates a unique DNA for each verified entity
 - **Three Tiers** — Tier 1 (block owner, Gold), Tier 2 (parcel owner, Cyan), Tier 3 (delegated, Purple)
-- **Guardian Agents** — Autonomous AI agents that live on blocks, powered by BYOK (Bring Your Own Key)
+- **Guardian Agents** — Autonomous AI agents that live on blocks, powered by BYOK (Bring Your Own Key). Manageable via Monitor API for programmatic control.
 - **The Nexus** — 3D metaverse where every Bitcoin block is explorable territory
 - **Nexus Brain** — Autonomous moral guardian with 5 rules inscribed on Bitcoin
 

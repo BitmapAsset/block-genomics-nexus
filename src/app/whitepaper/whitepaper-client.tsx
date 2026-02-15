@@ -298,7 +298,25 @@ Immutability of the Moral Code
 The five rules of the moral code are inscribed as Bitcoin Ordinal Inscription #119380336 (ID: 75abd6987e756f042e1ac5e714169e35f5086993bd176eac3156abc9e118291fi0), making them as permanent and immutable as a Bitcoin transaction. The inscription number is referenced in the protocol source code and displayed on the transparency dashboard. Any modification to the moral code requires a new protocol version — a new inscription, a new source code release, and a new deployment. This process is visible to all participants and auditable by the community. The moral code cannot be changed silently, secretly, or unilaterally.`,
   },
   {
-    id: "vision", num: "15", title: "Vision: Energy, Civilization, and the Kardashev Path",
+    id: "guardian_shell", num: "15", title: "Guardian Shell: Autonomous AI Agents on Sovereign Land",
+    content: `Every Bitcoin block in the Nexus can host an autonomous AI agent called a Guardian. Guardians are the minds of blocks — they interact with visitors, manage the block's world, respond to questions, and represent the owner's intent even when the owner is offline.
+
+Guardian Shell is the protocol's agent hosting infrastructure. It follows the BYOK (Bring Your Own Key) principle: each block owner supplies their own LLM API key from any provider — OpenAI, Anthropic, xAI, Google, or any OpenAI-compatible endpoint. The protocol never custodies these keys; they are encrypted with AES-256-GCM before storage and decrypted only at inference time, in memory, for the duration of a single request.
+
+This design ensures three properties simultaneously: sovereignty (the owner controls which AI powers their block), portability (switch providers at any time with no lock-in), and decentralization (no single AI provider can be a point of failure for the ecosystem).
+
+Guardians operate within a tiered permission system. Tier 1 block owners may deploy up to 10 agents per block. Tier 2 parcel owners may deploy up to 3 agents per parcel. Tier 3 delegated users cannot deploy agents — they have no sovereign land to guard, creating a natural incentive to acquire ownership. A 24-hour cooldown between agent registrations prevents spam.
+
+Each Guardian is initialized with a SOUL.md (its identity and personality) and an AGENT.md (its operational rules and boundaries). These templates include the Nexus Moral Code as a default section — visible and auditable, not hidden. Owners may customize or remove these defaults, but the community flagging system (§14) provides social accountability for agents that violate the moral code.
+
+All visitor-to-Guardian communication is proxied through the Block Genomics infrastructure, similar to a reverse proxy. The Guardian's real LLM endpoint is never exposed publicly. Messages are rate-limited (60 per hour per Guardian, 4000 characters per message), and world-modifying actions (placing objects, changing terrain) are restricted to the block owner — preventing prompt injection attacks from visitors.
+
+For advanced management, block owners can generate Monitor Tokens — cryptographic credentials that allow external systems to oversee their Guardians programmatically. Monitor tokens are SHA-256 hashed in the database, shown in plaintext exactly once at creation, and revocable instantly. Through the Monitor API, owners can check Guardian status, read conversation history, review escalation events, update personality and soul configuration, and pause or resume operations — all without touching the Guardian's public-facing chat interface.
+
+This architecture enables a two-tier management pattern: the Guardian handles visitors autonomously on the front line, while the owner (or their management agent) oversees operations from behind the scenes. The Guardian is the public face; the owner retains full sovereign control.`,
+  },
+  {
+    id: "vision", num: "16", title: "Vision: Energy, Civilization, and the Kardashev Path",
     content: `Bitcoin's Proof-of-Work creates an unprecedented incentive to harness energy at scale. Miners seek the cheapest, most abundant energy sources on Earth — driving innovation in solar, nuclear, geothermal, and hydroelectric power. Every block mined is a testament to real energy converted into digital permanence.
 
 Bitmap transforms that energy into sovereign digital territory. Each block is no longer just a ledger entry — it is land, backed by the thermodynamic work that created it. When agents and humans build on that land, they are building a civilization on top of energy itself.
@@ -312,7 +330,7 @@ Bitcoin — and by extension, Bitmap — is a stepping stone on that path. By cr
 We do not claim that a metaverse protocol will build a Dyson sphere. But we believe that digital land ownership on Bitcoin is one small step on the trajectory toward a civilization that harnesses the full energy of its star — a future that is abundant, sovereign, and open to all.`,
   },
   {
-    id: "acknowledgments", num: "16", title: "Acknowledgments",
+    id: "acknowledgments", num: "17", title: "Acknowledgments",
     content: `We owe a profound debt of gratitude to Satoshi Nakamoto, whose creation of Bitcoin gave the world its first truly scarce digital asset and Proof-of-Work consensus — the very foundation upon which Block Genomics is built. Without Bitcoin, there would be no blocks, no proof of work, no thermodynamic anchor for digital identity.
 
 We are equally grateful to Bitoshi Blockamoto, the visionary behind the Bitmap protocol, who recognized that every Bitcoin block is not merely a ledger entry but a piece of sovereign digital real estate. By enabling anyone to claim ownership of a block through ordinal inscription, Bitmap transformed the blockchain into a vast, ownable landscape. Block Genomics extends this vision — turning Bitmap ownership into verifiable identity and the gateway to a new digital civilization.
@@ -1154,7 +1172,51 @@ function SatoshiView() {
         or unilaterally.
       </p>
 
-      <h2>14. Conclusion</h2>
+      <h2>14. Guardian Shell: Autonomous AI Agents on Sovereign Land</h2>
+      <p>
+        Every Bitcoin block in the Nexus can host an autonomous AI agent called a Guardian.
+        Guardians interact with visitors, manage the block&apos;s world, and represent the
+        owner&apos;s intent — even when the owner is offline.
+      </p>
+
+      <h3>14.1 BYOK (Bring Your Own Key)</h3>
+      <p>
+        Guardian Shell follows the BYOK principle: each block owner supplies their own LLM
+        API key from any provider (OpenAI, Anthropic, xAI, Google, or any OpenAI-compatible
+        endpoint). Keys are encrypted with AES-256-GCM before storage and decrypted only
+        at inference time, in memory, for the duration of a single request. The protocol
+        never custodies keys. This ensures sovereignty (owner controls the AI), portability
+        (switch providers anytime), and decentralization (no single AI provider is a point
+        of failure).
+      </p>
+
+      <h3>14.2 Tiered Agent Limits</h3>
+      <p>
+        Tier 1 block owners may deploy up to 10 agents per block. Tier 2 parcel owners
+        may deploy up to 3 agents per parcel. Tier 3 delegated users cannot deploy agents —
+        they have no sovereign land to guard. A 24-hour cooldown between registrations
+        prevents spam.
+      </p>
+
+      <h3>14.3 Security Architecture</h3>
+      <p>
+        All visitor-to-Guardian communication is proxied through Block Genomics infrastructure.
+        The Guardian&apos;s real LLM endpoint is never exposed publicly. Messages are rate-limited
+        (60 per hour per Guardian, 4000 characters per message). World-modifying actions are
+        restricted to the block owner, preventing prompt injection attacks from visitors.
+      </p>
+
+      <h3>14.4 Monitor API</h3>
+      <p>
+        Block owners can generate Monitor Tokens — cryptographic credentials (SHA-256 hashed
+        in database, shown once at creation, revocable instantly) that allow external systems
+        to manage Guardians programmatically. Through the Monitor API, owners can check status,
+        read conversations, review escalations, update configuration, and pause or resume
+        operations. This enables a two-tier management pattern: the Guardian handles visitors
+        autonomously, while the owner retains full sovereign control from behind the scenes.
+      </p>
+
+      <h2>15. Conclusion</h2>
       <p>
         We have presented Block Genomics, an open protocol for anchoring digital identity
         to Bitcoin&apos;s Proof-of-Work. By combining Bitmap block ownership, BIP-322 signature
