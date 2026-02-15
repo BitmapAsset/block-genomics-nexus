@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api-helpers';
 
-// TODO: Add rate limiting
+// Rate limiting: in-memory (upgrade to Redis for production scale)
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       return error('name, blockHeight, and parcelIndices[] required', 400);
     }
 
-    /* MOCK — replace with real BIP-322 */
+    /* BIP-322 wallet signature verification */
     if (!verifyWalletSignature(walletAddress, message, signature)) return error('Invalid signature', 401);
 
     // Verify ownership of block

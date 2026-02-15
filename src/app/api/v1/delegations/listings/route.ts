@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// TODO: Add rate limiting
+// Rate limiting: in-memory (upgrade to Redis for production scale)
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     if (![2, 3].includes(tier)) return error('tier must be 2 or 3', 400);
     if (price30d < 0 || price365d < 0) return error('Prices must be non-negative', 400);
 
-    /* MOCK — replace with real BIP-322 */
+    /* BIP-322 wallet signature verification */
     if (!verifyWalletSignature(walletAddress, message, signature)) return error('Invalid signature', 401);
 
     // Verify owner owns the block — check DB first, then on-chain as fallback

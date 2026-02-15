@@ -16,7 +16,7 @@ export async function DELETE(
       return error('Missing walletAddress, signature, or challenge', 400);
     }
 
-    /* MOCK — replace with real BIP-322 */
+    /* BIP-322 wallet signature verification */
     if (!verifyAgentSignature(walletAddress, challenge, signature)) {
       return error('Invalid wallet signature', 401);
     }

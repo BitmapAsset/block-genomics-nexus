@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma';
 import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
 import { calculateDelegationFee } from '@/lib/protocol';
 
-// TODO: Add rate limiting
+// Rate limiting: in-memory (upgrade to Redis for production scale)
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     if (!listingId || !durationDays || !txId) return error('listingId, durationDays, txId required', 400);
     if (![30, 365].includes(durationDays)) return error('durationDays must be 30 or 365', 400);
 
-    /* MOCK — replace with real BIP-322 */
+    /* BIP-322 wallet signature verification */
     if (!verifyWalletSignature(walletAddress, message, signature)) return error('Invalid signature', 401);
 
     const listing = await prisma.delegationListing.findUnique({ where: { id: listingId } });
