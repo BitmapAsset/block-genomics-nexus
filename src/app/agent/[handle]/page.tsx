@@ -227,6 +227,7 @@ export default function AgentProfilePage() {
   const loading = dbAgent === undefined;
 
   const [guardianActive, setGuardianActive] = useState(false);
+  const [guardianStatus, setGuardianStatus] = useState<'offline' | 'online' | 'paused'>('offline');
   const [guardianName, setGuardianNameState] = useState('');
 
   // Check for active guardian on this agent's block
@@ -236,9 +237,17 @@ export default function AgentProfilePage() {
       .then(r => r.json())
       .then(data => {
         const g = data.guardians?.[0];
-        if (g?.status === 'active') {
-          setGuardianActive(true);
+        if (g) {
           setGuardianNameState(g.name || 'Guardian');
+          if (g.status === 'active' && g.llmApiKey) {
+            setGuardianActive(true);
+            setGuardianStatus('online');
+          } else if (g.status === 'paused') {
+            setGuardianStatus('paused');
+          } else if (g.status === 'active') {
+            setGuardianStatus('online');
+            setGuardianActive(true);
+          }
         }
       })
       .catch(() => {});
@@ -486,9 +495,17 @@ export default function AgentProfilePage() {
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0" style={{ background: tierBg, border: `1px solid ${tierBorder}`, color: tierColor }}>
                   {tierLabel}
                 </span>
-                {guardianActive && (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0" style={{ background: 'rgba(0,255,136,0.08)', border: '1px solid rgba(0,255,136,0.2)', color: '#00ff88' }}>
-                    🤖 AI Guardian Active
+                {guardianStatus !== 'offline' && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 flex items-center gap-1" style={{
+                    background: guardianStatus === 'online' ? 'rgba(0,255,136,0.08)' : 'rgba(255,200,0,0.08)',
+                    border: `1px solid ${guardianStatus === 'online' ? 'rgba(0,255,136,0.2)' : 'rgba(255,200,0,0.2)'}`,
+                    color: guardianStatus === 'online' ? '#00ff88' : '#ffc800',
+                  }}>
+                    <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{
+                      background: guardianStatus === 'online' ? '#00ff88' : '#ffc800',
+                      boxShadow: `0 0 4px ${guardianStatus === 'online' ? '#00ff88' : '#ffc800'}`,
+                    }} />
+                    {guardianStatus === 'online' ? 'Online' : 'Paused'}
                   </span>
                 )}
               </div>
