@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { encryptApiKey, maskApiKey } from '@/lib/key-encryption';
+import { generateGuardianBundle, GUARDIAN_PROTOCOL_VERSION } from '@/lib/guardian-templates';
 
 const VALID_PROVIDERS = ['openai', 'anthropic', 'google', 'xai', 'custom'];
 
@@ -18,9 +19,15 @@ export async function POST(req: NextRequest) {
       signature, message: signedMessage,
     } = body;
 
-    if (!blockHeight || !ownerAddress || !name || !soulMd) {
-      return NextResponse.json({ error: 'Missing required fields: blockHeight, ownerAddress, name, soulMd' }, { status: 400 });
+    if (!blockHeight || !ownerAddress || !name) {
+      return NextResponse.json({ error: 'Missing required fields: blockHeight, ownerAddress, name' }, { status: 400 });
     }
+
+    // Generate default templates if not provided
+    const bundle = generateGuardianBundle(blockHeight, name);
+    const finalSoulMd = soulMd || bundle.soulMd;
+    const finalAgentMd = body.agentMd || bundle.agentMd;
+    const finalSkillsMd = body.skillsMd || bundle.skillsMd;
 
     // Verify wallet signature
     if (!signature || !signedMessage) {
@@ -57,8 +64,14 @@ export async function POST(req: NextRequest) {
         ...(autoApproveDelegationUnder !== undefined && { autoApproveDelegationUnder }),
       },
       create: {
-        blockHeight, ownerAddress, name, soulMd,
-        agentMd, skillsMd, personality,
+        blockHeight, ownerAddress, name,
+        soulMd: finalSoulMd,
+        agentMd: finalAgentMd,
+        skillsMd: finalSkillsMd,
+        memoryMd: bundle.memoryMd,
+        configJson: JSON.stringify(bundle.configJson),
+        protocolVersion: GUARDIAN_PROTOCOL_VERSION,
+        personality,
         llmProvider, llmModel,
         llmApiKey: encryptedKey,
         llmEndpoint, selfHosted: selfHosted || false,

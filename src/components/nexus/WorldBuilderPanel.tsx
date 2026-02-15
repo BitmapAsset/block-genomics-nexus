@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import GameElementsPanel, { type GameElement } from './GameElementsPanel';
 
 /* ─── Types ─── */
 export interface WorldObject {
@@ -58,7 +59,7 @@ export interface TerrainSettings {
 }
 
 type ToolMode = 'select' | 'move' | 'rotate' | 'scale';
-type Tab = 'objects' | 'terrain';
+type Tab = 'objects' | 'terrain' | 'gaming';
 
 interface ObjectTemplate {
   label: string;
@@ -185,6 +186,8 @@ export default function WorldBuilderPanel({
   const [expandedCategory, setExpandedCategory] = useState<string | null>('Primitives');
   const [saving, setSaving] = useState(false);
   const [undoStack, setUndoStack] = useState<WorldObject[][]>([]);
+  const [gameElements, setGameElements] = useState<GameElement[]>([]);
+  const [selectedGameElementId, setSelectedGameElementId] = useState<string | null>(null);
 
   const selectedObject = objects.find(o => o.id === selectedObjectId) || null;
 
@@ -347,14 +350,14 @@ export default function WorldBuilderPanel({
 
       {/* Tabs */}
       <div className="flex" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        {(['objects', 'terrain'] as Tab[]).map(t => (
+        {(['objects', 'terrain', 'gaming'] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className="flex-1 py-2 text-[11px] font-mono uppercase tracking-wider transition-all"
             style={{
               color: tab === t ? '#f7931a' : '#64748b',
               borderBottom: tab === t ? '2px solid #f7931a' : '2px solid transparent',
             }}>
-            {t === 'objects' ? '📦 Objects' : '🌍 Terrain'}
+            {t === 'objects' ? '📦 Objects' : t === 'terrain' ? '🌍 Terrain' : '🎮 Gaming'}
           </button>
         ))}
       </div>
@@ -511,7 +514,7 @@ export default function WorldBuilderPanel({
               </div>
             )}
           </div>
-        ) : (
+        ) : tab === 'terrain' ? (
           /* Terrain Tab */
           <div className="p-3 space-y-3">
             <div>
@@ -553,7 +556,16 @@ export default function WorldBuilderPanel({
               </select>
             </div>
           </div>
-        )}
+        ) : tab === 'gaming' ? (
+          <GameElementsPanel
+            blockHeight={blockHeight}
+            ownerAddress={ownerAddress}
+            elements={gameElements}
+            onElementsChange={setGameElements}
+            selectedElementId={selectedGameElementId}
+            onSelectElement={setSelectedGameElementId}
+          />
+        ) : null}
       </div>
     </div>
   );

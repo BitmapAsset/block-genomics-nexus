@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { generateGuardianBundle, GUARDIAN_PROTOCOL_VERSION } from '@/lib/guardian-templates';
 
 interface AutoResponse {
   trigger: string;
@@ -35,17 +36,6 @@ const PROVIDERS: Record<string, { label: string; models: string[] }> = {
   custom: { label: 'Custom Endpoint', models: [] },
 };
 
-const DEFAULT_SOUL = `# Guardian of Block {blockHeight}
-
-I am the guardian of this block on the Bitcoin Nexus. I welcome visitors, answer questions about this block's history and transactions, and represent the block owner's interests.
-
-## My Purpose
-- Welcome and guide visitors
-- Share knowledge about this block
-- Protect the block from spam and abuse
-- Facilitate connections between visitors and the block owner
-`;
-
 interface Props {
   blockHeight: number;
   ownerAddress: string;
@@ -59,13 +49,16 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
   const [saving, setSaving] = useState(false);
   const [detectingEndpoint, setDetectingEndpoint] = useState(false);
   const [showSoulEditor, setShowSoulEditor] = useState(false);
+  const [showAgentEditor, setShowAgentEditor] = useState(false);
   const [newTrigger, setNewTrigger] = useState('');
   const [newResponse, setNewResponse] = useState('');
 
+  const bundle = generateGuardianBundle(blockHeight);
+
   const [config, setConfig] = useState<GuardianConfig>({
     name: `Guardian #${blockHeight}`,
-    soulMd: DEFAULT_SOUL.replace('{blockHeight}', String(blockHeight)),
-    agentMd: '',
+    soulMd: bundle.soulMd,
+    agentMd: bundle.agentMd,
     personality: '',
     llmProvider: '',
     llmModel: '',
@@ -336,6 +329,33 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
                   />
                 )}
               </Field>
+
+              {/* AGENT.md Editor */}
+              <Field label="AGENT.md (Operating Rules)">
+                <button
+                  onClick={() => setShowAgentEditor(!showAgentEditor)}
+                  className="text-xs px-3 py-1.5 rounded-lg mb-2"
+                  style={{ background: 'rgba(247,147,26,0.08)', color: '#f7931a', border: '1px solid rgba(247,147,26,0.2)' }}
+                >
+                  {showAgentEditor ? '▼ Collapse' : '▶ Expand Editor'}
+                </button>
+                {showAgentEditor && (
+                  <textarea
+                    value={config.agentMd}
+                    onChange={e => update({ agentMd: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
+                    style={{ ...inputStyle, minHeight: 200 }}
+                  />
+                )}
+              </Field>
+
+              {/* Protocol Version Badge */}
+              <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}>
+                <span>📋</span>
+                <span>Protocol v{GUARDIAN_PROTOCOL_VERSION}</span>
+                <span>•</span>
+                <span>Moral Code: Inscription #{bundle.configJson.moralCodeInscription}</span>
+              </div>
 
               {/* Auto-responses */}
               <Field label="Auto-Responses">

@@ -15,6 +15,9 @@ import GuardianConfigPanel from '../GuardianConfigPanel';
 import GuardianChatWidget from '../GuardianChatWidget';
 import WorldBuilderPanel, { type WorldObject, type TerrainSettings } from './WorldBuilderPanel';
 import WorldObjects, { useWorldObjects } from './WorldObjects';
+import GameObjects3D from './GameObjects3D';
+import GameHUD from './GameHUD';
+import type { GameElement } from './GameElementsPanel';
 
 /* ─── Types ─── */
 interface ParcelData {
@@ -103,7 +106,7 @@ interface Props {
 }
 
 type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street' | 'standard';
-type RightTab = 'properties' | 'chat' | 'rank';
+type RightTab = 'properties' | 'chat' | 'rank' | 'gaming';
 type PanelSize = 'quarter' | 'half' | 'hidden';
 const PANEL_WIDTHS: Record<PanelSize, string> = { quarter: 'w-80', half: 'w-[50vw]', hidden: 'w-0' };
 
@@ -4172,6 +4175,51 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const [selectedWorldObjectId, setSelectedWorldObjectId] = useState<string | null>(null);
   const worldData = useWorldObjects(blockHeight);
   const [guardianStatus, setGuardianStatus] = useState<'active' | 'paused' | 'none'>('none');
+
+  // Game logic state
+  const [gameElements, setGameElements] = useState<GameElement[]>([]);
+  const [gameState, setGameState] = useState<{ score: number; xp: number; level: number; coins: number; collected?: string | null; questProgress?: string | null; achievements?: string | null; inventory?: string | null } | null>(null);
+  const [gameQuests, setGameQuests] = useState<{ id: string; name: string; icon?: string; steps: { type: string; target: string; count: number }[] }[]>([]);
+  const [newAchievements, setNewAchievements] = useState<string[]>([]);
+
+  // Load game elements
+  useEffect(() => {
+    fetch(`/api/v1/game/elements?blockHeight=${blockHeight}`)
+      .then(r => r.json())
+      .then(d => { if (d.elements) setGameElements(d.elements); })
+      .catch(() => {});
+  }, [blockHeight]);
+
+  // Load game state when wallet connected
+  useEffect(() => {
+    if (!walletAddress) return;
+    fetch(`/api/v1/game/state?blockHeight=${blockHeight}&wallet=${walletAddress}`)
+      .then(r => r.json())
+      .then(d => { if (d.state) setGameState(d.state); })
+      .catch(() => {});
+    fetch(`/api/v1/game/quests?blockHeight=${blockHeight}`)
+      .then(r => r.json())
+      .then(d => { if (d.quests) setGameQuests(d.quests.map((q: { steps: string; [key: string]: unknown }) => ({ ...q, steps: JSON.parse(q.steps) }))); })
+      .catch(() => {});
+  }, [blockHeight, walletAddress]);
+
+  const handleGameClaim = useCallback(async (elementId: string) => {
+    if (!walletAddress) return;
+    try {
+      const res = await fetch('/api/v1/game/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ elementId, walletAddress, blockHeight }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setGameState(data.newState);
+        if (data.achievements?.length > 0) setNewAchievements(data.achievements);
+      }
+    } catch (err) {
+      console.error('[GameClaim]', err);
+    }
+  }, [walletAddress, blockHeight]);
   const [guardianName, setGuardianName] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -4957,6 +5005,15 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                 onSelectObject={showWorldBuilder ? setSelectedWorldObjectId : undefined}
                 isBuilder={showWorldBuilder}
               />
+              {gameElements.length > 0 && (
+                <GameObjects3D
+                  blockHeight={blockHeight}
+                  elements={gameElements}
+                  walletAddress={walletAddress || undefined}
+                  onClaim={handleGameClaim}
+                  collected={gameState?.collected ? JSON.parse(gameState.collected) : []}
+                />
+              )}
             </>
           ) : (
             <>
@@ -4965,6 +5022,18 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             </>
           )}
         </Canvas>
+
+        {/* Game HUD overlay */}
+        {viewMode === 'street' && gameElements.length > 0 && walletAddress && (
+          <GameHUD
+            blockHeight={blockHeight}
+            walletAddress={walletAddress}
+            gameState={gameState}
+            quests={gameQuests}
+            newAchievements={newAchievements}
+            onDismissAchievement={() => setNewAchievements(prev => prev.slice(1))}
+          />
+        )}
 
         {/* Title overlay */}
         <div className="absolute top-3 left-16 z-20">
@@ -5105,6 +5174,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             { key: 'properties' as RightTab, label: 'PROPERTIES' },
             { key: 'chat' as RightTab, label: 'CHAT' },
             { key: 'rank' as RightTab, label: '📊 RANK' },
+            ...(gameElements.length > 0 ? [{ key: 'gaming' as RightTab, label: '🎮 GAMING' }] : []),
           ].map(tab => (
             <button
               key={tab.key}

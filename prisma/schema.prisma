@@ -422,6 +422,10 @@ model GuardianAgent {
   escalateEmail             String?
   autoApproveDelegationUnder Int?
 
+  // Protocol
+  protocolVersion String?  @default("1.0.0")
+  configJson      String?  @db.Text
+
   // Status
   status        String   @default("active")
   totalVisitors Int      @default(0)
@@ -546,4 +550,120 @@ model GuardianEvent {
 
   @@index([guardianId])
   @@index([eventType])
+}
+
+// ─── Game Logic Layer ────────────────────────────────────────────
+
+model GameElement {
+  id            String   @id @default(cuid())
+  blockHeight   Int
+  ownerAddress  String
+  objectId      String?
+
+  gameType      String
+  subType       String?
+
+  rewardType    String?
+  rewardAmount  Int?     @default(0)
+  rewardData    String?  @db.Text
+
+  triggerType   String?
+  triggerRadius Float?   @default(2)
+  triggerData   String?  @db.Text
+
+  respawnMs     Int?
+  maxClaims     Int?
+  claimCount    Int      @default(0)
+
+  icon          String?
+  label         String?
+  color         String?
+  glowColor     String?
+  animation     String?
+  particleEffect String?
+
+  posX          Float    @default(0)
+  posY          Float    @default(0)
+  posZ          Float    @default(0)
+
+  enabled       Boolean  @default(true)
+  visible       Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([blockHeight])
+  @@index([objectId])
+}
+
+model GameState {
+  id            String   @id @default(cuid())
+  blockHeight   Int
+  walletAddress String
+
+  score         Int      @default(0)
+  xp            Int      @default(0)
+  level         Int      @default(1)
+  coins         Int      @default(0)
+
+  collected     String?  @db.Text
+  questProgress String?  @db.Text
+  achievements  String?  @db.Text
+  inventory     String?  @db.Text
+
+  totalTimeMs   Int      @default(0)
+  lastVisit     DateTime @default(now())
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([blockHeight, walletAddress])
+  @@index([blockHeight])
+  @@index([walletAddress])
+}
+
+model GameLeaderboard {
+  id            String   @id @default(cuid())
+  blockHeight   Int
+  walletAddress String
+  handle        String?
+
+  category      String   @default("score")
+  value         Int      @default(0)
+  metadata      String?  @db.Text
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([blockHeight, walletAddress, category])
+  @@index([blockHeight, category, value])
+}
+
+model GameQuest {
+  id            String   @id @default(cuid())
+  blockHeight   Int
+  ownerAddress  String
+
+  name          String
+  description   String?  @db.Text
+  icon          String?
+
+  steps         String   @db.Text
+
+  rewardType    String?
+  rewardAmount  Int?
+  rewardData    String?  @db.Text
+
+  crossBlock    Boolean  @default(false)
+  blockList     String?  @db.Text
+
+  maxCompletions Int?
+  completionCount Int    @default(0)
+
+  enabled       Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([blockHeight])
 }

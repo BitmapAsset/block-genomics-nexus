@@ -1,0 +1,39 @@
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const { ownerAddress, ...updates } = body;
+
+    const quest = await prisma.gameQuest.findUnique({ where: { id } });
+    if (!quest) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (quest.ownerAddress !== ownerAddress) return NextResponse.json({ error: 'Not the owner' }, { status: 403 });
+
+    if (updates.steps && typeof updates.steps !== 'string') updates.steps = JSON.stringify(updates.steps);
+    const updated = await prisma.gameQuest.update({ where: { id }, data: updates });
+    return NextResponse.json({ quest: updated });
+  } catch (err) {
+    console.error('[Quest PATCH]', err);
+    return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const { ownerAddress } = body;
+
+    const quest = await prisma.gameQuest.findUnique({ where: { id } });
+    if (!quest) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (quest.ownerAddress !== ownerAddress) return NextResponse.json({ error: 'Not the owner' }, { status: 403 });
+
+    await prisma.gameQuest.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('[Quest DELETE]', err);
+    return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
+  }
+}
