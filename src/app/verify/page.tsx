@@ -479,8 +479,8 @@ export default function VerifyPage() {
 
                 {!loadingInscriptions && inscriptions.length > 0 && (
                   <div>
-                    <p className="text-xs text-text-muted mb-2">Found in your wallet:</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <p className="text-xs text-text-muted mb-2">Found in your wallet: <span className="text-accent-cyan">{inscriptions.length} bitmap{inscriptions.length !== 1 ? 's' : ''}</span></p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }}>
                       {inscriptions.map((insc) => (
                         <button
                           key={insc.inscriptionId}
