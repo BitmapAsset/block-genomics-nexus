@@ -103,7 +103,7 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
     error: null,
   });
 
-  // Detect available wallets
+  // Detect available wallets + listen for account changes
   useEffect(() => {
     const check = () => {
       const detected = detectWallets();
@@ -113,9 +113,40 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
       setState(prev => ({ ...prev, availableWallets: available }));
     };
     check();
-    // Re-check after a short delay (extensions may load late)
     const t = setTimeout(check, 500);
-    return () => clearTimeout(t);
+
+    // Listen for Unisat account switching
+    const handleAccountsChanged = async (...args: unknown[]) => {
+      const accounts = args[0] as string[];
+      if (!accounts?.length) return;
+      const newAddr = accounts[0];
+      // If address actually changed, clear old profile and fetch new one
+      setState(prev => {
+        if (prev.walletAddress === newAddr) return prev;
+        // Clear old state immediately
+        return { ...prev, walletAddress: newAddr, profile: null };
+      });
+      // Fetch profile for new address
+      const profile = await fetchProfileByWallet(newAddr);
+      saveSession('unisat', newAddr);
+      setState(prev => ({
+        ...prev,
+        isConnected: true,
+        walletAddress: newAddr,
+        profile,
+      }));
+    };
+
+    if (typeof window !== 'undefined' && window.unisat) {
+      try { window.unisat.on('accountsChanged', handleAccountsChanged); } catch {}
+    }
+
+    return () => {
+      clearTimeout(t);
+      if (typeof window !== 'undefined' && window.unisat) {
+        try { window.unisat.removeListener('accountsChanged', handleAccountsChanged); } catch {}
+      }
+    };
   }, []);
 
   // Auto-reconnect from saved session
@@ -162,7 +193,11 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const connect = useCallback(async (type: WalletType) => {
-    setState(prev => ({ ...prev, isConnecting: true, error: null }));
+    // Clear any stale state from previous wallet connection
+    setState(prev => ({ ...prev, isConnecting: true, error: null, profile: null }));
+    if (keypairRef.current) { wipeKeypair(keypairRef.current); keypairRef.current = null; }
+    setE2eReady(false);
+    pubKeyCacheRef.current.clear();
     try {
       const address = await connectWalletByType(type);
       saveSession(type, address);
