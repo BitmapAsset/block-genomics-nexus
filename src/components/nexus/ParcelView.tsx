@@ -13,6 +13,8 @@ import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './S
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import GuardianConfigPanel from '../GuardianConfigPanel';
 import GuardianChatWidget from '../GuardianChatWidget';
+import WorldBuilderPanel, { type WorldObject, type TerrainSettings } from './WorldBuilderPanel';
+import WorldObjects, { useWorldObjects } from './WorldObjects';
 
 /* ─── Types ─── */
 interface ParcelData {
@@ -4165,6 +4167,10 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const [parcelNavIndex, setParcelNavIndex] = useState(0);
   const [showVPSModal, setShowVPSModal] = useState(false);
   const [showAgentModal, setShowAgentModal] = useState(false);
+  const [showWorldBuilder, setShowWorldBuilder] = useState(false);
+  const [worldToolMode, setWorldToolMode] = useState<'select' | 'move' | 'rotate' | 'scale'>('select');
+  const [selectedWorldObjectId, setSelectedWorldObjectId] = useState<string | null>(null);
+  const worldData = useWorldObjects(blockHeight);
   const [guardianStatus, setGuardianStatus] = useState<'active' | 'paused' | 'none'>('none');
   const [guardianName, setGuardianName] = useState('');
   const [chatInput, setChatInput] = useState('');
@@ -4776,6 +4782,23 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
   return (
     <div ref={containerRef} className="relative w-full h-full flex" style={{ background: '#0a0a0f' }}>
+      {showWorldBuilder && (
+        <div className="fixed right-0 top-0 h-full z-50" style={{ width: '320px', borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
+          <WorldBuilderPanel
+            blockHeight={blockHeight}
+            ownerAddress={walletAddress || ''}
+            onClose={() => setShowWorldBuilder(false)}
+            objects={worldData.objects}
+            onObjectsChange={worldData.setObjects}
+            selectedObjectId={selectedWorldObjectId}
+            onSelectObject={setSelectedWorldObjectId}
+            terrain={worldData.terrain}
+            onTerrainChange={worldData.setTerrain}
+            toolMode={worldToolMode}
+            onToolModeChange={setWorldToolMode}
+          />
+        </div>
+      )}
       {showVPSModal && <VPSLinkModal onClose={() => setShowVPSModal(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? 0} />}
       {showAgentModal && <GuardianConfigPanel
         blockHeight={blockHeight}
@@ -4928,6 +4951,12 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               )}
               {/* Showcase city buildings on featured blocks */}
               {showcaseBuildings && <ShowcaseCityRenderer buildings={showcaseBuildings} />}
+              <WorldObjects
+                blockHeight={blockHeight}
+                selectedObjectId={showWorldBuilder ? selectedWorldObjectId : null}
+                onSelectObject={showWorldBuilder ? setSelectedWorldObjectId : undefined}
+                isBuilder={showWorldBuilder}
+              />
             </>
           ) : (
             <>
@@ -5393,26 +5422,6 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                   )}
                   <div className="relative">
                     <button
-                      onClick={() => handleOwnerAction(() => setShowVPSModal(true))}
-                      className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mb-3 transition-all hover:brightness-130 active:scale-[0.97]"
-                      style={{
-                        background: 'rgba(247,147,26,0.12)',
-                        border: '1.5px solid rgba(247,147,26,0.3)',
-                        color: '#f7931a',
-                        boxShadow: '0 0 15px rgba(247,147,26,0.15), inset 0 0 10px rgba(247,147,26,0.05)',
-                        opacity: ownerLock ? 0.6 : 1,
-                      }}
-                    >
-                      🔗 Link VPS / Server
-                    </button>
-                    {ownerLock && (
-                      <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>
-                        🔐 Locked
-                      </div>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <button
                       onClick={() => handleOwnerAction(() => setShowAgentModal(true))}
                       className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mb-3 transition-all hover:brightness-130 active:scale-[0.97]"
                       style={{
@@ -5423,7 +5432,27 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                         opacity: ownerLock ? 0.6 : 1,
                       }}
                     >
-                      {guardianStatus === 'active' ? '🟢 Guardian Active' : guardianStatus === 'paused' ? '⏸ Guardian Paused' : '🛡️ Setup Guardian Agent'}
+                      {guardianStatus === 'active' ? '🟢 Guardian AI Agent' : guardianStatus === 'paused' ? '⏸ Guardian Paused' : '🛡️ Guardian AI Agent'}
+                    </button>
+                    {ownerLock && (
+                      <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        🔐 Locked
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={() => handleOwnerAction(() => setShowWorldBuilder(true))}
+                      className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mb-3 transition-all hover:brightness-130 active:scale-[0.97]"
+                      style={{
+                        background: showWorldBuilder ? 'rgba(247,147,26,0.2)' : 'rgba(247,147,26,0.08)',
+                        border: `1.5px solid ${showWorldBuilder ? 'rgba(247,147,26,0.5)' : 'rgba(247,147,26,0.25)'}`,
+                        color: '#f7931a',
+                        boxShadow: `0 0 15px rgba(247,147,26,${showWorldBuilder ? '0.3' : '0.12'}), inset 0 0 10px rgba(247,147,26,0.04)`,
+                        opacity: ownerLock ? 0.6 : 1,
+                      }}
+                    >
+                      🏗️ Build
                     </button>
                     {ownerLock && (
                       <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>

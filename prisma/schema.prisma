@@ -447,6 +447,95 @@ model GuardianConversation {
   @@index([guardianId])
 }
 
+// ─── World-Building System ─────────────────────────────────────
+
+model BlockObject {
+  id            String   @id @default(cuid())
+  blockHeight   Int
+  ownerAddress  String
+
+  objectType    String
+  name          String?
+
+  posX          Float    @default(0)
+  posY          Float    @default(0)
+  posZ          Float    @default(0)
+  rotX          Float    @default(0)
+  rotY          Float    @default(0)
+  rotZ          Float    @default(0)
+  scaleX        Float    @default(1)
+  scaleY        Float    @default(1)
+  scaleZ        Float    @default(1)
+
+  geometry      String?
+  geoParams     String?  @db.Text
+
+  color         String?  @default("#f7931a")
+  emissive      String?
+  emissiveIntensity Float? @default(0)
+  metalness     Float?   @default(0.5)
+  roughness     Float?   @default(0.5)
+  opacity       Float?   @default(1)
+  transparent   Boolean  @default(false)
+  textureUrl    String?
+
+  lightType     String?
+  lightIntensity Float?
+  lightDistance  Float?
+  lightColor    String?
+
+  text3d        String?
+  fontSize      Float?
+
+  soundUrl      String?
+  soundVolume   Float?
+  soundRadius   Float?
+  soundLoop     Boolean? @default(true)
+
+  effectType    String?
+  effectParams  String?  @db.Text
+
+  interactive   Boolean  @default(false)
+  clickAction   String?
+  clickData     String?
+
+  visible       Boolean  @default(true)
+  locked        Boolean  @default(false)
+  layer         String?  @default("default")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([blockHeight])
+}
+
+model BlockTerrain {
+  id            String   @id @default(cuid())
+  blockHeight   Int      @unique
+  ownerAddress  String
+
+  groundColor   String?  @default("#1a1a1a")
+  groundTexture String?
+  groundMetalness Float? @default(0)
+  groundRoughness Float? @default(0.8)
+
+  fogEnabled    Boolean  @default(false)
+  fogColor      String?  @default("#0a0a0f")
+  fogNear       Float?   @default(50)
+  fogFar        Float?   @default(300)
+
+  skyColor      String?  @default("#0a0a0f")
+  skyEnabled    Boolean  @default(false)
+
+  ambientColor  String?  @default("#ffeedd")
+  ambientIntensity Float? @default(0.35)
+
+  weather       String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 model GuardianEvent {
   id         String   @id @default(cuid())
   guardianId String

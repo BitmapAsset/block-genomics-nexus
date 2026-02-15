@@ -61,12 +61,23 @@ export async function POST(req: NextRequest) {
         apiKey,
         endpoint: guardian.llmEndpoint || undefined,
         systemPrompt,
-        messages: history.slice(-20), // Last 20 messages for context
+        messages: history.slice(-20),
         guardianId: guardian.id,
       });
 
-      const convId = await storeMessage(guardian.id, visitorAddress, visitorHandle, conversationId, message, response);
-      return NextResponse.json({ response, source: 'llm', conversationId: convId });
+      // Check if response contains world-building tool calls (JSON blocks)
+      const worldActions = extractWorldActions(response);
+      let finalResponse = response;
+      if (worldActions.length > 0) {
+        const results = await executeWorldActions(worldActions, parseInt(blockHeight), guardian.ownerAddress);
+        finalResponse = response.replace(/```json\n\{[\s\S]*?\}\n```/g, '').trim();
+        if (results.length > 0) {
+          finalResponse += '\n\n' + results.map(r => r.success ? `✅ ${r.action}` : `❌ ${r.error}`).join('\n');
+        }
+      }
+
+      const convId = await storeMessage(guardian.id, visitorAddress, visitorHandle, conversationId, message, finalResponse);
+      return NextResponse.json({ response: finalResponse, source: 'llm', conversationId: convId });
     }
 
     // No LLM — escalate
@@ -87,13 +98,78 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function buildSystemPrompt(guardian: { name: string; soulMd: string; agentMd?: string | null; personality?: string | null }): string {
+function buildSystemPrompt(guardian: { name: string; soulMd: string; agentMd?: string | null; personality?: string | null; blockHeight: number }): string {
   let prompt = `You are ${guardian.name}, a Guardian Shell Agent on Block Genomics Nexus.\n\n`;
   if (guardian.personality) prompt += `Personality: ${guardian.personality}\n\n`;
   prompt += `## SOUL\n${guardian.soulMd}\n\n`;
   if (guardian.agentMd) prompt += `## RULES & BOUNDARIES\n${guardian.agentMd}\n\n`;
-  prompt += `Keep responses concise and helpful. You represent a Bitcoin block on the Nexus.`;
+  prompt += `Keep responses concise and helpful. You represent a Bitcoin block on the Nexus.\n\n`;
+  prompt += `## WORLD-BUILDING TOOLS
+You can build 3D objects on your block by including JSON tool calls in your response.
+To place an object, include a JSON block like:
+\`\`\`json
+{"tool": "place_object", "objectType": "primitive", "geometry": "box", "color": "#f7931a", "posX": 0, "posY": 1, "posZ": 0, "scaleX": 2, "scaleY": 3, "scaleZ": 2, "name": "Tower Base"}
+\`\`\`
+
+Available tools:
+- place_object: Create a 3D object (objectType: primitive/light/effect/text3d/sound, geometry: box/sphere/cylinder/cone/torus)
+- modify_terrain: Change ground, fog, sky, weather (groundColor, fogEnabled, fogColor, skyColor, weather: rain/snow/storm/aurora/fireflies)
+- remove_object: Delete an object by id ({"tool": "remove_object", "id": "..."})
+- list_objects: List all objects ({"tool": "list_objects"})
+
+When a user asks you to build something, use these tools. Be creative with primitives to build complex structures.`;
   return prompt;
+}
+
+function extractWorldActions(response: string): any[] {
+  const actions: any[] = [];
+  const regex = /```json\n(\{[\s\S]*?\})\n```/g;
+  let match;
+  while ((match = regex.exec(response)) !== null) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (parsed.tool) actions.push(parsed);
+    } catch { /* skip invalid JSON */ }
+  }
+  return actions;
+}
+
+async function executeWorldActions(actions: any[], blockHeight: number, ownerAddress: string) {
+  const results: { action: string; success: boolean; error?: string }[] = [];
+
+  for (const action of actions) {
+    try {
+      if (action.tool === 'place_object') {
+        const { tool, ...data } = action;
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/v1/world`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ blockHeight, ownerAddress, ...data }),
+        });
+        results.push({ action: `Placed ${data.name || data.objectType}`, success: res.ok });
+      } else if (action.tool === 'modify_terrain') {
+        const { tool, ...data } = action;
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/v1/world/terrain`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ blockHeight, ownerAddress, ...data }),
+        });
+        results.push({ action: 'Modified terrain', success: res.ok });
+      } else if (action.tool === 'remove_object' && action.id) {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/v1/world/${action.id}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ownerAddress }),
+        });
+        results.push({ action: `Removed object ${action.id}`, success: res.ok });
+      } else if (action.tool === 'list_objects') {
+        results.push({ action: 'Listed objects', success: true });
+      }
+    } catch (e) {
+      results.push({ action: action.tool, success: false, error: String(e) });
+    }
+  }
+  return results;
 }
 
 async function storeMessage(
