@@ -52,6 +52,11 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
   const [showAgentEditor, setShowAgentEditor] = useState(false);
   const [newTrigger, setNewTrigger] = useState('');
   const [newResponse, setNewResponse] = useState('');
+  const [monitorToken, setMonitorToken] = useState<string | null>(null);
+  const [monitorConnected, setMonitorConnected] = useState(false);
+  const [generatingToken, setGeneratingToken] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
+  const [revokingToken, setRevokingToken] = useState(false);
 
   const bundle = generateGuardianBundle(blockHeight);
 
@@ -86,6 +91,7 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
             autoResponses: g.autoResponses ? JSON.parse(g.autoResponses) : [],
             llmApiKey: '', // Never populate encrypted key
           });
+          if (g.monitorTokenHash) setMonitorConnected(true);
         }
       })
       .catch(console.error)
@@ -162,6 +168,59 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
 
   const removeAutoResponse = (i: number) => {
     update({ autoResponses: config.autoResponses.filter((_, idx) => idx !== i) });
+  };
+
+  const handleGenerateToken = async () => {
+    if (!config.id) return;
+    setGeneratingToken(true);
+    try {
+      const message = `monitor-token:${config.id}:${ownerAddress}:${Date.now()}`;
+      const signature = await walletSign(message);
+      const res = await fetch('/api/v1/guardian/monitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guardianId: config.id, ownerAddress, signature, message }),
+      });
+      const data = await res.json();
+      if (data.success && data.data?.token) {
+        setMonitorToken(data.data.token);
+        setMonitorConnected(true);
+      }
+    } catch (err) {
+      console.error('Failed to generate token:', err);
+    } finally {
+      setGeneratingToken(false);
+    }
+  };
+
+  const handleRevokeToken = async () => {
+    if (!config.id) return;
+    setRevokingToken(true);
+    try {
+      const message = `revoke-monitor:${config.id}:${ownerAddress}:${Date.now()}`;
+      const signature = await walletSign(message);
+      const res = await fetch('/api/v1/guardian/monitor', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guardianId: config.id, ownerAddress, signature, message }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMonitorToken(null);
+        setMonitorConnected(false);
+      }
+    } catch (err) {
+      console.error('Failed to revoke token:', err);
+    } finally {
+      setRevokingToken(false);
+    }
+  };
+
+  const copyToken = () => {
+    if (!monitorToken) return;
+    navigator.clipboard.writeText(monitorToken);
+    setTokenCopied(true);
+    setTimeout(() => setTokenCopied(false), 3000);
   };
 
   const models = config.llmProvider ? (PROVIDERS[config.llmProvider]?.models || []) : [];
@@ -429,6 +488,112 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
                   <li>• You can delete your guardian and keys at any time</li>
                 </ul>
               </div>
+
+              {/* Connect OpenClaw Agent */}
+              {config.id && (
+                <div className="rounded-xl p-4" style={{
+                  background: monitorConnected ? 'rgba(0,200,255,0.04)' : 'rgba(147,51,234,0.04)',
+                  border: `1px solid ${monitorConnected ? 'rgba(0,200,255,0.15)' : 'rgba(147,51,234,0.15)'}`,
+                }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span>🤖</span>
+                      <span className="text-xs font-bold" style={{ color: monitorConnected ? '#00c8ff' : '#9333ea' }}>
+                        OpenClaw Agent Monitor
+                      </span>
+                    </div>
+                    {monitorConnected && !monitorToken && (
+                      <span className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full" style={{
+                        background: 'rgba(0,255,136,0.1)',
+                        color: '#00ff88',
+                        border: '1px solid rgba(0,255,136,0.2)',
+                      }}>
+                        <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#00ff88', boxShadow: '0 0 4px #00ff88' }} />
+                        Connected
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] mb-3" style={{ color: '#94a3b8' }}>
+                    Connect your personal AI agent (OpenClaw) to monitor and command this Guardian remotely.
+                    Your agent can read conversations, check events, update personality, and manage your Guardian through natural language.
+                  </p>
+
+                  {monitorToken ? (
+                    /* Token just generated — show it once */
+                    <div className="space-y-3">
+                      <div className="rounded-lg p-3" style={{ background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.2)' }}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span>⚠️</span>
+                          <span className="text-[11px] font-bold" style={{ color: '#ffc800' }}>Save this token — it won&apos;t be shown again!</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 text-[10px] px-2 py-1.5 rounded break-all" style={{
+                            background: 'rgba(0,0,0,0.3)',
+                            color: '#e2e8f0',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                          }}>
+                            {monitorToken}
+                          </code>
+                          <button
+                            onClick={copyToken}
+                            className="px-3 py-1.5 rounded-lg text-[11px] font-bold flex-shrink-0 transition-all"
+                            style={{
+                              background: tokenCopied ? 'rgba(0,255,136,0.15)' : 'rgba(0,200,255,0.1)',
+                              border: `1px solid ${tokenCopied ? 'rgba(0,255,136,0.3)' : 'rgba(0,200,255,0.2)'}`,
+                              color: tokenCopied ? '#00ff88' : '#00c8ff',
+                            }}
+                          >
+                            {tokenCopied ? '✅ Copied!' : '📋 Copy'}
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-[10px]" style={{ color: '#64748b' }}>
+                        Paste this token into your OpenClaw agent&apos;s TOOLS.md or workspace config to connect.
+                      </p>
+                    </div>
+                  ) : monitorConnected ? (
+                    /* Already connected — show status + revoke */
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px]" style={{ color: '#94a3b8' }}>Monitor token active</span>
+                      <button
+                        onClick={handleRevokeToken}
+                        disabled={revokingToken}
+                        className="px-3 py-1.5 rounded-lg text-[11px] transition-all hover:brightness-125"
+                        style={{
+                          background: 'rgba(239,68,68,0.08)',
+                          border: '1px solid rgba(239,68,68,0.2)',
+                          color: '#ef4444',
+                          opacity: revokingToken ? 0.6 : 1,
+                        }}
+                      >
+                        {revokingToken ? '⏳ Revoking...' : '🔓 Revoke & Regenerate'}
+                      </button>
+                    </div>
+                  ) : (
+                    /* Not connected — generate button */
+                    <button
+                      onClick={handleGenerateToken}
+                      disabled={generatingToken}
+                      className="w-full py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-125"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(147,51,234,0.15), rgba(0,200,255,0.1))',
+                        border: '1.5px solid rgba(147,51,234,0.3)',
+                        color: '#c084fc',
+                        opacity: generatingToken ? 0.6 : 1,
+                      }}
+                    >
+                      {generatingToken ? '⏳ Generating Token...' : '🔗 Connect OpenClaw Agent'}
+                    </button>
+                  )}
+
+                  <ul className="text-[10px] space-y-0.5 mt-3" style={{ color: '#475569' }}>
+                    <li>• Token is scoped to this guardian only</li>
+                    <li>• Stored as SHA-256 hash — we never see the plaintext</li>
+                    <li>• Revoke anytime with one click</li>
+                  </ul>
+                </div>
+              )}
             </>
           ) : (
             /* Self-Hosted Tab */

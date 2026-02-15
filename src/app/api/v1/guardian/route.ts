@@ -6,7 +6,11 @@ import { generateGuardianBundle, GUARDIAN_PROTOCOL_VERSION } from '@/lib/guardia
 const VALID_PROVIDERS = ['openai', 'anthropic', 'google', 'xai', 'custom'];
 
 function sanitizeGuardian(g: Record<string, unknown>) {
-  return { ...g, llmApiKey: maskApiKey(g.llmApiKey as string) };
+  return {
+    ...g,
+    llmApiKey: maskApiKey(g.llmApiKey as string),
+    monitorTokenHash: g.monitorTokenHash ? true : false, // Only expose existence, not the hash
+  };
 }
 
 export async function POST(req: NextRequest) {
