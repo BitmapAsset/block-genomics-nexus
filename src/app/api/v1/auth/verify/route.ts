@@ -54,7 +54,16 @@ export async function POST(req: NextRequest) {
     let verifiedBlockHeight = null;
     let tier = 3; // default: no block ownership
 
-    if (blockHeight) {
+    // Check if user already exists (used for skip-on-chain and genome hash reuse)
+    const existingUser = await prisma.user.findUnique({ where: { walletAddress } });
+
+    // Skip on-chain check if user already verified for this block (e.g. Step 4 profile creation after Step 3 verify)
+    if (blockHeight && existingUser?.verified && existingUser?.tier === 1 && existingUser?.anchorBlock === blockHeight && existingUser?.genomeHash) {
+      verifiedBlockHeight = blockHeight;
+      tier = 1;
+    }
+
+    if (blockHeight && tier !== 1) {
       // If inscriptionId provided, verify it belongs to this wallet on-chain
       if (inscriptionId) {
         const ownerCheck = await verifyInscriptionOwnership(walletAddress, inscriptionId, blockHeight);
@@ -80,9 +89,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate genome hash: SHA-256 of wallet + block + signature
-    const genomeInput = `${walletAddress}:${verifiedBlockHeight || 0}:${signature}`;
-    const genomeHash = '0x' + crypto.createHash('sha256').update(genomeInput).digest('hex');
+    // Reuse existing genome hash if already verified, otherwise generate new one
+    const genomeHash = (existingUser?.genomeHash && existingUser?.verified)
+      ? existingUser.genomeHash
+      : '0x' + crypto.createHash('sha256').update(`${walletAddress}:${verifiedBlockHeight || 0}:${signature}`).digest('hex');
 
     // Normalize handle to lowercase
     const normalizedHandle = handle?.toLowerCase().replace(/-/g, '_');
