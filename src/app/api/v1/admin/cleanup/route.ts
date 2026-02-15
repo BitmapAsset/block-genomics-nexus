@@ -21,16 +21,14 @@ export async function POST(req: NextRequest) {
     if (!walletAddress) return error('walletAddress required', 400);
 
     if (action === 'delete_user') {
-      // Clean up related records first
-      await prisma.handleHistory.deleteMany({ where: { walletAddress } }).catch(() => {});
-      await prisma.activityLog.deleteMany({ where: { walletAddress } }).catch(() => {});
-      await prisma.userSession.deleteMany({ where: { walletAddress } }).catch(() => {});
-      await prisma.pageView.deleteMany({ where: { walletAddress } }).catch(() => {});
-      
-      const user = await prisma.user.delete({ where: { walletAddress } }).catch(() => null);
+      // Set user as unverified and remove tier (soft delete approach)
+      const user = await prisma.user.update({
+        where: { walletAddress },
+        data: { verified: false, tier: 0, anchorBlock: null, genomeHash: null },
+      }).catch(() => null);
       if (!user) return error('User not found', 404);
       
-      return success({ deleted: true, handle: user.handle });
+      return success({ deleted: true, handle: user.handle, action: 'soft_deleted' });
     }
 
     return error('Unknown action', 400);
