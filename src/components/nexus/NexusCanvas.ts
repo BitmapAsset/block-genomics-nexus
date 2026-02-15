@@ -332,10 +332,13 @@ export class NexusCanvasEngine {
   private worldX(col: number) { return col * UNIT; }
   private worldY(row: number) { return row * UNIT; }
 
-  // Screen <-> World transforms
+  // Screen <-> World transforms (use logical / CSS pixels, not raw canvas pixels)
+  private get logicalWidth() { return this.canvas.width / (window.devicePixelRatio || 1); }
+  private get logicalHeight() { return this.canvas.height / (window.devicePixelRatio || 1); }
+
   private worldToScreen(wx: number, wy: number): { sx: number; sy: number } {
-    const cx = this.canvas.width / 2;
-    const cy = this.canvas.height / 2;
+    const cx = this.logicalWidth / 2;
+    const cy = this.logicalHeight / 2;
     return {
       sx: (wx - this.camera.x) * this.camera.zoom + cx,
       sy: (wy - this.camera.y) * this.camera.zoom + cy,
@@ -343,8 +346,8 @@ export class NexusCanvasEngine {
   }
 
   private screenToWorld(sx: number, sy: number): { wx: number; wy: number } {
-    const cx = this.canvas.width / 2;
-    const cy = this.canvas.height / 2;
+    const cx = this.logicalWidth / 2;
+    const cy = this.logicalHeight / 2;
     return {
       wx: (sx - cx) / this.camera.zoom + this.camera.x,
       wy: (sy - cy) / this.camera.zoom + this.camera.y,
