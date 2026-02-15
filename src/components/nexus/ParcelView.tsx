@@ -9,6 +9,7 @@ import { fetchRealBlock, type RealBlockData } from '@/lib/blockchainApi';
 import Helix from '../dna/Helix';
 import CrownShield from '../CrownShield';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
+import { getStoredAddress, getStoredType } from '@/lib/wallet-utils';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import GuardianConfigPanel from '../GuardianConfigPanel';
@@ -2672,7 +2673,7 @@ function VPSLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => vo
     setStatus('verifying');
     setError('');
     try {
-      const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet') || '' : '';
+      const walletAddress = getStoredAddress();
       const challenge = `vps-link:${blockHeight}:${parcelIndex}:${Date.now()}`;
       const signature = typeof window !== 'undefined' && (window as any).unisat
         ? await (window as any).unisat.signMessage(challenge) : '';
@@ -2932,7 +2933,7 @@ function AgentLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => 
     setStatus('connecting');
     setError('');
     try {
-      const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet') || '' : '';
+      const walletAddress = getStoredAddress();
       const challenge = `agent-register:${blockHeight}:${parcelIndex}:${Date.now()}`;
       const signature = typeof window !== 'undefined' && (window as any).unisat
         ? await (window as any).unisat.signMessage(challenge) : '';
@@ -3077,7 +3078,7 @@ function SendBitcoinModal({ onClose, blockHeight, recipientOwner }: {
     if (sats <= 0 || isNaN(sats)) { setStatus('idle'); setErrorMsg('Invalid amount'); return; }
 
     try {
-      const walletType = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet_type') || '' : '';
+      const walletType = getStoredType() || '';
       const toAddress = mockAddress; // TODO: replace with real recipient address from profile
 
       if (walletType === 'unisat' && window.unisat) {
@@ -3363,8 +3364,8 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
     setErrorMsg('');
     setStatus('publishing');
     try {
-      const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet') || '' : '';
-      const walletType = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet_type') || '' : '';
+      const walletAddress = getStoredAddress();
+      const walletType = getStoredType() || '';
       if (!walletAddress) {
         window.dispatchEvent(new Event('open-wallet-modal'));
         setStatus('idle');
@@ -3649,7 +3650,7 @@ function GetAccessModal({ onClose, blockHeight, parcelIndex, owner }: {
   const handlePay = async () => {
     setStatus('signing');
     try {
-      const buyerAddress = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet') || '' : '';
+      const buyerAddress = getStoredAddress();
       const res = await fetch('/api/v1/delegations/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4603,7 +4604,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
       const message = `Customize parcel ${txIndex} on block ${blockHeight} at ${Date.now()}`;
       let signature = '';
 
-      const walletType = typeof window !== 'undefined' ? localStorage.getItem('bg_wallet_type') : null;
+      const walletType = getStoredType();
       if (walletType === 'unisat' && (window as any).unisat?.signMessage) {
         signature = await (window as any).unisat.signMessage(message);
       } else if (walletType === 'xverse' && (window as any).XverseProviders?.signMessage) {
@@ -4939,13 +4940,12 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     setChatInput('');
 
     // Get wallet from localStorage
-    let senderAddress = 'anonymous';
-    let senderHandle = 'You';
+    let senderAddress = getStoredAddress() || 'anonymous';
+    let senderHandle = senderAddress !== 'anonymous' ? senderAddress.slice(0, 8) : 'You';
     try {
       const walletData = localStorage.getItem('bg_wallet');
       if (walletData) {
         const parsed = JSON.parse(walletData);
-        senderAddress = parsed.address || parsed.walletAddress || 'anonymous';
         senderHandle = parsed.handle || parsed.name || senderAddress.slice(0, 8);
       }
     } catch { /* use defaults */ }
@@ -5039,7 +5039,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
       {showVPSModal && <VPSLinkModal onClose={() => setShowVPSModal(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? 0} />}
       {showAgentModal && <GuardianConfigPanel
         blockHeight={blockHeight}
-        ownerAddress={localStorage.getItem('bg_wallet') || ''}
+        ownerAddress={getStoredAddress()}
         onClose={() => setShowAgentModal(false)}
         walletSign={async (msg: string) => {
           if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).unisat) {
@@ -6204,7 +6204,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         <GuardianChatWidget
           blockHeight={blockHeight}
           guardianName={guardianName}
-          visitorAddress={typeof window !== 'undefined' ? localStorage.getItem('bg_wallet') || undefined : undefined}
+          visitorAddress={getStoredAddress() || undefined}
         />
       )}
     </div>

@@ -3,7 +3,8 @@ import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { batchVerifyOwnership } from '@/lib/ownership-sync';
 
-const OWNERSHIP_SYNC_SECRET = process.env.OWNERSHIP_SYNC_SECRET || 'ownership2026';
+const OWNERSHIP_SYNC_SECRET = process.env.OWNERSHIP_SYNC_SECRET;
+if (!OWNERSHIP_SYNC_SECRET) console.warn('[ownership/cron] OWNERSHIP_SYNC_SECRET not set — cron endpoint disabled');
 
 /**
  * GET /api/v1/ownership/cron

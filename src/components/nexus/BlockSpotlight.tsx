@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
 import { getLandmark } from './NexusLandmarks';
 
-/* ─── Mock Content Data ─── */
+/* ─── Preview Content Data (demo placeholders until owners deploy) ─── */
 // In production, this comes from block owners' deployed resources
 const MOCK_MEDIA = [
   { type: 'image' as const, url: '', gradient: 'linear-gradient(135deg, #ff6b35, #f7931a, #ffd700)', label: 'Genesis Art Collection' },
@@ -212,6 +212,7 @@ function SpotlightCard({
             />
             <span className="text-[11px] font-semibold text-white/90 truncate">@{item.handle}</span>
             <TierBadge tier={item.tier} />
+            <span className="text-[8px] px-1 py-0.5 rounded bg-white/5 border border-white/10 text-white/30">Preview</span>
           </div>
           {compact && (
             <span className="text-[9px] font-mono shrink-0" style={{ color: '#66ccff' }}>

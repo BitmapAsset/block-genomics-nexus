@@ -103,3 +103,29 @@ export function saveSession(type: WalletType, address: string): void {
 export function clearSession(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
+
+/** Get stored wallet address, handling both JSON and raw string formats */
+export function getStoredAddress(): string {
+  if (typeof window === 'undefined') return '';
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return '';
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed.address || '';
+  } catch {
+    return raw;
+  }
+}
+
+/** Get stored wallet type */
+export function getStoredType(): WalletType | null {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed.type || null;
+  } catch {
+    return null;
+  }
+}

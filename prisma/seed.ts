@@ -97,7 +97,7 @@ async function main() {
       },
     });
   }
-  console.log('  💬 Created 3 chat messages');
+  console.log('  💬 Created 1 chat message');
 
   // Estate
   await prisma.estate.create({

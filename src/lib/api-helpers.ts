@@ -5,7 +5,11 @@ export function success(data: any, status = 200) {
 }
 
 export function error(message: string, status = 400) {
-  return NextResponse.json({ success: false, error: message }, { status });
+  // In production, don't leak internal error details on 500s
+  const safeMessage = status >= 500 && process.env.NODE_ENV === 'production'
+    ? 'Internal server error'
+    : message;
+  return NextResponse.json({ success: false, error: safeMessage }, { status });
 }
 
 export function sanitizeString(str: string, maxLength = 500): string {
@@ -17,9 +21,18 @@ export function isValidBitcoinAddress(address: string): boolean {
   return /^(bc1[a-zA-HJ-NP-Z0-9]{25,90}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$/.test(address);
 }
 
-/* MOCK — replace with real BIP-322 */
+/**
+ * Verify BIP-322 wallet signature.
+ * Uses bip322-js for real cryptographic verification.
+ */
 export function verifyWalletSignature(address: string, message: string, signature: string): boolean {
-  // TODO: Implement real BIP-322 signature verification
-  // For now, accept any non-empty signature
-  return !!signature && signature.length > 0;
+  if (!address || !message || !signature) return false;
+  try {
+    const { Verifier } = require('bip322-js');
+    return Verifier.verifySignature(address, message, signature);
+  } catch (e: any) {
+    // If library fails, do NOT fall back to permissive check — reject
+    console.error('[auth] BIP-322 verification failed:', e?.message);
+    return false;
+  }
 }
