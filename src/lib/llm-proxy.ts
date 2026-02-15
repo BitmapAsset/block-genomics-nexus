@@ -50,7 +50,7 @@ export async function callLLM(config: LLMConfig): Promise<string> {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error(`[LLM Proxy] Error for ${config.provider}/${config.model}:`, message);
-    return `[Guardian is temporarily unavailable. Error: ${message}]`;
+    return `[Guardian is temporarily unavailable. Please try again later.]`;
   }
 }
 

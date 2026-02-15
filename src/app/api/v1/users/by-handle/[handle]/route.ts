@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error } from '@/lib/api-helpers';
+import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
 import { logActivity, logProfileView } from '@/lib/activity';
 
 export async function GET(
@@ -61,10 +61,16 @@ export async function PATCH(
     const { handle } = await params;
     const normalizedHandle = handle.toLowerCase();
     const body = await req.json();
-    const { displayName, bio, walletAddress } = body;
+    const { displayName, bio, walletAddress, signature, message } = body;
 
     if (!walletAddress || typeof walletAddress !== 'string') {
       return error('walletAddress is required for authentication', 400);
+    }
+
+    // Verify wallet signature
+    if (!signature || !message) return error('Authentication required', 401);
+    if (!verifyWalletSignature(walletAddress, message, signature)) {
+      return error('Invalid signature', 401);
     }
 
     const user = await prisma.user.findUnique({ where: { handle: normalizedHandle } });

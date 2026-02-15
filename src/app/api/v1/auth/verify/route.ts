@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { success, error, isValidBitcoinAddress } from '@/lib/api-helpers';
 import crypto from 'crypto';
 import { logActivity } from '@/lib/activity';
+import { getChallenge, deleteChallenge } from '@/lib/challenges';
 
 /**
  * POST /api/v1/auth/verify
@@ -36,6 +37,15 @@ export async function POST(req: NextRequest) {
     }
     if (!isValid) {
       return error('Invalid signature', 401);
+    }
+
+    // Validate challenge nonce (anti-replay)
+    const challenge = getChallenge(walletAddress);
+    if (challenge) {
+      if (!message.includes(challenge.nonce)) {
+        return error('Invalid or expired challenge nonce', 401);
+      }
+      deleteChallenge(walletAddress); // one-time use
     }
 
     // Generate genome hash: SHA-256 of wallet + block + signature

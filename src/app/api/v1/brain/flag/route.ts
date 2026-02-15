@@ -1,13 +1,22 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { FLAG_THRESHOLD_SOFT, FLAG_THRESHOLD_HARD } from '@/lib/protocol';
+import { verifyWalletSignature } from '@/lib/api-helpers';
 
 export async function POST(req: Request) {
   try {
-    const { contentType, contentId, walletAddress, reason, ruleIndex } = await req.json();
+    const { contentType, contentId, walletAddress, reason, ruleIndex, signature, message } = await req.json();
     
     if (!contentType || !contentId || !walletAddress) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Verify wallet signature
+    if (!signature || !message) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    if (!verifyWalletSignature(walletAddress, message, signature)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     // Check if user is suspended from flagging

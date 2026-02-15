@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { verifyWalletSignature } from '@/lib/api-helpers';
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,10 +22,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { blockHeight, ownerAddress, objectType, ...rest } = body;
+    const { blockHeight, ownerAddress, objectType, signature, message, ...rest } = body;
 
     if (!blockHeight || !ownerAddress || !objectType) {
       return NextResponse.json({ error: 'blockHeight, ownerAddress, objectType required' }, { status: 400 });
+    }
+
+    // Verify wallet signature
+    if (!signature || !message) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    if (!verifyWalletSignature(ownerAddress, message, signature)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     // Verify ownership

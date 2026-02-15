@@ -11,6 +11,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'blockHeight and message required' }, { status: 400 });
     }
 
+    // Input sanitization — limit message length and strip control characters
+    if (typeof message !== 'string' || message.length > 4000) {
+      return NextResponse.json({ error: 'Message too long (max 4000 chars)' }, { status: 400 });
+    }
+
     // Find active guardian for this block
     const guardian = await prisma.guardianAgent.findFirst({
       where: { blockHeight: parseInt(blockHeight), status: 'active' },
@@ -66,13 +71,20 @@ export async function POST(req: NextRequest) {
       });
 
       // Check if response contains world-building tool calls (JSON blocks)
+      // SECURITY: Only execute world actions if the visitor IS the block owner
+      // This prevents prompt injection from allowing non-owners to modify the world
       const worldActions = extractWorldActions(response);
       let finalResponse = response;
       if (worldActions.length > 0) {
-        const results = await executeWorldActions(worldActions, parseInt(blockHeight), guardian.ownerAddress);
-        finalResponse = response.replace(/```json\n\{[\s\S]*?\}\n```/g, '').trim();
-        if (results.length > 0) {
-          finalResponse += '\n\n' + results.map(r => r.success ? `✅ ${r.action}` : `❌ ${r.error}`).join('\n');
+        if (visitorAddress === guardian.ownerAddress) {
+          const results = await executeWorldActions(worldActions, parseInt(blockHeight), guardian.ownerAddress);
+          finalResponse = response.replace(/```json\n\{[\s\S]*?\}\n```/g, '').trim();
+          if (results.length > 0) {
+            finalResponse += '\n\n' + results.map(r => r.success ? `✅ ${r.action}` : `❌ ${r.error}`).join('\n');
+          }
+        } else {
+          // Non-owner tried to trigger world actions — strip them silently
+          finalResponse = response.replace(/```json\n\{[\s\S]*?\}\n```/g, '').trim();
         }
       }
 

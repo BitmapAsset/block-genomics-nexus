@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, sanitizeString } from '@/lib/api-helpers';
+import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api-helpers';
 
 export async function GET(
   req: NextRequest,
@@ -74,10 +74,16 @@ export async function POST(
     if (isNaN(h) || h < 0) return error('Invalid block height', 400);
 
     const body = await req.json();
-    const { senderAddress, senderHandle, text, type, channel } = body;
+    const { senderAddress, senderHandle, text, type, channel, signature, message } = body;
 
     if (!senderAddress || typeof senderAddress !== 'string') return error('senderAddress is required', 400);
     if (!text || typeof text !== 'string' || !text.trim()) return error('text is required', 400);
+
+    // Verify wallet signature
+    if (!signature || !message) return error('Authentication required', 401);
+    if (!verifyWalletSignature(senderAddress, message, signature)) {
+      return error('Invalid signature', 401);
+    }
 
     // Rate limit: 1 message per 2 seconds per wallet
     const now = Date.now();

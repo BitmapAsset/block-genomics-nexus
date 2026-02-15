@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { processReward, calculateLevel, checkAchievements } from '@/lib/game-logic';
+import { verifyWalletSignature } from '@/lib/api-helpers';
 
 export async function POST(req: NextRequest) {
   try {
-    const { elementId, walletAddress, blockHeight } = await req.json();
+    const { elementId, walletAddress, blockHeight, signature, message } = await req.json();
 
     if (!elementId || !walletAddress || !blockHeight) {
       return NextResponse.json({ error: 'elementId, walletAddress, blockHeight required' }, { status: 400 });
+    }
+
+    // Verify wallet signature
+    if (!signature || !message) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    if (!verifyWalletSignature(walletAddress, message, signature)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     // Fetch element

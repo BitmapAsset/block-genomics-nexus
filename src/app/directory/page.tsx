@@ -185,8 +185,9 @@ export default function DirectoryPage() {
         const resp = await fetch('/api/v1/users/list');
         if (!resp.ok) return;
         const json = await resp.json();
-        const users = json?.data;
-        if (!Array.isArray(users)) return;
+        const usersData = json?.data?.users ?? json?.data;
+        if (!Array.isArray(usersData)) return;
+        const users = usersData;
         setRealUsers(users.map((u: any, i: number) => ({
           id: `real-${u.handle}-${i}`,
           handle: u.handle,
