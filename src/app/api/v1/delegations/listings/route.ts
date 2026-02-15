@@ -52,7 +52,14 @@ export async function POST(req: NextRequest) {
 
     // Verify owner owns the block
     const block = await prisma.block.findUnique({ where: { height: blockHeight } });
-    if (!block || block.ownerAddress !== walletAddress) return error('Not the block owner', 403);
+    if (!block) {
+      console.log(`[Delegation] Block ${blockHeight} not found in DB`);
+      return error(`Block ${blockHeight} not found in database. Verify ownership first.`, 404);
+    }
+    if (block.ownerAddress !== walletAddress) {
+      console.log(`[Delegation] Owner mismatch: DB="${block.ownerAddress}" vs Request="${walletAddress}"`);
+      return error(`Wallet mismatch. Block owner: ${block.ownerAddress?.slice(0, 12)}... Your wallet: ${walletAddress?.slice(0, 12)}...`, 403);
+    }
 
     const listing = await prisma.delegationListing.upsert({
       where: { id: body.listingId || '' },
