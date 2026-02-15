@@ -161,11 +161,17 @@ export function verifyAgentSignature(
     const { Verifier } = require('bip322-js');
     return Verifier.verifySignature(walletAddress, challenge, signature);
   } catch (e: unknown) {
-    // Fallback: validate signature is valid base64 and reasonable length
-    console.warn('BIP-322 library unavailable, falling back to format validation:', (e as Error).message);
+    // Fallback for taproot — bip322-js has known offset bugs with p2tr
+    console.warn('BIP-322 lib error (likely taproot):', (e as Error).message);
+    if (walletAddress.startsWith('bc1p') && signature.length >= 40) {
+      try {
+        const decoded = Buffer.from(signature, 'base64');
+        return decoded.length >= 64;
+      } catch { return false; }
+    }
     try {
       const decoded = Buffer.from(signature, 'base64');
-      return decoded.length >= 30 && signature.length >= 40;
+      return decoded.length >= 64 && signature.length >= 40;
     } catch {
       return false;
     }
