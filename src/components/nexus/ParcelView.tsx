@@ -4803,10 +4803,12 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const totalBytes = parcels.reduce((s, p) => s + p.bytes, 0);
   const totalValue = parcels.reduce((s, p) => s + p.value, 0);
   const displayParcel = selectedParcel || (parcelNavIndex < parcels.length ? parcels[parcelNavIndex] : null);
-  const displayParcelOwner = useMemo(() =>
-    displayParcel ? generateMockOwner(blockHeight, displayParcel.txIndex) : null,
-    [blockHeight, displayParcel]
-  );
+  const displayParcelOwner = useMemo(() => {
+    if (!displayParcel) return null;
+    // Use real block owner if available (don't show mock names for owned blocks)
+    if (realBlockOwner) return realBlockOwner;
+    return generateMockOwner(blockHeight, displayParcel.txIndex);
+  }, [blockHeight, displayParcel, realBlockOwner]);
 
   // Real chat: fetch messages from API + poll every 3s
   const lastMessageTime = useRef<string | null>(null);
