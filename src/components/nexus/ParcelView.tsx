@@ -18,6 +18,7 @@ import WorldObjects, { useWorldObjects } from './WorldObjects';
 import GameObjects3D from './GameObjects3D';
 import GameHUD from './GameHUD';
 import type { GameElement } from './GameElementsPanel';
+import UpgradeModal from './UpgradeModal';
 
 /* ─── Types ─── */
 interface ParcelData {
@@ -4149,14 +4150,20 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const isVerified = !!(isConnected && walletAddress && profile);
   const isWalletConnected = !!(isConnected && walletAddress);
   const ownerLock = !isWalletConnected ? 'connect' : (!isVerified ? 'verify' : null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const openWalletModal = () => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('open-wallet-modal'));
     }
   };
   const handleOwnerAction = (fn: () => void) => {
-    if (ownerLock) {
+    if (!isWalletConnected) {
       openWalletModal();
+      return;
+    }
+    if (!isVerified) {
+      // Connected but not verified — show upgrade path
+      setShowUpgradeModal(true);
       return;
     }
     fn();
@@ -4863,6 +4870,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
       {showLivestreamModal && <LivestreamModal onClose={() => setShowLivestreamModal(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? 0} isStreaming={isStreaming} onStartStream={handleStartStream} onEndStream={handleEndStream} />}
       {showSendBtcModal && <SendBitcoinModal onClose={() => setShowSendBtcModal(false)} blockHeight={blockHeight} recipientOwner={displayParcelOwner ?? blockOwner} />}
       {showQrProfile && <QrProfileModal onClose={() => setShowQrProfile(false)} owner={displayParcelOwner ?? blockOwner} blockHeight={blockHeight} />}
+      {showUpgradeModal && <UpgradeModal onClose={() => setShowUpgradeModal(false)} currentTier={3} />}
       {showDelegationListing && <DelegationListingModal onClose={() => setShowDelegationListing(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? -1} owner={displayParcelOwner ?? blockOwner} />}
       {showGetAccess && <GetAccessModal onClose={() => setShowGetAccess(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? -1} owner={displayParcelOwner ?? blockOwner} />}
 
