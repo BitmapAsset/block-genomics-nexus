@@ -42,14 +42,9 @@ export function useRealtimeChat({ blockHeight, channel, enabled = true, onMessag
 
     const supabase = getSupabaseClient();
     
-    // Build filter based on channel type
-    // Global chat: filter by channel only
-    // Block/DM chat: filter by channel AND blockHeight
-    const filterParts = [`channel=eq.${channel}`];
-    if (channel !== 'global') {
-      filterParts.push(`blockHeight=eq.${blockHeight}`);
-    }
-    const filter = filterParts.join(',');
+    // Supabase Realtime postgres_changes only supports ONE filter condition.
+    // We filter by channel server-side, then filter blockHeight client-side.
+    const filter = `channel=eq.${channel}`;
     
     // Channel name must be unique per subscription
     const channelName = channel === 'global' 
@@ -68,6 +63,10 @@ export function useRealtimeChat({ blockHeight, channel, enabled = true, onMessag
         },
         (payload) => {
           const row = payload.new as Record<string, unknown>;
+          
+          // Client-side blockHeight filter (Realtime only supports 1 filter)
+          if (channel !== 'global' && row.blockHeight !== blockHeight) return;
+          
           const msg: RealtimeChatMessage = {
             id: row.id as string,
             blockHeight: row.blockHeight as number,
