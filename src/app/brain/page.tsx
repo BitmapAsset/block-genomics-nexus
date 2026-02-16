@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import BitmapBlocksBg from "@/components/BitmapBlocksBg";
+import BrainChat from "@/components/BrainChat";
 
 /* ─── Types ─── */
 interface BrainData {
@@ -353,6 +354,17 @@ export default function BrainPage() {
               </div>
             )}
           </div>
+        </section>
+
+        {/* ═══ ASK THE BRAIN ═══ */}
+        <section className="mb-16">
+          <h2 className="text-2xl font-bold mb-6 text-center">
+            💬 Ask the Brain
+          </h2>
+          <p className={`${dim} text-sm text-center mb-6 max-w-lg mx-auto`}>
+            The Brain is listening. Ask it about its moral code, its purpose, or the rules it enforces.
+          </p>
+          <BrainChat />
         </section>
 
         {/* ═══ IDENTITY CARD ═══ */}
