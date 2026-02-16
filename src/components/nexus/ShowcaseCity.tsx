@@ -130,12 +130,15 @@ function createBuilding(
   const h = Math.min(isCoinbase ? baseH * 2.5 : baseH, minDim * 8);
 
   // ─── Main building body ───
-  const wallMat = new THREE.MeshStandardMaterial({
+  const wallMat = new THREE.MeshPhysicalMaterial({
     color: isCoinbase ? style.accentColor : style.wallColor,
     roughness: style.roughness,
     metalness: style.metalness,
     emissive: isCoinbase ? style.glowColor : '#000000',
     emissiveIntensity: isCoinbase ? style.emissive * 0.5 : 0,
+    clearcoat: 0.05,
+    clearcoatRoughness: 0.5,
+    envMapIntensity: 0.6,
   });
 
   // Building shape varies by era and size

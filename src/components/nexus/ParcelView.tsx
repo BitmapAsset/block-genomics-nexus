@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { Canvas, useFrame, useThree, ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, Html } from '@react-three/drei';
+import { OrbitControls, Html, Environment } from '@react-three/drei';
+import { EffectComposer, Bloom, N8AO, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
 import { fetchRealBlock, type RealBlockData } from '@/lib/blockchainApi';
@@ -1593,7 +1594,7 @@ function InstancedParcels({
         onDoubleClick={handleDoubleClick}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial roughness={0.5} metalness={0.2} />
+        <meshPhysicalMaterial roughness={0.4} metalness={0.3} clearcoat={0.1} clearcoatRoughness={0.4} envMapIntensity={0.8} />
       </instancedMesh>
 
       {parcels[0]?.isCoinbase && (() => {
@@ -5171,25 +5172,34 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         <Canvas
           shadows
           camera={{ position: [15, 12, 15], fov: 50, near: 0.01, far: 2000 }}
-          gl={{ antialias: true, alpha: false }}
+          gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
           onCreated={({ gl }) => {
             gl.setClearColor('#0a0a0f');
             gl.toneMapping = THREE.ACESFilmicToneMapping;
-            gl.toneMappingExposure = 1.3;
+            gl.toneMappingExposure = 1.4;
+            gl.shadowMap.type = THREE.PCFSoftShadowMap;
+            gl.outputColorSpace = THREE.SRGBColorSpace;
           }}
         >
-          <ambientLight intensity={0.35} color="#ffeedd" />
+          <ambientLight intensity={0.25} color="#ffeedd" />
+          {/* Main sun light */}
           <directionalLight
-            position={[20, 30, 10]} intensity={1.8} castShadow color="#ffddaa"
+            position={[20, 30, 10]} intensity={2.0} castShadow color="#ffddaa"
             shadow-mapSize-width={2048} shadow-mapSize-height={2048}
             shadow-camera-far={100} shadow-camera-left={-30} shadow-camera-right={30}
             shadow-camera-top={30} shadow-camera-bottom={-30}
+            shadow-bias={-0.0001}
           />
-          <pointLight position={[0, 15, 0]} intensity={0.8} color="#f7931a" distance={40} />
-          <pointLight position={[-10, 8, -10]} intensity={0.3} color="#ff6622" distance={30} />
-          <pointLight position={[10, 5, 10]} intensity={0.2} color="#ffaa44" distance={25} />
+          {/* Rim/back light for depth */}
+          <directionalLight position={[-15, 20, -15]} intensity={0.6} color="#4488ff" />
+          {/* Warm accent lights */}
+          <pointLight position={[0, 15, 0]} intensity={0.8} color="#f7931a" distance={40} decay={2} />
+          <pointLight position={[-10, 8, -10]} intensity={0.4} color="#ff6622" distance={30} decay={2} />
+          <pointLight position={[10, 5, 10]} intensity={0.3} color="#ffaa44" distance={25} decay={2} />
+          {/* Cool fill from below for atmosphere */}
+          <hemisphereLight args={['#1a1a3a', '#0a0a0f', 0.3]} />
 
-          <fog attach="fog" args={viewMode === 'street' ? ['#0a0a0f', 0.5, 3] : viewMode === 'flyover' ? ['#0a0a0f', 5, 50] : ['#0a0a0f', 50, 300]} />
+          <fog attach="fog" args={viewMode === 'street' ? ['#0d0d1a', 0.3, 4] : viewMode === 'flyover' ? ['#0a0a14', 3, 40] : ['#0a0a0f', 50, 300]} />
 
           {viewMode !== 'street' && viewMode !== 'flyover' && (
             <OrbitControls
@@ -5273,6 +5283,24 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               <AmbientParticles count={100} spread={15} />
             </>
           )}
+
+          {/* Post-processing effects for near-game quality */}
+          <Environment preset="night" environmentIntensity={0.3} />
+          <EffectComposer multisampling={0}>
+            <Bloom
+              luminanceThreshold={0.6}
+              luminanceSmoothing={0.4}
+              intensity={0.5}
+              mipmapBlur
+            />
+            <N8AO
+              aoRadius={0.8}
+              intensity={1.5}
+              distanceFalloff={0.5}
+              halfRes
+            />
+            <Vignette eskil={false} offset={0.25} darkness={0.6} />
+          </EffectComposer>
         </Canvas>
 
         {/* Game HUD overlay */}
