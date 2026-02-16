@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { GlobalWalletProvider } from "@/context/GlobalWalletContext";
 import { AuthProvider } from "@/context/AuthContext";
 import Header from "@/components/Header";
@@ -39,6 +40,7 @@ export default function RootLayout({
             <Footer />
           </AuthProvider>
         </GlobalWalletProvider>
+        <Analytics />
       </body>
     </html>
   );
