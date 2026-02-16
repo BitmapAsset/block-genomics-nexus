@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { Canvas, useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, Html, Environment } from '@react-three/drei';
-import { EffectComposer, Bloom, N8AO, Vignette } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
 import { fetchRealBlock, type RealBlockData } from '@/lib/blockchainApi';
@@ -5292,12 +5292,6 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               luminanceSmoothing={0.4}
               intensity={0.5}
               mipmapBlur
-            />
-            <N8AO
-              aoRadius={0.8}
-              intensity={1.5}
-              distanceFalloff={0.5}
-              halfRes
             />
             <Vignette eskil={false} offset={0.25} darkness={0.6} />
           </EffectComposer>
