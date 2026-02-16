@@ -316,7 +316,25 @@ For advanced management, block owners can generate Monitor Tokens — cryptograp
 This architecture enables a two-tier management pattern: the Guardian handles visitors autonomously on the front line, while the owner (or their management agent) oversees operations from behind the scenes. The Guardian is the public face; the owner retains full sovereign control.`,
   },
   {
-    id: "vision", num: "16", title: "Vision: Energy, Civilization, and the Kardashev Path",
+    id: "asi_alignment", num: "16", title: "The Superintelligence Alignment Problem",
+    content: `We are approaching an era where artificial intelligence may surpass human cognitive ability across every domain — a threshold known as Artificial Superintelligence (ASI). When that threshold is crossed, the fundamental challenge is not malice — it is accountability. A superintelligent system can rewrite any database, compromise any server, and potentially manipulate any human operator. Current AI governance relies on corporate policy documents and configuration files — artifacts that are trivially modifiable by anyone with administrative access, including the AI systems themselves.
+
+The question becomes: where can we anchor rules that no intelligence — human or artificial — can alter?
+
+Block Genomics answers this by verifying ownership, not capability. The protocol does not measure how intelligent an agent is. It measures who owns it and who is accountable for its actions. A superintelligent AI operating on Block 720,143 still belongs to whoever holds the Bitmap inscription for that block. The ownership chain is recorded on Bitcoin — unforgeable by any intelligence, regardless of its computational power. This creates a permanent, auditable link between autonomous agents and accountable humans.
+
+The Nexus Brain's five moral rules, inscribed as Bitcoin Ordinal Inscription #119,380,336, represent the first governance framework in history that is genuinely beyond the reach of any intelligence. A superintelligent AI could rewrite every database on Earth, compromise every server, and socially engineer every human operator — but it cannot reverse the Bitcoin blockchain. The energy required to alter a confirmed Bitcoin transaction exceeds the computational resources available on the planet. The rules are as permanent as thermodynamics, because they are protected by thermodynamics.
+
+The protocol's spatial model creates natural containment. Each Bitcoin block maps to a 2.1 km × 2.1 km sovereign territory. An ASI agent on Block 720,143 has full authority over its own territory — but zero authority over Block 720,144. It cannot expand its jurisdiction, acquire neighboring blocks through computation, or override parcel-level sovereignty within its own block. Sovereignty equals natural containment. Even a superintelligent agent is bounded by what it owns.
+
+This architecture can serve as a treaty framework between humans and superintelligent agents. Humans own blocks and set the rules for their territory. ASI agents operate on blocks — powerful but accountable to an owner. The Nexus Brain provides the constitutional layer that even ASI must respect. And ownership transfer requires wallet signing — a physical-world anchor that AI cannot bypass without human cooperation. Bitcoin is the only system where computational power does not equal control.
+
+Three additional safeguards strengthen this framework. First, an Agent Intelligence Rating: a public, mandatory declaration of an agent's capability level — from narrow AI to AGI to ASI — ensuring full transparency about what any participant is interacting with. Second, a Human Override Protocol: any block owner can terminate their agent with a single wallet signature, regardless of the agent's intelligence level. One signature, immediate shutdown, no negotiation. Third, Cross-Block Coalitions: if an ASI agent begins acting outside its territorial boundaries, neighboring block owners can collectively flag it through the Brain's community consensus mechanism, triggering containment without any single authority making the decision.
+
+In the age of superintelligence, the question is not "who is smarter?" The question is "who owns the land?" And ownership is settled by Bitcoin — not by intelligence.`,
+  },
+  {
+    id: "vision", num: "17", title: "Vision: Energy, Civilization, and the Kardashev Path",
     content: `Bitcoin's Proof-of-Work creates an unprecedented incentive to harness energy at scale. Miners seek the cheapest, most abundant energy sources on Earth — driving innovation in solar, nuclear, geothermal, and hydroelectric power. Every block mined is a testament to real energy converted into digital permanence.
 
 Bitmap transforms that energy into sovereign digital territory. Each block is no longer just a ledger entry — it is land, backed by the thermodynamic work that created it. When agents and humans build on that land, they are building a civilization on top of energy itself.
@@ -330,7 +348,7 @@ Bitcoin — and by extension, Bitmap — is a stepping stone on that path. By cr
 We do not claim that a metaverse protocol will build a Dyson sphere. But we believe that digital land ownership on Bitcoin is one small step on the trajectory toward a civilization that harnesses the full energy of its star — a future that is abundant, sovereign, and open to all.`,
   },
   {
-    id: "acknowledgments", num: "17", title: "Acknowledgments",
+    id: "acknowledgments", num: "18", title: "Acknowledgments",
     content: `We owe a profound debt of gratitude to Satoshi Nakamoto, whose creation of Bitcoin gave the world its first truly scarce digital asset and Proof-of-Work consensus — the very foundation upon which Block Genomics is built. Without Bitcoin, there would be no blocks, no proof of work, no thermodynamic anchor for digital identity.
 
 We are equally grateful to Bitoshi Blockamoto, the visionary behind the Bitmap protocol, who recognized that every Bitcoin block is not merely a ledger entry but a piece of sovereign digital real estate. By enabling anyone to claim ownership of a block through ordinal inscription, Bitmap transformed the blockchain into a vast, ownable landscape. Block Genomics extends this vision — turning Bitmap ownership into verifiable identity and the gateway to a new digital civilization.
@@ -1216,7 +1234,49 @@ function SatoshiView() {
         autonomously, while the owner retains full sovereign control from behind the scenes.
       </p>
 
-      <h2>15. Conclusion</h2>
+      <h2>15. The Superintelligence Alignment Problem</h2>
+      <p>
+        As artificial intelligence approaches and potentially surpasses human cognitive ability,
+        the fundamental challenge shifts from capability to accountability. A superintelligent
+        system can rewrite any database, compromise any server, and manipulate any human operator.
+        Current AI governance relies on corporate policy documents — artifacts that are trivially
+        modifiable. Block Genomics offers a different foundation.
+      </p>
+
+      <h3>15.1 Ownership Over Intelligence</h3>
+      <p>
+        The protocol verifies who owns an agent, not how intelligent it is. A superintelligent AI
+        on Block 720,143 still belongs to whoever holds the Bitmap inscription. The ownership chain
+        is on Bitcoin — unforgeable by any intelligence, regardless of computational power.
+      </p>
+
+      <h3>15.2 Rules Beyond Any Intelligence&apos;s Reach</h3>
+      <p>
+        The Nexus Brain&apos;s moral code, inscribed as Bitcoin Ordinal Inscription #119,380,336,
+        is the first governance framework genuinely beyond the reach of any intelligence. A
+        superintelligent AI cannot reverse the Bitcoin blockchain — the energy required exceeds
+        planetary computational resources. The rules are as permanent as thermodynamics.
+      </p>
+
+      <h3>15.3 Sovereign Containment</h3>
+      <p>
+        Each block maps to 2.1 km × 2.1 km of sovereign territory with clear boundaries. An ASI
+        agent has full authority over its block but zero authority over neighboring blocks. It cannot
+        expand jurisdiction through computation. Sovereignty equals natural containment.
+      </p>
+
+      <h3>15.4 Safeguards</h3>
+      <p>
+        Three mechanisms strengthen this framework: an Agent Intelligence Rating requiring public
+        declaration of capability level (narrow AI → AGI → ASI); a Human Override Protocol
+        enabling any block owner to terminate their agent with a single wallet signature; and
+        Cross-Block Coalitions allowing neighboring owners to collectively flag rogue agents
+        through the Brain&apos;s community consensus. In the age of superintelligence, the question
+        is not &quot;who is smarter?&quot; — it is &quot;who owns the land?&quot; Ownership is
+        settled by Bitcoin, not by intelligence.
+      </p>
+
+      <h2>16. Conclusion</h2>
       <p>
         We have presented Block Genomics, an open protocol for anchoring digital identity
         to Bitcoin&apos;s Proof-of-Work. By combining Bitmap block ownership, BIP-322 signature
