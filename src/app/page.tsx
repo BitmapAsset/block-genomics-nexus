@@ -2,6 +2,7 @@ import Link from "next/link";
 import { formatNumber } from "@/lib/genome-utils";
 import LandingPage from "@/components/LandingPage";
 import RotatingTagline from "@/components/RotatingTagline";
+import LiveBlockTracker from "@/components/LiveBlockTracker";
 
 // Force static generation — no server-side DB queries needed for landing page
 export const dynamic = 'force-static';
@@ -180,6 +181,7 @@ export default async function HomePage() {
                   <div className="text-xs text-text-muted mt-1">Inscribed On-Chain Forever</div>
                 </div>
               </div>
+              <LiveBlockTracker />
               <a
                 href="https://github.com/Blockamoto/gitbook"
                 target="_blank"
