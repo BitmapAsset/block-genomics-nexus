@@ -129,7 +129,7 @@ function matchResponse(input: string): string {
 
 export default function BrainChat() {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'brain', text: 'I am the Nexus Brain. You may ask me about my moral code, my purpose, or the rules I enforce. Choose your questions wisely — you have 5 per day.' },
+    { role: 'brain', text: 'I am the Nexus Brain. You may ask me about my moral code, my purpose, or the rules I enforce.' },
   ]);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -174,9 +174,7 @@ export default function BrainChat() {
             <span className="text-lg">🧠</span>
             <span className="text-sm font-semibold text-cyan-400">Ask the Brain</span>
           </div>
-          <span className="text-[10px] text-gray-500">
-            {remaining > 0 ? `${remaining} question${remaining !== 1 ? 's' : ''} remaining` : 'Daily limit reached'}
-          </span>
+          <span className="text-[10px] text-emerald-500/60 font-mono">ONLINE</span>
         </div>
 
         {/* Messages */}
