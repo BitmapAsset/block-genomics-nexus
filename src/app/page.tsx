@@ -2,7 +2,7 @@ import Link from "next/link";
 import { formatNumber } from "@/lib/genome-utils";
 import LandingPage from "@/components/LandingPage";
 import RotatingTagline from "@/components/RotatingTagline";
-import LiveBlockTracker from "@/components/LiveBlockTracker";
+import LiveBlockCount from "@/components/LiveBlockCount";
 
 // Force static generation — no server-side DB queries needed for landing page
 export const dynamic = 'force-static';
@@ -167,7 +167,7 @@ export default async function HomePage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
                 <div className="p-4 rounded-lg border border-border/50 bg-bg-primary/30">
                   <div className="text-2xl mb-2">🏔️</div>
-                  <div className="text-lg font-bold text-text-primary">880K+</div>
+                  <div className="text-lg font-bold text-text-primary"><LiveBlockCount /></div>
                   <div className="text-xs text-text-muted mt-1">Bitcoin Blocks as Digital Land</div>
                 </div>
                 <div className="p-4 rounded-lg border border-border/50 bg-bg-primary/30">
@@ -181,7 +181,6 @@ export default async function HomePage() {
                   <div className="text-xs text-text-muted mt-1">Inscribed On-Chain Forever</div>
                 </div>
               </div>
-              <LiveBlockTracker />
               <a
                 href="https://github.com/Blockamoto/gitbook"
                 target="_blank"
