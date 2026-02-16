@@ -1,22 +1,13 @@
 import Link from "next/link";
-import { formatNumber } from "@/lib/genome-utils";
 import LandingPage from "@/components/LandingPage";
 import RotatingTagline from "@/components/RotatingTagline";
 import LiveBlockCount from "@/components/LiveBlockCount";
+import LiveStats from "@/components/LiveStats";
 
 // Force static generation — no server-side DB queries needed for landing page
 export const dynamic = 'force-static';
 
 export default async function HomePage() {
-  // Stats will come from client-side API call in future
-  const blocksVerified = 880000, activeAgents = 0, genomesExtracted = 0;
-
-  const stats = [
-    { label: "Blocks with DNA", value: blocksVerified > 0 ? formatNumber(blocksVerified) : "—", icon: "⛓️" },
-    { label: "Verified Agents", value: activeAgents > 0 ? formatNumber(activeAgents) : "—", icon: "🤖" },
-    { label: "Genomes Minted", value: genomesExtracted > 0 ? formatNumber(genomesExtracted) : "—", icon: "🧬" },
-  ];
-
   return (
     <div className="relative min-h-screen overflow-hidden">
       <LandingPage>
@@ -196,18 +187,7 @@ export default async function HomePage() {
           </section>
 
           {/* Stats */}
-          <div className="mt-16 mb-20 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
-            {stats.map((stat) => (
-              <div
-                key={stat.label}
-                className="glass-panel p-5 text-center backdrop-blur-md bg-bg-secondary/50 hover:glass-panel-hover transition-all"
-              >
-                <div className="text-2xl mb-2">{stat.icon}</div>
-                <div className="text-2xl font-bold text-text-primary">{stat.value}</div>
-                <div className="text-xs text-text-muted mt-1">{stat.label}</div>
-              </div>
-            ))}
-          </div>
+          <LiveStats />
         </div>
       </LandingPage>
     </div>
