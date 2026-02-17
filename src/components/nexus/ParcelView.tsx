@@ -2828,9 +2828,10 @@ function LivestreamModal({ onClose, blockHeight, parcelIndex, isStreaming, onSta
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose} style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
       <div className="w-[460px] rounded-2xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} style={{ background: '#0f0f18', border: '1px solid rgba(255,51,51,0.25)' }}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold" style={{ color: '#ff3333' }}>🔴 Go Live on {parcelIndex}.{blockHeight}.bitmap</h3>
+          <h3 className="text-base font-bold" style={{ color: '#ff3333' }}>📺 TimesSquare</h3>
           <button onClick={onClose} className="text-[#64748b] hover:text-white text-lg">✕</button>
         </div>
+        <p className="text-[11px] mb-4 -mt-2" style={{ color: '#64748b' }}>Go live on your block — broadcast to every visitor on {blockHeight}.bitmap</p>
 
         {isStreaming && (
           <div className="mb-4 px-4 py-3 rounded-xl flex items-center gap-3" style={{ background: 'rgba(255,51,51,0.1)', border: '1px solid rgba(255,51,51,0.3)' }}>
@@ -2900,12 +2901,12 @@ function LivestreamModal({ onClose, blockHeight, parcelIndex, isStreaming, onSta
             color: isStreaming ? '#ff3333' : '#00ff88',
             boxShadow: isStreaming ? '0 0 20px rgba(255,51,51,0.2)' : '0 0 20px rgba(0,255,136,0.15)',
           }}>
-          {loading ? '⏳ Connecting...' : isStreaming ? '⏹️ End Stream' : '🔴 Go Live'}
+          {loading ? '⏳ Connecting...' : isStreaming ? '⏹️ End Stream' : '📺 TimesSquare'}
         </button>
 
         <div className="mt-4 space-y-2">
-          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>📺</span><span>Stream from YouTube, Twitch, or Kick — embedded live on your block</span></div>
-          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>🔐</span><span>Only block owners can go live — verified via BIP-322</span></div>
+          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>📺</span><span>Paste your YouTube, Twitch, or Kick URL — broadcast on your Times Square</span></div>
+          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>🔐</span><span>Stream live on your block — your own Times Square — verified via BIP-322</span></div>
         </div>
       </div>
     </div>
@@ -5896,7 +5897,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                         opacity: ownerLock ? 0.6 : 1,
                       }}
                     >
-                      {isStreaming ? '🔴 LIVE — Manage Stream' : '🔴 Go Live'}
+                      {isStreaming ? '🔴 LIVE — TimesSquare' : '📺 TimesSquare'}
                     </button>
                     {ownerLock && (
                       <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>
