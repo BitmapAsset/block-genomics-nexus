@@ -59,10 +59,30 @@ export default function NexusMap() {
     [searchValue]
   );
 
+  const epochs = [
+    { label: "Epoch 1", range: "0 – 209,999", color: "#c98923", reward: "50 BTC" },
+    { label: "Epoch 2", range: "210K – 419,999", color: "#f28b2b", reward: "25 BTC" },
+    { label: "Epoch 3", range: "420K – 629,999", color: "#2bff6b", reward: "12.5 BTC" },
+    { label: "Epoch 4", range: "630K – 839,999", color: "#2bc9ff", reward: "6.25 BTC" },
+    { label: "Epoch 5", range: "840K +", color: "#a855f7", reward: "3.125 BTC" },
+  ];
+
   return (
     <div className="relative h-full w-full">
       <div className="absolute left-6 top-6 z-20">
         <div className="text-lg font-semibold text-white">The Nexus</div>
+      </div>
+
+      {/* Epoch Legend */}
+      <div className="absolute right-4 top-4 z-20 rounded-xl border border-white/10 bg-black/60 backdrop-blur-sm px-3 py-2.5 space-y-1.5">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-1">Bitcoin Epochs</div>
+        {epochs.map((e) => (
+          <div key={e.label} className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: e.color, boxShadow: `0 0 6px ${e.color}40` }} />
+            <span className="text-[11px] font-semibold text-white/90">{e.label}</span>
+            <span className="text-[10px] text-white/40">{e.reward}</span>
+          </div>
+        ))}
       </div>
 
       {hover && (
