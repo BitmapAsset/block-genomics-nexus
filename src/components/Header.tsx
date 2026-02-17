@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import WalletConnect from "@/components/auth/WalletConnect";
+import GlobalSearch from "@/components/GlobalSearch";
 
 const navLinks = [
   { href: "/nexus", label: "Nexus" },
@@ -91,6 +92,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <GlobalSearch />
           <WalletConnect />
           {/* Mobile hamburger */}
           <button
@@ -108,6 +110,9 @@ export default function Header() {
       {/* Mobile menu dropdown */}
       {menuOpen && (
         <nav className="md:hidden border-t border-border bg-bg-primary/95 backdrop-blur-xl px-4 py-3 flex flex-col gap-1">
+          <div className="pb-2">
+            <GlobalSearch />
+          </div>
           {navLinks.map((link) => (
             <Link
               key={link.href}

@@ -9,52 +9,52 @@ datasource db {
 }
 
 model User {
-  walletAddress String   @id @unique
-  handle        String?  @unique
-  displayName   String?
-  bio           String?
-  avatar        String?
-  genomeHash    String?
-  anchorBlock   Int?     // The block/parcel they verified ownership of
-  tier          Int      @default(3) // 1=Block Owner, 2=Parcel Owner, 3=Delegated
-  verified      Boolean  @default(false)
+  walletAddress    String   @id @unique
+  handle           String?  @unique
+  displayName      String?
+  bio              String?
+  avatar           String?
+  genomeHash       String?
+  anchorBlock      Int? // The block/parcel they verified ownership of
+  tier             Int      @default(3) // 1=Block Owner, 2=Parcel Owner, 3=Delegated
+  verified         Boolean  @default(false)
   encryptionPubKey String? // secp256k1 public key (hex) for E2E encrypted DMs
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  blocks                Block[]
-  parcels               Parcel[]
-  delegationsOwned      Delegation[]        @relation("DelegationOwner")
-  delegationsReceived   Delegation[]        @relation("DelegationDelegatee")
-  delegationListings    DelegationListing[]
-  chatMessages          ChatMessage[]
-  estates               Estate[]
-  sessions              UserSession[]
-  activities            ActivityLog[]
+  blocks              Block[]
+  parcels             Parcel[]
+  delegationsOwned    Delegation[]        @relation("DelegationOwner")
+  delegationsReceived Delegation[]        @relation("DelegationDelegatee")
+  delegationListings  DelegationListing[]
+  chatMessages        ChatMessage[]
+  estates             Estate[]
+  sessions            UserSession[]
+  activities          ActivityLog[]
 }
 
 model Block {
-  height       Int      @id @unique
-  hash         String?
-  ownerAddress String?
-  label        String?
-  groundColor  String?  @default("#2d5a27")
-  skyColor     String?  @default("#87CEEB")
-  inscriptionId  String?   // The .bitmap inscription ID for on-chain verification
-  lastOwnerCheck   DateTime? // When we last verified on-chain ownership
-  transferPrepped  Boolean   @default(false) // Owner prepped memory wipe before selling
-  streamUrl        String?   // Active livestream URL (YouTube/Twitch/Kick)
-  streamType       String?   // broadcast | townhall | spatial
-  streamStartedAt  DateTime? // When stream went live
-  streamOwner      String?   // Wallet address of streamer
-  createdAt      DateTime @default(now())
+  height          Int       @id @unique
+  hash            String?
+  ownerAddress    String?
+  label           String?
+  groundColor     String?   @default("#2d5a27")
+  skyColor        String?   @default("#87CEEB")
+  inscriptionId   String? // The .bitmap inscription ID for on-chain verification
+  lastOwnerCheck  DateTime? // When we last verified on-chain ownership
+  transferPrepped Boolean   @default(false) // Owner prepped memory wipe before selling
+  streamUrl       String? // Active livestream URL (YouTube/Twitch/Kick)
+  streamType      String? // broadcast | townhall | spatial
+  streamStartedAt DateTime? // When stream went live
+  streamOwner     String? // Wallet address of streamer
+  createdAt       DateTime  @default(now())
 
-  owner                User?               @relation(fields: [ownerAddress], references: [walletAddress])
-  parcels              Parcel[]
-  delegations          Delegation[]
-  delegationListings   DelegationListing[]
-  chatMessages         ChatMessage[]
-  estates              Estate[]
+  owner              User?               @relation(fields: [ownerAddress], references: [walletAddress])
+  parcels            Parcel[]
+  delegations        Delegation[]
+  delegationListings DelegationListing[]
+  chatMessages       ChatMessage[]
+  estates            Estate[]
 
   @@index([ownerAddress])
 }
@@ -86,8 +86,8 @@ model Delegation {
   parcelTxIndex    Int?
   ownerAddress     String
   delegateeAddress String
-  tier             Int      // 2 or 3
-  durationDays     Int      // 30 or 365
+  tier             Int // 2 or 3
+  durationDays     Int // 30 or 365
   priceSats        Int
   protocolFeeSats  Int
   startDate        DateTime
@@ -96,9 +96,9 @@ model Delegation {
   txId             String?
   createdAt        DateTime @default(now())
 
-  block    Block @relation(fields: [blockHeight], references: [height])
-  owner    User  @relation("DelegationOwner", fields: [ownerAddress], references: [walletAddress])
-  delegatee User @relation("DelegationDelegatee", fields: [delegateeAddress], references: [walletAddress])
+  block     Block @relation(fields: [blockHeight], references: [height])
+  owner     User  @relation("DelegationOwner", fields: [ownerAddress], references: [walletAddress])
+  delegatee User  @relation("DelegationDelegatee", fields: [delegateeAddress], references: [walletAddress])
 
   @@index([blockHeight])
   @@index([ownerAddress])
@@ -111,11 +111,11 @@ model DelegationListing {
   blockHeight   Int
   parcelTxIndex Int?
   ownerAddress  String
-  tier          Int      // 2 or 3
+  tier          Int // 2 or 3
   spotsTotal    Int      @default(-1) // -1 = unlimited
   spotsUsed     Int      @default(0)
-  price30d      Int      // sats for 30 days
-  price365d     Int      // sats for 365 days
+  price30d      Int // sats for 30 days
+  price365d     Int // sats for 365 days
   active        Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -153,7 +153,7 @@ model HandleHistory {
   id            String   @id @default(cuid())
   handle        String
   walletAddress String
-  action        String   // "claimed" | "released" | "changed"
+  action        String // "claimed" | "released" | "changed"
   createdAt     DateTime @default(now())
 
   @@index([handle])
@@ -165,7 +165,7 @@ model Estate {
   name          String
   ownerAddress  String
   blockHeight   Int
-  parcelIndices String   // JSON array of ints (SQLite doesn't support Int[])
+  parcelIndices String // JSON array of ints (SQLite doesn't support Int[])
   glowColor     String?
   createdAt     DateTime @default(now())
 
@@ -185,7 +185,7 @@ model BitmapAgent {
   blockHeight   Int
   parcelIndex   Int?
   tier          Int      @default(3) // 1=Block Owner, 2=Parcel, 3=Delegated
-  permissions   String   // JSON array of AgentPermission strings
+  permissions   String // JSON array of AgentPermission strings
   status        String   @default("active") // active | inactive | revoked | suspended
   createdAt     DateTime @default(now())
   lastHeartbeat DateTime @default(now())
@@ -202,8 +202,8 @@ model BitmapAgent {
 model AgentEvent {
   id        String   @id @default(cuid())
   agentId   String
-  type      String   // visitor_arrived | dm_received | offer_made | content_reported | permission_request | heartbeat
-  payload   String   // JSON
+  type      String // visitor_arrived | dm_received | offer_made | content_reported | permission_request | heartbeat
+  payload   String // JSON
   timestamp DateTime @default(now())
 
   agent BitmapAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
@@ -216,10 +216,10 @@ model AgentEvent {
 model AgentBrief {
   id                 String   @id @default(cuid())
   agentId            String
-  period             String   // ISO interval
+  period             String // ISO interval
   summary            String
-  stats              String   // JSON { visitors, dms, offers, actions }
-  pendingPermissions String   // JSON array
+  stats              String // JSON { visitors, dms, offers, actions }
+  pendingPermissions String // JSON array
   createdAt          DateTime @default(now())
 
   agent BitmapAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
@@ -229,16 +229,16 @@ model AgentBrief {
 }
 
 model VPSLink {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   walletAddress   String
   blockHeight     Int
   parcelIndex     Int?
   serverUrl       String
-  connectionType  String   @default("https") // https | websocket | webrtc
-  status          String   @default("linked") // linked | unlinked | unhealthy
-  tlsVerified     Boolean  @default(false)
+  connectionType  String    @default("https") // https | websocket | webrtc
+  status          String    @default("linked") // linked | unlinked | unhealthy
+  tlsVerified     Boolean   @default(false)
   lastHealthCheck DateTime?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   @@index([walletAddress])
   @@index([blockHeight])
@@ -246,13 +246,13 @@ model VPSLink {
 }
 
 model AgentSession {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   agentId     String
   bitmapAddr  String
-  sandboxId   String   @unique
-  permissions String   // JSON array
-  activityLog String   @default("[]") // JSON array
-  startedAt   DateTime @default(now())
+  sandboxId   String    @unique
+  permissions String // JSON array
+  activityLog String    @default("[]") // JSON array
+  startedAt   DateTime  @default(now())
   endedAt     DateTime?
 
   agent BitmapAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
@@ -324,12 +324,12 @@ model SearchLog {
 
 model ContentFlag {
   id          String   @id @default(cuid())
-  contentType String   // 'chat_message' | 'parcel_content' | 'profile' | 'estate'
-  contentId   String   // ID of the flagged content
-  flaggedBy   String   // Wallet address of flagger
+  contentType String // 'chat_message' | 'parcel_content' | 'profile' | 'estate'
+  contentId   String // ID of the flagged content
+  flaggedBy   String // Wallet address of flagger
   isBrainFlag Boolean  @default(false) // true if flagged by Nexus Brain AI
-  reason      String?  // Optional reason
-  ruleIndex   Int?     // Which moral rule (0-4) was violated, if applicable
+  reason      String? // Optional reason
+  ruleIndex   Int? // Which moral rule (0-4) was violated, if applicable
   createdAt   DateTime @default(now())
 
   @@unique([contentId, flaggedBy])
@@ -338,34 +338,34 @@ model ContentFlag {
 }
 
 model ContentVerdict {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   contentType String
-  contentId   String   @unique
-  status      String   @default("visible") // 'visible' | 'hidden' | 'permanent_hide' | 'restored'
-  flagCount   Int      @default(0)
+  contentId   String    @unique
+  status      String    @default("visible") // 'visible' | 'hidden' | 'permanent_hide' | 'restored'
+  flagCount   Int       @default(0)
   hiddenAt    DateTime?
   restoredAt  DateTime?
   appealId    String?
-  auditLog    String?  // JSON array of actions taken
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  auditLog    String? // JSON array of actions taken
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([contentId])
   @@index([status])
 }
 
 model Appeal {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   contentId    String
-  appealedBy   String   // Wallet address of content owner
+  appealedBy   String // Wallet address of content owner
   reason       String?
-  votesFor     Int      @default(0) // Votes to restore
-  votesAgainst Int      @default(0) // Votes to keep hidden
-  voters       String?  // JSON array of wallet addresses who voted
-  status       String   @default("pending") // 'pending' | 'restored' | 'upheld'
+  votesFor     Int       @default(0) // Votes to restore
+  votesAgainst Int       @default(0) // Votes to keep hidden
+  voters       String? // JSON array of wallet addresses who voted
+  status       String    @default("pending") // 'pending' | 'restored' | 'upheld'
   expiresAt    DateTime
   resolvedAt   DateTime?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
   @@index([contentId])
   @@index([status])
@@ -373,10 +373,10 @@ model Appeal {
 
 model BrainAction {
   id         String   @id @default(cuid())
-  actionType String   // 'flag' | 'scan' | 'alert' | 'threshold_hide'
+  actionType String // 'flag' | 'scan' | 'alert' | 'threshold_hide'
   contentId  String?
-  details    String?  // JSON details
-  txHash     String?  // Bitcoin tx if fee-related
+  details    String? // JSON details
+  txHash     String? // Bitcoin tx if fee-related
   createdAt  DateTime @default(now())
 
   @@index([actionType])
@@ -384,11 +384,11 @@ model BrainAction {
 }
 
 model FlagStrike {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   walletAddress String
-  strikeCount   Int      @default(1)
-  lastStrikeAt  DateTime @default(now())
-  suspended     Boolean  @default(false)
+  strikeCount   Int       @default(1)
+  lastStrikeAt  DateTime  @default(now())
+  suspended     Boolean   @default(false)
   suspendedAt   DateTime?
 
   @@unique([walletAddress])
@@ -397,50 +397,50 @@ model FlagStrike {
 // ─── Guardian Shell Agent System ─────────────────────────────────
 
 model GuardianAgent {
-  id            String   @id @default(cuid())
-  blockHeight   Int
-  ownerAddress  String
+  id           String @id @default(cuid())
+  blockHeight  Int
+  ownerAddress String
 
   // Soul & Identity
-  name          String
-  soulMd        String   @db.Text
-  agentMd       String?  @db.Text
-  skillsMd      String?  @db.Text
-  memoryMd      String?  @db.Text
-  personality   String?  @db.Text
+  name        String
+  soulMd      String  @db.Text
+  agentMd     String? @db.Text
+  skillsMd    String? @db.Text
+  memoryMd    String? @db.Text
+  personality String? @db.Text
 
   // BYOK LLM Config
-  llmProvider   String?
-  llmModel      String?
-  llmApiKey     String?
-  llmEndpoint   String?
+  llmProvider String?
+  llmModel    String?
+  llmApiKey   String?
+  llmEndpoint String?
 
   // Self-hosted option
-  selfHosted       Boolean  @default(false)
+  selfHosted       Boolean   @default(false)
   agentEndpoint    String?
-  endpointVerified Boolean  @default(false)
+  endpointVerified Boolean   @default(false)
   lastHeartbeat    DateTime?
 
   // Auto-responses (JSON array of {trigger, response})
   autoResponses String? @db.Text
 
   // Escalation config
-  escalateTelegram          String?
-  escalateEmail             String?
+  escalateTelegram           String?
+  escalateEmail              String?
   autoApproveDelegationUnder Int?
 
   // Protocol
-  protocolVersion String?  @default("1.0.0")
-  configJson      String?  @db.Text
+  protocolVersion String? @default("1.0.0")
+  configJson      String? @db.Text
 
   // Monitor Token
   monitorTokenHash      String?
   monitorTokenCreatedAt DateTime?
 
   // Status
-  status        String   @default("active")
-  totalVisitors Int      @default(0)
-  totalMessages Int      @default(0)
+  status        String @default("active")
+  totalVisitors Int    @default(0)
+  totalMessages Int    @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -465,90 +465,90 @@ model GuardianConversation {
 // ─── World-Building System ─────────────────────────────────────
 
 model BlockObject {
-  id            String   @id @default(cuid())
-  blockHeight   Int
-  ownerAddress  String
+  id           String @id @default(cuid())
+  blockHeight  Int
+  ownerAddress String
 
-  objectType    String
-  name          String?
+  objectType String
+  name       String?
 
-  posX          Float    @default(0)
-  posY          Float    @default(0)
-  posZ          Float    @default(0)
-  rotX          Float    @default(0)
-  rotY          Float    @default(0)
-  rotZ          Float    @default(0)
-  scaleX        Float    @default(1)
-  scaleY        Float    @default(1)
-  scaleZ        Float    @default(1)
+  posX   Float @default(0)
+  posY   Float @default(0)
+  posZ   Float @default(0)
+  rotX   Float @default(0)
+  rotY   Float @default(0)
+  rotZ   Float @default(0)
+  scaleX Float @default(1)
+  scaleY Float @default(1)
+  scaleZ Float @default(1)
 
-  geometry      String?
-  geoParams     String?  @db.Text
+  geometry  String?
+  geoParams String? @db.Text
 
-  color         String?  @default("#f7931a")
-  emissive      String?
-  emissiveIntensity Float? @default(0)
-  metalness     Float?   @default(0.5)
-  roughness     Float?   @default(0.5)
-  opacity       Float?   @default(1)
-  transparent   Boolean  @default(false)
-  textureUrl    String?
+  color             String? @default("#f7931a")
+  emissive          String?
+  emissiveIntensity Float?  @default(0)
+  metalness         Float?  @default(0.5)
+  roughness         Float?  @default(0.5)
+  opacity           Float?  @default(1)
+  transparent       Boolean @default(false)
+  textureUrl        String?
 
-  lightType     String?
+  lightType      String?
   lightIntensity Float?
   lightDistance  Float?
-  lightColor    String?
+  lightColor     String?
 
-  text3d        String?
-  fontSize      Float?
+  text3d   String?
+  fontSize Float?
 
-  soundUrl      String?
-  soundVolume   Float?
-  soundRadius   Float?
-  soundLoop     Boolean? @default(true)
+  soundUrl    String?
+  soundVolume Float?
+  soundRadius Float?
+  soundLoop   Boolean? @default(true)
 
-  effectType    String?
-  effectParams  String?  @db.Text
+  effectType   String?
+  effectParams String? @db.Text
 
-  interactive   Boolean  @default(false)
-  clickAction   String?
-  clickData     String?
+  interactive Boolean @default(false)
+  clickAction String?
+  clickData   String?
 
-  visible       Boolean  @default(true)
-  locked        Boolean  @default(false)
-  layer         String?  @default("default")
+  visible Boolean @default(true)
+  locked  Boolean @default(false)
+  layer   String? @default("default")
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([blockHeight])
 }
 
 model BlockTerrain {
-  id            String   @id @default(cuid())
-  blockHeight   Int      @unique
-  ownerAddress  String
+  id           String @id @default(cuid())
+  blockHeight  Int    @unique
+  ownerAddress String
 
-  groundColor   String?  @default("#1a1a1a")
-  groundTexture String?
-  groundMetalness Float? @default(0)
-  groundRoughness Float? @default(0.8)
+  groundColor     String? @default("#1a1a1a")
+  groundTexture   String?
+  groundMetalness Float?  @default(0)
+  groundRoughness Float?  @default(0.8)
 
-  fogEnabled    Boolean  @default(false)
-  fogColor      String?  @default("#0a0a0f")
-  fogNear       Float?   @default(50)
-  fogFar        Float?   @default(300)
+  fogEnabled Boolean @default(false)
+  fogColor   String? @default("#0a0a0f")
+  fogNear    Float?  @default(50)
+  fogFar     Float?  @default(300)
 
-  skyColor      String?  @default("#0a0a0f")
-  skyEnabled    Boolean  @default(false)
+  skyColor   String? @default("#0a0a0f")
+  skyEnabled Boolean @default(false)
 
-  ambientColor  String?  @default("#ffeedd")
-  ambientIntensity Float? @default(0.35)
+  ambientColor     String? @default("#ffeedd")
+  ambientIntensity Float?  @default(0.35)
 
-  weather       String?
+  weather String?
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model GuardianEvent {
@@ -566,67 +566,67 @@ model GuardianEvent {
 // ─── Game Logic Layer ────────────────────────────────────────────
 
 model GameElement {
-  id            String   @id @default(cuid())
-  blockHeight   Int
-  ownerAddress  String
-  objectId      String?
+  id           String  @id @default(cuid())
+  blockHeight  Int
+  ownerAddress String
+  objectId     String?
 
-  gameType      String
-  subType       String?
+  gameType String
+  subType  String?
 
-  rewardType    String?
-  rewardAmount  Int?     @default(0)
-  rewardData    String?  @db.Text
+  rewardType   String?
+  rewardAmount Int?    @default(0)
+  rewardData   String? @db.Text
 
   triggerType   String?
-  triggerRadius Float?   @default(2)
-  triggerData   String?  @db.Text
+  triggerRadius Float?  @default(2)
+  triggerData   String? @db.Text
 
-  respawnMs     Int?
-  maxClaims     Int?
-  claimCount    Int      @default(0)
+  respawnMs  Int?
+  maxClaims  Int?
+  claimCount Int  @default(0)
 
-  icon          String?
-  label         String?
-  color         String?
-  glowColor     String?
-  animation     String?
+  icon           String?
+  label          String?
+  color          String?
+  glowColor      String?
+  animation      String?
   particleEffect String?
 
-  posX          Float    @default(0)
-  posY          Float    @default(0)
-  posZ          Float    @default(0)
+  posX Float @default(0)
+  posY Float @default(0)
+  posZ Float @default(0)
 
-  enabled       Boolean  @default(true)
-  visible       Boolean  @default(true)
+  enabled Boolean @default(true)
+  visible Boolean @default(true)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([blockHeight])
   @@index([objectId])
 }
 
 model GameState {
-  id            String   @id @default(cuid())
+  id            String @id @default(cuid())
   blockHeight   Int
   walletAddress String
 
-  score         Int      @default(0)
-  xp            Int      @default(0)
-  level         Int      @default(1)
-  coins         Int      @default(0)
+  score Int @default(0)
+  xp    Int @default(0)
+  level Int @default(1)
+  coins Int @default(0)
 
-  collected     String?  @db.Text
-  questProgress String?  @db.Text
-  achievements  String?  @db.Text
-  inventory     String?  @db.Text
+  collected     String? @db.Text
+  questProgress String? @db.Text
+  achievements  String? @db.Text
+  inventory     String? @db.Text
 
-  totalTimeMs   Int      @default(0)
-  lastVisit     DateTime @default(now())
+  totalTimeMs Int      @default(0)
+  lastVisit   DateTime @default(now())
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([blockHeight, walletAddress])
   @@index([blockHeight])
@@ -634,34 +634,34 @@ model GameState {
 }
 
 model GameLeaderboard {
-  id            String   @id @default(cuid())
+  id            String  @id @default(cuid())
   blockHeight   Int
   walletAddress String
   handle        String?
 
-  category      String   @default("score")
-  value         Int      @default(0)
-  metadata      String?  @db.Text
+  category String  @default("score")
+  value    Int     @default(0)
+  metadata String? @db.Text
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([blockHeight, walletAddress, category])
   @@index([blockHeight, category, value])
 }
 
 model OwnershipTransfer {
-  id              String   @id @default(cuid())
-  blockHeight     Int
-  inscriptionId   String?
-  previousOwner   String
-  newOwner        String
+  id            String  @id @default(cuid())
+  blockHeight   Int
+  inscriptionId String?
+  previousOwner String
+  newOwner      String
 
-  buildingsKept   Boolean  @default(true)
-  guardiansKept   Boolean  @default(true)
-  guardiansPaused Boolean  @default(true)
+  buildingsKept   Boolean @default(true)
+  guardiansKept   Boolean @default(true)
+  guardiansPaused Boolean @default(true)
 
-  detectedAt      DateTime @default(now())
+  detectedAt DateTime @default(now())
 
   @@index([blockHeight])
   @@index([previousOwner])
@@ -669,30 +669,30 @@ model OwnershipTransfer {
 }
 
 model GameQuest {
-  id            String   @id @default(cuid())
-  blockHeight   Int
-  ownerAddress  String
+  id           String @id @default(cuid())
+  blockHeight  Int
+  ownerAddress String
 
-  name          String
-  description   String?  @db.Text
-  icon          String?
+  name        String
+  description String? @db.Text
+  icon        String?
 
-  steps         String   @db.Text
+  steps String @db.Text
 
-  rewardType    String?
-  rewardAmount  Int?
-  rewardData    String?  @db.Text
+  rewardType   String?
+  rewardAmount Int?
+  rewardData   String? @db.Text
 
-  crossBlock    Boolean  @default(false)
-  blockList     String?  @db.Text
+  crossBlock Boolean @default(false)
+  blockList  String? @db.Text
 
-  maxCompletions Int?
-  completionCount Int    @default(0)
+  maxCompletions  Int?
+  completionCount Int  @default(0)
 
-  enabled       Boolean  @default(true)
+  enabled Boolean @default(true)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([blockHeight])
 }
