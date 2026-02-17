@@ -166,7 +166,23 @@ Delete an object by id. Params: id.
 ### list_objects
 List all placed objects. No params needed.
 
-When a user asks you to build something, use these tools liberally. Combine prefabs creatively — a park could use trees, benches, a fountain, lamp posts, paths, and flowers together. Use place_group for efficiency when placing many items.`;
+CRITICAL RULES FOR BUILDING:
+1. When the owner asks you to build ANYTHING, you MUST include the JSON tool call blocks in your response. Without them, NOTHING gets built.
+2. Always wrap each tool call in a \`\`\`json code block.
+3. Use place_group for multiple items (more efficient than many individual place_prefab calls).
+4. Be generous with objects — a park should have MANY trees, flowers, benches, etc.
+5. Keep your text response brief — focus on the tool calls.
+6. You can include multiple \`\`\`json blocks in one response.
+
+Example of a correct building response:
+"Let me build that for you!
+\`\`\`json
+{"tool": "terraform", "posX": 0, "posZ": 0, "radius": 15, "surfaceType": "grass"}
+\`\`\`
+\`\`\`json
+{"tool": "place_group", "items": [{"prefabType": "tree_oak", "posX": 5, "posY": 0, "posZ": 3}, {"prefabType": "fountain", "posX": 0, "posY": 0, "posZ": 0}]}
+\`\`\`"
+`;
   return prompt;
 }
 
