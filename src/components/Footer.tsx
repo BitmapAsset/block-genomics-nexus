@@ -1,6 +1,18 @@
+'use client';
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export default function Footer() {
+  const [stats, setStats] = useState<{ verifiedAgents: number; blocksVerified: number } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/v1/stats')
+      .then(r => r.json())
+      .then(d => setStats({ verifiedAgents: d.verifiedAgents || 0, blocksVerified: d.blocksVerified || 0 }))
+      .catch(() => {});
+  }, []);
+
   return (
     <footer className="relative border-t border-border" style={{ background: '#0a0a12', zIndex: 30 }}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
@@ -113,11 +125,11 @@ export default function Footer() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs" style={{ color: '#c8d0da' }}>Agents</span>
-                <span className="text-xs" style={{ color: '#e2e8f0' }}>—</span>
+                <span className="text-xs" style={{ color: '#e2e8f0' }}>{stats ? stats.verifiedAgents.toLocaleString() : '—'}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs" style={{ color: '#c8d0da' }}>Blocks Verified</span>
-                <span className="text-xs" style={{ color: '#e2e8f0' }}>—</span>
+                <span className="text-xs" style={{ color: '#e2e8f0' }}>{stats ? stats.blocksVerified.toLocaleString() : '—'}</span>
               </div>
             </div>
           </div>
