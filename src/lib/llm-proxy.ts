@@ -2,7 +2,7 @@
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 
 const MAX_CALLS_PER_HOUR = 60;
-const TIMEOUT_MS = 15000;
+const TIMEOUT_MS = 30000;
 
 interface LLMConfig {
   provider: string;
@@ -75,7 +75,7 @@ async function callOpenAICompatible(config: LLMConfig): Promise<string> {
         { role: 'system', content: config.systemPrompt },
         ...config.messages,
       ],
-      max_tokens: 1024,
+      max_tokens: 4096,
       temperature: 0.7,
     }),
   });
@@ -106,7 +106,7 @@ async function callAnthropic(config: LLMConfig): Promise<string> {
         role: m.role === 'system' ? 'user' : m.role,
         content: m.content,
       })),
-      max_tokens: 1024,
+      max_tokens: 4096,
     }),
   });
 
