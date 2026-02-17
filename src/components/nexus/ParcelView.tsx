@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { Canvas, useFrame, useThree, ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, Html, Environment } from '@react-three/drei';
+import { OrbitControls, Html } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
@@ -5285,7 +5285,9 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           )}
 
           {/* Post-processing effects for near-game quality */}
-          <Environment preset="night" environmentIntensity={0.3} />
+          {/* Environment lighting — inline to avoid external HDR fetch failures */}
+          <ambientLight intensity={0.15} color="#1a1a3a" />
+          <hemisphereLight args={['#1a1a4a', '#0a0a1a', 0.3]} />
           <EffectComposer multisampling={0}>
             <Bloom
               luminanceThreshold={0.6}
