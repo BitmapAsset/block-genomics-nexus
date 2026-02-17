@@ -61,22 +61,8 @@ export default function NexusMap() {
 
   return (
     <div className="relative h-full w-full">
-      <div className="absolute left-6 top-6 z-20 flex flex-col gap-3">
+      <div className="absolute left-6 top-6 z-20">
         <div className="text-lg font-semibold text-white">The Nexus</div>
-        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
-          <input
-            value={searchValue}
-            onChange={(event) => setSearchValue(event.target.value)}
-            placeholder="Search block #"
-            className="w-40 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-accent-cyan/60 focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
-          >
-            Go
-          </button>
-        </form>
       </div>
 
       {hover && (
