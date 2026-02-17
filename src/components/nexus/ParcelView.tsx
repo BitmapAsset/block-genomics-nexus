@@ -2780,35 +2780,49 @@ function VPSLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => vo
 
 /* ─── Livestream Modal ─── */
 type StreamType = 'broadcast' | 'townhall' | 'spatial';
-type StreamQuality = '360p' | '720p' | '1080p';
 
-function LivestreamModal({ onClose, blockHeight, parcelIndex, isStreaming, onStartStream, onEndStream }: {
+function LivestreamModal({ onClose, blockHeight, parcelIndex, isStreaming, onStartStream, onEndStream, walletAddress }: {
   onClose: () => void; blockHeight: number; parcelIndex: number;
-  isStreaming: boolean; onStartStream: (type: StreamType) => void; onEndStream: () => void;
+  isStreaming: boolean; onStartStream: (type: StreamType, url: string) => void; onEndStream: () => void;
+  walletAddress: string | null;
 }) {
   const [streamType, setStreamType] = useState<StreamType>('broadcast');
-  const [cameraOn, setCameraOn] = useState(true);
-  const [micOn, setMicOn] = useState(true);
-  const [screenShare, setScreenShare] = useState(false);
-  const [walletVerify, setWalletVerify] = useState(false);
-  const [quality, setQuality] = useState<StreamQuality>('720p');
+  const [streamUrl, setStreamUrl] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [streamElapsed, setStreamElapsed] = useState(0);
-  const [mockViewers, setMockViewers] = useState(0);
 
   useEffect(() => {
-    if (!isStreaming) { setStreamElapsed(0); setMockViewers(0); return; }
+    if (!isStreaming) { setStreamElapsed(0); return; }
     const timer = setInterval(() => setStreamElapsed(s => s + 1), 1000);
-    const viewers = setInterval(() => setMockViewers(v => v < 20 ? v + 1 : v), 3000 + Math.random() * 2000);
-    return () => { clearInterval(timer); clearInterval(viewers); };
+    return () => clearInterval(timer);
   }, [isStreaming]);
 
   const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   const streamTypes: { key: StreamType; icon: string; label: string; desc: string }[] = [
-    { key: 'broadcast', icon: '📺', label: 'Broadcast', desc: 'You stream, visitors watch' },
-    { key: 'townhall', icon: '🎤', label: 'Town Hall', desc: 'Stream + hand-raise queue for visitors' },
-    { key: 'spatial', icon: '🗣️', label: 'Spatial Chat', desc: 'Proximity-based video chat (closest = loudest)' },
+    { key: 'broadcast', icon: '📺', label: 'Broadcast', desc: 'You stream on YouTube/Twitch, visitors watch here' },
+    { key: 'townhall', icon: '🎤', label: 'Town Hall', desc: 'Stream + block chat for live Q&A' },
+    { key: 'spatial', icon: '🗣️', label: 'Spatial Chat', desc: 'Proximity-based audio (coming soon)' },
   ];
+
+  const handleStart = async () => {
+    if (!streamUrl.trim()) { setError('Paste your stream URL'); return; }
+    if (!walletAddress) { setError('Connect wallet first'); return; }
+
+    // Quick client-side URL validation
+    try {
+      const u = new URL(streamUrl);
+      const valid = u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be') ||
+                    u.hostname.includes('twitch.tv') || u.hostname.includes('kick.com');
+      if (!valid) { setError('Use a YouTube, Twitch, or Kick URL'); return; }
+    } catch { setError('Invalid URL'); return; }
+
+    setLoading(true);
+    setError('');
+    onStartStream(streamType, streamUrl);
+    setLoading(false);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose} style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
@@ -2824,94 +2838,74 @@ function LivestreamModal({ onClose, blockHeight, parcelIndex, isStreaming, onSta
             <div className="w-3 h-3 rounded-full" style={{ background: '#ff3333', animation: 'live-pulse 1s ease-in-out infinite', boxShadow: '0 0 8px #ff3333' }} />
             <span className="text-sm font-mono font-bold" style={{ color: '#ff3333' }}>LIVE</span>
             <span className="text-sm font-mono" style={{ color: '#e2e8f0' }}>{fmtTime(streamElapsed)}</span>
-            <span className="text-sm font-mono" style={{ color: '#94a3b8' }}>· {mockViewers} viewers</span>
           </div>
         )}
 
-        <div className="mb-4">
-          <label className="text-[10px] uppercase tracking-wider block mb-2" style={{ color: '#64748b' }}>Stream Type</label>
-          <div className="space-y-2">
-            {streamTypes.map(st => (
-              <button key={st.key} onClick={() => !isStreaming && setStreamType(st.key)}
-                className="w-full px-4 py-3 rounded-xl text-left transition-all flex items-center gap-3"
-                style={{
-                  background: streamType === st.key ? 'rgba(255,51,51,0.12)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${streamType === st.key ? 'rgba(255,51,51,0.35)' : 'rgba(255,255,255,0.08)'}`,
-                  opacity: isStreaming ? 0.6 : 1,
-                }}>
-                <span className="text-xl">{st.icon}</span>
-                <div>
-                  <div className="text-[12px] font-bold" style={{ color: streamType === st.key ? '#ff3333' : '#e2e8f0' }}>{st.label}</div>
-                  <div className="text-[10px]" style={{ color: '#64748b' }}>{st.desc}</div>
-                </div>
-              </button>
-            ))}
+        {!isStreaming && (
+          <>
+            <div className="mb-4">
+              <label className="text-[10px] uppercase tracking-wider block mb-2" style={{ color: '#64748b' }}>Stream Type</label>
+              <div className="space-y-2">
+                {streamTypes.map(st => (
+                  <button key={st.key} onClick={() => setStreamType(st.key)}
+                    className="w-full px-4 py-3 rounded-xl text-left transition-all flex items-center gap-3"
+                    style={{
+                      background: streamType === st.key ? 'rgba(255,51,51,0.12)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${streamType === st.key ? 'rgba(255,51,51,0.35)' : 'rgba(255,255,255,0.08)'}`,
+                    }}>
+                    <span className="text-xl">{st.icon}</span>
+                    <div>
+                      <div className="text-[12px] font-bold" style={{ color: streamType === st.key ? '#ff3333' : '#e2e8f0' }}>{st.label}</div>
+                      <div className="text-[10px]" style={{ color: '#64748b' }}>{st.desc}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-[10px] uppercase tracking-wider block mb-2" style={{ color: '#64748b' }}>Stream URL</label>
+              <input
+                type="url"
+                value={streamUrl}
+                onChange={(e) => { setStreamUrl(e.target.value); setError(''); }}
+                placeholder="https://youtube.com/live/... or twitch.tv/..."
+                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none transition-all"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
+              />
+              <div className="mt-2 flex gap-2">
+                {['YouTube', 'Twitch', 'Kick'].map(p => (
+                  <span key={p} className="text-[9px] px-2 py-1 rounded-full" style={{ background: 'rgba(255,255,255,0.05)', color: '#64748b' }}>
+                    {p === 'YouTube' ? '📺' : p === 'Twitch' ? '💜' : '💚'} {p}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {error && (
+          <div className="mb-3 text-xs text-red-400 px-3 py-2 rounded-lg" style={{ background: 'rgba(255,0,0,0.1)' }}>
+            {error}
           </div>
-        </div>
-
-        <div className="mb-4 flex gap-3">
-          <button onClick={() => setCameraOn(!cameraOn)}
-            className="flex-1 py-2.5 rounded-xl text-[12px] font-mono font-bold transition-all"
-            style={{
-              background: cameraOn ? 'rgba(0,255,136,0.1)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${cameraOn ? 'rgba(0,255,136,0.3)' : 'rgba(255,255,255,0.1)'}`,
-              color: cameraOn ? '#00ff88' : '#64748b',
-            }}>
-            🎥 Camera {cameraOn ? 'ON' : 'OFF'}
-          </button>
-          <button onClick={() => setMicOn(!micOn)}
-            className="flex-1 py-2.5 rounded-xl text-[12px] font-mono font-bold transition-all"
-            style={{
-              background: micOn ? 'rgba(0,255,136,0.1)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${micOn ? 'rgba(0,255,136,0.3)' : 'rgba(255,255,255,0.1)'}`,
-              color: micOn ? '#00ff88' : '#64748b',
-            }}>
-            🎙️ Mic {micOn ? 'ON' : 'OFF'}
-          </button>
-        </div>
-
-        <label className="flex items-center gap-2 mb-3 cursor-pointer">
-          <input type="checkbox" checked={screenShare} onChange={() => setScreenShare(!screenShare)} className="accent-red-500" />
-          <span className="text-[11px]" style={{ color: screenShare ? '#e2e8f0' : '#64748b' }}>🖥️ Share Screen instead of camera</span>
-        </label>
-
-        <label className="flex items-center gap-2 mb-4 cursor-pointer">
-          <input type="checkbox" checked={walletVerify} onChange={() => setWalletVerify(!walletVerify)} className="accent-red-500" />
-          <span className="text-[11px]" style={{ color: walletVerify ? '#e2e8f0' : '#64748b' }}>🔒 Require wallet verification to watch</span>
-        </label>
-
-        <div className="mb-4">
-          <label className="text-[10px] uppercase tracking-wider block mb-2" style={{ color: '#64748b' }}>Stream Quality</label>
-          <div className="flex gap-2">
-            {(['360p', '720p', '1080p'] as StreamQuality[]).map(q => (
-              <button key={q} onClick={() => !isStreaming && setQuality(q)}
-                className="flex-1 py-2 rounded-lg text-[11px] font-mono font-bold transition-all"
-                style={{
-                  background: quality === q ? 'rgba(255,51,51,0.15)' : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${quality === q ? 'rgba(255,51,51,0.35)' : 'rgba(255,255,255,0.08)'}`,
-                  color: quality === q ? '#ff3333' : '#64748b',
-                }}>
-                {q === '360p' ? 'Low' : q === '720p' ? 'Medium' : 'High'} ({q})
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
 
         <button
-          onClick={() => isStreaming ? onEndStream() : onStartStream(streamType)}
-          className="w-full py-3 rounded-xl text-sm font-bold transition-all"
+          onClick={() => isStreaming ? onEndStream() : handleStart()}
+          disabled={loading}
+          className="w-full py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
           style={{
             background: isStreaming ? 'rgba(255,51,51,0.2)' : 'rgba(0,255,136,0.15)',
             border: `1.5px solid ${isStreaming ? '#ff3333' : '#00ff88'}`,
             color: isStreaming ? '#ff3333' : '#00ff88',
             boxShadow: isStreaming ? '0 0 20px rgba(255,51,51,0.2)' : '0 0 20px rgba(0,255,136,0.15)',
           }}>
-          {isStreaming ? '⏹️ End Stream' : '🔴 Start Streaming'}
+          {loading ? '⏳ Connecting...' : isStreaming ? '⏹️ End Stream' : '🔴 Go Live'}
         </button>
 
         <div className="mt-4 space-y-2">
-          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>🔐</span><span>Stream authenticated via BIP-322 signature from your wallet</span></div>
-          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>🛡️</span><span>WebRTC encrypted · Peer-to-peer when possible</span></div>
+          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>📺</span><span>Stream from YouTube, Twitch, or Kick — embedded live on your block</span></div>
+          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>🔐</span><span>Only block owners can go live — verified via BIP-322</span></div>
         </div>
       </div>
     </div>
@@ -4654,26 +4648,85 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const [streamStartTime, setStreamStartTime] = useState<number | null>(null);
   const [showLivestreamModal, setShowLivestreamModal] = useState(false);
   const [streamElapsed, setStreamElapsed] = useState(0);
-  const [streamViewerCount, setStreamViewerCount] = useState(0);
+  const [streamViewerCount] = useState(0);
+  const [streamEmbedUrl, setStreamEmbedUrl] = useState<string | null>(null);
+
+  // Check for active stream on load
+  useEffect(() => {
+    fetch(`/api/v1/livestream?blockHeight=${blockHeight}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.live) {
+          setIsStreaming(true);
+          setStreamEmbedUrl(data.embedUrl);
+          setActiveStreamType(data.streamType || 'broadcast');
+          setStreamStartTime(data.startedAt ? new Date(data.startedAt).getTime() : Date.now());
+        }
+      })
+      .catch(() => {});
+  }, [blockHeight]);
 
   useEffect(() => {
-    if (!isStreaming || !streamStartTime) { setStreamElapsed(0); setStreamViewerCount(0); return; }
+    if (!isStreaming || !streamStartTime) { setStreamElapsed(0); return; }
     const timer = setInterval(() => setStreamElapsed(Math.floor((Date.now() - streamStartTime) / 1000)), 1000);
-    const viewers = setInterval(() => setStreamViewerCount(v => v < 20 ? v + 1 : v), 3000 + Math.random() * 2000);
-    return () => { clearInterval(timer); clearInterval(viewers); };
+    return () => clearInterval(timer);
   }, [isStreaming, streamStartTime]);
 
-  const handleStartStream = useCallback((type: StreamType) => {
-    setActiveStreamType(type);
-    setIsStreaming(true);
-    setStreamStartTime(Date.now());
-    setStreamViewerCount(1);
-  }, []);
+  const handleStartStream = useCallback(async (type: StreamType, url: string) => {
+    if (!walletAddress) return;
+    try {
+      const message = `Go Live on block ${blockHeight} at ${Date.now()}`;
+      const walletType = getStoredType();
+      let signature = '';
+      if (walletType === 'unisat' && window.unisat) {
+        signature = await window.unisat.signMessage(message);
+      } else if (walletType === 'xverse' && window.BitcoinProvider) {
+        const res = await window.BitcoinProvider.signMessage(message, { network: "Mainnet" });
+        signature = typeof res === 'string' ? res : (res as { signature?: string })?.signature || '';
+      }
+      
+      const resp = await fetch('/api/v1/livestream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blockHeight, streamUrl: url, streamType: type, walletAddress, signature, message }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        setActiveStreamType(type);
+        setIsStreaming(true);
+        setStreamStartTime(Date.now());
+        setStreamEmbedUrl(data.embedUrl);
+      }
+    } catch (e) {
+      console.error('Failed to start stream:', e);
+    }
+  }, [walletAddress, blockHeight]);
 
-  const handleEndStream = useCallback(() => {
+  const handleEndStream = useCallback(async () => {
+    if (!walletAddress) return;
+    try {
+      const message = `End stream on block ${blockHeight} at ${Date.now()}`;
+      const walletType = getStoredType();
+      let signature = '';
+      if (walletType === 'unisat' && window.unisat) {
+        signature = await window.unisat.signMessage(message);
+      } else if (walletType === 'xverse' && window.BitcoinProvider) {
+        const res = await window.BitcoinProvider.signMessage(message, { network: "Mainnet" });
+        signature = typeof res === 'string' ? res : (res as { signature?: string })?.signature || '';
+      }
+
+      await fetch('/api/v1/livestream', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blockHeight, walletAddress, signature, message }),
+      });
+    } catch (e) {
+      console.error('Failed to end stream:', e);
+    }
     setIsStreaming(false);
     setStreamStartTime(null);
-  }, []);
+    setStreamEmbedUrl(null);
+  }, [walletAddress, blockHeight]);
 
   // Fetch real blockchain data, fall back to mock
   const [realBlock, setRealBlock] = useState<RealBlockData | null>(null);
@@ -5050,7 +5103,30 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         }}
       />}
       {showEstateModal && <EstateModal onClose={() => setShowEstateModal(false)} blockHeight={blockHeight} parcels={parcels} />}
-      {showLivestreamModal && <LivestreamModal onClose={() => setShowLivestreamModal(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? 0} isStreaming={isStreaming} onStartStream={handleStartStream} onEndStream={handleEndStream} />}
+      {showLivestreamModal && <LivestreamModal onClose={() => setShowLivestreamModal(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? 0} isStreaming={isStreaming} onStartStream={handleStartStream} onEndStream={handleEndStream} walletAddress={walletAddress} />}
+
+      {/* Live Stream Embed — visible to ALL visitors when stream is active */}
+      {isStreaming && streamEmbedUrl && !showLivestreamModal && (
+        <div className="fixed bottom-4 right-4 z-40 rounded-xl overflow-hidden shadow-2xl" style={{ border: '2px solid rgba(255,51,51,0.5)', width: 400, height: 240 }}>
+          <div className="flex items-center justify-between px-3 py-1.5" style={{ background: 'rgba(15,15,24,0.95)' }}>
+            <div className="flex items-center gap-2">
+              <style>{`@keyframes live-dot { 0%,100% { opacity:1; } 50% { opacity:0.3; } }`}</style>
+              <div className="w-2 h-2 rounded-full" style={{ background: '#ff3333', animation: 'live-dot 1s ease-in-out infinite' }} />
+              <span className="text-[10px] font-mono font-bold" style={{ color: '#ff3333' }}>LIVE</span>
+              <span className="text-[10px] font-mono" style={{ color: '#64748b' }}>{activeStreamType}</span>
+            </div>
+            <button onClick={() => setStreamEmbedUrl(null)} className="text-[#64748b] hover:text-white text-xs">✕</button>
+          </div>
+          <iframe
+            src={streamEmbedUrl}
+            width="100%"
+            height="208"
+            allow="autoplay; encrypted-media; fullscreen"
+            allowFullScreen
+            style={{ border: 'none' }}
+          />
+        </div>
+      )}
       {showSendBtcModal && <SendBitcoinModal onClose={() => setShowSendBtcModal(false)} blockHeight={blockHeight} recipientOwner={displayParcelOwner ?? blockOwner} />}
       {showQrProfile && <QrProfileModal onClose={() => setShowQrProfile(false)} owner={displayParcelOwner ?? blockOwner} blockHeight={blockHeight} />}
       {showUpgradeModal && <UpgradeModal onClose={() => setShowUpgradeModal(false)} currentTier={3} />}
