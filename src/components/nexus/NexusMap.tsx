@@ -171,6 +171,24 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
         </div>
       </div>
 
+      {/* Epoch Legend */}
+      <div className="absolute bottom-4 left-4 z-20 rounded-xl border border-white/10 bg-black/60 backdrop-blur-sm px-3 py-2.5 space-y-1.5">
+        <div className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1">Bitcoin Epochs</div>
+        {[
+          { label: "Epoch 1", color: "#c98923", reward: "50 BTC", range: "0 – 209,999" },
+          { label: "Epoch 2", color: "#f28b2b", reward: "25 BTC", range: "210K – 419,999" },
+          { label: "Epoch 3", color: "#2bff6b", reward: "12.5 BTC", range: "420K – 629,999" },
+          { label: "Epoch 4", color: "#2bc9ff", reward: "6.25 BTC", range: "630K – 839,999" },
+          { label: "Epoch 5", color: "#a855f7", reward: "3.125 BTC", range: "840K +" },
+        ].map((e) => (
+          <div key={e.label} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: e.color, boxShadow: `0 0 6px ${e.color}40` }} />
+            <span className="text-[10px] font-semibold text-white/80">{e.label}</span>
+            <span className="text-[9px] text-white/30">{e.reward}</span>
+          </div>
+        ))}
+      </div>
+
       {/* Zoom level indicator + cyberpunk toggle */}
       <div className="absolute top-12 left-4 z-20 flex items-center gap-2">
         <div className="px-2 py-1 rounded text-[10px] font-mono uppercase tracking-widest" style={{ color: '#64748b', background: 'rgba(10,10,15,0.6)' }}>

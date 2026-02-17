@@ -3,7 +3,7 @@
 import { ThreeEvent, useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { Text } from "@react-three/drei";
+// Epoch labels rendered as HTML overlay in NexusMap, not 3D text
 
 type HoverPayload = {
   height: number;
@@ -233,35 +233,7 @@ export default function BlockGrid({
         </mesh>
       )}
 
-      {/* Era labels floating above the grid */}
-      {eraLabels.map((label) => (
-        <group key={label.era.label} position={[label.x, blockSize * 3, label.z]}>
-          <Text
-            fontSize={blockSize * 2.5}
-            color={label.era.color}
-            anchorX="center"
-            anchorY="middle"
-            font={undefined}
-            outlineWidth={0.02}
-            outlineColor="#000000"
-          >
-            {label.era.label}
-          </Text>
-          <Text
-            fontSize={blockSize * 1.0}
-            color={label.era.color}
-            anchorX="center"
-            anchorY="middle"
-            position={[0, -blockSize * 2, 0]}
-            font={undefined}
-            outlineWidth={0.01}
-            outlineColor="#000000"
-            fillOpacity={0.6}
-          >
-            {label.era.sub} · {label.era.reward}
-          </Text>
-        </group>
-      ))}
+      {/* Epoch labels are HTML overlays in NexusMap.tsx — always visible regardless of zoom */}
 
       {/* Ground plane */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -blockSize * 0.25, 0]}>
