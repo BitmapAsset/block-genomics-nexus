@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { TOTAL_BLOCKS } from './NexusBlockData';
+import { useState, useCallback, useEffect } from 'react';
 
 interface Props {
   onSearch: (height: number) => void;
@@ -9,14 +8,24 @@ interface Props {
 
 export default function NexusSearch({ onSearch }: Props) {
   const [value, setValue] = useState('');
+  const [tipHeight, setTipHeight] = useState(900000); // safe default
+
+  useEffect(() => {
+    fetch('https://mempool.space/api/blocks/tip/height')
+      .then(r => r.json())
+      .then(h => { if (typeof h === 'number') setTipHeight(h); })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    const n = parseInt(value, 10);
-    if (!isNaN(n) && n >= 0 && n < TOTAL_BLOCKS) {
+    const cleaned = value.replace(/[#,\s]/g, ''); // allow #935,550 or 935 550
+    const n = parseInt(cleaned, 10);
+    if (!isNaN(n) && n >= 0 && n <= tipHeight) {
       onSearch(n);
+      setValue('');
     }
-  }, [value, onSearch]);
+  }, [value, onSearch, tipHeight]);
 
   return (
     <form onSubmit={handleSubmit} className="flex items-center gap-2">
