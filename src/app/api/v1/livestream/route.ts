@@ -76,20 +76,16 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const body = await req.json();
-    const { blockHeight, walletAddress, signature, message } = body;
+    const { blockHeight, walletAddress } = body;
 
-    if (!blockHeight || !walletAddress || !signature || !message) {
+    if (!blockHeight || !walletAddress) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const verified = await verifyWalletSignature(walletAddress, message, signature);
-    if (!verified) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
-
+    // No signature needed to end — just verify wallet matches stream owner
     const block = await prisma.block.findUnique({ where: { height: blockHeight } });
-    if (!block || block.ownerAddress !== walletAddress) {
-      return NextResponse.json({ error: 'Not block owner' }, { status: 403 });
+    if (!block || block.streamOwner !== walletAddress) {
+      return NextResponse.json({ error: 'Not the stream owner' }, { status: 403 });
     }
 
     await prisma.block.update({

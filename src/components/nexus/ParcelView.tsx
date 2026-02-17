@@ -4706,20 +4706,10 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const handleEndStream = useCallback(async () => {
     if (!walletAddress) return;
     try {
-      const message = `End stream on block ${blockHeight} at ${Date.now()}`;
-      const walletType = getStoredType();
-      let signature = '';
-      if (walletType === 'unisat' && window.unisat) {
-        signature = await window.unisat.signMessage(message);
-      } else if (walletType === 'xverse' && window.BitcoinProvider) {
-        const res = await window.BitcoinProvider.signMessage(message, { network: "Mainnet" });
-        signature = typeof res === 'string' ? res : (res as { signature?: string })?.signature || '';
-      }
-
       await fetch('/api/v1/livestream', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blockHeight, walletAddress, signature, message }),
+        body: JSON.stringify({ blockHeight, walletAddress }),
       });
     } catch (e) {
       console.error('Failed to end stream:', e);
