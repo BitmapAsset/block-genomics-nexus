@@ -296,7 +296,7 @@ export default function VerifyPage() {
       if (!challengeData.success) throw new Error(challengeData.error || 'Failed to get challenge');
 
       const { message } = challengeData.data;
-      const signature = await signWithWallet(wallet, message);
+      const signature = await signWithWallet(wallet, message, walletAddr);
 
       const verifyResp = await fetch('/api/v1/auth/verify', {
         method: 'POST',
@@ -363,7 +363,7 @@ export default function VerifyPage() {
       const challengeData = await challengeResp.json();
       if (!challengeData.success) throw new Error('Failed to get challenge');
 
-      const signature = await signWithWallet(wallet, challengeData.data.message);
+      const signature = await signWithWallet(wallet, challengeData.data.message, walletAddr);
 
       const resp = await fetch('/api/v1/auth/verify', {
         method: 'POST',

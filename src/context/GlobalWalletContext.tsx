@@ -278,8 +278,8 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
 
   const signMessageFn = useCallback(async (msg: string) => {
     if (!state.walletType) throw new Error('No wallet connected');
-    return signWithWallet(state.walletType, msg);
-  }, [state.walletType]);
+    return signWithWallet(state.walletType, msg, state.walletAddress || undefined);
+  }, [state.walletType, state.walletAddress]);
 
   const refreshProfile = useCallback(async () => {
     if (!state.walletAddress) return;
@@ -299,7 +299,7 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
   const e2eSetup = useCallback(async (): Promise<boolean> => {
     if (!state.walletType || !state.walletAddress) return false;
     try {
-      const sig = await signWithWallet(state.walletType, getDerivationMessage());
+      const sig = await signWithWallet(state.walletType, getDerivationMessage(), state.walletAddress || undefined);
       if (!sig) return false;
       const kp = deriveEncryptionKeypair(sig);
       keypairRef.current = kp;

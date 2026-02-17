@@ -49,7 +49,7 @@ export function useE2ECrypto() {
     try {
       // 1. Sign derivation message with Bitcoin wallet
       const message = getDerivationMessage();
-      const signature = await signWithWallet(walletType, message);
+      const signature = await signWithWallet(walletType, message, walletAddress);
       if (!signature) throw new Error('Wallet signature failed');
 
       // 2. Derive encryption keypair

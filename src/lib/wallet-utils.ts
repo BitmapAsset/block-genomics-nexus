@@ -80,7 +80,7 @@ export async function connectWalletByType(type: WalletType): Promise<string> {
 }
 
 /** Sign message with wallet */
-export async function signWithWallet(walletType: WalletType, message: string): Promise<string> {
+export async function signWithWallet(walletType: WalletType, message: string, address?: string): Promise<string> {
   if (walletType === 'unisat') {
     if (!window.unisat) throw new Error('Unisat not available');
     return await window.unisat.signMessage(message, 'bip322-simple');
@@ -88,11 +88,11 @@ export async function signWithWallet(walletType: WalletType, message: string): P
   if (walletType === 'xverse') {
     const provider = window.BitcoinProvider;
     if (!provider) throw new Error('Xverse not available');
-    // Try sats-connect request() first (mobile + newer)
+    // Try sats-connect request() first (mobile + newer) — address is REQUIRED for mobile
     if (typeof provider.request === 'function') {
       try {
         const resp: any = await provider.request('signMessage', {
-          address: undefined,
+          address: address || undefined,
           message,
         });
         if (resp?.status === 'success' && resp.result?.signature) {
