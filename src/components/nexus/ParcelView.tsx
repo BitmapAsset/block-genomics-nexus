@@ -1769,7 +1769,7 @@ function EstateOverlay({ estates, parcels, hoveredEstateId, onHoverEstate, onCli
 }
 
 /* ─── Estate Creation Modal ─── */
-function EstateModal({ onClose, blockHeight, parcels }: { onClose: () => void; blockHeight: number; parcels: ParcelData[] }) {
+function EstateModal({ onClose, blockHeight, parcels, onCreateEstate }: { onClose: () => void; blockHeight: number; parcels: ParcelData[]; onCreateEstate: (estate: Estate) => void }) {
   const [estateName, setEstateName] = useState('');
   const [selectedParcels, setSelectedParcels] = useState<Set<number>>(new Set());
   const [selectedColor, setSelectedColor] = useState(NEON_COLORS[0]);
@@ -1815,9 +1815,18 @@ function EstateModal({ onClose, blockHeight, parcels }: { onClose: () => void; b
 
   const handleCreate = () => {
     if (!estateName.trim() || selectedParcels.size < 2) return;
-    console.log('[Estate] Created:', { name: estateName, parcels: [...selectedParcels], color: selectedColor });
+    const newEstate: Estate = {
+      id: `estate-${selectedBlock}-${Date.now()}`,
+      name: estateName.trim(),
+      ownerHandle: 'you',
+      ownerTier: 1,
+      glowColor: selectedColor,
+      parcelIndices: [...selectedParcels],
+      created: Date.now(),
+    };
+    onCreateEstate(newEstate);
     setCreated(true);
-    setTimeout(() => { setCreated(false); onClose(); }, 1500);
+    setTimeout(() => { setCreated(false); onClose(); }, 1200);
   };
 
   return (
@@ -4808,7 +4817,9 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const visitorCount = useMemo(() => generateMockVisitors(blockHeight), [blockHeight]);
   const spatialAvatars = useMemo(() => generateMockAvatars(blockHeight, parcels.length), [blockHeight, parcels.length]);
   const mockActivities = useMemo(() => generateMockActivities(blockHeight), [blockHeight]);
-  const estates = useMemo(() => generateMockEstates(blockHeight, parcels), [blockHeight, parcels]);
+  const initialEstates = useMemo(() => generateMockEstates(blockHeight, parcels), [blockHeight, parcels]);
+  const [estates, setEstates] = useState<Estate[]>([]);
+  useEffect(() => { setEstates(initialEstates); }, [initialEstates]);
   const estateByParcel = useMemo(() => {
     const map = new Map<number, Estate>();
     estates.forEach(e => e.parcelIndices.forEach(idx => map.set(idx, e)));
@@ -5093,7 +5104,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           return '';
         }}
       />}
-      {showEstateModal && <EstateModal onClose={() => setShowEstateModal(false)} blockHeight={blockHeight} parcels={parcels} />}
+      {showEstateModal && <EstateModal onClose={() => setShowEstateModal(false)} blockHeight={blockHeight} parcels={parcels} onCreateEstate={(estate) => setEstates(prev => [...prev, estate])} />}
       {showLivestreamModal && <LivestreamModal onClose={() => setShowLivestreamModal(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? 0} isStreaming={isStreaming} onStartStream={handleStartStream} onEndStream={handleEndStream} walletAddress={walletAddress} />}
 
       {/* Live Stream Embed — visible to ALL visitors when stream is active */}
