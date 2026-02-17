@@ -171,20 +171,26 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
         </div>
       </div>
 
-      {/* Epoch Legend */}
-      <div className="absolute bottom-4 left-4 z-20 rounded-xl border border-white/10 bg-black/60 backdrop-blur-sm px-3 py-2.5 space-y-1.5">
-        <div className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1">Bitcoin Epochs</div>
+      {/* Epoch Labels — floating on the left side aligned with map bands */}
+      <div className="absolute left-0 z-20 pointer-events-none hidden md:block" style={{ top: '12%', bottom: '4%' }}>
         {[
-          { label: "Epoch 1", color: "#c98923", reward: "50 BTC", range: "0 – 209,999" },
-          { label: "Epoch 2", color: "#f28b2b", reward: "25 BTC", range: "210K – 419,999" },
-          { label: "Epoch 3", color: "#2bff6b", reward: "12.5 BTC", range: "420K – 629,999" },
-          { label: "Epoch 4", color: "#2bc9ff", reward: "6.25 BTC", range: "630K – 839,999" },
-          { label: "Epoch 5", color: "#a855f7", reward: "3.125 BTC", range: "840K +" },
+          { label: "The Genesis Era", sub: "Epoch 1 · 50 BTC", color: "#f7931a", top: '12%' },
+          { label: "The Growth Era", sub: "Epoch 2 · 25 BTC", color: "#66ccff", top: '35.5%' },
+          { label: "The Expansion Era", sub: "Epoch 3 · 12.5 BTC", color: "#a855f7", top: '59%' },
+          { label: "The Adoption Era", sub: "Epoch 4 · 6.25 BTC", color: "#22c55e", top: '82%' },
+          { label: "Scarcity", sub: "Epoch 5 · 3.125 BTC", color: "#10b981", top: '96%' },
         ].map((e) => (
-          <div key={e.label} className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: e.color, boxShadow: `0 0 6px ${e.color}40` }} />
-            <span className="text-[10px] font-semibold text-white/80">{e.label}</span>
-            <span className="text-[9px] text-white/30">{e.reward}</span>
+          <div
+            key={e.label}
+            className="absolute left-3 flex flex-col"
+            style={{ top: e.top, transform: 'translateY(-50%)' }}
+          >
+            <span className="text-[11px] font-bold tracking-wide" style={{ color: e.color, textShadow: `0 0 12px ${e.color}60` }}>
+              {e.label}
+            </span>
+            <span className="text-[9px] font-medium" style={{ color: `${e.color}99` }}>
+              {e.sub}
+            </span>
           </div>
         ))}
       </div>
