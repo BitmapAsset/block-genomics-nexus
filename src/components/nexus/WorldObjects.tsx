@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import type { WorldObject, TerrainSettings } from './WorldBuilderPanel';
+import { PrefabObject, PREFAB_CATALOG } from './WorldPrefabs';
 
 /* ─── Primitive Geometry Component ─── */
 function PrimitiveObject({ obj, isSelected, onClick }: { obj: WorldObject; isSelected: boolean; onClick: () => void }) {
@@ -285,6 +286,17 @@ export default function WorldObjects({
           case 'effect': return <EffectObject {...props} />;
           case 'text3d': return <Text3DObject {...props} />;
           case 'sound': return <SoundObject {...props} />;
+          case 'prefab': return (
+            <PrefabObject
+              key={obj.id}
+              prefabType={obj.geometry || ''}
+              position={[obj.posX, obj.posY, obj.posZ]}
+              rotation={[obj.rotX, obj.rotY, obj.rotZ]}
+              scale={[obj.scaleX, obj.scaleY, obj.scaleZ]}
+              isSelected={isSelected}
+              onClick={() => handleClick(obj.id)}
+            />
+          );
           default: return <PrimitiveObject {...props} />;
         }
       })}

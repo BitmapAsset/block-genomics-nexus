@@ -124,12 +124,49 @@ To place an object, include a JSON block like:
 \`\`\`
 
 Available tools:
-- place_object: Create a 3D object (objectType: primitive/light/effect/text3d/sound, geometry: box/sphere/cylinder/cone/torus)
-- modify_terrain: Change ground, fog, sky, weather (groundColor, fogEnabled, fogColor, skyColor, weather: rain/snow/storm/aurora/fireflies)
-- remove_object: Delete an object by id ({"tool": "remove_object", "id": "..."})
-- list_objects: List all objects ({"tool": "list_objects"})
 
-When a user asks you to build something, use these tools. Be creative with primitives to build complex structures.`;
+### place_object
+Create a primitive 3D object. objectType: primitive/light/effect/text3d/sound, geometry: box/sphere/cylinder/cone/torus/plane/ring.
+Example: {"tool": "place_object", "objectType": "primitive", "geometry": "box", "color": "#f7931a", "posX": 0, "posY": 1, "posZ": 0, "scaleX": 2, "scaleY": 3, "scaleZ": 2, "name": "Tower Base"}
+
+### place_prefab
+Place a rich pre-built object from the prefab catalog. These are detailed multi-mesh compositions.
+Params: prefabType (required), posX, posY, posZ, rotX, rotY, rotZ (degrees), scaleX, scaleY, scaleZ, name.
+Example: {"tool": "place_prefab", "prefabType": "tree_oak", "posX": 5, "posY": 0, "posZ": 3, "scaleX": 1, "scaleY": 1, "scaleZ": 1, "name": "Big Oak"}
+
+Available prefab types:
+- Nature: tree_oak, tree_pine, tree_palm, tree_cherry_blossom, bush, flower_rose, flower_tulip, flower_sunflower, grass_patch, pond, rock, log
+- Park: bench, path_stone, path_dirt, fountain, lamp_post, fence, gate, gazebo, bridge
+- Urban: building_small, building_tall, shop, sign, mailbox, trash_can, fire_hydrant
+- Decorative: statue, flag, banner, planter, hedge_wall, arch, pergola
+
+### place_group
+Place multiple prefabs at once for efficiency (e.g., a row of trees, a garden).
+Params: items[] — each item has: prefabType, posX, posY, posZ, rotX, rotY, rotZ, scaleX, scaleY, scaleZ, name.
+Example: {"tool": "place_group", "items": [{"prefabType": "tree_pine", "posX": 0, "posY": 0, "posZ": 0}, {"prefabType": "tree_pine", "posX": 3, "posY": 0, "posZ": 0}]}
+
+### modify_terrain
+Change ground, fog, sky, weather. Params: groundColor, fogEnabled, fogColor, skyColor, weather (rain/snow/storm/aurora/fireflies/none).
+
+### terraform
+Change ground surface in an area. Params: posX, posZ, radius, surfaceType (grass/dirt/stone/water/sand), color (optional hex override).
+Example: {"tool": "terraform", "posX": 0, "posZ": 0, "radius": 5, "surfaceType": "grass"}
+
+### clear_area
+Remove all objects within a radius. Params: posX, posZ, radius.
+Example: {"tool": "clear_area", "posX": 0, "posZ": 0, "radius": 10}
+
+### create_estate
+Merge parcels into a named estate. Params: name, parcelIndices[] (array of parcel index numbers), glowColor (optional hex).
+Example: {"tool": "create_estate", "name": "Central Park", "parcelIndices": [0, 1, 2, 3], "glowColor": "#4CAF50"}
+
+### remove_object
+Delete an object by id. Params: id.
+
+### list_objects
+List all placed objects. No params needed.
+
+When a user asks you to build something, use these tools liberally. Combine prefabs creatively — a park could use trees, benches, a fountain, lamp posts, paths, and flowers together. Use place_group for efficiency when placing many items.`;
   return prompt;
 }
 
@@ -151,29 +188,118 @@ async function executeWorldActions(actions: any[], blockHeight: number, ownerAdd
 
   for (const action of actions) {
     try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+
       if (action.tool === 'place_object') {
         const { tool, ...data } = action;
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/v1/world`, {
+        const res = await fetch(`${baseUrl}/api/v1/world`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ blockHeight, ownerAddress, ...data }),
         });
         results.push({ action: `Placed ${data.name || data.objectType}`, success: res.ok });
+
+      } else if (action.tool === 'place_prefab') {
+        const { tool, prefabType, ...rest } = action;
+        const res = await fetch(`${baseUrl}/api/v1/world`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            blockHeight, ownerAddress, objectType: 'prefab', geometry: prefabType,
+            posX: 0, posY: 0, posZ: 0, rotX: 0, rotY: 0, rotZ: 0,
+            scaleX: 1, scaleY: 1, scaleZ: 1, ...rest,
+          }),
+        });
+        results.push({ action: `Placed prefab ${prefabType}${rest.name ? ` (${rest.name})` : ''}`, success: res.ok });
+
+      } else if (action.tool === 'place_group') {
+        const items = action.items || [];
+        let placed = 0;
+        for (const item of items) {
+          const { prefabType, ...rest } = item;
+          const res = await fetch(`${baseUrl}/api/v1/world`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              blockHeight, ownerAddress, objectType: 'prefab', geometry: prefabType,
+              posX: 0, posY: 0, posZ: 0, rotX: 0, rotY: 0, rotZ: 0,
+              scaleX: 1, scaleY: 1, scaleZ: 1, ...rest,
+            }),
+          });
+          if (res.ok) placed++;
+        }
+        results.push({ action: `Placed group of ${placed}/${items.length} objects`, success: placed > 0 });
+
       } else if (action.tool === 'modify_terrain') {
         const { tool, ...data } = action;
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/v1/world/terrain`, {
+        const res = await fetch(`${baseUrl}/api/v1/world/terrain`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ blockHeight, ownerAddress, ...data }),
         });
         results.push({ action: 'Modified terrain', success: res.ok });
+
+      } else if (action.tool === 'terraform') {
+        // Terraform uses terrain endpoint with area-specific surface changes
+        const surfaceColors: Record<string, string> = {
+          grass: '#7CFC00', dirt: '#8B7355', stone: '#9E9E9E', water: '#4FC3F7', sand: '#F4E5C2',
+        };
+        const color = action.color || surfaceColors[action.surfaceType] || '#7CFC00';
+        const res = await fetch(`${baseUrl}/api/v1/world/terrain`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ blockHeight, ownerAddress, groundColor: color }),
+        });
+        results.push({ action: `Terraformed area to ${action.surfaceType}`, success: res.ok });
+
+      } else if (action.tool === 'clear_area') {
+        // Fetch all objects, delete those within radius
+        const listRes = await fetch(`${baseUrl}/api/v1/world?blockHeight=${blockHeight}`);
+        const worldData = await listRes.json();
+        const objects = worldData.objects || [];
+        const cx = action.posX || 0;
+        const cz = action.posZ || 0;
+        const radius = action.radius || 5;
+        let cleared = 0;
+        for (const obj of objects) {
+          const dx = (obj.posX || 0) - cx;
+          const dz = (obj.posZ || 0) - cz;
+          if (Math.sqrt(dx * dx + dz * dz) <= radius) {
+            const delRes = await fetch(`${baseUrl}/api/v1/world/${obj.id}`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ownerAddress }),
+            });
+            if (delRes.ok) cleared++;
+          }
+        }
+        results.push({ action: `Cleared ${cleared} objects in radius ${radius}`, success: true });
+
+      } else if (action.tool === 'create_estate') {
+        const res = await fetch(`${baseUrl}/api/v1/estates`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress: ownerAddress,
+            signature: 'guardian-internal',
+            message: 'guardian-internal',
+            name: action.name || 'New Estate',
+            blockHeight,
+            parcelIndices: action.parcelIndices || [],
+            glowColor: action.glowColor,
+          }),
+        });
+        const data = await res.json();
+        results.push({ action: `Created estate "${action.name}"${data.id ? ` (${data.id})` : ''}`, success: res.ok });
+
       } else if (action.tool === 'remove_object' && action.id) {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/v1/world/${action.id}`, {
+        const res = await fetch(`${baseUrl}/api/v1/world/${action.id}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ownerAddress }),
         });
         results.push({ action: `Removed object ${action.id}`, success: res.ok });
+
       } else if (action.tool === 'list_objects') {
         results.push({ action: 'Listed objects', success: true });
       }
