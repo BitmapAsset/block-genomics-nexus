@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import WalletConnect from "@/components/auth/WalletConnect";
 import GlobalSearch from "@/components/GlobalSearch";
 
@@ -64,26 +65,75 @@ function NavLink({ link }: { link: { href: string; label: string; isBrain?: bool
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
+  const inNexus = pathname === '/nexus' || pathname.startsWith('/nexus/');
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-bg-primary/80 backdrop-blur-xl">
+    <header
+      className="sticky top-0 z-50 border-b backdrop-blur-xl transition-all duration-500"
+      style={inNexus ? {
+        background: 'rgba(2,2,8,0.92)',
+        borderColor: 'rgba(0,255,204,0.15)',
+        boxShadow: '0 1px 30px rgba(0,255,204,0.08), inset 0 -1px 0 rgba(0,255,204,0.1)',
+      } : {
+        background: 'rgba(var(--bg-primary), 0.8)',
+        borderColor: 'var(--border)',
+      }}
+    >
+      {/* Nexus neon scanline */}
+      {inNexus && (
+        <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{
+          background: 'linear-gradient(90deg, transparent 0%, #00ffcc 20%, #a855f7 50%, #f7931a 80%, transparent 100%)',
+          opacity: 0.6,
+          animation: 'nexusScanline 3s ease-in-out infinite',
+        }} />
+      )}
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center group">
-          <span
-            className="text-xl sm:text-2xl font-black tracking-tight"
-            style={{
-              background: 'linear-gradient(135deg, #00ffcc 0%, #ffffff 30%, #aa44ff 60%, #ff8800 100%)',
-              backgroundSize: '200% 200%',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              animation: 'brandShimmer 4s ease-in-out infinite',
-              filter: 'drop-shadow(0 0 12px rgba(0,255,204,0.3))',
-            }}
-          >
-            Block Genomics
-          </span>
+          {inNexus ? (
+            <div className="flex items-center gap-2.5">
+              <span
+                className="text-xl sm:text-2xl font-black tracking-tight"
+                style={{
+                  background: 'linear-gradient(135deg, #00ffcc 0%, #ffffff 30%, #aa44ff 60%, #ff8800 100%)',
+                  backgroundSize: '200% 200%',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  animation: 'brandShimmer 4s ease-in-out infinite',
+                  filter: 'drop-shadow(0 0 12px rgba(0,255,204,0.3))',
+                }}
+              >
+                Block Genomics
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.25em] px-2 py-0.5 rounded-md" style={{
+                color: '#00ffcc',
+                background: 'rgba(0,255,204,0.08)',
+                border: '1px solid rgba(0,255,204,0.25)',
+                textShadow: '0 0 8px rgba(0,255,204,0.5)',
+                boxShadow: '0 0 12px rgba(0,255,204,0.15)',
+                animation: 'nexusPulse 2s ease-in-out infinite',
+              }}>
+                ⚡ Nexus
+              </span>
+            </div>
+          ) : (
+            <span
+              className="text-xl sm:text-2xl font-black tracking-tight"
+              style={{
+                background: 'linear-gradient(135deg, #00ffcc 0%, #ffffff 30%, #aa44ff 60%, #ff8800 100%)',
+                backgroundSize: '200% 200%',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                animation: 'brandShimmer 4s ease-in-out infinite',
+                filter: 'drop-shadow(0 0 12px rgba(0,255,204,0.3))',
+              }}
+            >
+              Block Genomics
+            </span>
+          )}
         </Link>
 
         {/* Desktop Navigation */}

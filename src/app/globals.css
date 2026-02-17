@@ -233,3 +233,8 @@ body {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
 }
+
+@keyframes nexusScanline {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+}
