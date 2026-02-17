@@ -1,16 +1,36 @@
 'use client';
 
-import { TOTAL_BLOCKS, getEpoch, getEpochColor } from './NexusBlockData';
+import { useEffect, useState } from 'react';
+import { getEpoch, getEpochColor } from './NexusBlockData';
 
 export default function NexusStatsBar() {
-  const currentEpoch = getEpoch(TOTAL_BLOCKS - 1);
-  const claimedPct = 30;
+  const [tipHeight, setTipHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchTip() {
+      try {
+        const res = await fetch('https://mempool.space/api/blocks/tip/height');
+        if (res.ok) {
+          const h = await res.json();
+          if (!cancelled) setTipHeight(h);
+        }
+      } catch { /* silent */ }
+    }
+    fetchTip();
+    const iv = setInterval(fetchTip, 30000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, []);
+
+  const totalBlocks = tipHeight ?? 880000;
+  const currentEpoch = getEpoch(totalBlocks - 1);
+  const claimedPct = 30; // TODO: fetch real claimed % when available
 
   const stats = [
-    { label: 'Total Blocks', value: TOTAL_BLOCKS.toLocaleString() },
+    { label: 'Total Blocks', value: totalBlocks.toLocaleString() },
     { label: 'Claimed Bitmaps', value: `${claimedPct}%` },
     { label: 'Current Epoch', value: `${currentEpoch}`, color: getEpochColor(currentEpoch) },
-    { label: 'Latest Block', value: `#${(TOTAL_BLOCKS - 1).toLocaleString()}` },
+    { label: 'Latest Block', value: `#${(totalBlocks - 1).toLocaleString()}` },
   ];
 
   return (
