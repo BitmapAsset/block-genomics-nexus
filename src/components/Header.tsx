@@ -7,6 +7,7 @@ import WalletConnect from "@/components/auth/WalletConnect";
 const navLinks = [
   { href: "/nexus", label: "Nexus" },
   { href: "/directory", label: "Directory" },
+  { href: "/live", label: "TimesSquare", isLive: true },
   { href: "/marketplace", label: "Marketplace" },
   { href: "/verify", label: "Verify" },
   { href: "/whitepaper", label: "White Paper" },
@@ -29,17 +30,24 @@ const brainStyle = {
   boxShadow: '0 0 12px rgba(167,139,250,0.15)',
 };
 
-function NavLink({ link }: { link: { href: string; label: string; isBrain?: boolean } }) {
+function NavLink({ link }: { link: { href: string; label: string; isBrain?: boolean; isLive?: boolean } }) {
   const isNexus = link.href === '/nexus';
   const isBrain = !!(link as any).isBrain;
+  const isLive = !!(link as any).isLive;
+  const liveStyle: React.CSSProperties = { color: '#ff6b6b', textShadow: '0 0 8px rgba(255,51,51,0.3)' };
   return (
     <Link
       href={link.href}
-      className={`px-3 py-2 text-sm rounded-lg transition-all ${isNexus ? 'font-bold' : isBrain ? 'font-semibold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
-      style={isNexus ? nexusStyle : isBrain ? brainStyle : undefined}
+      className={`px-3 py-2 text-sm rounded-lg transition-all ${isNexus ? 'font-bold' : isBrain ? 'font-semibold' : isLive ? 'font-semibold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
+      style={isNexus ? nexusStyle : isBrain ? brainStyle : isLive ? liveStyle : undefined}
     >
       {isNexus ? '⚡ ' : ''}
-      {isBrain ? (
+      {isLive ? (
+        <span className="inline-flex items-center gap-1.5">
+          📺
+          <span>{link.label}</span>
+        </span>
+      ) : isBrain ? (
         <span className="inline-flex items-center gap-1.5">
           🧠
           <span>{link.label}</span>
