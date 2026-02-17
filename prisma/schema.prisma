@@ -433,9 +433,12 @@ model GuardianAgent {
   protocolVersion String? @default("1.0.0")
   configJson      String? @db.Text
 
-  // Monitor Token
+  // Monitor Token & OpenClaw Pairing
   monitorTokenHash      String?
   monitorTokenCreatedAt DateTime?
+  monitorPairedAt       DateTime?  // When first successful handshake happened
+  monitorPairedWallet   String?    // Wallet address locked at pairing time
+  monitorWebhookUrl     String?    // OpenClaw webhook URL for activity push
 
   // Status
   status        String @default("active")

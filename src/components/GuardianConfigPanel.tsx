@@ -183,7 +183,9 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
       });
       const data = await res.json();
       if (data.success && data.data?.token) {
-        setMonitorToken(data.data.token);
+        // Build connection string: bg://<guardianId>:<token>@blockgenomics.io
+        const connStr = `bg://${config.id}:${data.data.token}@blockgenomics.io`;
+        setMonitorToken(connStr);
         setMonitorConnected(true);
       }
     } catch (err) {
@@ -525,10 +527,10 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
                       <div className="rounded-lg p-3" style={{ background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.2)' }}>
                         <div className="flex items-center gap-2 mb-2">
                           <span>⚠️</span>
-                          <span className="text-[11px] font-bold" style={{ color: '#ffc800' }}>Save this token — it won&apos;t be shown again!</span>
+                          <span className="text-[11px] font-bold" style={{ color: '#ffc800' }}>Copy this connection string — it won&apos;t be shown again!</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <code className="flex-1 text-[10px] px-2 py-1.5 rounded break-all" style={{
+                          <code className="flex-1 text-[10px] px-2 py-1.5 rounded break-all select-all" style={{
                             background: 'rgba(0,0,0,0.3)',
                             color: '#e2e8f0',
                             border: '1px solid rgba(255,255,255,0.06)',
@@ -549,7 +551,7 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
                         </div>
                       </div>
                       <p className="text-[10px]" style={{ color: '#64748b' }}>
-                        Paste this token into your OpenClaw agent&apos;s TOOLS.md or workspace config to connect.
+                        Paste this single string into your OpenClaw agent — it will auto-connect to your Guardian. One string, one connection.
                       </p>
                     </div>
                   ) : monitorConnected ? (
