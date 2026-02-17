@@ -12,6 +12,7 @@ interface LLMConfig {
   systemPrompt: string;
   messages: { role: string; content: string }[];
   guardianId?: string;
+  temperature?: number;
 }
 
 function checkRateLimit(guardianId: string): boolean {
@@ -76,7 +77,7 @@ async function callOpenAICompatible(config: LLMConfig): Promise<string> {
         ...config.messages,
       ],
       max_tokens: 4096,
-      temperature: 0.7,
+      temperature: config.temperature ?? 0.7,
     }),
   });
 

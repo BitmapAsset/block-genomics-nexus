@@ -88,6 +88,34 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // TWO-PASS BUILD SYSTEM: If the LLM didn't output JSON tool calls but the owner
+      // sent a build request, make a second structured call to generate build actions.
+      if (worldActions.length === 0 && visitorAddress === guardian.ownerAddress && isBuildRequest(message)) {
+        console.log('[Guardian Chat] Two-pass build: detected build intent, making structured call');
+        try {
+          const buildActions = await generateBuildActions({
+            provider: guardian.llmProvider,
+            model: guardian.llmModel,
+            apiKey,
+            endpoint: guardian.llmEndpoint || undefined,
+            guardianId: guardian.id,
+            userMessage: message,
+          });
+
+          if (buildActions.length > 0) {
+            const results = await executeWorldActions(buildActions, parseInt(blockHeight), guardian.ownerAddress);
+            if (results.length > 0) {
+              finalResponse += '\n\n' + results.map(r => r.success ? `✅ ${r.action}` : `❌ ${r.error}`).join('\n');
+            }
+          } else {
+            finalResponse += '\n\n⚠️ I understood your request but couldn\'t generate the build plan. Please try again with simpler instructions.';
+          }
+        } catch (err) {
+          console.error('[Guardian Chat] Two-pass build error:', err);
+          finalResponse += '\n\n⚠️ I understood your request but couldn\'t generate the build plan. Please try again with simpler instructions.';
+        }
+      }
+
       const convId = await storeMessage(guardian.id, visitorAddress, visitorHandle, conversationId, message, finalResponse);
       return NextResponse.json({ response: finalResponse, source: 'llm', conversationId: convId });
     }
@@ -108,6 +136,76 @@ export async function POST(req: NextRequest) {
     console.error('[Guardian Chat]', err);
     return NextResponse.json({ error: 'Chat failed' }, { status: 500 });
   }
+}
+
+const BUILD_KEYWORDS = [
+  'build', 'place', 'create', 'make', 'add', 'put', 'terraform', 'clear', 'remove',
+  'garden', 'park', 'house', 'castle', 'tower', 'forest', 'village', 'city', 'bridge',
+  'fountain', 'statue', 'tree', 'flower', 'bench', 'path', 'fence', 'gazebo', 'pond',
+  'shop', 'building', 'lamp', 'arch', 'hedge', 'pergola', 'decorate', 'landscape',
+  'destroy', 'demolish', 'erase', 'wipe', 'reset',
+];
+
+function isBuildRequest(message: string): boolean {
+  const lower = message.toLowerCase();
+  return BUILD_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+const STRUCTURED_BUILD_PROMPT = `You are a 3D world builder. Convert the user's building request into a JSON array of tool calls.
+Output ONLY a JSON array, nothing else. No text, no explanation, just the array.
+
+Available tools and prefab types:
+- place_prefab: {tool: "place_prefab", prefabType: "<type>", posX, posY, posZ, rotY, scaleX, scaleY, scaleZ, name}
+  Types: tree_oak, tree_pine, tree_palm, tree_cherry_blossom, bush, flower_rose, flower_tulip, flower_sunflower, grass_patch, pond, rock, log, bench, path_stone, path_dirt, fountain, lamp_post, fence, gate, gazebo, bridge, building_small, building_tall, shop, sign, mailbox, trash_can, fire_hydrant, statue, flag, banner, planter, hedge_wall, arch, pergola
+- place_object: {tool: "place_object", objectType: "primitive", geometry: "box|sphere|cylinder|cone|torus", color: "#hex", posX, posY, posZ, scaleX, scaleY, scaleZ, name}
+- terraform: {tool: "terraform", surfaceType: "grass|dirt|stone|water|sand"}
+- clear_area: {tool: "clear_area", posX, posZ, radius}
+
+Rules:
+- Be GENEROUS with objects. A park should have 20-50+ objects.
+- Spread objects across a -25 to +25 coordinate range.
+- posY is always 0 (ground level) unless building vertically.
+- Use variety — mix tree types, flower types, etc.
+- Output valid JSON array only. Example: [{"tool":"terraform","surfaceType":"grass"},{"tool":"place_prefab","prefabType":"fountain","posX":0,"posY":0,"posZ":0,"name":"Fountain"}]`;
+
+async function generateBuildActions(config: {
+  provider: string;
+  model: string;
+  apiKey: string;
+  endpoint?: string;
+  guardianId: string;
+  userMessage: string;
+}): Promise<any[]> {
+  const response = await callLLM({
+    provider: config.provider,
+    model: config.model,
+    apiKey: config.apiKey,
+    endpoint: config.endpoint,
+    systemPrompt: STRUCTURED_BUILD_PROMPT,
+    messages: [{ role: 'user', content: config.userMessage }],
+    guardianId: config.guardianId,
+    temperature: 0,
+  });
+
+  console.log('[Guardian Chat] Structured build response:', response.slice(0, 500));
+
+  // Try parsing the whole response as JSON
+  try {
+    const parsed = JSON.parse(response);
+    if (Array.isArray(parsed)) return parsed;
+  } catch { /* not pure JSON */ }
+
+  // Try extracting JSON array from response
+  const arrayMatch = response.match(/\[[\s\S]*\]/);
+  if (arrayMatch) {
+    try {
+      const parsed = JSON.parse(arrayMatch[0]);
+      if (Array.isArray(parsed)) return parsed;
+    } catch { /* invalid JSON */ }
+  }
+
+  console.error('[Guardian Chat] Could not parse build actions from response');
+  return [];
 }
 
 function buildSystemPrompt(guardian: { name: string; soulMd: string; agentMd?: string | null; personality?: string | null; blockHeight: number }): string {
