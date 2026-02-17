@@ -124,6 +124,7 @@ export default function NexusWarpEntry({ onComplete }: Props) {
   const [phase, setPhase] = useState<"gathering" | "warp" | "burst" | "done">("gathering");
   const [showText, setShowText] = useState(false);
   const [textOpacity, setTextOpacity] = useState(0);
+  const [overlayOpacity, setOverlayOpacity] = useState(1);
   const startTimeRef = useRef(0);
   const soundPlayedRef = useRef(false);
 
@@ -210,10 +211,8 @@ export default function NexusWarpEntry({ onComplete }: Props) {
         currentPhase = "gathering";
       } else if (elapsed < 4.5) {
         currentPhase = "warp";
-      } else if (elapsed < 5.5) {
-        currentPhase = "burst";
       } else {
-        currentPhase = "done";
+        currentPhase = "burst"; // stays in burst while fading out — keeps animating
       }
 
       // Speed multiplier based on phase
@@ -330,14 +329,24 @@ export default function NexusWarpEntry({ onComplete }: Props) {
       ctx.fillStyle = vigGrad;
       ctx.fillRect(0, 0, w, h);
 
-      // Phase updates
-      if (currentPhase === "burst" && elapsed > 4.8 && !showText) {
+      // Phase updates — show text during burst, fade out whole overlay smoothly
+      if (currentPhase === "burst" && elapsed > 4.6 && !showText) {
         setShowText(true);
       }
 
-      if (currentPhase === "done") {
-        setPhase("done");
-        return; // Stop animation
+      // Fade out overlay after text appears
+      if (elapsed > 5.8) {
+        const fadeT = Math.min((elapsed - 5.8) / 1.2, 1); // 1.2s smooth fade out
+        setOverlayOpacity(1 - fadeT);
+        setTextOpacity(Math.max(1 - fadeT * 1.5, 0)); // text fades slightly faster
+        if (fadeT >= 1) {
+          onComplete();
+          return;
+        }
+      } else if (showText && elapsed <= 5.8) {
+        // Fade text IN during 4.6 - 5.8
+        const fadeInT = Math.min((elapsed - 4.6) / 0.6, 1);
+        setTextOpacity(fadeInT);
       }
 
       setPhase(currentPhase as any);
@@ -352,34 +361,10 @@ export default function NexusWarpEntry({ onComplete }: Props) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Text fade in and auto-complete
-  useEffect(() => {
-    if (showText) {
-      const fadeIn = setInterval(() => {
-        setTextOpacity((prev) => {
-          if (prev >= 1) {
-            clearInterval(fadeIn);
-            return 1;
-          }
-          return prev + 0.05;
-        });
-      }, 30);
-
-      const complete = setTimeout(() => {
-        onComplete();
-      }, 1800);
-
-      return () => {
-        clearInterval(fadeIn);
-        clearTimeout(complete);
-      };
-    }
-  }, [showText, onComplete]);
-
   return (
     <div
-      className="fixed inset-0 z-[100] cursor-pointer"
-      style={{ background: "#050510" }}
+      className="fixed inset-0 z-[100] cursor-pointer transition-opacity"
+      style={{ background: "#050510", opacity: overlayOpacity }}
       onClick={handleInteraction}
       onTouchStart={handleInteraction}
     >

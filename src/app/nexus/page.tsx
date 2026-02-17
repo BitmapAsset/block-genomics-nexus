@@ -29,22 +29,19 @@ function NexusContent() {
 
   // Show warp intro once per session
   const [showWarp, setShowWarp] = useState(false);
-  const [mapReady, setMapReady] = useState(false);
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    // Check if already entered this session
     const entered = sessionStorage.getItem(SESSION_KEY);
-    if (entered) {
-      setMapReady(true);
-    } else {
+    if (!entered) {
       setShowWarp(true);
     }
+    setChecked(true);
   }, []);
 
   const handleWarpComplete = useCallback(() => {
     sessionStorage.setItem(SESSION_KEY, "1");
     setShowWarp(false);
-    setMapReady(true);
   }, []);
 
   // ESC to skip
@@ -61,14 +58,13 @@ function NexusContent() {
     <>
       {showWarp && <NexusWarpEntry onComplete={handleWarpComplete} />}
       <section
-        className="w-full overflow-hidden transition-opacity duration-1000"
+        className="w-full overflow-hidden"
         style={{
           background: '#0a0a0f',
           height: 'calc(100dvh - 4rem)',
-          opacity: mapReady ? 1 : 0,
         }}
       >
-        {(mapReady || showWarp) && (
+        {checked && (
           <NexusMap initialBlock={isNaN(initialBlock as number) ? undefined : initialBlock} />
         )}
       </section>
