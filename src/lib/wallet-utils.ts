@@ -23,13 +23,40 @@ export async function connectUnisat(): Promise<string> {
   return accounts[0];
 }
 
-/** Connect to Xverse wallet — returns address */
+/** Connect to Xverse wallet — returns address (supports both desktop extension and mobile in-app browser) */
 export async function connectXverse(): Promise<string> {
   const provider = window.BitcoinProvider;
   if (!provider) throw new Error('Xverse wallet not installed');
-  const response = await provider.connect();
-  if (!response?.addresses?.length) throw new Error('No accounts returned');
-  return response.addresses[0].address;
+
+  // Try sats-connect request() method first (works on mobile + newer versions)
+  if (typeof provider.request === 'function') {
+    try {
+      const response: any = await provider.request('getAddresses', {
+        purposes: ['ordinals', 'payment'],
+        message: 'Block Genomics needs your Bitcoin address for verification.',
+      });
+      if (response?.status === 'success' && response.result?.length > 0) {
+        const ordinals = response.result.find((a: any) => a.purpose === 'ordinals');
+        const payment = response.result.find((a: any) => a.purpose === 'payment');
+        const addr = ordinals?.address || payment?.address || response.result[0].address;
+        if (addr) return addr;
+      }
+    } catch {
+      // Fall through to legacy connect()
+    }
+  }
+
+  // Legacy connect() for older desktop extension
+  try {
+    const response = await provider.connect();
+    if (response?.addresses?.length) {
+      return response.addresses[0].address;
+    }
+  } catch {
+    // ignore
+  }
+
+  throw new Error('Could not connect to Xverse. Please try from the Xverse in-app browser.');
 }
 
 /** Connect to Leather wallet — returns address */
@@ -61,6 +88,21 @@ export async function signWithWallet(walletType: WalletType, message: string): P
   if (walletType === 'xverse') {
     const provider = window.BitcoinProvider;
     if (!provider) throw new Error('Xverse not available');
+    // Try sats-connect request() first (mobile + newer)
+    if (typeof provider.request === 'function') {
+      try {
+        const resp: any = await provider.request('signMessage', {
+          address: undefined,
+          message,
+        });
+        if (resp?.status === 'success' && resp.result?.signature) {
+          return resp.result.signature;
+        }
+      } catch {
+        // Fall through to legacy
+      }
+    }
+    // Legacy signMessage
     return await provider.signMessage(message, { network: 'Mainnet' });
   }
   if (walletType === 'leather') {
