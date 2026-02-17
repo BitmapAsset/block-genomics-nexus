@@ -1768,6 +1768,191 @@ function EstateOverlay({ estates, parcels, hoveredEstateId, onHoverEstate, onCli
   );
 }
 
+/* ─── Estate Mini Bitmap Map ─── */
+function EstateMiniMap({ allParcels, ownedIndices, selectedParcels, onToggleParcel, selectedColor }: {
+  allParcels: ParcelData[];
+  ownedIndices: Set<number>;
+  selectedParcels: Set<number>;
+  onToggleParcel: (idx: number) => void;
+  selectedColor: string;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [hoveredParcel, setHoveredParcel] = useState<ParcelData | null>(null);
+
+  // Compute bounds
+  const bounds = useMemo(() => {
+    let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+    for (const p of allParcels) {
+      if (p.x < minX) minX = p.x;
+      if (p.z < minZ) minZ = p.z;
+      if (p.x + p.width > maxX) maxX = p.x + p.width;
+      if (p.z + p.depth > maxZ) maxZ = p.z + p.depth;
+    }
+    return { minX, minZ, maxX, maxZ, w: maxX - minX, h: maxZ - minZ };
+  }, [allParcels]);
+
+  // Draw the bitmap
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cw = canvas.clientWidth;
+    const ch = canvas.clientHeight;
+    canvas.width = cw * dpr;
+    canvas.height = ch * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Clear
+    ctx.fillStyle = '#0a0a12';
+    ctx.fillRect(0, 0, cw, ch);
+
+    // Scale to fit with zoom + pan
+    const scale = Math.min(cw / bounds.w, ch / bounds.h) * 0.92 * zoom;
+    const offsetX = (cw - bounds.w * scale) / 2 + pan.x;
+    const offsetY = (ch - bounds.h * scale) / 2 + pan.y;
+
+    const gap = Math.max(0.5, scale * bounds.w * 0.003);
+
+    for (const p of allParcels) {
+      const px = (p.x - bounds.minX) * scale + offsetX;
+      const py = (p.z - bounds.minZ) * scale + offsetY;
+      const pw = p.width * scale - gap;
+      const ph = p.depth * scale - gap;
+
+      if (pw < 0.3 || ph < 0.3) continue;
+
+      const isOwned = ownedIndices.has(p.txIndex);
+      const isSelected = selectedParcels.has(p.txIndex);
+      const isHovered = hoveredParcel?.txIndex === p.txIndex;
+
+      if (isSelected) {
+        ctx.fillStyle = selectedColor;
+        ctx.globalAlpha = 0.85;
+        // Glow
+        ctx.shadowColor = selectedColor;
+        ctx.shadowBlur = 8;
+      } else if (isOwned) {
+        ctx.fillStyle = selectedColor;
+        ctx.globalAlpha = 0.35;
+        ctx.shadowBlur = 0;
+      } else if (p.isCoinbase) {
+        ctx.fillStyle = '#f7931a';
+        ctx.globalAlpha = 0.25;
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.fillStyle = '#e8a54b';
+        ctx.globalAlpha = 0.1;
+        ctx.shadowBlur = 0;
+      }
+
+      ctx.fillRect(px, py, pw, ph);
+
+      if (isHovered && isOwned) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.9;
+        ctx.shadowBlur = 0;
+        ctx.strokeRect(px, py, pw, ph);
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+
+      // Parcel index label for owned parcels when zoomed in
+      if (isOwned && pw > 18 && ph > 14) {
+        ctx.fillStyle = isSelected ? '#ffffff' : selectedColor;
+        ctx.font = `bold ${Math.min(10, pw * 0.35)}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${p.txIndex}`, px + pw / 2, py + ph / 2);
+      }
+    }
+  }, [allParcels, ownedIndices, selectedParcels, selectedColor, bounds, zoom, pan, hoveredParcel]);
+
+  // Hit testing for clicks
+  const getParcelAt = useCallback((clientX: number, clientY: number): ParcelData | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const mx = clientX - rect.left;
+    const my = clientY - rect.top;
+    const cw = canvas.clientWidth;
+    const ch = canvas.clientHeight;
+    const scale = Math.min(cw / bounds.w, ch / bounds.h) * 0.92 * zoom;
+    const offsetX = (cw - bounds.w * scale) / 2 + pan.x;
+    const offsetY = (ch - bounds.h * scale) / 2 + pan.y;
+
+    for (let i = allParcels.length - 1; i >= 0; i--) {
+      const p = allParcels[i];
+      const px = (p.x - bounds.minX) * scale + offsetX;
+      const py = (p.z - bounds.minZ) * scale + offsetY;
+      const pw = p.width * scale;
+      const ph = p.depth * scale;
+      if (mx >= px && mx <= px + pw && my >= py && my <= py + ph) return p;
+    }
+    return null;
+  }, [allParcels, bounds, zoom, pan]);
+
+  const handleClick = (e: React.MouseEvent) => {
+    const p = getParcelAt(e.clientX, e.clientY);
+    if (p && ownedIndices.has(p.txIndex)) {
+      onToggleParcel(p.txIndex);
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (dragging) {
+      setPan(prev => ({ x: prev.x + e.movementX, y: prev.y + e.movementY }));
+      return;
+    }
+    const p = getParcelAt(e.clientX, e.clientY);
+    setHoveredParcel(p && ownedIndices.has(p.txIndex) ? p : null);
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.stopPropagation();
+    setZoom(prev => Math.max(0.5, Math.min(8, prev * (e.deltaY < 0 ? 1.15 : 0.87))));
+  };
+
+  return (
+    <div ref={containerRef} className="relative rounded-xl overflow-hidden" style={{ background: '#0a0a12', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <canvas
+        ref={canvasRef}
+        className="w-full cursor-crosshair"
+        style={{ height: 220 }}
+        onClick={handleClick}
+        onMouseMove={handleMouseMove}
+        onMouseDown={(e) => { if (e.button === 0) { setDragging(true); setDragStart({ x: e.clientX, y: e.clientY }); } }}
+        onMouseUp={() => setDragging(false)}
+        onMouseLeave={() => { setDragging(false); setHoveredParcel(null); }}
+        onWheel={handleWheel}
+      />
+      {/* Zoom controls */}
+      <div className="absolute top-2 right-2 flex flex-col gap-1">
+        <button onClick={() => setZoom(z => Math.min(z * 1.4, 8))} className="w-6 h-6 rounded text-xs font-bold flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.08)', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.12)' }}>+</button>
+        <button onClick={() => setZoom(z => Math.max(z * 0.7, 0.5))} className="w-6 h-6 rounded text-xs font-bold flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.08)', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.12)' }}>−</button>
+        <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} className="w-6 h-6 rounded text-[8px] font-bold flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.08)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.12)' }}>⟲</button>
+      </div>
+      {/* Hover tooltip */}
+      {hoveredParcel && (
+        <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-[10px] font-mono pointer-events-none" style={{ background: 'rgba(0,0,0,0.8)', border: `1px solid ${selectedColor}44`, color: '#e2e8f0' }}>
+          Parcel #{hoveredParcel.txIndex} · {hoveredParcel.width.toFixed(0)}×{hoveredParcel.depth.toFixed(0)}m · {hoveredParcel.areaSqMeters.toFixed(0)}m²
+        </div>
+      )}
+      {/* Zoom level indicator */}
+      <div className="absolute top-2 left-2 text-[9px] font-mono" style={{ color: '#475569' }}>{zoom.toFixed(1)}×</div>
+    </div>
+  );
+}
+
 /* ─── Estate Creation Modal ─── */
 function EstateModal({ onClose, blockHeight, parcels, onCreateEstate }: { onClose: () => void; blockHeight: number; parcels: ParcelData[]; onCreateEstate: (estate: Estate) => void }) {
   const [estateName, setEstateName] = useState('');
@@ -1890,28 +2075,21 @@ function EstateModal({ onClose, blockHeight, parcels, onCreateEstate }: { onClos
 
               <div>
                 <label className="text-[10px] uppercase tracking-wider block mb-2" style={{ color: '#64748b' }}>
-                  Your Parcels in Block {selectedBlock.toLocaleString()} ({selectedParcels.size} selected)
+                  Bitmap Layout — Block {selectedBlock.toLocaleString()} ({selectedParcels.size} selected)
                 </label>
-                <div className="max-h-[240px] overflow-y-auto rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-                    {ownerParcels.map((p) => {
-                      const isSel = selectedParcels.has(p.txIndex);
-                      return (
-                        <button key={p.txIndex} onClick={() => toggleParcel(p.txIndex)}
-                          className="aspect-square rounded text-[8px] font-mono transition-all"
-                          style={{
-                            background: isSel ? `${selectedColor}33` : 'rgba(255,255,255,0.04)',
-                            border: `1px solid ${isSel ? selectedColor : 'rgba(255,255,255,0.08)'}`,
-                            color: isSel ? selectedColor : '#64748b',
-                            boxShadow: isSel ? `0 0 8px ${selectedColor}44` : 'none',
-                          }}>
-                          {p.txIndex}
-                        </button>
-                      );
-                    })}
-                  </div>
+                {/* Mini Bitmap Map — real Mondrian layout */}
+                <EstateMiniMap
+                  allParcels={selectedBlock === blockHeight ? parcels : generateParcels(selectedBlock)}
+                  ownedIndices={new Set(ownerParcels.map(p => p.txIndex))}
+                  selectedParcels={selectedParcels}
+                  onToggleParcel={toggleParcel}
+                  selectedColor={selectedColor}
+                />
+                <div className="text-[9px] mt-1.5 flex items-center gap-3" style={{ color: '#475569' }}>
+                  <span>⚠️ Adjacent parcels only</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: selectedColor }} /> Owned</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: 'rgba(255,255,255,0.08)' }} /> Other</span>
                 </div>
-                <div className="text-[9px] mt-1" style={{ color: '#475569' }}>⚠️ Adjacent parcels only — must share an edge</div>
               </div>
               <div>
             <label className="text-[10px] uppercase tracking-wider block mb-2" style={{ color: '#64748b' }}>Neon Glow Color</label>
