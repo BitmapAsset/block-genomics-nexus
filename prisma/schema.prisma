@@ -21,6 +21,9 @@ model User {
   genomeHash          String?
   bio                 String?
   encryptionPubKey    String?
+  lastOnChainCheck    DateTime?
+  resolvedTier        Int                 @default(0)
+  ownedBlocks         Int[]               @default([])
   activities          ActivityLog[]
   blocks              Block[]
   chatMessages        ChatMessage[]
@@ -180,6 +183,7 @@ model BitmapAgent {
   status        String         @default("active")
   createdAt     DateTime       @default(now())
   lastHeartbeat DateTime       @default(now())
+  graceDeadline DateTime?
   briefs        AgentBrief[]
   events        AgentEvent[]
   sessions      AgentSession[]
@@ -411,6 +415,7 @@ model GuardianAgent {
   monitorPairedAt            DateTime?
   monitorPairedWallet        String?
   monitorWebhookUrl          String?
+  graceDeadline              DateTime?
 
   @@unique([blockHeight, ownerAddress])
   @@index([blockHeight])

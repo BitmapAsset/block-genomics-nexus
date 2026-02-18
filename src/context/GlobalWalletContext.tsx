@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { TierResolution } from "@/lib/tier-resolver";
 import {
   type WalletType,
   detectWallets,
@@ -53,6 +54,7 @@ interface GlobalWalletState {
   profile: UserProfile | null;
   availableWallets: WalletType[];
   error: string | null;
+  tierResolution: TierResolution | null;
 }
 
 interface GlobalWalletContextValue extends GlobalWalletState {
@@ -66,6 +68,8 @@ interface GlobalWalletContextValue extends GlobalWalletState {
   e2eSetup: () => Promise<boolean>;
   e2eEncrypt: (text: string, recipientIdentifier: string) => Promise<EncryptedMessage | null>;
   e2eDecrypt: (msg: EncryptedMessage) => Promise<DecryptedMessage | null>;
+  tierResolution: TierResolution | null;
+  resolveTier: (force?: boolean) => Promise<void>;
 }
 
 const GlobalWalletContext = createContext<GlobalWalletContextValue | undefined>(undefined);
@@ -101,6 +105,7 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
     profile: null,
     availableWallets: [],
     error: null,
+    tierResolution: null,
   });
 
   // Detect available wallets + listen for account changes
@@ -291,6 +296,33 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, error: null }));
   }, []);
 
+  // ═══ Tier Resolution ═══
+  const resolveTierFn = useCallback(async (force = false) => {
+    const addr = state.walletAddress;
+    if (!addr) return;
+    try {
+      const res = await fetch('/api/v1/tier/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: addr, force }),
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.success && json.data) {
+        setState(prev => ({ ...prev, tierResolution: json.data as TierResolution }));
+      }
+    } catch {
+      // silently fail
+    }
+  }, [state.walletAddress]);
+
+  // Auto-resolve tier on connect
+  useEffect(() => {
+    if (state.isConnected && state.walletAddress) {
+      resolveTierFn();
+    }
+  }, [state.isConnected, state.walletAddress, resolveTierFn]);
+
   // ═══ E2E Encryption ═══
   const [e2eReady, setE2eReady] = useState(false);
   const keypairRef = useRef<EncryptionKeypair | null>(null);
@@ -358,8 +390,10 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
       e2eSetup,
       e2eEncrypt,
       e2eDecrypt,
+      tierResolution: state.tierResolution,
+      resolveTier: resolveTierFn,
     }),
-    [state, connect, disconnect, signMessageFn, refreshProfile, clearError, e2eReady, e2eSetup, e2eEncrypt, e2eDecrypt]
+    [state, connect, disconnect, signMessageFn, refreshProfile, clearError, e2eReady, e2eSetup, e2eEncrypt, e2eDecrypt, resolveTierFn]
   );
 
   return (
