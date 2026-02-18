@@ -23,13 +23,13 @@ export default function NexusStatsBar() {
   }, []);
 
   const totalBlocks = tipHeight ?? 880000;
-  const currentEpoch = getEpoch(totalBlocks - 1);
-  const claimedPct = 30; // TODO: fetch real claimed % when available
+  const currentEpoch = getEpoch(totalBlocks - 1) + 1; // +1 for human-readable (Epoch 1-5, not 0-4)
+  const claimedPct = null; // Hidden until we have real data
 
   const stats = [
     { label: 'Total Blocks', value: totalBlocks.toLocaleString() },
-    { label: 'Claimed Bitmaps', value: `${claimedPct}%` },
-    { label: 'Current Epoch', value: `${currentEpoch}`, color: getEpochColor(currentEpoch) },
+    ...(claimedPct !== null ? [{ label: 'Claimed Bitmaps', value: `${claimedPct}%` }] : []),
+    { label: 'Current Epoch', value: `${currentEpoch}`, color: getEpochColor(currentEpoch - 1) },
     { label: 'Latest Block', value: `#${(totalBlocks - 1).toLocaleString()}` },
   ];
 
