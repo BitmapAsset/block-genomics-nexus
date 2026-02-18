@@ -89,16 +89,18 @@ export async function signWithWallet(walletType: WalletType, message: string, ad
     const provider = window.BitcoinProvider;
     if (!provider) throw new Error('Xverse not available');
     // Try sats-connect request() first (mobile + newer) — address is REQUIRED for mobile
-    if (typeof provider.request === 'function') {
+    if (typeof provider.request === 'function' && address) {
       try {
         const resp: any = await provider.request('signMessage', {
-          address: address || undefined,
+          address,
           message,
+          protocol: 'BIP322',
         });
         if (resp?.status === 'success' && resp.result?.signature) {
           return resp.result.signature;
         }
-      } catch {
+      } catch (e: any) {
+        console.warn('[Xverse signMessage request() failed]', e?.message || e);
         // Fall through to legacy
       }
     }
