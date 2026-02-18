@@ -33,13 +33,21 @@ function isXverseInAppBrowser(): boolean {
   return ua.includes('xverse') || (!!window.BitcoinProvider && /android|iphone|ipad|mobile/i.test(ua));
 }
 
-/** Connect to Xverse wallet — auto-detects in-app vs extension */
+/** Helper: extract address from Xverse response */
+function extractXverseAddress(addrs: any[]): string | null {
+  if (!Array.isArray(addrs) || addrs.length === 0) return null;
+  const ordinals = addrs.find((a: any) => a.purpose === 'ordinals' || a.purpose === AddressPurpose.Ordinals);
+  const payment = addrs.find((a: any) => a.purpose === 'payment' || a.purpose === AddressPurpose.Payment);
+  return ordinals?.address || payment?.address || addrs[0]?.address || null;
+}
+
+/** Connect to Xverse wallet — always uses direct provider to avoid adapter validation errors */
 export async function connectXverse(): Promise<string> {
   const provider = window.BitcoinProvider;
 
-  // Path 1: In-app browser — use provider directly (no Wallet class selector needed)
-  if (isXverseInAppBrowser() && provider?.request) {
-    console.log('[Xverse] In-app browser detected, using direct provider');
+  // Path 1: Direct provider.request (works on both mobile in-app AND desktop extension)
+  if (provider?.request) {
+    console.log('[Xverse] Using direct BitcoinProvider.request');
     try {
       const response: any = await provider.request('getAddresses', {
         purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
@@ -47,65 +55,37 @@ export async function connectXverse(): Promise<string> {
       });
       if (response?.status === 'success') {
         const addrs = response.result?.addresses || response.result || [];
-        if (Array.isArray(addrs) && addrs.length > 0) {
-          const ordinals = addrs.find((a: any) => a.purpose === 'ordinals' || a.purpose === AddressPurpose.Ordinals);
-          const payment = addrs.find((a: any) => a.purpose === 'payment' || a.purpose === AddressPurpose.Payment);
-          const addr = ordinals?.address || payment?.address || addrs[0]?.address;
-          if (addr) return addr;
-        }
-      }
-    } catch (e: any) {
-      console.error('[Xverse in-app getAddresses failed]', e?.message || e);
-    }
-    // In-app fallback: legacy connect
-    if (provider.connect) {
-      try {
-        const response = await provider.connect();
-        if (response?.addresses?.length) {
-          const taproot = response.addresses.find((a: any) => a.address?.startsWith('bc1p'));
-          return taproot?.address || response.addresses[0].address;
-        }
-      } catch { /* ignore */ }
-    }
-    throw new Error('Could not connect to Xverse. Please try refreshing the page.');
-  }
-
-  // Path 2: Desktop extension — use Wallet class (handles provider selection)
-  try {
-    const response = await Wallet.request('getAddresses', {
-      purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
-      message: 'Block Genomics needs your Bitcoin address for verification.',
-    });
-    if (response.status === 'success') {
-      const result = response.result as any;
-      const addrs = result?.addresses || result;
-      if (Array.isArray(addrs) && addrs.length > 0) {
-        const ordinals = addrs.find((a: any) => a.purpose === 'ordinals' || a.purpose === AddressPurpose.Ordinals);
-        const payment = addrs.find((a: any) => a.purpose === 'payment' || a.purpose === AddressPurpose.Payment);
-        const addr = ordinals?.address || payment?.address || addrs[0]?.address;
+        const addr = extractXverseAddress(addrs);
         if (addr) return addr;
       }
+      // Some versions return addresses directly without status wrapper
+      if (response?.result) {
+        const addrs = Array.isArray(response.result) ? response.result : response.result.addresses || [];
+        const addr = extractXverseAddress(addrs);
+        if (addr) return addr;
+      }
+    } catch (e: any) {
+      if (e?.message?.includes('reject') || e?.message?.includes('cancel')) throw e;
+      console.error('[Xverse provider.request getAddresses failed]', e?.message || e);
     }
-    if (response.status === 'error') {
-      throw new Error((response.error as any)?.message || 'Xverse connection rejected');
-    }
-  } catch (e: any) {
-    if (e?.message?.includes('reject') || e?.message?.includes('cancel')) throw e;
-    console.error('[Xverse Wallet.request getAddresses failed]', e?.message || e);
   }
 
-  // Path 3: Legacy fallback
+  // Path 2: Legacy provider.connect fallback
   if (provider?.connect) {
+    console.log('[Xverse] Falling back to legacy provider.connect');
     try {
       const response = await provider.connect();
       if (response?.addresses?.length) {
         const taproot = response.addresses.find((a: any) => a.address?.startsWith('bc1p'));
         return taproot?.address || response.addresses[0].address;
       }
-    } catch { /* ignore */ }
+    } catch (e: any) {
+      if (e?.message?.includes('reject') || e?.message?.includes('cancel')) throw e;
+      console.error('[Xverse legacy connect failed]', e?.message || e);
+    }
   }
 
-  throw new Error('Could not connect to Xverse. Please try from the Xverse in-app browser.');
+  throw new Error('Could not connect to Xverse. Please make sure the extension is installed and unlocked.');
 }
 
 /** Connect to Leather wallet — returns address */
@@ -136,51 +116,30 @@ export async function signWithWallet(walletType: WalletType, message: string, ad
   }
   if (walletType === 'xverse') {
     if (!address) throw new Error('Xverse signing requires an address — reconnect your wallet');
+    const provider = window.BitcoinProvider;
 
-    // In-app browser: use provider directly
-    if (isXverseInAppBrowser()) {
-      const provider = window.BitcoinProvider;
-      if (!provider?.request) throw new Error('Xverse provider not available');
-      console.log('[Xverse] In-app browser sign, using direct provider');
-      const resp: any = await provider.request('signMessage', {
-        address,
-        message,
-        protocol: 'BIP322',
-      });
-      if (resp?.status === 'success' && resp.result?.signature) {
-        return resp.result.signature;
-      }
-      throw new Error(resp?.error?.message || 'Xverse signing failed');
-    }
-
-    // Desktop extension: use Wallet class
-    try {
-      const resp = await Wallet.request('signMessage', {
-        address,
-        message,
-        protocol: MessageSigningProtocols.BIP322,
-      });
-      if (resp.status === 'success') {
-        const sig = (resp.result as any)?.signature;
-        if (sig) return sig;
-      }
-      if (resp.status === 'error') {
-        throw new Error((resp.error as any)?.message || 'Xverse signing rejected');
-      }
-    } catch (e: any) {
-      // Fallback: direct provider
-      const provider = window.BitcoinProvider;
-      if (provider?.request) {
-        const directResp: any = await provider.request('signMessage', {
-          address, message, protocol: 'BIP322',
+    // Always use direct provider — Wallet class adapter causes "Error validating request"
+    if (provider?.request) {
+      console.log('[Xverse] Signing via direct BitcoinProvider.request');
+      try {
+        const resp: any = await provider.request('signMessage', {
+          address,
+          message,
+          protocol: 'BIP322',
         });
-        if (directResp?.status === 'success' && directResp.result?.signature) {
-          return directResp.result.signature;
+        if (resp?.status === 'success' && resp.result?.signature) {
+          return resp.result.signature;
         }
+        if (resp?.result?.signature) return resp.result.signature;
+        throw new Error(resp?.error?.message || 'Xverse signing returned no signature');
+      } catch (e: any) {
+        if (e?.message?.includes('reject') || e?.message?.includes('cancel')) throw e;
+        console.error('[Xverse direct sign failed]', e?.message || e);
+        throw new Error(e?.message || 'Xverse signing failed');
       }
-      throw new Error(e?.message || 'Xverse signing failed');
     }
-    throw new Error('Xverse signing failed — no signature returned');
+
+    throw new Error('Xverse provider not available — please make sure the extension is installed and unlocked');
   }
   if (walletType === 'leather') {
     if (!window.LeatherProvider) throw new Error('Leather not available');
