@@ -5,6 +5,7 @@ import Link from 'next/link';
 import CrownShield from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 import LightningPayModal from '@/components/LightningPayModal';
+import { useGlobalWallet } from '@/context/GlobalWalletContext';
 
 /* ── Types ── */
 interface Listing {
@@ -142,13 +143,106 @@ function ListingCard({ listing, onPay }: { listing: Listing; onPay: (listing: Li
   );
 }
 
+/* ── Smart Purchase Gate ── */
+type GateResult =
+  | { action: 'allow' }
+  | { action: 'connect_wallet' }
+  | { action: 'owns_this_block'; blockHeight: number }
+  | { action: 'already_tier1'; ownedBlock: number; suggestion: 'tier2' }
+  | { action: 'already_tier2_same_block'; blockHeight: number }
+  | { action: 'allow_cross_block' }; // Tier 1/2 buying on a DIFFERENT block — allowed
+
+function evaluatePurchaseGate(
+  listing: Listing,
+  isConnected: boolean,
+  walletAddress: string | null,
+  profile: { tier?: number; blockHeight?: number } | null,
+): GateResult {
+  if (!isConnected || !walletAddress) return { action: 'connect_wallet' };
+  // Owner trying to buy on their own block
+  if (listing.owner.walletAddress === walletAddress) return { action: 'owns_this_block', blockHeight: listing.blockHeight };
+  // Tier 1 block owner — suggest Tier 2 instead
+  if (profile?.tier === 1 && listing.blockHeight === profile.blockHeight) return { action: 'already_tier2_same_block', blockHeight: listing.blockHeight };
+  // Tier 1 buying on a different block — that's fine, cross-block expansion
+  if (profile?.tier === 1) return { action: 'allow_cross_block' };
+  // Tier 2 on the same block — already have parcel access
+  if (profile?.tier === 2 && listing.blockHeight === profile.blockHeight) return { action: 'already_tier2_same_block', blockHeight: listing.blockHeight };
+  // All other cases — allow purchase
+  return { action: 'allow' };
+}
+
+/* ── Gate Message Modal ── */
+function GateModal({ gate, listing, onClose }: { gate: GateResult; listing: Listing; onClose: () => void }) {
+  const content = (() => {
+    switch (gate.action) {
+      case 'connect_wallet':
+        return {
+          icon: '🔗', title: 'Connect Your Wallet',
+          msg: 'You need to connect your wallet before purchasing a delegation.',
+          btnText: '🔗 Connect Wallet',
+          btnAction: () => { window.dispatchEvent(new Event('open-wallet-modal')); onClose(); },
+        };
+      case 'owns_this_block':
+        return {
+          icon: '👑', title: 'You Own This Block!',
+          msg: `You already own Block #${gate.blockHeight.toLocaleString()}. You have full Tier 1 sovereignty — no delegation needed!`,
+          btnText: '🗺️ Visit Your Block',
+          btnHref: `/nexus/parcel/${gate.blockHeight}`,
+        };
+      case 'already_tier1':
+        return {
+          icon: '⬆️', title: 'Upgrade Available',
+          msg: `As a Tier 1 block owner (Block #${gate.ownedBlock.toLocaleString()}), a Tier 3 delegation would be a downgrade. Consider purchasing Tier 2 parcel access for expanded rights on Block #${listing.blockHeight.toLocaleString()}.`,
+          btnText: '🟧 View Block',
+          btnHref: `/nexus/parcel/${listing.blockHeight}`,
+        };
+      case 'already_tier2_same_block':
+        return {
+          icon: '✅', title: 'You Already Have Access',
+          msg: `You already have parcel access on Block #${gate.blockHeight.toLocaleString()}. No additional delegation needed!`,
+          btnText: '🗺️ Visit Block',
+          btnHref: `/nexus/parcel/${gate.blockHeight}`,
+        };
+      default:
+        return null;
+    }
+  })();
+  if (!content) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-[#1a1a2e] border border-orange-500/30 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+        <div className="text-center">
+          <div className="text-5xl mb-4">{content.icon}</div>
+          <h3 className="text-lg font-bold text-white mb-2">{content.title}</h3>
+          <p className="text-sm text-gray-400 mb-6">{content.msg}</p>
+          {'btnHref' in content && content.btnHref ? (
+            <Link href={content.btnHref} className="inline-block w-full py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-orange-500 to-amber-500 text-black hover:brightness-110 transition-all text-center">
+              {content.btnText}
+            </Link>
+          ) : content.btnAction ? (
+            <button onClick={content.btnAction} className="w-full py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-orange-500 to-amber-500 text-black hover:brightness-110 transition-all cursor-pointer">
+              {content.btnText}
+            </button>
+          ) : null}
+          <button onClick={onClose} className="mt-3 text-xs text-gray-500 hover:text-gray-300 cursor-pointer">Dismiss</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Page ── */
 export default function MarketplacePage() {
+  const globalWallet = useGlobalWallet();
   const [listings, setListings] = useState<Listing[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // Purchase gate
+  const [gateResult, setGateResult] = useState<GateResult | null>(null);
+  const [gateListing, setGateListing] = useState<Listing | null>(null);
 
   // Filters
   const [payListing, setPayListing] = useState<Listing | null>(null);
@@ -316,7 +410,19 @@ export default function MarketplacePage() {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {filtered.map(listing => (
-                <ListingCard key={listing.id} listing={listing} onPay={(l, d) => { setPayListing(l); setPayDuration(d); setShowPayModal(true); }} />
+                <ListingCard key={listing.id} listing={listing} onPay={(l, d) => {
+                  const gate = evaluatePurchaseGate(
+                    l,
+                    globalWallet.isConnected,
+                    globalWallet.walletAddress,
+                    globalWallet.profile ? { tier: globalWallet.profile.tier, blockHeight: globalWallet.profile.anchorBlock } : null,
+                  );
+                  if (gate.action === 'allow' || gate.action === 'allow_cross_block') {
+                    setPayListing(l); setPayDuration(d); setShowPayModal(true);
+                  } else {
+                    setGateListing(l); setGateResult(gate);
+                  }
+                }} />
               ))}
             </div>
 
@@ -349,6 +455,11 @@ export default function MarketplacePage() {
           </div>
         )}
       </div>
+
+      {/* Smart Purchase Gate Modal */}
+      {gateResult && gateListing && gateResult.action !== 'allow' && gateResult.action !== 'allow_cross_block' && (
+        <GateModal gate={gateResult} listing={gateListing} onClose={() => { setGateResult(null); setGateListing(null); }} />
+      )}
 
       {/* Lightning Payment Modal */}
       {showPayModal && payListing && (
