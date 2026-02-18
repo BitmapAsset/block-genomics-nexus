@@ -26,9 +26,51 @@ export async function connectUnisat(): Promise<string> {
   return accounts[0];
 }
 
-/** Connect to Xverse wallet — returns address (uses official sats-connect Wallet class) */
+/** Detect if running inside Xverse in-app browser */
+function isXverseInAppBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.includes('xverse') || (!!window.BitcoinProvider && /android|iphone|ipad|mobile/i.test(ua));
+}
+
+/** Connect to Xverse wallet — auto-detects in-app vs extension */
 export async function connectXverse(): Promise<string> {
-  // Use Wallet.request() — the high-level API that handles provider selection + validation
+  const provider = window.BitcoinProvider;
+
+  // Path 1: In-app browser — use provider directly (no Wallet class selector needed)
+  if (isXverseInAppBrowser() && provider?.request) {
+    console.log('[Xverse] In-app browser detected, using direct provider');
+    try {
+      const response: any = await provider.request('getAddresses', {
+        purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
+        message: 'Block Genomics needs your Bitcoin address for verification.',
+      });
+      if (response?.status === 'success') {
+        const addrs = response.result?.addresses || response.result || [];
+        if (Array.isArray(addrs) && addrs.length > 0) {
+          const ordinals = addrs.find((a: any) => a.purpose === 'ordinals' || a.purpose === AddressPurpose.Ordinals);
+          const payment = addrs.find((a: any) => a.purpose === 'payment' || a.purpose === AddressPurpose.Payment);
+          const addr = ordinals?.address || payment?.address || addrs[0]?.address;
+          if (addr) return addr;
+        }
+      }
+    } catch (e: any) {
+      console.error('[Xverse in-app getAddresses failed]', e?.message || e);
+    }
+    // In-app fallback: legacy connect
+    if (provider.connect) {
+      try {
+        const response = await provider.connect();
+        if (response?.addresses?.length) {
+          const taproot = response.addresses.find((a: any) => a.address?.startsWith('bc1p'));
+          return taproot?.address || response.addresses[0].address;
+        }
+      } catch { /* ignore */ }
+    }
+    throw new Error('Could not connect to Xverse. Please try refreshing the page.');
+  }
+
+  // Path 2: Desktop extension — use Wallet class (handles provider selection)
   try {
     const response = await Wallet.request('getAddresses', {
       purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
@@ -44,28 +86,23 @@ export async function connectXverse(): Promise<string> {
         if (addr) return addr;
       }
     }
-    // If response was error, throw with details
     if (response.status === 'error') {
       throw new Error((response.error as any)?.message || 'Xverse connection rejected');
     }
   } catch (e: any) {
-    // Re-throw user rejections
     if (e?.message?.includes('reject') || e?.message?.includes('cancel')) throw e;
     console.error('[Xverse Wallet.request getAddresses failed]', e?.message || e);
   }
 
-  // Fallback: direct provider for very old extensions without Wallet support
-  const provider = window.BitcoinProvider;
-  if (provider) {
+  // Path 3: Legacy fallback
+  if (provider?.connect) {
     try {
       const response = await provider.connect();
       if (response?.addresses?.length) {
         const taproot = response.addresses.find((a: any) => a.address?.startsWith('bc1p'));
         return taproot?.address || response.addresses[0].address;
       }
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }
 
   throw new Error('Could not connect to Xverse. Please try from the Xverse in-app browser.');
@@ -99,7 +136,24 @@ export async function signWithWallet(walletType: WalletType, message: string, ad
   }
   if (walletType === 'xverse') {
     if (!address) throw new Error('Xverse signing requires an address — reconnect your wallet');
-    // Use Wallet.request() — high-level API with proper provider routing
+
+    // In-app browser: use provider directly
+    if (isXverseInAppBrowser()) {
+      const provider = window.BitcoinProvider;
+      if (!provider?.request) throw new Error('Xverse provider not available');
+      console.log('[Xverse] In-app browser sign, using direct provider');
+      const resp: any = await provider.request('signMessage', {
+        address,
+        message,
+        protocol: 'BIP322',
+      });
+      if (resp?.status === 'success' && resp.result?.signature) {
+        return resp.result.signature;
+      }
+      throw new Error(resp?.error?.message || 'Xverse signing failed');
+    }
+
+    // Desktop extension: use Wallet class
     try {
       const resp = await Wallet.request('signMessage', {
         address,
@@ -114,14 +168,11 @@ export async function signWithWallet(walletType: WalletType, message: string, ad
         throw new Error((resp.error as any)?.message || 'Xverse signing rejected');
       }
     } catch (e: any) {
-      // If Wallet.request fails entirely, try direct provider as last resort
+      // Fallback: direct provider
       const provider = window.BitcoinProvider;
       if (provider?.request) {
-        console.warn('[Xverse Wallet.request failed, trying direct provider]', e?.message);
         const directResp: any = await provider.request('signMessage', {
-          address,
-          message,
-          protocol: 'BIP322',
+          address, message, protocol: 'BIP322',
         });
         if (directResp?.status === 'success' && directResp.result?.signature) {
           return directResp.result.signature;
