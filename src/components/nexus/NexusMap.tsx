@@ -172,23 +172,23 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
       </div>
 
       {/* Epoch Labels — floating on the left side aligned with map bands */}
-      <div className="absolute left-0 z-20 pointer-events-none hidden md:block" style={{ top: '12%', bottom: '4%' }}>
+      <div className="absolute left-0 inset-y-0 z-20 pointer-events-none">
         {[
-          { label: "The Genesis Era", sub: "Epoch 1 · 50 BTC", color: "#f7931a", top: '12%' },
-          { label: "The Growth Era", sub: "Epoch 2 · 25 BTC", color: "#66ccff", top: '35.5%' },
-          { label: "The Expansion Era", sub: "Epoch 3 · 12.5 BTC", color: "#a855f7", top: '59%' },
-          { label: "The Adoption Era", sub: "Epoch 4 · 6.25 BTC", color: "#22c55e", top: '82%' },
-          { label: "Scarcity", sub: "Epoch 5 · 3.125 BTC", color: "#10b981", top: '96%' },
+          { label: "The Genesis Era", sub: "Epoch 1 · 50 BTC", color: "#f7931a", top: '18%' },
+          { label: "The Growth Era", sub: "Epoch 2 · 25 BTC", color: "#66ccff", top: '38%' },
+          { label: "The Expansion Era", sub: "Epoch 3 · 12.5 BTC", color: "#a855f7", top: '57%' },
+          { label: "The Adoption Era", sub: "Epoch 4 · 6.25 BTC", color: "#22c55e", top: '76%' },
+          { label: "Scarcity", sub: "Epoch 5 · 3.125 BTC", color: "#10b981", top: '92%' },
         ].map((e) => (
           <div
             key={e.label}
-            className="absolute left-3 flex flex-col"
+            className="absolute left-2 sm:left-3 flex flex-col"
             style={{ top: e.top, transform: 'translateY(-50%)' }}
           >
-            <span className="text-[11px] font-bold tracking-wide" style={{ color: e.color, textShadow: `0 0 12px ${e.color}60` }}>
+            <span className="text-[9px] sm:text-[11px] font-bold tracking-wide" style={{ color: e.color, textShadow: `0 0 12px ${e.color}60` }}>
               {e.label}
             </span>
-            <span className="text-[9px] font-medium" style={{ color: `${e.color}99` }}>
+            <span className="text-[8px] sm:text-[9px] font-medium" style={{ color: `${e.color}99` }}>
               {e.sub}
             </span>
           </div>
