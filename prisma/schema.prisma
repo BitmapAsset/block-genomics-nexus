@@ -635,3 +635,10 @@ model BlockThumbnail {
 
   @@index([blockHeight])
 }
+
+// ─── System State (key-value store for protocol state) ───
+model SystemState {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
