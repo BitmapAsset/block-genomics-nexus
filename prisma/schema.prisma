@@ -624,3 +624,14 @@ model GameQuest {
 
   @@index([blockHeight])
 }
+
+model BlockThumbnail {
+  id          String   @id @default(cuid())
+  blockHeight Int      @unique
+  imageData   Bytes
+  txCount     Int
+  epoch       Int
+  createdAt   DateTime @default(now())
+
+  @@index([blockHeight])
+}
