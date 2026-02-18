@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import CrownShield from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
+import LightningPayModal from '@/components/LightningPayModal';
 
 /* ── Types ── */
 interface Listing {
@@ -52,7 +53,7 @@ function BitmapPreview({ blockHeight }: { blockHeight: number }) {
 }
 
 /* ── Listing Card ── */
-function ListingCard({ listing }: { listing: Listing }) {
+function ListingCard({ listing, onPay }: { listing: Listing; onPay: (listing: Listing, duration: DurationMode) => void }) {
   const monthly = listing.price30d;
   const yearly = listing.price365d;
   const savePct = monthly > 0 ? Math.round((1 - yearly / (monthly * 12)) * 100) : 0;
@@ -117,12 +118,20 @@ function ListingCard({ listing }: { listing: Listing }) {
       </div>
 
       {/* CTA */}
-      <Link
-        href={`/nexus/parcel/${listing.blockHeight}`}
-        className="block w-full text-center py-2.5 rounded-lg text-sm font-semibold bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500/20 hover:border-orange-500/50 transition-all"
-      >
-        🟧 Get Access
-      </Link>
+      <div className="flex gap-2">
+        <Link
+          href={`/nexus/parcel/${listing.blockHeight}`}
+          className="flex-1 text-center py-2.5 rounded-lg text-sm font-semibold bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500/20 hover:border-orange-500/50 transition-all"
+        >
+          🟧 View Block
+        </Link>
+        <button
+          onClick={() => onPay(listing, 'monthly')}
+          className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-orange-500/20 to-amber-500/20 border border-orange-500/40 text-orange-300 hover:brightness-125 transition-all cursor-pointer"
+        >
+          ⚡ Pay Lightning
+        </button>
+      </div>
     </div>
   );
 }
@@ -136,6 +145,9 @@ export default function MarketplacePage() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   // Filters
+  const [payListing, setPayListing] = useState<Listing | null>(null);
+  const [payDuration, setPayDuration] = useState<DurationMode>('monthly');
+  const [showPayModal, setShowPayModal] = useState(false);
   const [search, setSearch] = useState('');
   const [duration, setDuration] = useState<DurationMode>('monthly');
   const [sortBy, setSortBy] = useState<SortMode>('newest');
@@ -298,7 +310,7 @@ export default function MarketplacePage() {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {filtered.map(listing => (
-                <ListingCard key={listing.id} listing={listing} />
+                <ListingCard key={listing.id} listing={listing} onPay={(l, d) => { setPayListing(l); setPayDuration(d); setShowPayModal(true); }} />
               ))}
             </div>
 
@@ -331,6 +343,25 @@ export default function MarketplacePage() {
           </div>
         )}
       </div>
+
+      {/* Lightning Payment Modal */}
+      {showPayModal && payListing && (
+        <LightningPayModal
+          amountUsd={
+            payDuration === 'monthly'
+              ? (payListing.price30d / 100000000 * 100000).toFixed(2) // sats to approximate USD — will use real rate from Strike
+              : (payListing.price365d / 100000000 * 100000).toFixed(2)
+          }
+          description={`${payDuration === 'monthly' ? '30-day' : '365-day'} delegation — Block #${payListing.blockHeight.toLocaleString()}`}
+          correlationId={`deleg-${payListing.id}-${payDuration}-${Date.now()}`}
+          onPaid={(invoiceId) => {
+            setShowPayModal(false);
+            setPayListing(null);
+            // TODO: activate delegation in DB after payment confirmed
+          }}
+          onClose={() => { setShowPayModal(false); setPayListing(null); }}
+        />
+      )}
     </div>
   );
 }

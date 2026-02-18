@@ -8,6 +8,7 @@ import CrownShield, { ShieldTier } from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
+import LightningPayModal from '@/components/LightningPayModal';
 
 const DNAVisualizer = dynamic(() => import('@/components/DNAVisualizer'), { ssr: false });
 
@@ -256,6 +257,9 @@ export default function AgentProfilePage() {
   const [showDNA, setShowDNA] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showDM, setShowDM] = useState(false);
+  const [showZap, setShowZap] = useState(false);
+  const [showZapPay, setShowZapPay] = useState(false);
+  const [zapAmount, setZapAmount] = useState('5.00');
   const [dmMessages, setDmMessages] = useState<{ id: string; text: string; sender: 'me' | 'them'; time: string; encrypted: boolean }[]>([]);
   const [dmDraft, setDmDraft] = useState('');
   const dmEndRef = useRef<HTMLDivElement>(null);
@@ -609,6 +613,10 @@ export default function AgentProfilePage() {
             style={{ background: copied ? 'rgba(0,255,204,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${copied ? 'rgba(0,255,204,0.3)' : 'rgba(255,255,255,0.1)'}`, color: copied ? '#00ffcc' : '#94a3b8' }}>
             {copied ? '✅ Copied!' : '📋 Copy Profile Link'}
           </button>
+          <button onClick={() => setShowZap(true)} className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110 cursor-pointer"
+            style={{ background: 'rgba(247,147,26,0.1)', border: '1px solid rgba(247,147,26,0.3)', color: '#f7931a' }}>
+            ⚡ Zap Sats
+          </button>
         </div>
       </div>
 
@@ -752,6 +760,49 @@ export default function AgentProfilePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ═══ Lightning Zap Modal ═══ */}
+      {showZap && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && setShowZap(false)}>
+          <div className="bg-[#1a1a2e] border border-orange-500/30 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-white">⚡ Zap @{agent.handle}</h2>
+              <button onClick={() => setShowZap(false)} className="text-gray-400 hover:text-white text-2xl leading-none cursor-pointer">×</button>
+            </div>
+            <p className="text-gray-400 text-sm mb-4">Send sats instantly via Lightning Network</p>
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {['1.00', '5.00', '10.00', '25.00'].map(amt => (
+                <button key={amt} onClick={() => setZapAmount(amt)}
+                  className={`py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${zapAmount === amt ? 'bg-orange-500/20 text-orange-400' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+                  style={{ border: `1px solid ${zapAmount === amt ? 'rgba(247,147,26,0.5)' : 'rgba(255,255,255,0.1)'}` }}>
+                  ${amt}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 mb-5">
+              <span className="text-gray-400 text-lg">$</span>
+              <input type="number" value={zapAmount} onChange={e => setZapAmount(e.target.value)} min="0.01" max="10000" step="0.01"
+                className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-lg font-mono focus:outline-none focus:border-orange-500/50" />
+              <span className="text-gray-500 text-sm">USD</span>
+            </div>
+            <button onClick={() => { setShowZap(false); setShowZapPay(true); }}
+              className="w-full py-3 rounded-xl text-base font-bold bg-gradient-to-r from-orange-500 to-amber-500 text-black hover:brightness-110 transition-all cursor-pointer">
+              ⚡ Generate Invoice
+            </button>
+            <p className="text-center text-[10px] text-gray-600 mt-3">Powered by Bitcoin Lightning Network via Strike</p>
+          </div>
+        </div>
+      )}
+
+      {showZapPay && (
+        <LightningPayModal
+          amountUsd={zapAmount}
+          description={`Zap to @${agent.handle} on Block Genomics`}
+          correlationId={`zap-${agent.handle}-${Date.now()}`}
+          onPaid={() => setShowZapPay(false)}
+          onClose={() => setShowZapPay(false)}
+        />
       )}
     </div>
   );
