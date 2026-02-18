@@ -6,7 +6,7 @@ import { OrbitControls, Html } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
-import { fetchRealBlock, type RealBlockData } from '@/lib/blockchainApi';
+import { fetchRealBlock, fetchFullBlock, type RealBlockData } from '@/lib/blockchainApi';
 import Helix from '../dna/Helix';
 import CrownShield from '../CrownShield';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
@@ -1205,6 +1205,111 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
     </group>
   );
 }
+
+/* ─── Road Grid — structured city-style grid overlay ─── */
+const RoadGrid = memo(function RoadGrid({ parcels }: { parcels: ParcelData[] }) {
+  const half = BLOCK_SIZE / 2;
+  const roadWidth = BLOCK_SIZE * 0.035; // ~3.5% of block width for main roads
+  const minorWidth = BLOCK_SIZE * 0.018; // minor roads
+
+  const { mainRoads, minorRoads, markings } = useMemo(() => {
+    // Main roads: every 5 world units (quarter of block)
+    const mainInterval = BLOCK_SIZE / 4;
+    const minorInterval = BLOCK_SIZE / 8;
+    const mainRoads: { x: number; z: number; w: number; d: number }[] = [];
+    const minorRoads: { x: number; z: number; w: number; d: number }[] = [];
+    const markings: THREE.Matrix4[] = [];
+
+    // Main horizontal roads
+    for (let i = 0; i <= 4; i++) {
+      const z = -half + i * mainInterval;
+      mainRoads.push({ x: 0, z, w: BLOCK_SIZE + 1, d: roadWidth });
+    }
+    // Main vertical roads
+    for (let i = 0; i <= 4; i++) {
+      const x = -half + i * mainInterval;
+      mainRoads.push({ x, z: 0, w: roadWidth, d: BLOCK_SIZE + 1 });
+    }
+
+    // Minor roads at 1/8 intervals (skip positions that overlap main roads)
+    for (let i = 0; i < 8; i++) {
+      if (i % 2 === 0) continue; // skip main road positions
+      const pos = -half + (i + 0.5) * minorInterval;
+      minorRoads.push({ x: 0, z: pos, w: BLOCK_SIZE + 0.5, d: minorWidth });
+      minorRoads.push({ x: pos, z: 0, w: minorWidth, d: BLOCK_SIZE + 0.5 });
+    }
+
+    // Dashed lane markings on main roads
+    const dashLen = 0.12;
+    const dashGap = 0.1;
+    const dashW = 0.015;
+
+    for (let i = 0; i <= 4; i++) {
+      const pos = -half + i * mainInterval;
+      const numDashes = Math.floor(BLOCK_SIZE / (dashLen + dashGap));
+      for (let d = 0; d < numDashes; d++) {
+        const t = -half + (d + 0.5) * (dashLen + dashGap);
+        // Horizontal road center line
+        const mh = new THREE.Matrix4();
+        mh.compose(
+          new THREE.Vector3(t, 0.006, pos),
+          new THREE.Quaternion(),
+          new THREE.Vector3(dashLen, 1, dashW)
+        );
+        markings.push(mh);
+        // Vertical road center line
+        const mv = new THREE.Matrix4();
+        mv.compose(
+          new THREE.Vector3(pos, 0.006, t),
+          new THREE.Quaternion(),
+          new THREE.Vector3(dashW, 1, dashLen)
+        );
+        markings.push(mv);
+        if (markings.length >= 1200) break;
+      }
+      if (markings.length >= 1200) break;
+    }
+
+    return { mainRoads, minorRoads, markings };
+  }, [half]);
+
+  // Lane markings instanced mesh
+  const dashRef = useRef<THREE.InstancedMesh>(null);
+  useEffect(() => {
+    if (dashRef.current && markings.length > 0) {
+      for (let i = 0; i < markings.length; i++) {
+        dashRef.current.setMatrixAt(i, markings[i]);
+      }
+      dashRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [markings]);
+
+  return (
+    <group>
+      {/* Main roads */}
+      {mainRoads.map((r, i) => (
+        <mesh key={`main-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[r.x, 0.002, r.z]}>
+          <planeGeometry args={[r.w, r.d]} />
+          <meshStandardMaterial color="#333333" roughness={0.85} metalness={0.05} />
+        </mesh>
+      ))}
+      {/* Minor roads */}
+      {minorRoads.map((r, i) => (
+        <mesh key={`minor-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[r.x, 0.002, r.z]}>
+          <planeGeometry args={[r.w, r.d]} />
+          <meshStandardMaterial color="#3a3a3a" roughness={0.9} metalness={0.02} />
+        </mesh>
+      ))}
+      {/* Dashed center lane markings */}
+      {markings.length > 0 && (
+        <instancedMesh ref={dashRef} args={[undefined, undefined, markings.length]}>
+          <planeGeometry args={[1, 1]} />
+          <meshStandardMaterial color="#888888" transparent opacity={0.4} roughness={1} metalness={0} side={THREE.DoubleSide} />
+        </instancedMesh>
+      )}
+    </group>
+  );
+});
 
 /* ─── Street Signs at Intersections ─── */
 function StreetSigns({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: string }) {
@@ -4948,14 +5053,17 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     vbytes: realBlock ? realBlock.txs.reduce((s, t) => s + t.size, 0) : undefined,
   }), [realBlock, block]);
 
-  /* Fetch real block owner from DB, fallback to mock */
+  /* Fetch real block owner from DB, show Loading... while fetching */
   const [realBlockOwner, setRealBlockOwner] = useState<OwnerData | null>(null);
+  const [ownerLoading, setOwnerLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
+    setOwnerLoading(true);
+    setRealBlockOwner(null);
     (async () => {
       try {
         const resp = await fetch(`/api/v1/blocks/${blockHeight}`);
-        if (!resp.ok) return;
+        if (!resp.ok) { if (!cancelled) setOwnerLoading(false); return; }
         const data = await resp.json();
         const owner = data?.data?.owner;
         if (owner?.handle && !cancelled) {
@@ -4966,11 +5074,14 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             verified: true,
           });
         }
-      } catch { /* fallback to mock */ }
+      } catch { /* no owner found */ }
+      if (!cancelled) setOwnerLoading(false);
     })();
     return () => { cancelled = true; };
   }, [blockHeight]);
-  const blockOwner = realBlockOwner || generateMockOwner(blockHeight, -1);
+  const blockOwner: OwnerData = realBlockOwner || (ownerLoading
+    ? { handle: 'Loading...', tier: 3 as const, verified: false, avatar: '⏳' }
+    : generateMockOwner(blockHeight, -1));
   // Check if current wallet user is the block owner
   const isBlockOwner = false; // TODO: compare walletAddress against on-chain ownership — for now, owner actions are gated on wallet connection
   // Fetch guardian status
@@ -5475,6 +5586,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           <FlyToCamera flyTarget={flyTarget} onComplete={handleFlyComplete} />
 
           <GroundPlane parcels={parcels} viewMode={viewMode} />
+          <RoadGrid parcels={parcels} />
           <StreetSigns parcels={parcels} viewMode={viewMode} />
           <DirectionIndicators parcels={parcels} viewMode={viewMode} />
           <MiniMap parcels={parcels} viewMode={viewMode} />
@@ -5908,7 +6020,35 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               <PropRow label="SIZE" value={blockStats.size.toLocaleString()} />
               <PropRow label="WEIGHT" value={blockStats.weight.toLocaleString()} />
               <PropRow label="EPOCH" value={`${block.epoch}`} />
-              <PropRow label="DATA" value={dataSource === 'real' ? '🟢 Live' : dataSource === 'loading' ? '⏳ Loading...' : '🟡 Mock'} />
+              <PropRow label="DATA" value={
+                dataSource === 'real' 
+                  ? (realBlock?.estimated ? '🟡 Estimated' : '🟢 Live') 
+                  : dataSource === 'loading' ? '⏳ Loading...' : '🟡 Mock'
+              } />
+              {realBlock?.estimated && (
+                <div style={{ padding: '4px 8px' }}>
+                  <button
+                    onClick={() => {
+                      setDataSource('loading');
+                      fetchFullBlock(blockHeight).then(data => {
+                        if (data) {
+                          setRealBlock(data);
+                          setDataSource('real');
+                        } else {
+                          setDataSource('real');
+                        }
+                      });
+                    }}
+                    style={{
+                      width: '100%', padding: '6px 10px', fontSize: '11px',
+                      background: '#f7931a', color: '#000', border: 'none', borderRadius: '4px',
+                      cursor: 'pointer', fontWeight: 600,
+                    }}
+                  >
+                    ⬇ Load Real TX Data
+                  </button>
+                </div>
+              )}
               <PropRow label="LAYOUT" value="Treemap (proportional)" />
               <PropRow label="DISTRICT" value="2.1 km × 2.1 km" />
               <PropRow label="VISITORS" value={`👁 ${visitorCount}`} />

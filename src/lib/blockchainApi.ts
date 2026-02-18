@@ -20,12 +20,68 @@ export interface RealBlockData {
   size: number;       // total block size bytes
   weight: number;     // total weight units
   txs: RealTx[];      // all transactions with sizes
+  estimated?: boolean; // true if most tx sizes are estimated (not fetched)
 }
 
 // In-memory cache
 const blockCache = new Map<number, RealBlockData>();
 
-/** Fetch from mempool.space API (primary — same source as Bitfeed) */
+/**
+ * Generate estimated tx sizes for remaining txs using block weight/size stats.
+ * Uses a realistic power-law-ish distribution seeded by the block height.
+ */
+function generateEstimatedTxs(
+  startIndex: number,
+  totalTxCount: number,
+  remainingWeight: number,
+  blockHeight: number,
+): RealTx[] {
+  const count = totalTxCount - startIndex;
+  if (count <= 0) return [];
+
+  // Seeded PRNG for deterministic results
+  let seed = blockHeight * 7919 + startIndex * 1303;
+  const rng = () => {
+    seed = (seed * 16807 + 0) % 2147483647;
+    return (seed - 1) / 2147483646;
+  };
+
+  // Generate raw weights using realistic distribution
+  const rawWeights: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const u = rng();
+    let w: number;
+    if (u < 0.60) {
+      w = (140 + rng() * 116) * 4; // small tx: 140-256 vbytes
+    } else if (u < 0.85) {
+      w = (257 + rng() * 543) * 4; // medium: 257-800
+    } else if (u < 0.95) {
+      w = (801 + rng() * 2199) * 4; // large: 801-3000
+    } else if (u < 0.99) {
+      w = (3001 + rng() * 12000) * 4; // very large
+    } else {
+      w = (15001 + rng() * 50000) * 4; // rare huge
+    }
+    rawWeights.push(w);
+  }
+
+  // Scale to match remaining weight
+  const rawTotal = rawWeights.reduce((s, w) => s + w, 0);
+  const scale = rawTotal > 0 ? remainingWeight / rawTotal : 1;
+
+  return rawWeights.map((w, i) => {
+    const weight = Math.max(400, Math.round(w * scale)); // min 100 vbytes
+    return {
+      txIndex: startIndex + i,
+      size: Math.ceil(weight / 4),
+      weight,
+      fee: Math.round(rng() * 50000), // estimated fee
+      isCoinbase: false,
+    };
+  });
+}
+
+/** Fetch from mempool.space API — fast mode: summary + first page only, estimate rest */
 async function fetchFromMempool(height: number): Promise<RealBlockData | null> {
   try {
     // Get block hash
@@ -42,18 +98,70 @@ async function fetchFromMempool(height: number): Promise<RealBlockData | null> {
     if (!blockRes.ok) return null;
     const block = await blockRes.json();
 
-    // Get transactions (first page, up to 25)
+    // Get ONLY first page of transactions (up to 25)
     const txsRes = await fetch(`https://mempool.space/api/block/${hash}/txs/0`, {
       signal: AbortSignal.timeout(6000),
     });
     if (!txsRes.ok) return null;
     const txsData = await txsRes.json();
 
-    // For blocks with >25 txs, fetch remaining pages (cap at 200 pages = 5000 txs to avoid hanging)
-    const allTxs: any[] = [...txsData];
+    // Map real first-page txs
+    const realTxs: RealTx[] = txsData.map((tx: any, i: number) => ({
+      txIndex: i,
+      size: tx.weight ? Math.ceil(tx.weight / 4) : tx.size || 250,
+      weight: tx.weight || (tx.size || 250) * 4,
+      fee: tx.fee || 0,
+      isCoinbase: i === 0,
+    }));
+
     const totalTx = block.tx_count;
-    const maxTxs = 5000; // cap to prevent 120+ sequential fetches on huge blocks
-    let startIndex = 25;
+    const isEstimated = realTxs.length < totalTx;
+
+    let allTxs: RealTx[];
+    if (isEstimated) {
+      // Calculate remaining weight and generate estimates
+      const fetchedWeight = realTxs.reduce((s, t) => s + t.weight, 0);
+      const remainingWeight = Math.max(0, (block.weight || block.size * 4) - fetchedWeight);
+      const estimatedTxs = generateEstimatedTxs(realTxs.length, totalTx, remainingWeight, height);
+      allTxs = [...realTxs, ...estimatedTxs];
+    } else {
+      allTxs = realTxs;
+    }
+
+    return {
+      height,
+      hash: block.id,
+      timestamp: block.timestamp,
+      txCount: block.tx_count,
+      size: block.size,
+      weight: block.weight,
+      txs: allTxs,
+      estimated: isEstimated,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Fetch ALL real tx data from mempool.space (for "Load Full Data" button) */
+async function fetchFullFromMempool(height: number): Promise<RealBlockData | null> {
+  try {
+    const hashRes = await fetch(`https://mempool.space/api/block-height/${height}`, {
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!hashRes.ok) return null;
+    const hash = await hashRes.text();
+
+    const blockRes = await fetch(`https://mempool.space/api/block/${hash}`, {
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!blockRes.ok) return null;
+    const block = await blockRes.json();
+
+    const allTxs: any[] = [];
+    const totalTx = block.tx_count;
+    const maxTxs = 5000;
+    let startIndex = 0;
     while (allTxs.length < totalTx && allTxs.length < maxTxs && startIndex < totalTx) {
       try {
         const pageRes = await fetch(`https://mempool.space/api/block/${hash}/txs/${startIndex}`, {
@@ -65,13 +173,13 @@ async function fetchFromMempool(height: number): Promise<RealBlockData | null> {
         allTxs.push(...page);
         startIndex += 25;
       } catch {
-        break; // don't let one failed page kill the whole fetch
+        break;
       }
     }
 
     const txs: RealTx[] = allTxs.map((tx: any, i: number) => ({
       txIndex: i,
-      size: tx.weight ? Math.ceil(tx.weight / 4) : tx.size || 250, // vbytes
+      size: tx.weight ? Math.ceil(tx.weight / 4) : tx.size || 250,
       weight: tx.weight || (tx.size || 250) * 4,
       fee: tx.fee || 0,
       isCoinbase: i === 0,
@@ -85,6 +193,7 @@ async function fetchFromMempool(height: number): Promise<RealBlockData | null> {
       size: block.size,
       weight: block.weight,
       txs,
+      estimated: false,
     };
   } catch {
     return null;
@@ -146,6 +255,23 @@ export async function fetchRealBlock(height: number): Promise<RealBlockData | nu
     return result;
   } catch (e) {
     console.warn(`[BlockchainAPI] Failed to fetch block ${height}:`, e);
+    return null;
+  }
+}
+
+/**
+ * Fetch full (non-estimated) block data — all real tx sizes.
+ * Use this for the "Load Real Data" button.
+ */
+export async function fetchFullBlock(height: number): Promise<RealBlockData | null> {
+  try {
+    const result = await fetchFullFromMempool(height);
+    if (result) {
+      blockCache.set(height, result);
+    }
+    return result;
+  } catch (e) {
+    console.warn(`[BlockchainAPI] Failed to fetch full block ${height}:`, e);
     return null;
   }
 }
