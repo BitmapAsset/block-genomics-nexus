@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
 import { getLandmark } from './NexusLandmarks';
 
@@ -210,7 +211,7 @@ function SpotlightCard({
                 boxShadow: `0 0 6px ${TIER_COLORS[item.tier]}44`,
               }}
             />
-            <span className="text-[11px] font-semibold text-white/90 truncate">@{item.handle}</span>
+            <Link href={`/agent/${item.handle}`} className="text-[11px] font-semibold text-white/90 truncate hover:text-orange-400 transition-colors">@{item.handle}</Link>
             <TierBadge tier={item.tier} />
             <span className="text-[8px] px-1 py-0.5 rounded bg-white/5 border border-white/10 text-white/30">Preview</span>
           </div>
@@ -339,7 +340,7 @@ function HeroSpotlight({ item, onNavigate }: { item: SpotlightItem; onNavigate: 
               boxShadow: `0 0 8px ${TIER_COLORS[item.tier]}44`,
             }}
           />
-          <span className="text-[12px] font-semibold text-white">@{item.handle}</span>
+          <Link href={`/agent/${item.handle}`} className="text-[12px] font-semibold text-white hover:text-orange-400 transition-colors">@{item.handle}</Link>
           <TierBadge tier={item.tier} />
         </div>
         <p className="text-[11px] leading-relaxed" style={{ color: '#94a3b8' }}>{item.description}</p>
@@ -623,7 +624,7 @@ export default function BlockSpotlight({
                         </span>
                         <TierBadge tier={item.tier} />
                       </div>
-                      <span className="text-[9px] truncate block" style={{ color: '#64748b' }}>@{item.handle}</span>
+                      <Link href={`/agent/${item.handle}`} className="text-[9px] truncate block hover:text-orange-400 transition-colors" style={{ color: '#64748b' }}>@{item.handle}</Link>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-[10px] font-mono font-bold" style={{ color: '#22c55e' }}>

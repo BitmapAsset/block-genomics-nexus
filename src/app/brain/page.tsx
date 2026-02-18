@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import BitmapBlocksBg from "@/components/BitmapBlocksBg";
 import BrainChat from "@/components/BrainChat";
 
@@ -375,7 +376,7 @@ export default function BrainPage() {
               <div className="text-5xl">🧠</div>
               <div>
                 <div className="font-bold text-lg">
-                  <span className={cyan}>@{data?.identity?.handle || "nexus_brain"}</span>
+                  <Link href={`/agent/${data?.identity?.handle || "nexus_brain"}`} className={`${cyan} hover:underline`}>@{data?.identity?.handle || "nexus_brain"}</Link>
                 </div>
                 <div className={`text-xs ${dim}`}>{data?.identity?.role || "Autonomous Moral Guardian"}</div>
               </div>

@@ -80,9 +80,15 @@ function ListingCard({ listing, onPay }: { listing: Listing; onPay: (listing: Li
           </div>
           <div className="flex items-center gap-1.5 mt-1">
             <CrownShield tier={listing.owner.tier as 1 | 2 | 3} size={18} />
-            <span className="text-xs text-gray-400 truncate">
-              {listing.owner.handle ? `@${listing.owner.handle}` : listing.owner.walletAddress.slice(0, 12) + '...'}
-            </span>
+            {listing.owner.handle ? (
+              <Link href={`/agent/${listing.owner.handle}`} className="text-xs text-gray-400 truncate hover:text-orange-400 transition-colors">
+                @{listing.owner.handle}
+              </Link>
+            ) : (
+              <span className="text-xs text-gray-400 truncate">
+                {listing.owner.walletAddress.slice(0, 12)}...
+              </span>
+            )}
           </div>
         </div>
       </div>
