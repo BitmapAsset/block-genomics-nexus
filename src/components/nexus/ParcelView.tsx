@@ -2873,7 +2873,7 @@ function generateMockChat(blockHeight: number): ChatMessage[] {
     { text: 'pepe.gif', type: 'gif' as const },
   ];
 
-  return messages.slice(0, 4 + Math.floor(rng() * 4)).map((m, i) => {
+  return messages.slice(0, 3).map((m, i) => {
     const senderIdx = Math.floor(rng() * names.length);
     const owner = generateMockOwner(blockHeight, i);
     return {
@@ -4612,7 +4612,7 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
    ═══════════════════════════════════════════ */
 
 export default function ParcelView({ blockHeight, onBack }: Props) {
-  const { walletAddress, isConnected, profile, e2eReady, e2eSetup, e2eEncrypt, e2eDecrypt } = useGlobalWallet();
+  const { walletAddress, isConnected, profile, signMessage: walletSignMessage, e2eReady, e2eSetup, e2eEncrypt, e2eDecrypt } = useGlobalWallet();
   const isVerified = !!(isConnected && walletAddress && profile);
   const isWalletConnected = !!(isConnected && walletAddress);
   const ownerLock = !isWalletConnected ? 'connect' : (!isVerified ? 'verify' : null);
@@ -5321,6 +5321,15 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         }
       }
 
+      // Sign message for authentication
+      const challengeMsg = `Block Genomics Chat: ${blockHeight}:${Date.now()}`;
+      let signature = '';
+      try {
+        signature = await walletSignMessage(challengeMsg);
+      } catch {
+        // If signing fails, still try to send (API will reject if auth required)
+      }
+
       const res = await fetch(`/api/v1/chat/${blockHeight}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5330,6 +5339,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           text: msgText,
           type: msgType,
           channel: chatMode,
+          signature,
+          message: challengeMsg,
         }),
       });
       if (res.ok) {
