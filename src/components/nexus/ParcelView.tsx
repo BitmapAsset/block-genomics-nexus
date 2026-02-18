@@ -1318,7 +1318,7 @@ function StreetSigns({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: s
 
   // Find intersection points (corners of parcels where gaps meet)
   const signs = useMemo(() => {
-    if (!isStreet || !parcels || parcels.length === 0) return [];
+    if (!isStreet || !parcels || parcels.length === 0 || parcels.length > 1500) return [];
 
     // Collect unique parcel corner points that are NOT inside another parcel
     const halfBlock = BLOCK_SIZE / 2;
@@ -1699,7 +1699,7 @@ function InstancedParcels({
         onDoubleClick={handleDoubleClick}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshPhysicalMaterial roughness={0.4} metalness={0.3} clearcoat={0.1} clearcoatRoughness={0.4} envMapIntensity={0.8} />
+        <meshStandardMaterial roughness={0.4} metalness={0.3} envMapIntensity={0.6} />
       </instancedMesh>
 
       {parcels[0]?.isCoinbase && (() => {
@@ -5596,9 +5596,11 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           <FlyoverController active={viewMode === 'flyover'} parcels={parcels} autoTour={autoTour} onExitAutoTour={() => setAutoTour(false)} />
           <FlyToCamera flyTarget={flyTarget} onComplete={handleFlyComplete} />
 
+          {/* Performance mode: disable heavy effects for large blocks (>1000 txs) */}
+          {(() => { const isHeavy = parcels.length > 1000; return null; })()}
           <GroundPlane parcels={parcels} viewMode={viewMode} />
-          <RoadGrid parcels={parcels} />
-          <StreetSigns parcels={parcels} viewMode={viewMode} />
+          {parcels.length <= 2000 && <RoadGrid parcels={parcels} />}
+          {parcels.length <= 1500 && <StreetSigns parcels={parcels} viewMode={viewMode} />}
           <DirectionIndicators parcels={parcels} viewMode={viewMode} />
           <MiniMap parcels={parcels} viewMode={viewMode} />
           <GridLines />
@@ -5626,11 +5628,11 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                   if (firstParcel) handleParcelClick(firstParcel);
                 }}
               />
-              <AmbientParticles count={30} spread={BLOCK_SIZE * 1.2} />
-              <EnergyBeams parcels={parcels} />
-              <SpatialAvatars avatars={spatialAvatars.slice(0, 5)} parcels={parcels} />
-              <SpatialMessages avatars={spatialAvatars.slice(0, 3)} parcels={parcels} />
-              <SpatialReactions parcels={parcels} reactions={spatialReactions} />
+              {parcels.length <= 1500 && <AmbientParticles count={30} spread={BLOCK_SIZE * 1.2} />}
+              {parcels.length <= 1500 && <EnergyBeams parcels={parcels} />}
+              {parcels.length <= 2000 && <SpatialAvatars avatars={spatialAvatars.slice(0, 5)} parcels={parcels} />}
+              {parcels.length <= 2000 && <SpatialMessages avatars={spatialAvatars.slice(0, 3)} parcels={parcels} />}
+              {parcels.length <= 2000 && <SpatialReactions parcels={parcels} reactions={spatialReactions} />}
               {isStreaming && selectedParcel && displayParcelOwner && (
                 <>
                   <LivestreamOverlay3D parcel={selectedParcel} ownerData={displayParcelOwner} viewerCount={streamViewerCount} />
@@ -5638,15 +5640,15 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                   <LivestreamBeam parcel={selectedParcel} />
                 </>
               )}
-              {/* Showcase city buildings on featured blocks */}
-              {showcaseBuildings && <ShowcaseCityRenderer buildings={showcaseBuildings} />}
+              {/* Showcase city buildings on featured blocks — skip on very large blocks */}
+              {showcaseBuildings && parcels.length <= 2000 && <ShowcaseCityRenderer buildings={showcaseBuildings} />}
               <WorldObjects
                 blockHeight={blockHeight}
                 selectedObjectId={showWorldBuilder ? selectedWorldObjectId : null}
                 onSelectObject={showWorldBuilder ? setSelectedWorldObjectId : undefined}
                 isBuilder={showWorldBuilder}
               />
-              {gameElements.length > 0 && (
+              {gameElements.length > 0 && parcels.length <= 2000 && (
                 <GameObjects3D
                   blockHeight={blockHeight}
                   elements={gameElements}
