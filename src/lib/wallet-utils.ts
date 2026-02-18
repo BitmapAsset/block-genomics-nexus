@@ -1,7 +1,10 @@
 /**
  * Shared wallet detection, connection, and signing utilities.
  * Extracted from verify page so both GlobalWalletContext and verify page can use them.
+ * Uses official sats-connect package for Xverse wallet interactions.
  */
+
+import { request as satsRequest, AddressPurpose, MessageSigningProtocols } from 'sats-connect';
 
 export type WalletType = 'unisat' | 'xverse' | 'leather';
 
@@ -23,37 +26,38 @@ export async function connectUnisat(): Promise<string> {
   return accounts[0];
 }
 
-/** Connect to Xverse wallet — returns address (supports both desktop extension and mobile in-app browser) */
+/** Connect to Xverse wallet — returns address (uses official sats-connect package) */
 export async function connectXverse(): Promise<string> {
-  const provider = window.BitcoinProvider;
-  if (!provider) throw new Error('Xverse wallet not installed');
-
-  // Try sats-connect request() method first (works on mobile + newer versions)
-  if (typeof provider.request === 'function') {
-    try {
-      const response: any = await provider.request('getAddresses', {
-        purposes: ['ordinals', 'payment'],
-        message: 'Block Genomics needs your Bitcoin address for verification.',
-      });
-      if (response?.status === 'success' && response.result?.length > 0) {
-        const ordinals = response.result.find((a: any) => a.purpose === 'ordinals');
-        const payment = response.result.find((a: any) => a.purpose === 'payment');
-        const addr = ordinals?.address || payment?.address || response.result[0].address;
-        if (addr) return addr;
-      }
-    } catch {
-      // Fall through to legacy connect()
+  // Use official sats-connect request() — handles both mobile and desktop
+  try {
+    const response = await satsRequest('getAddresses', {
+      purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
+      message: 'Block Genomics needs your Bitcoin address for verification.',
+    });
+    if (response.status === 'success' && response.result?.addresses?.length > 0) {
+      const addrs = response.result.addresses;
+      const ordinals = addrs.find((a) => a.purpose === AddressPurpose.Ordinals);
+      const payment = addrs.find((a) => a.purpose === AddressPurpose.Payment);
+      const addr = ordinals?.address || payment?.address || addrs[0].address;
+      if (addr) return addr;
     }
+  } catch (e: any) {
+    console.error('[Xverse sats-connect getAddresses failed]', e?.message || e);
   }
 
-  // Legacy connect() for older desktop extension
-  try {
-    const response = await provider.connect();
-    if (response?.addresses?.length) {
-      return response.addresses[0].address;
+  // Fallback: direct provider for very old extensions
+  const provider = window.BitcoinProvider;
+  if (provider) {
+    try {
+      const response = await provider.connect();
+      if (response?.addresses?.length) {
+        // Prefer taproot (ordinals) address
+        const taproot = response.addresses.find((a: any) => a.address?.startsWith('bc1p'));
+        return taproot?.address || response.addresses[0].address;
+      }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
 
   throw new Error('Could not connect to Xverse. Please try from the Xverse in-app browser.');
@@ -86,26 +90,17 @@ export async function signWithWallet(walletType: WalletType, message: string, ad
     return await window.unisat.signMessage(message, 'bip322-simple');
   }
   if (walletType === 'xverse') {
-    const provider = window.BitcoinProvider;
-    if (!provider) throw new Error('Xverse not available');
-    // Try sats-connect request() first (mobile + newer) — address is REQUIRED for mobile
-    if (typeof provider.request === 'function' && address) {
-      try {
-        const resp: any = await provider.request('signMessage', {
-          address,
-          message,
-          protocol: 'BIP322',
-        });
-        if (resp?.status === 'success' && resp.result?.signature) {
-          return resp.result.signature;
-        }
-      } catch (e: any) {
-        console.warn('[Xverse signMessage request() failed]', e?.message || e);
-        // Fall through to legacy
-      }
+    if (!address) throw new Error('Xverse signing requires an address — reconnect your wallet');
+    // Use official sats-connect package — proper schema validation, works on mobile + desktop
+    const resp = await satsRequest('signMessage', {
+      address,
+      message,
+      protocol: MessageSigningProtocols.BIP322,
+    });
+    if (resp.status === 'success' && resp.result?.signature) {
+      return resp.result.signature;
     }
-    // Legacy signMessage
-    return await provider.signMessage(message, { network: 'Mainnet' });
+    throw new Error('Xverse signing failed — no signature returned');
   }
   if (walletType === 'leather') {
     if (!window.LeatherProvider) throw new Error('Leather not available');
