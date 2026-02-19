@@ -37,9 +37,10 @@ export async function POST(req: Request) {
     return NextResponse.json(result);
   } catch (e: any) {
     console.error('[Lightning invoice error]', e?.message);
+    const isConfig = e?.message?.includes('not configured');
     return NextResponse.json(
-      { error: 'Failed to create Lightning invoice' },
-      { status: 500 }
+      { error: isConfig ? 'Lightning payments are being set up — check back soon!' : 'Failed to create Lightning invoice' },
+      { status: isConfig ? 503 : 500 }
     );
   }
 }

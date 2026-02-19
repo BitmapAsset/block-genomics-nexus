@@ -790,7 +790,7 @@ export default function AgentProfilePage() {
               className="w-full py-3 rounded-xl text-base font-bold bg-gradient-to-r from-orange-500 to-amber-500 text-black hover:brightness-110 transition-all cursor-pointer">
               ⚡ Generate Invoice
             </button>
-            <p className="text-center text-[10px] text-gray-600 mt-3">Powered by Bitcoin Lightning Network via Strike</p>
+            <p className="text-center text-[10px] text-gray-600 mt-3">Powered by Bitcoin Lightning Network</p>
           </div>
         </div>
       )}

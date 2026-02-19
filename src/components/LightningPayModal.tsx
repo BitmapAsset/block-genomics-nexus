@@ -252,7 +252,7 @@ export default function LightningPayModal({
         {/* Lightning branding */}
         <div className="mt-4 pt-3 border-t border-white/5 text-center">
           <p className="text-[10px] text-gray-600">
-            ⚡ Powered by Bitcoin Lightning Network via Strike
+            ⚡ Powered by Bitcoin Lightning Network
           </p>
         </div>
       </div>
