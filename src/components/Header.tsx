@@ -91,49 +91,20 @@ export default function Header() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center group">
-          {inNexus ? (
-            <div className="flex items-center gap-2.5">
-              <span
-                className="text-xl sm:text-2xl font-black tracking-tight"
-                style={{
-                  background: 'linear-gradient(135deg, #00ffcc 0%, #ffffff 30%, #aa44ff 60%, #ff8800 100%)',
-                  backgroundSize: '200% 200%',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                  animation: 'brandShimmer 4s ease-in-out infinite',
-                  filter: 'drop-shadow(0 0 12px rgba(0,255,204,0.3))',
-                }}
-              >
-                Block Genomics
-              </span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.25em] px-2 py-0.5 rounded-md" style={{
-                color: '#00ffcc',
-                background: 'rgba(0,255,204,0.08)',
-                border: '1px solid rgba(0,255,204,0.25)',
-                textShadow: '0 0 8px rgba(0,255,204,0.5)',
-                boxShadow: '0 0 12px rgba(0,255,204,0.15)',
-                animation: 'nexusPulse 2s ease-in-out infinite',
-              }}>
-                ⚡ Nexus
-              </span>
-            </div>
-          ) : (
-            <span
-              className="text-xl sm:text-2xl font-black tracking-tight"
-              style={{
-                background: 'linear-gradient(135deg, #00ffcc 0%, #ffffff 30%, #aa44ff 60%, #ff8800 100%)',
-                backgroundSize: '200% 200%',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                animation: 'brandShimmer 4s ease-in-out infinite',
-                filter: 'drop-shadow(0 0 12px rgba(0,255,204,0.3))',
-              }}
-            >
-              Block Genomics
-            </span>
-          )}
+          <span
+            className="text-xl sm:text-2xl font-black tracking-tight"
+            style={{
+              background: 'linear-gradient(135deg, #00ffcc 0%, #ffffff 30%, #aa44ff 60%, #ff8800 100%)',
+              backgroundSize: '200% 200%',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              animation: 'brandShimmer 4s ease-in-out infinite',
+              filter: 'drop-shadow(0 0 12px rgba(0,255,204,0.3))',
+            }}
+          >
+            Block Genomics
+          </span>
         </Link>
 
         {/* Desktop Navigation */}

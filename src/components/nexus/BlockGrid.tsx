@@ -5,11 +5,6 @@
  * 
  * Uses the canonical bitmap.land layout (500 cols × 420 rows per epoch)
  * from @blockamotolabs/react-bitmap-utils, rendered in 3D with Three.js.
- * 
- * LOD system:
- *   Far  → flat colored blocks (bitmap.land style, overhead)
- *   Mid  → extruded blocks with height variation
- *   Near → full detail with glow, labels, bitmap thumbnails
  */
 
 import { ThreeEvent, useFrame } from "@react-three/fiber";
@@ -19,14 +14,11 @@ import {
   BLOCKS_PER_EPOCH,
   BLOCKS_PER_ROW,
   BLOCKS_PER_COLUMN,
-  EPOCH_COLORS,
-  EPOCH_LABELS,
   BITMAP_ORANGE,
   blockTo2D,
   blockTo3D,
   getEpochIndex,
   getEpochColor,
-  gridToBlock,
 } from "@/lib/bitmapStandard";
 
 type HoverPayload = {
@@ -49,19 +41,19 @@ const hashHeight = (h: number) => {
   return x - Math.floor(x);
 };
 
-// ── Windowed block loading ───────────────────────────────────────────
-// We only render a window of blocks around the camera center.
-// bitmap.land uses a 50×50 window — we do similar but in 3D.
+const ESTIMATED_TOTAL_BLOCKS = 885_000;
 
+/**
+ * Generate visible blocks around center using a height-based window.
+ * This correctly handles epoch boundaries by iterating over block heights
+ * rather than 2D grid coordinates.
+ */
 function computeVisibleBlocks(
   centerHeight: number,
   windowSize: number,
   blockUnit: number,
   totalBlocks: number,
 ) {
-  const center2D = blockTo2D(Math.min(centerHeight, totalBlocks - 1));
-  const half = Math.floor(windowSize / 2);
-
   const blocks: Array<{
     height: number;
     position: THREE.Vector3;
@@ -69,80 +61,73 @@ function computeVisibleBlocks(
     epochIndex: number;
   }> = [];
   const colors: THREE.Color[] = [];
-  const epochBounds = new Map<number, { minCol: number; maxCol: number; minRow: number; maxRow: number }>();
+  
+  // Calculate block range: windowSize^2 blocks centered on centerHeight
+  const totalVisible = windowSize * windowSize;
+  const halfVisible = Math.floor(totalVisible / 2);
+  const startHeight = Math.max(0, centerHeight - halfVisible);
+  const endHeight = Math.min(totalBlocks, centerHeight + halfVisible);
 
-  for (let dr = -half; dr < half; dr++) {
-    for (let dc = -half; dc < half; dc++) {
-      const globalCol = center2D.col + dc;
-      const globalRow = center2D.row + dr;
+  // Center position for offset
+  const centerPos = blockTo3D(centerHeight, blockUnit, 0.08);
+  const epochBounds = new Map<number, { minX: number; maxX: number; minZ: number; maxZ: number }>();
 
-      // Bounds check
-      if (globalRow < 0 || globalRow >= BLOCKS_PER_COLUMN || globalCol < 0) continue;
+  for (let h = startHeight; h < endHeight; h++) {
+    const pos3D = blockTo3D(h, blockUnit, 0.08);
+    const rand = hashHeight(h);
+    const yScale = 0.15 + rand * 0.85 + (rand > 0.97 ? 2.0 : 0);
+    const epochIdx = getEpochIndex(h);
 
-      const epochIdx = Math.floor(globalCol / BLOCKS_PER_ROW);
-      const colInEpoch = globalCol - epochIdx * BLOCKS_PER_ROW;
-      if (colInEpoch < 0 || colInEpoch >= BLOCKS_PER_ROW) continue;
+    blocks.push({
+      height: h,
+      position: new THREE.Vector3(
+        pos3D.x - centerPos.x,
+        yScale * blockUnit * 0.175,
+        pos3D.z - centerPos.z
+      ),
+      yScale,
+      epochIndex: epochIdx,
+    });
 
-      const height = epochIdx * BLOCKS_PER_EPOCH + globalRow * BLOCKS_PER_ROW + colInEpoch;
-      if (height < 0 || height >= totalBlocks) continue;
+    colors.push(new THREE.Color(getEpochColor(h)));
 
-      // Position using canonical layout
-      const pos3D = blockTo3D(height, blockUnit, 0.08);
-      const h = hashHeight(height);
-      const yScale = 0.15 + h * 0.85 + (h > 0.97 ? 2.0 : 0);
-
-      blocks.push({
-        height,
-        position: new THREE.Vector3(pos3D.x, pos3D.y + yScale * blockUnit * 0.175, pos3D.z),
-        yScale,
-        epochIndex: epochIdx,
+    // Track epoch bounds for separators
+    const existing = epochBounds.get(epochIdx);
+    if (existing) {
+      existing.minX = Math.min(existing.minX, pos3D.x);
+      existing.maxX = Math.max(existing.maxX, pos3D.x);
+      existing.minZ = Math.min(existing.minZ, pos3D.z);
+      existing.maxZ = Math.max(existing.maxZ, pos3D.z);
+    } else {
+      epochBounds.set(epochIdx, {
+        minX: pos3D.x, maxX: pos3D.x,
+        minZ: pos3D.z, maxZ: pos3D.z,
       });
-
-      const color = getEpochColor(height);
-      colors.push(new THREE.Color(color));
-
-      // Track epoch bounds for separators
-      const existing = epochBounds.get(epochIdx);
-      if (existing) {
-        existing.minCol = Math.min(existing.minCol, globalCol);
-        existing.maxCol = Math.max(existing.maxCol, globalCol);
-        existing.minRow = Math.min(existing.minRow, globalRow);
-        existing.maxRow = Math.max(existing.maxRow, globalRow);
-      } else {
-        epochBounds.set(epochIdx, {
-          minCol: globalCol, maxCol: globalCol,
-          minRow: globalRow, maxRow: globalRow,
-        });
-      }
     }
   }
 
   // Active pulsing blocks (random subset)
   const activeIndices = new Set<number>();
   const total = blocks.length;
-  const activeCount = Math.min(300, Math.floor(total * 0.05));
+  const activeCount = Math.min(200, Math.floor(total * 0.04));
   while (activeIndices.size < activeCount && activeIndices.size < total) {
     activeIndices.add(Math.floor(Math.random() * total));
   }
 
-  // Epoch separator positions (walls between epochs)
+  // Epoch separator positions
   const separators: Array<{ x: number; zStart: number; zEnd: number }> = [];
-  epochBounds.forEach((bounds, epochIdx) => {
-    if (epochIdx === 0) return;
-    const sepCol = epochIdx * BLOCKS_PER_ROW;
-    const sepPos = blockTo3D(epochIdx * BLOCKS_PER_EPOCH, blockUnit, 0.08);
-    separators.push({
-      x: sepPos.x - blockUnit * 0.6,
-      zStart: bounds.minRow * blockUnit * 1.08,
-      zEnd: (bounds.maxRow + 1) * blockUnit * 1.08,
-    });
-  });
+  const sortedEpochs = Array.from(epochBounds.keys()).sort((a, b) => a - b);
+  for (let i = 1; i < sortedEpochs.length; i++) {
+    const prevBounds = epochBounds.get(sortedEpochs[i - 1])!;
+    const currBounds = epochBounds.get(sortedEpochs[i])!;
+    const sepX = (prevBounds.maxX + currBounds.minX) / 2 - centerPos.x;
+    const zStart = Math.min(prevBounds.minZ, currBounds.minZ) - centerPos.z;
+    const zEnd = Math.max(prevBounds.maxZ, currBounds.maxZ) - centerPos.z;
+    separators.push({ x: sepX, zStart, zEnd: zEnd + blockUnit });
+  }
 
   return { blocks, colors, activeIndices: Array.from(activeIndices), separators };
 }
-
-// ── Estimated total blocks (updates can come from API) ───────────────
-const ESTIMATED_TOTAL_BLOCKS = 885_000; // ~current tip, will be overridden
 
 export default function BlockGrid({
   centerHeight,
@@ -160,21 +145,10 @@ export default function BlockGrid({
     [centerHeight, gridSize, blockSize]
   );
 
-  // Center the view around the camera
-  const centerOffset = useMemo(() => {
-    if (blocks.length === 0) return new THREE.Vector3();
-    const center3D = blockTo3D(centerHeight, blockSize, 0.08);
-    return new THREE.Vector3(-center3D.x, 0, -center3D.z);
-  }, [centerHeight, blockSize, blocks.length]);
-
   useEffect(() => {
-    if (!meshRef.current) return;
+    if (!meshRef.current || blocks.length === 0) return;
     blocks.forEach((block, index) => {
-      dummy.position.set(
-        block.position.x + centerOffset.x,
-        block.position.y,
-        block.position.z + centerOffset.z
-      );
+      dummy.position.copy(block.position);
       dummy.scale.set(blockSize, blockSize * 0.35 * block.yScale, blockSize);
       dummy.updateMatrix();
       meshRef.current?.setMatrixAt(index, dummy.matrix);
@@ -182,7 +156,7 @@ export default function BlockGrid({
     });
     if (meshRef.current.instanceMatrix) meshRef.current.instanceMatrix.needsUpdate = true;
     if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
-  }, [blocks, baseColors, blockSize, dummy, centerOffset]);
+  }, [blocks, baseColors, blockSize, dummy]);
 
   // Animation: pulsing active blocks + breathing
   useFrame(({ clock }) => {
@@ -204,7 +178,6 @@ export default function BlockGrid({
     meshRef.current.instanceColor.needsUpdate = true;
   });
 
-  // ── Interaction handlers ──
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
     if (event.instanceId === undefined) return;
     if (event.instanceId !== hoveredIndex) setHoveredIndex(event.instanceId);
@@ -228,35 +201,35 @@ export default function BlockGrid({
   };
 
   const hoveredBlock = hoveredIndex !== null ? blocks[hoveredIndex] : null;
-  const spacing = blockSize * 1.08;
 
   return (
     <group>
-      {/* Main instanced mesh */}
-      <instancedMesh
-        ref={meshRef}
-        args={[undefined, undefined, blocks.length]}
-        frustumCulled
-        onPointerMove={handlePointerMove}
-        onPointerOut={handlePointerOut}
-        onClick={handleClick}
-      >
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial
-          roughness={0.5}
-          metalness={0.3}
-          emissive="#0a0a0f"
-          emissiveIntensity={0.1}
-        />
-      </instancedMesh>
+      {blocks.length > 0 && (
+        <instancedMesh
+          ref={meshRef}
+          args={[undefined, undefined, blocks.length]}
+          frustumCulled
+          onPointerMove={handlePointerMove}
+          onPointerOut={handlePointerOut}
+          onClick={handleClick}
+        >
+          <boxGeometry args={[1, 1, 1]} />
+          <meshStandardMaterial
+            roughness={0.5}
+            metalness={0.3}
+            emissive="#0a0a0f"
+            emissiveIntensity={0.1}
+          />
+        </instancedMesh>
+      )}
 
       {/* Hover highlight */}
       {hoveredBlock && (
         <mesh
           position={[
-            hoveredBlock.position.x + centerOffset.x,
+            hoveredBlock.position.x,
             hoveredBlock.position.y + blockSize * 0.15,
-            hoveredBlock.position.z + centerOffset.z,
+            hoveredBlock.position.z,
           ]}
         >
           <boxGeometry args={[blockSize * 1.3, blockSize * 0.5 * hoveredBlock.yScale, blockSize * 1.3]} />
@@ -272,15 +245,11 @@ export default function BlockGrid({
 
       {/* Epoch separators — glowing walls between epochs */}
       {separators.map((sep, i) => {
-        const depth = sep.zEnd - sep.zStart;
+        const depth = Math.max(sep.zEnd - sep.zStart, blockSize);
         return (
           <mesh
             key={`sep-${i}`}
-            position={[
-              sep.x + centerOffset.x,
-              blockSize * 0.5,
-              (sep.zStart + sep.zEnd) / 2 + centerOffset.z,
-            ]}
+            position={[sep.x, blockSize * 0.5, (sep.zStart + sep.zEnd) / 2]}
           >
             <boxGeometry args={[blockSize * 0.08, blockSize * 2, depth]} />
             <meshStandardMaterial
@@ -296,7 +265,7 @@ export default function BlockGrid({
 
       {/* Ground plane */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -blockSize * 0.25, 0]}>
-        <planeGeometry args={[gridSize * spacing * 2, gridSize * spacing * 2]} />
+        <planeGeometry args={[200, 200]} />
         <meshStandardMaterial color="#0b0e17" />
       </mesh>
     </group>

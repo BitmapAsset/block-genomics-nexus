@@ -24,10 +24,11 @@ export default function NexusMap() {
   );
   const [searchValue, setSearchValue] = useState("");
 
+  // Keep grid small to prevent freezing — instanced mesh handles it fine
   const gridSize = useMemo(() => {
-    if (detailLevel === "far") return 50;
-    if (detailLevel === "near") return 100;
-    return 80;
+    if (detailLevel === "far") return 30;
+    if (detailLevel === "near") return 50;
+    return 40;
   }, [detailLevel]);
 
   const blockSize = useMemo(() => {
