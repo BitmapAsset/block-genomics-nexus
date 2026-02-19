@@ -14,8 +14,9 @@ import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { getStoredAddress, getStoredType } from '@/lib/wallet-utils';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
-import GuardianConfigPanel from '../GuardianConfigPanel';
-import GuardianChatWidget from '../GuardianChatWidget';
+import dynamic from 'next/dynamic';
+const GuardianConfigPanel = dynamic(() => import('../GuardianConfigPanel'), { ssr: false });
+const GuardianChatWidget = dynamic(() => import('../GuardianChatWidget'), { ssr: false });
 import WorldBuilderPanel, { type WorldObject, type TerrainSettings } from './WorldBuilderPanel';
 import WorldObjects, { useWorldObjects } from './WorldObjects';
 import GameObjects3D from './GameObjects3D';
@@ -1615,8 +1616,8 @@ function InstancedParcels({
     // 1 world unit = 105m, a 10-story building ≈ 30m = 0.286 world units
     // buildHeight range ~0.1-1.0 → map to ~0.03-0.5 world units (3m-52m real)
     return parcels.map(p =>
-      viewMode === 'flat' ? 0.08
-      : viewMode === 'heights' ? Math.max(0.1, p.buildHeight * 6)
+      viewMode === 'flat' ? 0.12
+      : viewMode === 'heights' ? Math.max(0.3, p.buildHeight * 12)
       : viewMode === 'street' ? Math.max(0.03, p.buildHeight * 0.5)
       : Math.max(0.15, p.buildHeight * 4)
     );
