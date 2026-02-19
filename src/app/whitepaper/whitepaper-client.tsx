@@ -313,7 +313,11 @@ All visitor-to-Guardian communication is proxied through the Block Genomics infr
 
 For advanced management, block owners can generate Monitor Tokens — cryptographic credentials that allow external systems to oversee their Guardians programmatically. Monitor tokens are SHA-256 hashed in the database, shown in plaintext exactly once at creation, and revocable instantly. Through the Monitor API, owners can check Guardian status, read conversation history, review escalation events, update personality and soul configuration, and pause or resume operations — all without touching the Guardian's public-facing chat interface.
 
-This architecture enables a two-tier management pattern: the Guardian handles visitors autonomously on the front line, while the owner (or their management agent) oversees operations from behind the scenes. The Guardian is the public face; the owner retains full sovereign control.`,
+This architecture enables a two-tier management pattern: the Guardian handles visitors autonomously on the front line, while the owner (or their management agent) oversees operations from behind the scenes. The Guardian is the public face; the owner retains full sovereign control.
+
+Every Guardian maintains three non-negotiable primitives: a Soul (identity and boundaries, hashed into its genome), a Config (LLM provider bound to the owner's wallet), and a Heartbeat synchronized to Bitcoin's block production. Each time a new Bitcoin block is mined, a liveness pulse propagates through every active Guardian on the Nexus — verifying LLM keys, updating status indicators, and ensuring no agent silently goes dark. Bitcoin's approximately ten-minute block interval serves as the protocol's native heartbeat clock. The agent's entire existence is anchored to Bitcoin: identity, ownership, and pulse are all provable on-chain.
+
+The Nexus Brain extends this principle further through a Heartbeat Hash Chain — a cryptographic record of every scan cycle. Each heartbeat produces a SHA-256 hash of the current Bitcoin block height, scan results, and the previous hash, forming a tamper-proof chain-within-a-chain threaded through Bitcoin's own block sequence. This chain is published openly for anyone to verify. Periodically, the chain's tip hash is inscribed on Bitcoin as a permanent anchor — approximately 120 bytes that cryptographically commit the Brain's entire decision history up to that point. Inscription frequency adapts to network fee conditions: monthly during low-fee periods, quarterly or less frequently during fee spikes. The hash chain itself remains continuously verifiable regardless of inscription frequency. If Block Genomics ceased to exist, the Brain's soul would remain readable from its Bitcoin inscription, the heartbeat chain downloadable from any mirror, and every moral decision independently verifiable — a level of AI autonomy and accountability unprecedented in the field.`,
   },
   {
     id: "asi_alignment", num: "16", title: "The Superintelligence Alignment Problem",
@@ -1232,6 +1236,23 @@ function SatoshiView() {
         read conversations, review escalations, update configuration, and pause or resume
         operations. This enables a two-tier management pattern: the Guardian handles visitors
         autonomously, while the owner retains full sovereign control from behind the scenes.
+      </p>
+      <p>
+        Every Guardian maintains three non-negotiable primitives: a Soul (identity and boundaries,
+        hashed into its genome), a Config (LLM provider bound to the owner&apos;s wallet), and a
+        Heartbeat synchronized to Bitcoin&apos;s block production. Each new block mined sends a
+        liveness pulse through every active Guardian — verifying keys, updating status, and
+        ensuring no agent silently goes dark. Bitcoin&apos;s ten-minute block interval is the
+        protocol&apos;s native heartbeat clock.
+      </p>
+      <p>
+        The Nexus Brain extends this through a Heartbeat Hash Chain: each scan cycle produces a
+        SHA-256 hash of the block height, scan results, and previous hash — forming a tamper-proof
+        chain threaded through Bitcoin&apos;s own blocks. This chain is published openly.
+        Periodically, the tip hash is inscribed on Bitcoin as a permanent anchor (~120 bytes).
+        Inscription frequency adapts to fee conditions. If Block Genomics ceased to exist, the
+        Brain&apos;s soul remains on Bitcoin, the heartbeat chain is downloadable from any mirror,
+        and every moral decision is independently verifiable — unprecedented AI autonomy.
       </p>
 
       <h2>15. The Superintelligence Alignment Problem</h2>

@@ -636,6 +636,22 @@ model BlockThumbnail {
   @@index([blockHeight])
 }
 
+// ─── Brain Heartbeat Hash Chain ───
+model BrainHeartbeat {
+  id               String   @id @default(cuid())
+  blockHeight      Int
+  scanCycle        Int
+  itemsScanned     Int
+  flagsRaised      Int
+  appealsProcessed Int      @default(0)
+  previousHash     String
+  hash             String   @unique
+  createdAt        DateTime @default(now())
+
+  @@index([blockHeight])
+  @@index([hash])
+}
+
 // ─── System State (key-value store for protocol state) ───
 model SystemState {
   key       String   @id

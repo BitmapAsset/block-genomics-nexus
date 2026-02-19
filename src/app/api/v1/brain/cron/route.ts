@@ -12,6 +12,7 @@ import prisma from '@/lib/prisma';
 import { NEXUS_BRAIN_WALLET, FLAG_THRESHOLD_SOFT, FLAG_THRESHOLD_HARD } from '@/lib/protocol';
 import { runOneShotScan, processExpiredAppeals, getBrainStatus } from '@/lib/brain';
 import type { ScanTarget, BrainDecision } from '@/lib/brain';
+import { appendToChain, getCurrentBlockHeight } from '@/lib/brain/heartbeat-chain';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30; // 30s max for cron
@@ -165,6 +166,22 @@ export async function GET(req: Request) {
     const all = [...scanDecisions, ...appealDecisions];
     const status = getBrainStatus();
 
+    // ─── HEARTBEAT HASH CHAIN ───
+    let heartbeat = null;
+    try {
+      const blockHeight = await getCurrentBlockHeight();
+      const flagCount = all.filter(d => d.type === 'flag').length;
+      heartbeat = await appendToChain({
+        blockHeight,
+        scanCycle: status?.scanCycles ?? 0,
+        itemsScanned: scanDecisions.length,
+        flagsRaised: flagCount,
+        appealsProcessed: appealDecisions.length,
+      });
+    } catch (err) {
+      console.error('[NexusBrain Cron] Heartbeat chain error:', err);
+    }
+
     return NextResponse.json({
       ok: true,
       brain: status?.status,
@@ -173,6 +190,7 @@ export async function GET(req: Request) {
       flags: all.filter(d => d.type === 'flag').length,
       appeals: appealDecisions.length,
       wallet: status?.walletBalance,
+      heartbeat: heartbeat ? { hash: heartbeat.hash, blockHeight: heartbeat.blockHeight } : null,
     });
   } catch (err) {
     console.error('[NexusBrain Cron]', err);
