@@ -60,11 +60,11 @@ export default function NexusMap() {
   );
 
   const epochs = [
-    { label: "Epoch 1", range: "0 – 209,999", color: "#c98923", reward: "50 BTC" },
-    { label: "Epoch 2", range: "210K – 419,999", color: "#f28b2b", reward: "25 BTC" },
-    { label: "Epoch 3", range: "420K – 629,999", color: "#2bff6b", reward: "12.5 BTC" },
-    { label: "Epoch 4", range: "630K – 839,999", color: "#2bc9ff", reward: "6.25 BTC" },
-    { label: "Epoch 5", range: "840K +", color: "#a855f7", reward: "3.125 BTC" },
+    { label: "Epoch 1", range: "0 – 209,999", color: "#f7931a", reward: "50 BTC" },
+    { label: "Epoch 2", range: "210K – 419,999", color: "#66ccff", reward: "25 BTC" },
+    { label: "Epoch 3", range: "420K – 629,999", color: "#a855f7", reward: "12.5 BTC" },
+    { label: "Epoch 4", range: "630K – 839,999", color: "#22c55e", reward: "6.25 BTC" },
+    { label: "Epoch 5", range: "840K +", color: "#10b981", reward: "3.125 BTC" },
   ];
 
   return (
