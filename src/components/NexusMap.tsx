@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, OrthographicCamera } from "@react-three/drei";
-import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { useRouter } from "next/navigation";
 import BlockGrid from "@/components/nexus/BlockGrid";
 
@@ -19,16 +18,14 @@ export default function NexusMap() {
   const router = useRouter();
   const [centerHeight, setCenterHeight] = useState(DEFAULT_CENTER);
   const [hover, setHover] = useState<HoverInfo>(null);
-  const [detailLevel, setDetailLevel] = useState<"far" | "mid" | "near">(
-    "mid"
-  );
+  const [detailLevel, setDetailLevel] = useState<"far" | "mid" | "near">("mid");
   const [searchValue, setSearchValue] = useState("");
 
-  // Keep grid small to prevent freezing — instanced mesh handles it fine
+  // Small grid sizes to keep it fast on all devices
   const gridSize = useMemo(() => {
-    if (detailLevel === "far") return 30;
-    if (detailLevel === "near") return 50;
-    return 40;
+    if (detailLevel === "far") return 20;
+    if (detailLevel === "near") return 35;
+    return 25;
   }, [detailLevel]);
 
   const blockSize = useMemo(() => {
@@ -96,8 +93,8 @@ export default function NexusMap() {
       )}
 
       <Canvas
-        dpr={[1, 2]}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
+        dpr={[1, 1.5]}
+        gl={{ antialias: false, powerPreference: "high-performance" }}
         className="h-full w-full"
       >
         <color attach="background" args={["#0a0a0f"]} />
@@ -127,9 +124,7 @@ export default function NexusMap() {
           onSelect={(height) => router.push(`/block/${height}`)}
         />
 
-        <EffectComposer>
-          <Bloom luminanceThreshold={0.2} luminanceSmoothing={0.6} intensity={0.8} />
-        </EffectComposer>
+        {/* No Bloom — saves significant GPU on all devices */}
       </Canvas>
     </div>
   );

@@ -12,12 +12,12 @@
  * every project should use this same layout.
  */
 
-import { roundSquareRoot } from '@blockamotolabs/react-bitmap-utils';
-
 // ── Canonical constants ──────────────────────────────────────────────
+// Layout from @blockamotolabs/react-bitmap-utils (bitmap.land standard).
+// roundSquareRoot(210_000) = 500 — hardcoded to avoid runtime loop.
 export const BLOCKS_PER_EPOCH = 210_000;
-export const BLOCKS_PER_ROW = roundSquareRoot(BLOCKS_PER_EPOCH); // 500
-export const BLOCKS_PER_COLUMN = BLOCKS_PER_EPOCH / BLOCKS_PER_ROW; // 420
+export const BLOCKS_PER_ROW = 500;
+export const BLOCKS_PER_COLUMN = 420;
 
 // ── Epoch colors (Block Genomics palette) ────────────────────────────
 export const EPOCH_COLORS = [
