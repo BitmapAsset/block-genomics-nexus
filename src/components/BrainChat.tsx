@@ -141,7 +141,10 @@ export default function BrainChat() {
   }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only auto-scroll when user has sent messages (not on initial page load)
+    if (messages.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }, [messages, thinking]);
 
   const remaining = MAX_QUESTIONS - questionsUsed;
