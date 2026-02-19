@@ -8,8 +8,8 @@ import CrownShield, { ShieldTier } from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
-import LightningPayModal from '@/components/LightningPayModal';
 
+const LightningPayModal = dynamic(() => import('@/components/LightningPayModal'), { ssr: false });
 const DNAVisualizer = dynamic(() => import('@/components/DNAVisualizer'), { ssr: false });
 
 /* ── Mock agent data — replace with API ── */
