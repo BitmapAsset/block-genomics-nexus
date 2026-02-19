@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { Canvas, useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
+// Postprocessing disabled — causes client crashes
+// import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
 import { fetchRealBlock, fetchFullBlock, type RealBlockData } from '@/lib/blockchainApi';
@@ -5669,15 +5670,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           {/* Environment lighting — inline to avoid external HDR fetch failures */}
           <ambientLight intensity={0.15} color="#1a1a3a" />
           <hemisphereLight args={['#1a1a4a', '#0a0a1a', 0.3]} />
-          <EffectComposer multisampling={0}>
-            <Bloom
-              luminanceThreshold={0.6}
-              luminanceSmoothing={0.4}
-              intensity={0.5}
-              mipmapBlur
-            />
-            <Vignette eskil={false} offset={0.25} darkness={0.6} />
-          </EffectComposer>
+          {/* Postprocessing disabled — causes client-side crashes on some devices */}
         </Canvas>
 
         {/* Game HUD overlay */}
