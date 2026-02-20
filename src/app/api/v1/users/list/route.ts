@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100);
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
 
-    const [users, total] = await Promise.all([
+    const [users, userTotal, blockProfiles, profileTotal] = await Promise.all([
       prisma.user.findMany({
         where: { verified: true },
         orderBy: { createdAt: 'desc' },
@@ -21,15 +21,39 @@ export async function GET(req: NextRequest) {
           tier: true,
           anchorBlock: true,
           genomeHash: true,
-          walletAddress: true, // needed for profile linking
+          walletAddress: true,
           createdAt: true,
           avatar: true,
         },
       }),
       prisma.user.count({ where: { verified: true } }),
+      prisma.blockProfile.findMany({
+        where: { verified: true },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        select: {
+          handle: true,
+          displayName: true,
+          bio: true,
+          tier: true,
+          blockHeight: true,
+          genomeHash: true,
+          walletAddress: true,
+          createdAt: true,
+          avatar: true,
+        },
+      }),
+      prisma.blockProfile.count({ where: { verified: true } }),
     ]);
 
-    return success({ users, total, limit, offset });
+    // Map block profiles to same shape as users for directory compatibility
+    const profilesAsList = blockProfiles.map((p: any) => ({
+      ...p,
+      anchorBlock: p.blockHeight,
+      isBlockProfile: true,
+    }));
+
+    return success({ users: [...users, ...profilesAsList], total: userTotal + profileTotal, limit, offset });
   } catch (e: any) {
     return error(e.message, 500);
   }

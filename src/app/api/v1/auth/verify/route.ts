@@ -117,10 +117,16 @@ export async function POST(req: NextRequest) {
       return error('Handle can only contain letters, numbers, and underscores (max 30 chars)', 400);
     }
 
-    // Check handle uniqueness if provided
+    // Check handle uniqueness if provided (global across User + BlockProfile)
     if (normalizedHandle) {
-      const existing = await prisma.user.findUnique({ where: { handle: normalizedHandle } });
-      if (existing && existing.walletAddress !== walletAddress) {
+      const [existingUser, existingProfile] = await Promise.all([
+        prisma.user.findUnique({ where: { handle: normalizedHandle } }),
+        prisma.blockProfile.findUnique({ where: { handle: normalizedHandle } }),
+      ]);
+      if (existingUser && existingUser.walletAddress !== walletAddress) {
+        return error('Handle already taken', 409);
+      }
+      if (existingProfile && existingProfile.walletAddress !== walletAddress) {
         return error('Handle already taken', 409);
       }
     }
@@ -200,8 +206,11 @@ export async function GET(req: NextRequest) {
     if (!/^[a-zA-Z0-9_]+$/.test(handle)) return error('Only letters, numbers, underscores', 400);
 
     const normalizedHandle = handle.toLowerCase();
-    const existing = await prisma.user.findUnique({ where: { handle: normalizedHandle } });
-    return success({ handle, available: !existing });
+    const [existingUser, existingProfile] = await Promise.all([
+      prisma.user.findUnique({ where: { handle: normalizedHandle } }),
+      prisma.blockProfile.findUnique({ where: { handle: normalizedHandle } }),
+    ]);
+    return success({ handle, available: !existingUser && !existingProfile });
   } catch (e: any) {
     return error(e.message, 500);
   }

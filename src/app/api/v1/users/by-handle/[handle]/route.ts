@@ -11,6 +11,41 @@ export async function GET(
     const { handle } = await params;
     const normalizedHandle = handle.toLowerCase();
 
+    // First check BlockProfile table, then fall back to User
+    const blockProfile = await prisma.blockProfile.findUnique({
+      where: { handle: normalizedHandle },
+    });
+
+    if (blockProfile) {
+      const [profileViews, activityCount] = await Promise.all([
+        prisma.profileView.count({ where: { viewedHandle: normalizedHandle } }).catch(() => 0),
+        prisma.activityLog.count({ where: { walletAddress: blockProfile.walletAddress } }).catch(() => 0),
+      ]);
+
+      logProfileView(normalizedHandle);
+
+      return success({
+        walletAddress: blockProfile.walletAddress,
+        handle: blockProfile.handle,
+        displayName: blockProfile.displayName,
+        bio: blockProfile.bio,
+        avatar: blockProfile.avatar,
+        genomeHash: blockProfile.genomeHash,
+        anchorBlock: blockProfile.blockHeight,
+        tier: blockProfile.tier,
+        verified: blockProfile.verified,
+        createdAt: blockProfile.createdAt,
+        blockCount: 1,
+        parcelCount: 0,
+        estateCount: 0,
+        profileViews,
+        activityCount,
+        pageViews: 0,
+        isBlockProfile: true,
+        blockHeight: blockProfile.blockHeight,
+      });
+    }
+
     const user = await prisma.user.findUnique({
       where: { handle: normalizedHandle },
       include: {
@@ -47,6 +82,7 @@ export async function GET(
       profileViews,
       activityCount,
       pageViews,
+      isBlockProfile: false,
     });
   } catch (e: any) {
     return error(e.message, 500);
@@ -73,10 +109,14 @@ export async function PATCH(
       return error('Invalid signature', 401);
     }
 
-    const user = await prisma.user.findUnique({ where: { handle: normalizedHandle } });
-    if (!user) return error('User not found', 404);
+    // Check BlockProfile first, then User
+    const blockProfile = await prisma.blockProfile.findUnique({ where: { handle: normalizedHandle } });
+    const user = blockProfile ? null : await prisma.user.findUnique({ where: { handle: normalizedHandle } });
+    
+    const ownerAddress = blockProfile?.walletAddress || user?.walletAddress;
+    if (!ownerAddress) return error('User not found', 404);
 
-    if (user.walletAddress !== walletAddress) {
+    if (ownerAddress !== walletAddress) {
       return error('Unauthorized: wallet does not match profile owner', 403);
     }
 
@@ -98,10 +138,9 @@ export async function PATCH(
       return error('No valid fields to update', 400);
     }
 
-    const updated = await prisma.user.update({
-      where: { handle: normalizedHandle },
-      data: updates,
-    });
+    const updated = blockProfile
+      ? await prisma.blockProfile.update({ where: { handle: normalizedHandle }, data: updates })
+      : await prisma.user.update({ where: { handle: normalizedHandle }, data: updates });
 
     logActivity(walletAddress, 'profile_update', { handle: normalizedHandle, fields: Object.keys(updates) });
 

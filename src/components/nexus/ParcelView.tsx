@@ -5066,6 +5066,25 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         const data = await resp.json();
         const owner = data?.data?.owner;
         if (owner?.handle && !cancelled) {
+          // Check for a block-specific profile first
+          try {
+            const profileResp = await fetch(`/api/v1/profiles/by-block/${blockHeight}`);
+            if (profileResp.ok) {
+              const profileData = await profileResp.json();
+              const profiles = profileData?.data?.profiles;
+              if (profiles?.length > 0) {
+                const bp = profiles[0];
+                setRealBlockOwner({
+                  handle: bp.handle,
+                  avatar: bp.avatar || '₿',
+                  tier: (bp.tier || 1) as 1 | 2 | 3,
+                  verified: bp.verified ?? true,
+                });
+                if (!cancelled) setOwnerLoading(false);
+                return;
+              }
+            }
+          } catch { /* fall through to user handle */ }
           setRealBlockOwner({
             handle: owner.handle,
             avatar: '₿',

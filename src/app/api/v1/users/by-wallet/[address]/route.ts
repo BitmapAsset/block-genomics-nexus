@@ -12,6 +12,7 @@ export async function GET(
 
     const user = await prisma.user.findUnique({
       where: { walletAddress: address },
+      include: { blockProfiles: true },
     });
 
     if (!user) return error('User not found', 404);
@@ -26,6 +27,7 @@ export async function GET(
       anchorBlock: user.anchorBlock,
       tier: user.tier,
       verified: user.verified,
+      blockProfiles: user.blockProfiles,
     });
   } catch (e: any) {
     return error(e.message, 500);

@@ -33,6 +33,7 @@ model User {
   estates             Estate[]
   parcels             Parcel[]
   sessions            UserSession[]
+  blockProfiles       BlockProfile[]
 }
 
 model Block {
@@ -56,6 +57,7 @@ model Block {
   delegationListings DelegationListing[]
   estates            Estate[]
   parcels            Parcel[]
+  blockProfiles      BlockProfile[]
 
   @@index([ownerAddress])
 }
@@ -650,6 +652,30 @@ model BrainHeartbeat {
 
   @@index([blockHeight])
   @@index([hash])
+}
+
+// ─── Block Profiles (one per block per wallet) ───
+model BlockProfile {
+  id              String   @id @default(cuid())
+  walletAddress   String
+  blockHeight     Int
+  handle          String   @unique
+  displayName     String?
+  avatar          String?
+  bio             String?
+  genomeHash      String?
+  tier            Int      @default(1)
+  verified        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  owner           User     @relation(fields: [walletAddress], references: [walletAddress])
+  block           Block    @relation(fields: [blockHeight], references: [height])
+
+  @@unique([walletAddress, blockHeight])
+  @@index([handle])
+  @@index([walletAddress])
+  @@index([blockHeight])
 }
 
 // ─── System State (key-value store for protocol state) ───

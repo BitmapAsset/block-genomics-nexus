@@ -154,6 +154,9 @@ export default function VerifyPage() {
   const [profileCreated, setProfileCreated] = useState(false);
   const [creatingProfile, setCreatingProfile] = useState(false);
 
+  /* multi-profile state */
+  const [existingProfiles, setExistingProfiles] = useState<{ handle: string; blockHeight: number }[]>([]);
+
   const currentStep = !wallet ? 1 : !blockInfo ? 2 : !verified ? 3 : 4;
 
   /* Detect installed wallets on mount */
@@ -181,6 +184,19 @@ export default function VerifyPage() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
+  }, [walletAddr]);
+
+  /* Fetch existing block profiles when wallet connects */
+  useEffect(() => {
+    if (!walletAddr) return;
+    fetch(`/api/v1/profiles/by-wallet/${walletAddr}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.data?.profiles) {
+          setExistingProfiles(data.data.profiles.map((p: any) => ({ handle: p.handle, blockHeight: p.blockHeight })));
+        }
+      })
+      .catch(() => {});
   }, [walletAddr]);
 
   /* Fetch bitmap inscriptions when wallet connects */
@@ -381,7 +397,22 @@ export default function VerifyPage() {
       const data = await resp.json();
       if (!data.success) throw new Error(data.error || 'Failed to create profile');
 
+      // Also create a BlockProfile for multi-profile support
+      try {
+        await fetch('/api/v1/profiles/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress: walletAddr,
+            blockHeight: blockInfo.height,
+            handle,
+            displayName: displayName || undefined,
+          }),
+        });
+      } catch { /* BlockProfile creation is best-effort — User record is the primary */ }
+
       setProfileCreated(true);
+      setExistingProfiles(prev => [...prev, { handle, blockHeight: blockInfo!.height }]);
       // Refresh global profile after creation
       globalWallet.refreshProfile();
     } catch (e: unknown) {
@@ -481,32 +512,46 @@ export default function VerifyPage() {
                   <div>
                     <p className="text-xs text-text-muted mb-2">Found in your wallet: <span className="text-accent-cyan">{inscriptions.length} bitmap{inscriptions.length !== 1 ? 's' : ''}</span></p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }}>
-                      {inscriptions.map((insc) => (
-                        <button
-                          key={insc.inscriptionId}
-                          onClick={() => selectInscription(insc)}
-                          className="flex items-center gap-3 rounded-lg border border-border bg-bg-tertiary/20 px-4 py-3 text-left hover:border-accent-cyan/40 hover:bg-accent-cyan/5 transition-all group"
-                        >
-                          <div className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold ${
-                            insc.type === 'block'
-                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                              : 'bg-accent-cyan/15 text-accent-cyan border border-accent-cyan/30'
-                          }`}>
-                            {insc.type === 'block' ? '⛓️' : '📦'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-text-primary group-hover:text-accent-cyan transition-colors truncate">
-                              {insc.label}
+                      {inscriptions.map((insc) => {
+                        const existingProfile = existingProfiles.find(p => p.blockHeight === insc.height);
+                        return (
+                          <button
+                            key={insc.inscriptionId}
+                            onClick={() => !existingProfile && selectInscription(insc)}
+                            className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-all group ${
+                              existingProfile
+                                ? 'border-green-500/30 bg-green-500/5 cursor-default'
+                                : 'border-border bg-bg-tertiary/20 hover:border-accent-cyan/40 hover:bg-accent-cyan/5'
+                            }`}
+                          >
+                            <div className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold ${
+                              existingProfile
+                                ? 'bg-green-500/15 text-green-400 border border-green-500/30'
+                                : insc.type === 'block'
+                                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                  : 'bg-accent-cyan/15 text-accent-cyan border border-accent-cyan/30'
+                            }`}>
+                              {existingProfile ? '✓' : insc.type === 'block' ? '⛓️' : '📦'}
                             </div>
-                            <div className="text-[10px] text-text-muted truncate">
-                              {insc.type === 'block' ? 'Block Inscription' : 'Parcel Inscription'} · {insc.inscriptionId.slice(0, 8)}…{insc.inscriptionId.slice(-6)}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-text-primary group-hover:text-accent-cyan transition-colors truncate">
+                                {insc.label}
+                              </div>
+                              <div className="text-[10px] text-text-muted truncate">
+                                {existingProfile
+                                  ? `Already verified as @${existingProfile.handle}`
+                                  : `${insc.type === 'block' ? 'Block Inscription' : 'Parcel Inscription'} · ${insc.inscriptionId.slice(0, 8)}…${insc.inscriptionId.slice(-6)}`
+                                }
+                              </div>
                             </div>
-                          </div>
-                          <svg className="h-4 w-4 text-text-muted group-hover:text-accent-cyan transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      ))}
+                            {!existingProfile && (
+                              <svg className="h-4 w-4 text-text-muted group-hover:text-accent-cyan transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                              </svg>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -707,6 +752,22 @@ export default function VerifyPage() {
                   >
                     Edit Settings
                   </button>
+                  {inscriptions.filter(i => !existingProfiles.some(p => p.blockHeight === i.height)).length > 0 && (
+                    <button
+                      onClick={() => {
+                        setBlockInfo(null);
+                        setVerified(false);
+                        setGenomeHash('');
+                        setProfileCreated(false);
+                        setHandle('');
+                        setDisplayName('');
+                        setHandleAvailable(null);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-lg border border-accent-purple/30 bg-accent-purple/5 px-4 py-2 text-xs font-medium text-accent-purple hover:bg-accent-purple/10 hover:border-accent-purple/50 transition-all"
+                    >
+                      + Create Another Block Profile
+                    </button>
+                  )}
                 </div>
               </div>
             )}
