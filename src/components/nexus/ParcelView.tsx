@@ -433,13 +433,10 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
 
     let color: string;
     if (raw.isCoinbase) {
-      color = '#f7931a'; // coinbase = standard Bitcoin orange
+      color = '#f7931a'; // coinbase = slightly brighter Bitcoin orange
     } else {
-      // Standard bitmap orange with slight brightness variation based on tx size
-      // Matches Magic Eden / Bitmap.Community / Bitfeed standard
-      const rngC = seededRandom(blockHeight * 1000 + raw.txIndex);
-      const light = 40 + buildHeight * 20 + rngC() * 8;
-      color = `hsl(28, 90%, ${light}%)`;
+      // Standard bitmap uniform orange — matches bitmap.land / Magic Eden / Bitfeed
+      color = '#ff9500';
     }
 
     return {
@@ -4637,7 +4634,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     }
     fn();
   };
-  const [viewMode, setViewMode] = useState<ViewMode>('isometric');
+  const [viewMode, setViewMode] = useState<ViewMode>('flat');
   const [autoTour, setAutoTour] = useState(true);
   const [streetTeleport, setStreetTeleport] = useState<ParcelData | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>('properties');
@@ -5363,7 +5360,6 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   };
 
   const viewModes: { mode: ViewMode; icon: string; label: string }[] = [
-    { mode: 'standard', icon: '🟧', label: 'Standard Bitmap' },
     { mode: 'flat', icon: '▦', label: 'Grid View' },
     { mode: 'isometric', icon: '◇', label: 'Isometric' },
     { mode: 'heights', icon: '▥', label: 'Heights' },

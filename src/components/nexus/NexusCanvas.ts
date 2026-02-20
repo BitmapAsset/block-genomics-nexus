@@ -183,8 +183,8 @@ export class NexusCanvasEngine {
     // Proportional gap calculated after gridW is known (see below)
     let cellGap = 1.5;
 
-    // Dark background
-    tctx.fillStyle = '#0a0a0f';
+    // White background — standard bitmap style
+    tctx.fillStyle = '#ffffff';
     tctx.fillRect(0, 0, size, size);
 
 
@@ -235,12 +235,10 @@ export class NexusCanvasEngine {
     // Draw parcels
     for (const rect of rects) {
       if (rect.index === 0) {
-        tctx.fillStyle = '#f7931a'; // coinbase = Bitcoin orange
+        tctx.fillStyle = '#f7931a'; // coinbase = slightly brighter Bitcoin orange
       } else {
-        // Standard bitmap orange — uniform hue, slight brightness variation
-        const val = seededRand(height * 1000 + rect.index);
-        const light = 30 + val * 25;
-        tctx.fillStyle = `hsl(28, 90%, ${light}%)`;
+        // Standard bitmap uniform orange
+        tctx.fillStyle = '#ff9500';
       }
       tctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     }
