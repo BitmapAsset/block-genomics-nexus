@@ -156,9 +156,9 @@ Output ONLY a JSON array, nothing else. No text, no explanation, just the array.
 
 Available tools and prefab types:
 - place_prefab: {tool: "place_prefab", prefabType: "<type>", posX, posY, posZ, rotY, scaleX, scaleY, scaleZ, name}
-  Types: tree_oak, tree_pine, tree_palm, tree_cherry_blossom, bush, flower_rose, flower_tulip, flower_sunflower, grass_patch, pond, rock, log, bench, path_stone, path_dirt, fountain, lamp_post, fence, gate, gazebo, bridge, building_small, building_tall, shop, sign, mailbox, trash_can, fire_hydrant, statue, flag, banner, planter, hedge_wall, arch, pergola
-- place_object: {tool: "place_object", objectType: "primitive", geometry: "box|sphere|cylinder|cone|torus", color: "#hex", posX, posY, posZ, scaleX, scaleY, scaleZ, name}
-- terraform: {tool: "terraform", surfaceType: "grass|dirt|stone|water|sand"}
+  Types: tree_oak, tree_pine, tree_palm, tree_cherry_blossom, bush, flower_rose, flower_tulip, flower_sunflower, grass_patch, pond, rock, log, bench, path_stone, path_dirt, fountain, lamp_post, fence, gate, gazebo, bridge, building_small, building_tall, shop, sign, mailbox, trash_can, fire_hydrant, statue, flag, banner, planter, hedge_wall, arch, pergola, factory, warehouse, crane, smokestack, water_tower, windmill, solar_panel, house_small, house_modern, apartment, cottage, cabin, office_tower, restaurant, cafe, hotel, mall, stage, screen, ferris_wheel, amphitheater, road_straight, road_curve, road_intersection, parking_lot, highway_ramp, pool, canal, waterfall, dock, pier, lighthouse, dome, antenna, satellite_dish, monolith, portal_gate, neon_sign, hologram_display, farm_field, barn, silo, greenhouse, vineyard
+- place_object: {tool: "place_object", objectType: "primitive", geometry: "box|sphere|cylinder|cone|torus", color: "#hex", material: "glass|metal|wood|concrete|neon|water", posX, posY, posZ, scaleX, scaleY, scaleZ, name}
+- terraform: {tool: "terraform", surfaceType: "grass|dirt|stone|water|sand|snow|lava|crystal|void|neon_grid|marble|mossy_stone"}
 - clear_area: {tool: "clear_area", posX, posZ, radius}
 
 Rules:
@@ -237,6 +237,17 @@ Available prefab types:
 - Park: bench, path_stone, path_dirt, fountain, lamp_post, fence, gate, gazebo, bridge
 - Urban: building_small, building_tall, shop, sign, mailbox, trash_can, fire_hydrant
 - Decorative: statue, flag, banner, planter, hedge_wall, arch, pergola
+- Industrial: factory, warehouse, crane, smokestack, water_tower, windmill, solar_panel
+- Residential: house_small, house_modern, apartment, cottage, cabin
+- Commercial: office_tower, restaurant, cafe, hotel, mall
+- Entertainment: stage, screen, ferris_wheel, amphitheater
+- Infrastructure: road_straight, road_curve, road_intersection, parking_lot, highway_ramp
+- Water: pool, canal, waterfall, dock, pier, lighthouse
+- Sci-fi: dome, antenna, satellite_dish, monolith, portal_gate, neon_sign, hologram_display
+- Agricultural: farm_field, barn, silo, greenhouse, vineyard
+
+Available material presets for place_object (optional "material" field):
+- glass (transparent, reflective), metal (shiny, reflective), wood (brown, matte), concrete (gray, rough), neon (glowing/emissive), water (blue, transparent)
 
 ### place_group
 Place multiple prefabs at once for efficiency (e.g., a row of trees, a garden).
@@ -247,7 +258,7 @@ Example: {"tool": "place_group", "items": [{"prefabType": "tree_pine", "posX": 0
 Change ground, fog, sky, weather. Params: groundColor, fogEnabled, fogColor, skyColor, weather (rain/snow/storm/aurora/fireflies/none).
 
 ### terraform
-Change ground surface in an area. Params: posX, posZ, radius, surfaceType (grass/dirt/stone/water/sand), color (optional hex override).
+Change ground surface in an area. Params: posX, posZ, radius, surfaceType (grass/dirt/stone/water/sand/snow/lava/crystal/void/neon_grid/marble/mossy_stone), color (optional hex override).
 Example: {"tool": "terraform", "posX": 0, "posZ": 0, "radius": 5, "surfaceType": "grass"}
 
 ### clear_area
@@ -357,6 +368,8 @@ async function executeWorldActions(actions: any[], blockHeight: number, ownerAdd
       } else if (action.tool === 'modify_terrain' || action.tool === 'terraform') {
         const surfaceColors: Record<string, string> = {
           grass: '#7CFC00', dirt: '#8B7355', stone: '#9E9E9E', water: '#4FC3F7', sand: '#F4E5C2',
+          snow: '#F0F4FF', lava: '#FF4400', crystal: '#88DDFF', void: '#0a0a14',
+          neon_grid: '#00FF88', marble: '#E8E0D8', mossy_stone: '#6B8E5A',
         };
         const groundColor = action.groundColor || action.color || surfaceColors[action.surfaceType] || '#7CFC00';
         const updateData: Record<string, unknown> = { groundColor };

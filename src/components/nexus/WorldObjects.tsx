@@ -6,11 +6,22 @@ import { Html } from '@react-three/drei';
 import type { WorldObject, TerrainSettings } from './WorldBuilderPanel';
 import { PrefabObject, PREFAB_CATALOG } from './WorldPrefabs';
 
+/* ─── Material Presets ─── */
+const MATERIAL_PRESETS: Record<string, { color?: string; metalness: number; roughness: number; opacity?: number; transparent?: boolean; emissive?: string; emissiveIntensity?: number }> = {
+  glass: { color: '#88ccff', metalness: 0.9, roughness: 0.05, opacity: 0.35, transparent: true },
+  metal: { color: '#c0c0c0', metalness: 0.95, roughness: 0.15 },
+  wood: { color: '#8B5A2B', metalness: 0.02, roughness: 0.92 },
+  concrete: { color: '#999999', metalness: 0.05, roughness: 0.95 },
+  neon: { color: '#ff00ff', metalness: 0.1, roughness: 0.3, emissive: '#ff00ff', emissiveIntensity: 2.0 },
+  water: { color: '#2288cc', metalness: 0.3, roughness: 0.1, opacity: 0.5, transparent: true },
+};
+
 /* ─── Primitive Geometry Component ─── */
 function PrimitiveObject({ obj, isSelected, onClick }: { obj: WorldObject; isSelected: boolean; onClick: () => void }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const color = obj.color || '#f7931a';
-  const emissive = obj.emissive || '#000000';
+  const preset = (obj as any).material ? MATERIAL_PRESETS[(obj as any).material] : undefined;
+  const color = preset?.color || obj.color || '#f7931a';
+  const emissive = preset?.emissive || obj.emissive || '#000000';
 
   const geometry = useMemo(() => {
     switch (obj.geometry) {
@@ -37,11 +48,11 @@ function PrimitiveObject({ obj, isSelected, onClick }: { obj: WorldObject; isSel
       <meshStandardMaterial
         color={color}
         emissive={emissive}
-        emissiveIntensity={obj.emissiveIntensity || 0}
-        metalness={obj.metalness ?? 0.5}
-        roughness={obj.roughness ?? 0.5}
-        opacity={obj.opacity ?? 1}
-        transparent={obj.transparent || false}
+        emissiveIntensity={preset?.emissiveIntensity || obj.emissiveIntensity || 0}
+        metalness={preset?.metalness ?? obj.metalness ?? 0.5}
+        roughness={preset?.roughness ?? obj.roughness ?? 0.5}
+        opacity={preset?.opacity ?? obj.opacity ?? 1}
+        transparent={preset?.transparent || obj.transparent || false}
         side={obj.geometry === 'plane' ? THREE.DoubleSide : THREE.FrontSide}
       />
       {isSelected && (

@@ -1698,7 +1698,7 @@ function InstancedParcels({
         onDoubleClick={handleDoubleClick}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial roughness={0.4} metalness={0.3} envMapIntensity={0.6} />
+        <meshStandardMaterial roughness={0.55} metalness={0.2} envMapIntensity={0.8} />
       </instancedMesh>
 
       {parcels[0]?.isCoinbase && (() => {
@@ -5557,23 +5557,24 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             gl.outputColorSpace = THREE.SRGBColorSpace;
           }}
         >
-          <ambientLight intensity={0.25} color="#ffeedd" />
-          {/* Main sun light */}
+          {/* Hemisphere light: sky blue + warm ground bounce */}
+          <hemisphereLight args={['#4477aa', '#553322', 0.45]} />
+          <ambientLight intensity={0.15} color="#ffeedd" />
+          {/* Main sun light with high-res shadows */}
           <directionalLight
-            position={[20, 30, 10]} intensity={2.0} castShadow color="#ffddaa"
-            shadow-mapSize-width={2048} shadow-mapSize-height={2048}
-            shadow-camera-far={100} shadow-camera-left={-30} shadow-camera-right={30}
-            shadow-camera-top={30} shadow-camera-bottom={-30}
-            shadow-bias={-0.0001}
+            position={[20, 30, 10]} intensity={2.2} castShadow color="#ffddaa"
+            shadow-mapSize-width={4096} shadow-mapSize-height={4096}
+            shadow-camera-far={120} shadow-camera-left={-40} shadow-camera-right={40}
+            shadow-camera-top={40} shadow-camera-bottom={-40}
+            shadow-bias={-0.0003}
+            shadow-normalBias={0.02}
           />
-          {/* Rim/back light for depth */}
-          <directionalLight position={[-15, 20, -15]} intensity={0.6} color="#4488ff" />
+          {/* Fill light from opposite direction (softer, cooler) */}
+          <directionalLight position={[-18, 22, -18]} intensity={0.5} color="#6699cc" />
           {/* Warm accent lights */}
           <pointLight position={[0, 15, 0]} intensity={0.8} color="#f7931a" distance={40} decay={2} />
           <pointLight position={[-10, 8, -10]} intensity={0.4} color="#ff6622" distance={30} decay={2} />
           <pointLight position={[10, 5, 10]} intensity={0.3} color="#ffaa44" distance={25} decay={2} />
-          {/* Cool fill from below for atmosphere */}
-          <hemisphereLight args={['#1a1a3a', '#0a0a0f', 0.3]} />
 
           <fog attach="fog" args={viewMode === 'street' ? ['#0d0d1a', 0.3, 4] : viewMode === 'flyover' ? ['#0a0a14', 3, 40] : ['#0a0a0f', 50, 300]} />
 
@@ -5665,8 +5666,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
           {/* Post-processing effects for near-game quality */}
           {/* Environment lighting — inline to avoid external HDR fetch failures */}
-          <ambientLight intensity={0.15} color="#1a1a3a" />
-          <hemisphereLight args={['#1a1a4a', '#0a0a1a', 0.3]} />
+          {/* Additional fill for world objects area */}
+          <hemisphereLight args={['#3366aa', '#442211', 0.25]} />
           {/* Postprocessing disabled — causes client-side crashes on some devices */}
         </Canvas>
 
