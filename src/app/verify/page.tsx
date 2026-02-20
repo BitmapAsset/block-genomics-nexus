@@ -155,7 +155,8 @@ export default function VerifyPage() {
   const [creatingProfile, setCreatingProfile] = useState(false);
 
   /* multi-profile state */
-  const [existingProfiles, setExistingProfiles] = useState<{ handle: string; blockHeight: number }[]>([]);
+  const [existingProfiles, setExistingProfiles] = useState<{ handle: string; blockHeight: number; avatar?: string; isBlockProfile: boolean }[]>([]);
+  const [userProfile, setUserProfile] = useState<{ handle: string; anchorBlock: number | null; avatar?: string; displayName?: string } | null>(null);
 
   const currentStep = !wallet ? 1 : !blockInfo ? 2 : !verified ? 3 : 4;
 
@@ -181,6 +182,7 @@ export default function VerifyPage() {
         if (u.genomeHash) { setGenomeHash(u.genomeHash); setVerified(true); }
         if (u.anchorBlock) setBlockInfo({ height: u.anchorBlock, txCount: 0 });
         if (u.handle) { setProfileCreated(true); setHandleAvailable(true); }
+        if (u.handle) setUserProfile({ handle: u.handle, anchorBlock: u.anchorBlock, avatar: u.avatar, displayName: u.displayName });
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -193,7 +195,12 @@ export default function VerifyPage() {
       .then(r => r.json())
       .then(data => {
         if (data.success && data.data?.profiles) {
-          setExistingProfiles(data.data.profiles.map((p: any) => ({ handle: p.handle, blockHeight: p.blockHeight })));
+          setExistingProfiles(data.data.profiles.map((p: any) => ({
+            handle: p.handle,
+            blockHeight: p.blockHeight,
+            avatar: p.avatar,
+            isBlockProfile: true,
+          })));
         }
       })
       .catch(() => {});
@@ -412,7 +419,7 @@ export default function VerifyPage() {
       } catch { /* BlockProfile creation is best-effort — User record is the primary */ }
 
       setProfileCreated(true);
-      setExistingProfiles(prev => [...prev, { handle, blockHeight: blockInfo!.height }]);
+      setExistingProfiles(prev => [...prev, { handle, blockHeight: blockInfo!.height, isBlockProfile: true }]);
       // Refresh global profile after creation
       globalWallet.refreshProfile();
     } catch (e: unknown) {
@@ -491,6 +498,85 @@ export default function VerifyPage() {
               </div>
             )}
           </section>
+
+          {/* ═══ YOUR PROFILES (shown when wallet connected and profiles exist) ═══ */}
+          {wallet && (userProfile || existingProfiles.length > 0) && (
+            <section className="glass-panel p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <span className="text-accent-cyan">👤</span> Your Profiles
+                </h2>
+                <span className="text-xs text-text-muted">{(userProfile ? 1 : 0) + existingProfiles.length} profile{(userProfile ? 1 : 0) + existingProfiles.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* User profile (primary) */}
+                {userProfile && (
+                  <Link
+                    href={`/agent/${userProfile.handle}`}
+                    className="flex items-center gap-3 rounded-lg border border-accent-cyan/30 bg-accent-cyan/5 px-4 py-3 hover:bg-accent-cyan/10 transition-all group"
+                  >
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-accent-cyan/15 border border-accent-cyan/30 text-lg overflow-hidden">
+                      {userProfile.avatar ? (
+                        <img src={userProfile.avatar} alt="" className="w-full h-full object-cover rounded-full" />
+                      ) : '👤'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-text-primary group-hover:text-accent-cyan transition-colors truncate">@{userProfile.handle}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">Primary</span>
+                      </div>
+                      <div className="text-[10px] text-text-muted">
+                        {userProfile.anchorBlock ? `Block #${userProfile.anchorBlock.toLocaleString()}` : 'User Profile'}
+                        {userProfile.displayName ? ` · ${userProfile.displayName}` : ''}
+                      </div>
+                    </div>
+                    <svg className="h-4 w-4 text-text-muted group-hover:text-accent-cyan transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </Link>
+                )}
+                {/* Block profiles */}
+                {existingProfiles.map((p) => (
+                  <Link
+                    key={p.handle}
+                    href={`/agent/${p.handle}`}
+                    className="flex items-center gap-3 rounded-lg border border-border bg-bg-tertiary/20 px-4 py-3 hover:border-accent-purple/40 hover:bg-accent-purple/5 transition-all group"
+                  >
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-accent-purple/15 border border-accent-purple/30 text-lg overflow-hidden">
+                      {p.avatar ? (
+                        <img src={p.avatar} alt="" className="w-full h-full object-cover rounded-full" />
+                      ) : '⛓️'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-text-primary group-hover:text-accent-purple transition-colors truncate">@{p.handle}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-purple/15 text-accent-purple border border-accent-purple/30">Block</span>
+                      </div>
+                      <div className="text-[10px] text-text-muted">Block #{p.blockHeight.toLocaleString()}</div>
+                    </div>
+                    <svg className="h-4 w-4 text-text-muted group-hover:text-accent-purple transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </Link>
+                ))}
+              </div>
+              {/* Create new profile button */}
+              <button
+                onClick={() => {
+                  setBlockInfo(null);
+                  setVerified(false);
+                  setGenomeHash('');
+                  setProfileCreated(false);
+                  setHandle('');
+                  setDisplayName('');
+                  setHandleAvailable(null);
+                }}
+                className="mt-3 w-full rounded-lg border border-dashed border-border hover:border-accent-cyan/40 bg-transparent px-4 py-2.5 text-xs text-text-muted hover:text-accent-cyan transition-all"
+              >
+                + Create New Block Profile
+              </button>
+            </section>
+          )}
 
           {/* ═══ STEP 2: Select Block ═══ */}
           <section className={`glass-panel p-6 transition-opacity duration-500 ${currentStep >= 2 ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>

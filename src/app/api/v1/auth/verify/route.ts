@@ -117,17 +117,21 @@ export async function POST(req: NextRequest) {
       return error('Handle can only contain letters, numbers, and underscores (max 30 chars)', 400);
     }
 
-    // Check handle uniqueness if provided (global across User + BlockProfile)
+    // Check handle uniqueness if provided (ABSOLUTE global uniqueness across User + BlockProfile)
+    // A handle cannot exist in BOTH tables, even for the same wallet
     if (normalizedHandle) {
-      const [existingUser, existingProfile] = await Promise.all([
+      const [handleInUser, handleInProfile] = await Promise.all([
         prisma.user.findUnique({ where: { handle: normalizedHandle } }),
         prisma.blockProfile.findUnique({ where: { handle: normalizedHandle } }),
       ]);
-      if (existingUser && existingUser.walletAddress !== walletAddress) {
+      // Allow same wallet to keep/update their OWN User handle
+      if (handleInUser && handleInUser.walletAddress !== walletAddress) {
         return error('Handle already taken', 409);
       }
-      if (existingProfile && existingProfile.walletAddress !== walletAddress) {
-        return error('Handle already taken', 409);
+      // Block if handle exists in BlockProfile table — even for same wallet
+      // (they must clear it from BlockProfile first to use it as a User handle)
+      if (handleInProfile) {
+        return error('Handle already taken (registered as a block profile handle)', 409);
       }
     }
 

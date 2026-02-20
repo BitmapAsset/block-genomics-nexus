@@ -97,7 +97,7 @@ export async function PATCH(
     const { handle } = await params;
     const normalizedHandle = handle.toLowerCase();
     const body = await req.json();
-    const { displayName, bio, walletAddress, signature, message } = body;
+    const { displayName, bio, avatar, walletAddress, signature, message } = body;
 
     if (!walletAddress || typeof walletAddress !== 'string') {
       return error('walletAddress is required for authentication', 400);
@@ -133,6 +133,16 @@ export async function PATCH(
       }
       updates.bio = bio.trim();
     }
+    if (avatar !== undefined) {
+      if (typeof avatar !== 'string' || avatar.length > 500) {
+        return error('avatar must be a valid URL string (max 500 chars)', 400);
+      }
+      // Basic URL validation
+      if (avatar && !avatar.match(/^https?:\/\/.+/)) {
+        return error('avatar must be a valid HTTP(S) URL', 400);
+      }
+      updates.avatar = avatar.trim();
+    }
 
     if (Object.keys(updates).length === 0) {
       return error('No valid fields to update', 400);
@@ -149,6 +159,7 @@ export async function PATCH(
       handle: updated.handle,
       displayName: updated.displayName,
       bio: updated.bio,
+      avatar: (updated as any).avatar || null,
     });
   } catch (e: any) {
     return error(e.message, 500);

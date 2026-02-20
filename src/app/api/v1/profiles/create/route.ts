@@ -44,20 +44,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Check handle uniqueness across both User and BlockProfile tables
+    // Handle must be GLOBALLY unique — cannot exist in both tables, even for same wallet
     const [existingUser, existingProfile] = await Promise.all([
       prisma.user.findUnique({ where: { handle: normalizedHandle } }),
       prisma.blockProfile.findUnique({ where: { handle: normalizedHandle } }),
     ]);
 
-    if (existingUser && existingUser.walletAddress !== walletAddress) {
-      return error('Handle already taken', 409);
+    if (existingUser) {
+      return error('Handle already taken (registered as a user handle). Clear it from your user profile first if you want to use it here.', 409);
     }
-    if (existingProfile && existingProfile.walletAddress !== walletAddress) {
+    if (existingProfile) {
+      if (existingProfile.walletAddress === walletAddress && existingProfile.blockHeight === blockHeight) {
+        return error(`You already have a profile on this block as @${normalizedHandle}`, 409);
+      }
       return error('Handle already taken', 409);
-    }
-    // Allow same wallet to reuse their own User handle on a block profile
-    if (existingProfile && existingProfile.walletAddress === walletAddress && existingProfile.blockHeight !== blockHeight) {
-      return error('You already use this handle on another block profile', 409);
     }
 
     // Check if profile already exists for this wallet+block
