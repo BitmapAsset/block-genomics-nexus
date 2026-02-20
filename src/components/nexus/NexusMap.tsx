@@ -260,8 +260,8 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
       {/* Minimap */}
       <NexusMinimap engine={engine} />
 
-      {/* Block Spotlight — Discovery Panel */}
-      <BlockSpotlight onNavigateToBlock={handleSearch} />
+      {/* Block Spotlight — Discovery Panel (hidden when block selected) */}
+      {selectedBlock === null && <BlockSpotlight onNavigateToBlock={handleSearch} />}
 
       {/* Activity Feed */}
       <ActivityFeed open={feedOpen} events={activity} onToggle={() => setFeedOpen((v) => !v)} />
