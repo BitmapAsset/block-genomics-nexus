@@ -1,11 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useGlobalWallet, type WalletType } from "@/context/GlobalWalletContext";
 
 function truncateAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+interface BlockProfileInfo {
+  id: string;
+  blockHeight: number;
+  handle: string;
+  displayName?: string;
+  tier?: number;
+  verified?: boolean;
+}
+
+function BitmapThumb({ blockHeight }: { blockHeight: number }) {
+  return (
+    <div style={{ width: 32, height: 32, borderRadius: 6, background: '#ff9500', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff', fontWeight: 700, flexShrink: 0 }}>
+      {blockHeight}
+    </div>
+  );
 }
 
 const WALLETS: { type: WalletType; name: string; desc: string; color: string; icon: string; url: string; glow: string }[] = [
@@ -60,12 +77,39 @@ export default function WalletConnect() {
   const isAvailable = (type: WalletType) => availableWallets.includes(type);
 
   const [addressCopied, setAddressCopied] = useState(false);
+  const [blockProfiles, setBlockProfiles] = useState<BlockProfileInfo[]>([]);
+  const [ownedBlocks, setOwnedBlocks] = useState<number[]>([]);
+  const [loadingProfiles, setLoadingProfiles] = useState(false);
+
   const copyAddress = () => {
     if (!walletAddress) return;
     navigator.clipboard.writeText(walletAddress);
     setAddressCopied(true);
     setTimeout(() => setAddressCopied(false), 2000);
   };
+
+  const fetchWalletData = useCallback(async () => {
+    if (!walletAddress) return;
+    setLoadingProfiles(true);
+    try {
+      const resp = await fetch(`/api/v1/users/by-wallet/${walletAddress}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.success && data.data) {
+          setBlockProfiles(data.data.blockProfiles || []);
+          setOwnedBlocks(data.data.ownedBlocks || []);
+        }
+      }
+    } catch { /* ignore */ }
+    setLoadingProfiles(false);
+  }, [walletAddress]);
+
+  // Fetch block data when dropdown opens
+  useEffect(() => {
+    if (open && isConnected && walletAddress) {
+      fetchWalletData();
+    }
+  }, [open, isConnected, walletAddress, fetchWalletData]);
 
   return (
     <>
@@ -84,8 +128,18 @@ export default function WalletConnect() {
               {walletAddress ? `${walletAddress.slice(0, 4)}…${walletAddress.slice(-4)}` : ''}
             </span>
           </button>
-          {open && (
-            <div className="absolute right-0 mt-2 w-64 rounded-xl p-2 shadow-xl z-50" style={{ background: 'rgba(12,12,20,0.95)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}>
+          {open && (() => {
+            // Blocks that have profiles
+            const profiledBlocks = new Set(blockProfiles.map(bp => bp.blockHeight));
+            // Blocks without profiles
+            const unprofiledBlocks = ownedBlocks.filter(b => !profiledBlocks.has(b));
+            // Primary profile's block profile (if any)
+            const primaryBp = profile?.anchorBlock ? blockProfiles.find(bp => bp.blockHeight === profile.anchorBlock) : null;
+            // Other block profiles (not the primary)
+            const otherProfiles = blockProfiles.filter(bp => bp.blockHeight !== profile?.anchorBlock);
+
+            return (
+            <div className="absolute right-0 mt-2 w-80 rounded-xl p-2 shadow-xl z-50" style={{ background: 'rgba(12,12,20,0.95)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}>
               {/* Wallet address - copyable */}
               <button onClick={copyAddress} className="w-full text-left rounded-lg px-3 py-2 hover:bg-white/5 transition-colors group">
                 <p className="text-[10px] uppercase tracking-wider" style={{ color: '#64748b' }}>
@@ -101,18 +155,83 @@ export default function WalletConnect() {
 
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
 
-              {/* Profile links */}
-              {profile?.handle ? (
+              {/* Primary profile */}
+              {profile?.handle && (
                 <Link
                   href={`/agent/${profile.handle}`}
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/5 transition-colors"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-white/5 transition-colors"
                   style={{ color: '#e2e8f0' }}
                   onClick={() => setOpen(false)}
                 >
-                  <span>👤</span> View Profile
-                  <span className="ml-auto text-[10px] font-mono" style={{ color: '#64748b' }}>@{profile.handle}</span>
+                  <span className="text-base">👑</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-semibold truncate">@{profile.handle}</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'rgba(250,204,21,0.1)', color: '#facc15', border: '1px solid rgba(250,204,21,0.2)' }}>Primary</span>
+                    </div>
+                    {profile.anchorBlock ? (
+                      <p className="text-[10px] mt-0.5" style={{ color: '#64748b' }}>Block #{profile.anchorBlock.toLocaleString()}</p>
+                    ) : null}
+                  </div>
+                  <span style={{ color: '#475569' }}>→</span>
                 </Link>
-              ) : null}
+              )}
+
+              {/* Your Blocks section */}
+              {(otherProfiles.length > 0 || unprofiledBlocks.length > 0) && (
+                <>
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
+                  <p className="text-[9px] uppercase tracking-widest px-3 pt-2 pb-1" style={{ color: '#475569' }}>Your Blocks</p>
+                  <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                    {/* Block profiles */}
+                    {otherProfiles.map(bp => (
+                      <Link
+                        key={bp.id}
+                        href={`/agent/${bp.handle}`}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-white/5 transition-colors"
+                        style={{ color: '#e2e8f0' }}
+                        onClick={() => setOpen(false)}
+                      >
+                        <BitmapThumb blockHeight={bp.blockHeight} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">Block #{bp.blockHeight.toLocaleString()}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[11px]" style={{ color: '#94a3b8' }}>@{bp.handle}</span>
+                            {bp.tier != null && (
+                              <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.05)', color: '#64748b' }}>Tier {bp.tier}</span>
+                            )}
+                          </div>
+                        </div>
+                        <span style={{ color: '#475569' }}>→</span>
+                      </Link>
+                    ))}
+                    {/* Unprofiled blocks */}
+                    {unprofiledBlocks.map(blockHeight => (
+                      <div key={blockHeight} className="flex items-center gap-2.5 rounded-lg px-3 py-2">
+                        <BitmapThumb blockHeight={blockHeight} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium" style={{ color: '#e2e8f0' }}>Block #{blockHeight.toLocaleString()}</p>
+                          <p className="text-[11px]" style={{ color: '#64748b' }}>No Profile</p>
+                        </div>
+                        <Link
+                          href="/verify"
+                          className="text-[10px] font-medium px-2 py-1 rounded-md hover:bg-white/10 transition-colors"
+                          style={{ color: '#00ffc8', border: '1px solid rgba(0,255,200,0.2)' }}
+                          onClick={() => setOpen(false)}
+                        >
+                          Create →
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {loadingProfiles && (
+                <p className="text-[10px] text-center py-2" style={{ color: '#475569' }}>Loading blocks…</p>
+              )}
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
 
               <Link
                 href="/verify"
@@ -135,7 +254,8 @@ export default function WalletConnect() {
                 <span>🔌</span> Disconnect
               </button>
             </div>
-          )}
+            );
+          })()}
         </div>
       ) : (
         <button

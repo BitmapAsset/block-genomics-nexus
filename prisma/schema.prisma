@@ -669,6 +669,8 @@ model BlockProfile {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  isPrimary       Boolean  @default(false)
+
   owner           User     @relation(fields: [walletAddress], references: [walletAddress])
   block           Block    @relation(fields: [blockHeight], references: [height])
 

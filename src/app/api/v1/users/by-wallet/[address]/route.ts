@@ -28,6 +28,7 @@ export async function GET(
       tier: user.tier,
       verified: user.verified,
       blockProfiles: user.blockProfiles,
+      ownedBlocks: user.ownedBlocks,
     });
   } catch (e: any) {
     return error(e.message, 500);
