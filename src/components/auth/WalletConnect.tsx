@@ -148,6 +148,22 @@ export default function WalletConnect() {
 
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
 
+              {/* Command Center link */}
+              <Link
+                href="/profile"
+                className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-white/5 transition-colors"
+                style={{ color: '#e2e8f0' }}
+                onClick={() => setOpen(false)}
+              >
+                <span className="text-base">⚡</span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold">Command Center</span>
+                  <p className="text-[10px]" style={{ color: '#64748b' }}>Manage your digital empire</p>
+                </div>
+              </Link>
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
+
               {/* Primary profile */}
               {profile?.handle && (
                 <Link
