@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useGlobalWallet } from "@/context/GlobalWalletContext";
 import CrownShield, { type ShieldTier } from "@/components/CrownShield";
+import BitmapThumbnail from "@/components/BitmapThumbnail";
 
 interface BlockProfileData {
   id: string;
@@ -197,12 +198,7 @@ export default function ProfileHubPage() {
               <div className="flex flex-col sm:flex-row items-start gap-6">
                 {/* Large bitmap thumbnail */}
                 <div className="flex-shrink-0">
-                  <img
-                    src={`/api/v1/block-thumbnail/${primaryProfile.blockHeight}`}
-                    alt={`Block ${primaryProfile.blockHeight}`}
-                    className="w-28 h-28 sm:w-36 sm:h-36 rounded-xl border-2 border-orange-500/40 object-cover"
-                    style={{ imageRendering: "pixelated" }}
-                  />
+                  <BitmapThumbnail blockHeight={primaryProfile.blockHeight} size={128} className="border-2 border-orange-500/40" />
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -273,12 +269,7 @@ export default function ProfileHubPage() {
 
                     <div className="flex items-start gap-3">
                       {/* Small bitmap */}
-                      <img
-                        src={`/api/v1/block-thumbnail/${profile.blockHeight}`}
-                        alt={`Block ${profile.blockHeight}`}
-                        className="w-14 h-14 rounded-lg border border-gray-700/50 object-cover flex-shrink-0"
-                        style={{ imageRendering: "pixelated" }}
-                      />
+                      <BitmapThumbnail blockHeight={profile.blockHeight} size={56} />
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -357,12 +348,7 @@ export default function ProfileHubPage() {
                   className="rounded-xl border border-dashed border-gray-700/50 bg-[#111118] p-4 hover:border-gray-600/60 transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <img
-                      src={`/api/v1/block-thumbnail/${blockHeight}`}
-                      alt={`Block ${blockHeight}`}
-                      className="w-14 h-14 rounded-lg border border-gray-700/50 object-cover flex-shrink-0"
-                      style={{ imageRendering: "pixelated" }}
-                    />
+                    <BitmapThumbnail blockHeight={blockHeight} size={56} />
                     <div className="flex-1">
                       <p className="text-white font-medium text-sm">Block #{blockHeight}</p>
                       <p className="text-gray-500 text-xs">No profile created</p>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useGlobalWallet, type WalletType } from "@/context/GlobalWalletContext";
+import BitmapThumbnail from "@/components/BitmapThumbnail";
 
 function truncateAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -15,14 +16,6 @@ interface BlockProfileInfo {
   displayName?: string;
   tier?: number;
   verified?: boolean;
-}
-
-function BitmapThumb({ blockHeight }: { blockHeight: number }) {
-  return (
-    <div style={{ width: 32, height: 32, borderRadius: 6, background: '#ff9500', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff', fontWeight: 700, flexShrink: 0 }}>
-      {blockHeight}
-    </div>
-  );
 }
 
 const WALLETS: { type: WalletType; name: string; desc: string; color: string; icon: string; url: string; glow: string }[] = [
@@ -192,7 +185,7 @@ export default function WalletConnect() {
                         style={{ color: '#e2e8f0' }}
                         onClick={() => setOpen(false)}
                       >
-                        <BitmapThumb blockHeight={bp.blockHeight} />
+                        <BitmapThumbnail blockHeight={bp.blockHeight} size={36} />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium truncate">Block #{bp.blockHeight.toLocaleString()}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
@@ -208,7 +201,7 @@ export default function WalletConnect() {
                     {/* Unprofiled blocks */}
                     {unprofiledBlocks.map(blockHeight => (
                       <div key={blockHeight} className="flex items-center gap-2.5 rounded-lg px-3 py-2">
-                        <BitmapThumb blockHeight={blockHeight} />
+                        <BitmapThumbnail blockHeight={blockHeight} size={36} />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium" style={{ color: '#e2e8f0' }}>Block #{blockHeight.toLocaleString()}</p>
                           <p className="text-[11px]" style={{ color: '#64748b' }}>No Profile</p>
