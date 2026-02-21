@@ -74,7 +74,10 @@ function computeLayout(
 ): Rect[] {
   if (txCount === 0) return [];
 
-  const gap = Math.max(1, Math.round(size * 0.02));
+  // Scale gap down for high-tx blocks so parcels don't disappear
+  const estRows = Math.max(1, Math.round(Math.sqrt(txCount)));
+  const gapRatio = estRows > 30 ? 0.005 : estRows > 20 ? 0.01 : 0.02;
+  const gap = Math.max(0, Math.round(size * gapRatio));
   const canvasSize = size;
 
   // Determine vbytes per tx

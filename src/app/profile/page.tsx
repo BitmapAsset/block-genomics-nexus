@@ -391,22 +391,18 @@ function BlockCard({
               >
                 Transfer Bitmap
               </button>
-              <a
-                href="https://bitmap.market"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                href="/marketplace"
                 className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.04] text-gray-400 border border-white/[0.08] hover:bg-white/[0.08] transition-all"
               >
                 List on Marketplace
-              </a>
-              <a
-                href="https://bitmap.market"
-                target="_blank"
-                rel="noopener noreferrer"
+              </Link>
+              <Link
+                href="/marketplace"
                 className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.04] text-gray-400 border border-white/[0.08] hover:bg-white/[0.08] transition-all"
               >
                 Create Delegation
-              </a>
+              </Link>
             </div>
           </div>
         </div>
