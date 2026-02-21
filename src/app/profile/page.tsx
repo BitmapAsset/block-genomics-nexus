@@ -18,52 +18,99 @@ interface BlockProfileData {
   isPrimary: boolean;
 }
 
-interface GuardianInfo {
+interface GuardianDetail {
   blockHeight: number;
   status: string;
+  lastHeartbeat: string | null;
+  lastAction: string | null;
+  lastActionTime: string | null;
+  worldObjectCount: number;
+  name: string;
 }
 
-interface UserData {
-  ownedBlocks: number[];
-  blockProfiles: BlockProfileData[];
+interface EmpireStats {
+  totalBlocks: number;
+  activeGuardians: number;
+  totalWorldObjects: number;
+  totalVisitors: number;
+  guardianDetails: GuardianDetail[];
+}
+
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return "Never";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function PulsingDot({ active }: { active: boolean }) {
+  if (!active) return <span className="inline-block w-2 h-2 rounded-full bg-yellow-500" />;
+  return (
+    <span className="relative inline-flex h-2.5 w-2.5">
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+    </span>
+  );
+}
+
+function StatCard({ label, value, icon }: { label: string; value: string | number; icon: string }) {
+  return (
+    <div className="relative group rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-4 sm:p-5 transition-all hover:border-white/[0.15] hover:bg-white/[0.05]">
+      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-orange-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="relative">
+        <div className="text-2xl mb-2">{icon}</div>
+        <div className="text-2xl sm:text-3xl font-bold text-white">{value}</div>
+        <div className="text-xs text-gray-500 mt-1 uppercase tracking-wider">{label}</div>
+      </div>
+    </div>
+  );
 }
 
 export default function ProfileHubPage() {
   const { isConnected, walletAddress, connect, availableWallets } = useGlobalWallet();
   const [profiles, setProfiles] = useState<BlockProfileData[]>([]);
   const [ownedBlocks, setOwnedBlocks] = useState<number[]>([]);
-  const [guardians, setGuardians] = useState<Map<number, GuardianInfo>>(new Map());
+  const [empireStats, setEmpireStats] = useState<EmpireStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [settingPrimary, setSettingPrimary] = useState<number | null>(null);
   const [transferModal, setTransferModal] = useState<{ blockHeight: number; handle?: string } | null>(null);
+
+  const guardianMap = new Map<number, GuardianDetail>();
+  if (empireStats) {
+    for (const g of empireStats.guardianDetails) {
+      guardianMap.set(g.blockHeight, g);
+    }
+  }
 
   const fetchData = useCallback(async () => {
     if (!walletAddress) return;
     setLoading(true);
     try {
-      const [profilesRes, userRes] = await Promise.all([
+      const [profilesRes, userRes, statsRes] = await Promise.all([
         fetch(`/api/v1/profiles/by-wallet/${walletAddress}`),
         fetch(`/api/v1/users/by-wallet/${walletAddress}`),
+        fetch(`/api/v1/profiles/empire-stats/${walletAddress}`),
       ]);
 
       if (profilesRes.ok) {
         const pData = await profilesRes.json();
-        if (pData.success) {
-          setProfiles(pData.data.profiles || []);
-        }
+        if (pData.success) setProfiles(pData.data.profiles || []);
       }
 
       if (userRes.ok) {
         const uData = await userRes.json();
-        if (uData.success) {
-          setOwnedBlocks(uData.data.ownedBlocks || []);
-        }
+        if (uData.success) setOwnedBlocks(uData.data.ownedBlocks || []);
       }
 
-      // Fetch guardian status for each profiled block
-      const profilesData = profiles.length > 0 ? profiles : [];
-      const guardianMap = new Map<number, GuardianInfo>();
-      // We'll fetch guardians after profiles are set
+      if (statsRes.ok) {
+        const sData = await statsRes.json();
+        if (sData.success) setEmpireStats(sData.data);
+      }
     } catch (err) {
       console.error("Failed to fetch profile data:", err);
     } finally {
@@ -71,38 +118,9 @@ export default function ProfileHubPage() {
     }
   }, [walletAddress]);
 
-  // Fetch guardian info for profiled blocks
-  const fetchGuardians = useCallback(async () => {
-    if (!profiles.length) return;
-    const guardianMap = new Map<number, GuardianInfo>();
-    await Promise.all(
-      profiles.map(async (p) => {
-        try {
-          const res = await fetch(`/api/v1/agents/block/${p.blockHeight}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.success && data.data) {
-              guardianMap.set(p.blockHeight, {
-                blockHeight: p.blockHeight,
-                status: data.data.status || "active",
-              });
-            }
-          }
-        } catch {}
-      })
-    );
-    setGuardians(guardianMap);
-  }, [profiles]);
-
   useEffect(() => {
-    if (isConnected && walletAddress) {
-      fetchData();
-    }
+    if (isConnected && walletAddress) fetchData();
   }, [isConnected, walletAddress, fetchData]);
-
-  useEffect(() => {
-    fetchGuardians();
-  }, [profiles, fetchGuardians]);
 
   const handleSetPrimary = async (blockHeight: number) => {
     if (!walletAddress || settingPrimary !== null) return;
@@ -164,41 +182,63 @@ export default function ProfileHubPage() {
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading your profiles…</p>
+          <p className="text-gray-400">Loading command center…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
-      <div className="max-w-6xl mx-auto px-4 py-8 sm:py-12">
-        {/* Header */}
+    <div className="min-h-screen bg-[#0a0a0f] text-white relative">
+      {/* Matrix grid background */}
+      <div
+        className="fixed inset-0 pointer-events-none opacity-[0.03]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
+          backgroundSize: "40px 40px",
+        }}
+      />
+
+      <div className="relative max-w-6xl mx-auto px-4 py-8 sm:py-12">
+        {/* ═══ HEADER ═══ */}
         <div className="mb-10">
-          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-orange-400 to-amber-300 bg-clip-text text-transparent">
-            Profile Hub
+          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-orange-400 via-amber-300 to-orange-500 bg-clip-text text-transparent">
+            Command Center
           </h1>
           <p className="text-gray-400 mt-2">
-            Manage your Block Genomics identities
+            Manage your digital bitmap empire
           </p>
           <p className="text-gray-600 text-sm mt-1 font-mono truncate">
             {walletAddress}
           </p>
         </div>
 
+        {/* ═══ EMPIRE STATS BANNER ═══ */}
+        {empireStats && (
+          <section className="mb-10">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <StatCard icon="🏗️" label="Blocks Owned" value={empireStats.totalBlocks} />
+              <StatCard icon="🟢" label="Guardians Active" value={empireStats.activeGuardians} />
+              <StatCard icon="🌐" label="World Objects" value={empireStats.totalWorldObjects} />
+              <StatCard icon="👥" label="Total Visitors" value={empireStats.totalVisitors} />
+            </div>
+          </section>
+        )}
+
         {/* ═══ PRIMARY PROFILE ═══ */}
         {primaryProfile && (
           <section className="mb-12">
-            <div className="relative overflow-hidden rounded-2xl border border-orange-500/30 bg-gradient-to-br from-[#1a1520] to-[#0f0a14] p-6 sm:p-8">
-              {/* Star badge */}
-              <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-orange-500/20 text-orange-300 text-xs font-semibold px-3 py-1.5 rounded-full border border-orange-500/30">
-                ⭐ Primary Identity
-              </div>
+            <h2 className="text-lg font-semibold bg-gradient-to-r from-orange-400 to-amber-300 bg-clip-text text-transparent mb-4 uppercase tracking-wider text-sm">
+              Primary Identity
+            </h2>
+            <div className="relative overflow-hidden rounded-2xl border border-orange-500/20 bg-white/[0.03] backdrop-blur-md p-6 sm:p-8 transition-all hover:border-orange-500/30">
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-transparent to-purple-500/5" />
 
-              <div className="flex flex-col sm:flex-row items-start gap-6">
+              <div className="relative flex flex-col sm:flex-row items-start gap-6">
                 {/* Large bitmap thumbnail */}
                 <div className="flex-shrink-0">
-                  <BitmapThumbnail blockHeight={primaryProfile.blockHeight} size={128} className="border-2 border-orange-500/40" />
+                  <BitmapThumbnail blockHeight={primaryProfile.blockHeight} size={160} className="border-2 border-orange-500/30 rounded-lg" />
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -213,28 +253,55 @@ export default function ProfileHubPage() {
                     />
                   </div>
                   <p className="text-gray-400 text-sm mb-1">@{primaryProfile.handle}</p>
-                  <p className="text-gray-500 text-xs font-mono mb-3 truncate">
+                  <p className="text-gray-600 text-xs font-mono mb-4 truncate">
                     Block #{primaryProfile.blockHeight}
                     {primaryProfile.genomeHash && ` · ${primaryProfile.genomeHash.slice(0, 16)}…`}
                   </p>
 
                   {/* Guardian status */}
-                  {guardians.has(primaryProfile.blockHeight) && (
-                    <div className="flex items-center gap-2 text-sm">
-                      {guardians.get(primaryProfile.blockHeight)!.status === "active" ? (
-                        <span className="text-green-400">🟢 Guardian Online</span>
-                      ) : (
-                        <span className="text-yellow-400">🟡 Guardian Paused</span>
-                      )}
-                    </div>
-                  )}
+                  {(() => {
+                    const g = guardianMap.get(primaryProfile.blockHeight);
+                    if (!g) return null;
+                    const isActive = g.status === "active" || g.status === "Online";
+                    return (
+                      <div className="space-y-1.5 mb-5">
+                        <div className="flex items-center gap-2 text-sm">
+                          <PulsingDot active={isActive} />
+                          <span className={isActive ? "text-green-400" : "text-yellow-400"}>
+                            Guardian {isActive ? "Online" : "Paused"}
+                          </span>
+                        </div>
+                        <p className="text-gray-500 text-xs">
+                          Last heartbeat: {timeAgo(g.lastHeartbeat)}
+                        </p>
+                        {g.lastAction && (
+                          <p className="text-gray-500 text-xs italic">
+                            &ldquo;{g.lastAction}&rdquo; — {timeAgo(g.lastActionTime)}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
 
-                  <div className="mt-4">
+                  {/* Quick actions */}
+                  <div className="flex flex-wrap gap-2">
                     <Link
                       href={`/agent/${primaryProfile.handle}`}
-                      className="inline-flex items-center gap-1 text-orange-400 hover:text-orange-300 text-sm font-medium transition-colors"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/20 hover:bg-orange-500/20 transition-all"
                     >
-                      View Profile →
+                      View Block →
+                    </Link>
+                    <Link
+                      href={`/agent/${primaryProfile.handle}?chat=1`}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-all"
+                    >
+                      Talk to Guardian →
+                    </Link>
+                    <Link
+                      href={`/agent/${primaryProfile.handle}/edit`}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-white/[0.05] text-gray-400 border border-white/[0.08] hover:bg-white/[0.08] transition-all"
+                    >
+                      Edit Profile
                     </Link>
                   </div>
                 </div>
@@ -246,30 +313,30 @@ export default function ProfileHubPage() {
         {/* ═══ ALL BLOCK PROFILES ═══ */}
         {profiles.length > 0 && (
           <section className="mb-12">
-            <h2 className="text-xl font-semibold text-white mb-4">
-              All Block Profiles
-              <span className="text-gray-500 text-sm font-normal ml-2">({profiles.length})</span>
+            <h2 className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent mb-4 uppercase tracking-wider text-sm">
+              Block Profiles
+              <span className="text-gray-600 text-xs font-normal ml-2 bg-none text-transparent bg-clip-text" style={{ WebkitTextFillColor: 'rgb(75,85,99)' }}>({profiles.length})</span>
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {profiles.map((profile) => {
-                const guardian = guardians.get(profile.blockHeight);
+                const g = guardianMap.get(profile.blockHeight);
+                const isActive = g ? (g.status === "active" || g.status === "Online") : false;
                 const isPrimary = profile.isPrimary || (primaryProfile?.id === profile.id && !profiles.some(p => p.isPrimary));
                 return (
                   <div
                     key={profile.id}
-                    className={`relative rounded-xl border p-4 transition-all ${
+                    className={`group relative rounded-xl border p-4 backdrop-blur-md transition-all hover:scale-[1.01] hover:shadow-lg hover:shadow-black/20 ${
                       isPrimary
-                        ? "border-orange-500/40 bg-[#161220]"
-                        : "border-gray-700/50 bg-[#111118] hover:border-gray-600/60"
+                        ? "border-orange-500/20 bg-white/[0.04]"
+                        : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]"
                     }`}
                   >
                     {isPrimary && (
-                      <div className="absolute top-2 right-2 text-xs text-orange-400">⭐</div>
+                      <div className="absolute top-2 right-2 text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">⭐ Primary</div>
                     )}
 
                     <div className="flex items-start gap-3">
-                      {/* Small bitmap */}
-                      <BitmapThumbnail blockHeight={profile.blockHeight} size={56} />
+                      <BitmapThumbnail blockHeight={profile.blockHeight} size={80} className="rounded-lg" />
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -287,42 +354,54 @@ export default function ProfileHubPage() {
                         </p>
 
                         {/* Guardian status */}
-                        {guardian && (
-                          <p className="text-xs mt-1">
-                            {guardian.status === "active" ? (
-                              <span className="text-green-400">🟢 Online</span>
-                            ) : (
-                              <span className="text-yellow-400">🟡 Paused</span>
-                            )}
-                          </p>
+                        {g ? (
+                          <div className="mt-2 space-y-0.5">
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <PulsingDot active={isActive} />
+                              <span className={isActive ? "text-green-400" : "text-yellow-400"}>
+                                {isActive ? "Online" : "Paused"}
+                              </span>
+                              <span className="text-gray-600">· {timeAgo(g.lastHeartbeat)}</span>
+                            </div>
+                            <p className="text-gray-600 text-xs truncate">
+                              {g.lastAction ? `${g.lastAction} — ${timeAgo(g.lastActionTime)}` : "No activity yet"}
+                            </p>
+                            <p className="text-gray-500 text-xs">🏗️ {g.worldObjectCount} objects</p>
+                          </div>
+                        ) : (
+                          <p className="text-gray-600 text-xs mt-2">No Guardian assigned</p>
                         )}
                       </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-800/60">
+                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/[0.05]">
+                      <Link
+                        href={`/agent/${profile.handle}`}
+                        className="text-xs text-gray-400 hover:text-white transition-colors"
+                      >
+                        View
+                      </Link>
+                      <Link
+                        href={`/agent/${profile.handle}?chat=1`}
+                        className="text-xs text-gray-400 hover:text-purple-400 transition-colors"
+                      >
+                        Guardian
+                      </Link>
                       {!isPrimary ? (
                         <button
                           onClick={() => handleSetPrimary(profile.blockHeight)}
                           disabled={settingPrimary !== null}
-                          className="text-xs px-3 py-1.5 rounded-md bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border border-orange-500/20 transition-all disabled:opacity-50"
+                          className="text-xs text-gray-400 hover:text-orange-400 transition-colors disabled:opacity-50"
                         >
-                          {settingPrimary === profile.blockHeight ? "Setting…" : "Set as Primary"}
+                          {settingPrimary === profile.blockHeight ? "Setting…" : "Set Primary"}
                         </button>
                       ) : (
-                        <span className="text-xs px-3 py-1.5 rounded-md bg-gray-800/50 text-gray-500 border border-gray-700/30">
-                          Primary
-                        </span>
+                        <span className="text-xs text-gray-600">Primary</span>
                       )}
-                      <Link
-                        href={`/agent/${profile.handle}`}
-                        className="text-xs px-3 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors"
-                      >
-                        View Profile →
-                      </Link>
                       <button
                         onClick={() => setTransferModal({ blockHeight: profile.blockHeight, handle: profile.handle })}
-                        className="text-xs px-3 py-1.5 rounded-md text-gray-500 hover:text-gray-300 transition-colors ml-auto"
+                        className="text-xs text-gray-600 hover:text-gray-300 transition-colors ml-auto"
                       >
                         Transfer
                       </button>
@@ -337,34 +416,34 @@ export default function ProfileHubPage() {
         {/* ═══ UNPROFILED BITMAPS ═══ */}
         {unprofiledBlocks.length > 0 && (
           <section className="mb-12">
-            <h2 className="text-xl font-semibold text-white mb-4">
+            <h2 className="text-lg font-semibold bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent mb-4 uppercase tracking-wider text-sm">
               Unprofiled Bitmaps
-              <span className="text-gray-500 text-sm font-normal ml-2">({unprofiledBlocks.length})</span>
+              <span className="text-gray-600 text-xs font-normal ml-2" style={{ WebkitTextFillColor: 'rgb(75,85,99)' }}>({unprofiledBlocks.length})</span>
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {unprofiledBlocks.map((blockHeight) => (
                 <div
                   key={blockHeight}
-                  className="rounded-xl border border-dashed border-gray-700/50 bg-[#111118] p-4 hover:border-gray-600/60 transition-all"
+                  className="group rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] backdrop-blur-md p-4 hover:border-white/[0.15] transition-all hover:scale-[1.01]"
                 >
                   <div className="flex items-center gap-3">
-                    <BitmapThumbnail blockHeight={blockHeight} size={56} />
+                    <BitmapThumbnail blockHeight={blockHeight} size={56} className="rounded-lg opacity-60 group-hover:opacity-100 transition-opacity" />
                     <div className="flex-1">
                       <p className="text-white font-medium text-sm">Block #{blockHeight}</p>
-                      <p className="text-gray-500 text-xs">No profile created</p>
+                      <p className="text-gray-600 text-xs">No Guardian assigned — activate to bring this block to life</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-800/60">
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/[0.05]">
                     <Link
                       href="/verify"
                       className="text-xs px-3 py-1.5 rounded-md bg-gradient-to-r from-orange-600 to-amber-500 text-white font-medium hover:from-orange-500 hover:to-amber-400 transition-all"
                     >
-                      Create Profile
+                      ⚡ Activate
                     </Link>
                     <button
                       onClick={() => setTransferModal({ blockHeight })}
-                      className="text-xs px-3 py-1.5 rounded-md text-gray-500 hover:text-gray-300 transition-colors ml-auto"
+                      className="text-xs px-3 py-1.5 rounded-md text-gray-600 hover:text-gray-300 transition-colors ml-auto"
                     >
                       Transfer
                     </button>
@@ -381,7 +460,7 @@ export default function ProfileHubPage() {
             <div className="text-5xl mb-4">🧬</div>
             <h2 className="text-xl font-semibold text-white mb-2">No Bitmaps Found</h2>
             <p className="text-gray-400 mb-6 max-w-md mx-auto">
-              You don't have any Bitmap blocks yet. Acquire one and verify ownership to create your first profile.
+              You don&apos;t have any Bitmap blocks yet. Acquire one and verify ownership to create your first profile.
             </p>
             <Link
               href="/verify"
@@ -400,7 +479,7 @@ export default function ProfileHubPage() {
           onClick={() => setTransferModal(null)}
         >
           <div
-            className="bg-[#151520] border border-gray-700/60 rounded-2xl p-6 max-w-md w-full"
+            className="bg-[#151520] border border-white/[0.08] rounded-2xl p-6 max-w-md w-full backdrop-blur-md"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-white mb-2">Transfer Bitmap</h3>
@@ -409,7 +488,7 @@ export default function ProfileHubPage() {
               to locate and send this bitmap.
             </p>
 
-            <div className="bg-[#0a0a0f] rounded-lg p-3 mb-4">
+            <div className="bg-black/30 rounded-lg p-3 mb-4 border border-white/[0.05]">
               <p className="text-gray-500 text-xs mb-1">Block Height</p>
               <p className="text-white font-mono text-sm">{transferModal.blockHeight}</p>
               {transferModal.handle && (
@@ -428,7 +507,7 @@ export default function ProfileHubPage() {
               onClick={() => {
                 navigator.clipboard.writeText(`${transferModal.blockHeight}.bitmap`);
               }}
-              className="w-full px-4 py-2 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors mb-2"
+              className="w-full px-4 py-2 text-sm bg-white/[0.05] text-gray-300 rounded-lg hover:bg-white/[0.08] border border-white/[0.08] transition-colors mb-2"
             >
               Copy Inscription ID
             </button>
