@@ -142,10 +142,23 @@ model ChatMessage {
   channel       String   @default("block")
   block         Block    @relation(fields: [blockHeight], references: [height])
   sender        User     @relation(fields: [senderAddress], references: [walletAddress])
+  reactions     ChatReaction[]
 
   @@index([blockHeight])
   @@index([senderAddress])
   @@index([createdAt])
+}
+
+model ChatReaction {
+  id        String      @id @default(cuid())
+  messageId String
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  emoji     String
+  wallet    String
+  createdAt DateTime    @default(now())
+
+  @@unique([messageId, wallet, emoji])
+  @@index([messageId])
 }
 
 model HandleHistory {

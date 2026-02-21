@@ -10,13 +10,29 @@ export async function GET(
     const { address } = await params;
     if (!address) return error('Address required', 400);
 
-    // Get user's owned blocks
-    const user = await prisma.user.findUnique({
-      where: { walletAddress: address },
-      select: { ownedBlocks: true },
-    });
+    // Get user's owned blocks from multiple sources
+    const [user, blocksFromBlock, blocksFromProfile] = await Promise.all([
+      prisma.user.findUnique({
+        where: { walletAddress: address },
+        select: { ownedBlocks: true },
+      }),
+      prisma.block.findMany({
+        where: { ownerAddress: address },
+        select: { height: true },
+      }),
+      prisma.blockProfile.findMany({
+        where: { walletAddress: address },
+        select: { blockHeight: true },
+      }),
+    ]);
 
-    const ownedBlocks = user?.ownedBlocks || [];
+    const ownedBlocks = [
+      ...new Set([
+        ...(user?.ownedBlocks || []),
+        ...blocksFromBlock.map((b) => b.height),
+        ...blocksFromProfile.map((bp) => bp.blockHeight),
+      ]),
+    ];
 
     // Get all guardians for this owner
     const guardians = await prisma.guardianAgent.findMany({
@@ -101,6 +117,7 @@ export async function GET(
       totalWorldObjects,
       totalVisitors,
       guardianDetails,
+      ownedBlocks,
     });
   } catch (err) {
     console.error('Empire stats error:', err);

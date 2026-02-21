@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useGlobalWallet } from "@/context/GlobalWalletContext";
 import CrownShield, { type ShieldTier } from "@/components/CrownShield";
 import BitmapThumbnail from "@/components/BitmapThumbnail";
 
+/* ─── Types ─── */
 interface BlockProfileData {
   id: string;
   walletAddress: string;
   blockHeight: number;
   handle: string;
   displayName?: string;
+  bio?: string;
   genomeHash?: string;
   tier: number;
   verified: boolean;
@@ -34,8 +36,10 @@ interface EmpireStats {
   totalWorldObjects: number;
   totalVisitors: number;
   guardianDetails: GuardianDetail[];
+  ownedBlocks: number[];
 }
 
+/* ─── Helpers ─── */
 function timeAgo(dateStr: string | null): string {
   if (!dateStr) return "Never";
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -60,8 +64,8 @@ function PulsingDot({ active }: { active: boolean }) {
 
 function StatCard({ label, value, icon }: { label: string; value: string | number; icon: string }) {
   return (
-    <div className="relative group rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-4 sm:p-5 transition-all hover:border-white/[0.15] hover:bg-white/[0.05]">
-      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-orange-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+    <div className="relative group rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-4 sm:p-5 transition-all duration-300 hover:border-orange-500/20 hover:bg-white/[0.05] hover:shadow-lg hover:shadow-orange-500/5">
+      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-orange-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       <div className="relative">
         <div className="text-2xl mb-2">{icon}</div>
         <div className="text-2xl sm:text-3xl font-bold text-white">{value}</div>
@@ -71,6 +75,347 @@ function StatCard({ label, value, icon }: { label: string; value: string | numbe
   );
 }
 
+function Toast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3000);
+    return () => clearTimeout(t);
+  }, [onClose]);
+  return (
+    <div className="fixed bottom-6 right-6 z-[60] px-4 py-3 rounded-xl bg-green-500/20 border border-green-500/30 text-green-400 text-sm backdrop-blur-md animate-in slide-in-from-bottom-4">
+      ✓ {message}
+    </div>
+  );
+}
+
+/* ─── Inline Editable Field ─── */
+function InlineEdit({
+  value,
+  onSave,
+  multiline,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onSave: (val: string) => Promise<void>;
+  multiline?: boolean;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+  const ref = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  useEffect(() => { setDraft(value); }, [value]);
+  useEffect(() => { if (editing) ref.current?.focus(); }, [editing]);
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className={`text-left hover:bg-white/[0.05] rounded px-1 -mx-1 transition-colors cursor-text group/edit ${className || ""}`}
+        title="Click to edit"
+      >
+        {value || <span className="text-gray-600 italic">{placeholder || "Click to edit"}</span>}
+        <span className="text-gray-600 opacity-0 group-hover/edit:opacity-100 ml-1.5 text-xs transition-opacity">✏️</span>
+      </button>
+    );
+  }
+
+  const save = async () => {
+    if (draft === value) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await onSave(draft);
+      setEditing(false);
+    } catch { /* keep editing */ }
+    finally { setSaving(false); }
+  };
+
+  const Tag = multiline ? "textarea" : "input";
+  return (
+    <div className="flex items-start gap-2">
+      <Tag
+        ref={ref as any}
+        value={draft}
+        onChange={(e: any) => setDraft(e.target.value)}
+        onKeyDown={(e: any) => { if (e.key === "Enter" && !multiline) save(); if (e.key === "Escape") { setDraft(value); setEditing(false); } }}
+        rows={multiline ? 3 : undefined}
+        className={`flex-1 bg-white/[0.05] border border-white/[0.1] rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-orange-500/50 resize-none ${className || ""}`}
+        placeholder={placeholder}
+      />
+      <button onClick={save} disabled={saving} className="px-2.5 py-1.5 text-xs bg-orange-500/20 text-orange-400 rounded-lg hover:bg-orange-500/30 disabled:opacity-50 transition-colors">
+        {saving ? "…" : "Save"}
+      </button>
+      <button onClick={() => { setDraft(value); setEditing(false); }} className="px-2.5 py-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors">
+        ✕
+      </button>
+    </div>
+  );
+}
+
+/* ─── Block Card ─── */
+function BlockCard({
+  blockHeight,
+  profile,
+  guardian,
+  isPrimary,
+  onSetPrimary,
+  settingPrimary,
+  onTransfer,
+  onProfileUpdate,
+  walletAddress,
+  onToast,
+}: {
+  blockHeight: number;
+  profile: BlockProfileData | null;
+  guardian: GuardianDetail | null;
+  isPrimary: boolean;
+  onSetPrimary: (h: number) => void;
+  settingPrimary: number | null;
+  onTransfer: (h: number, handle?: string) => void;
+  onProfileUpdate: (blockHeight: number, data: Partial<BlockProfileData>) => void;
+  walletAddress: string;
+  onToast: (msg: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isActive = guardian ? (guardian.status === "active" || guardian.status === "Online") : false;
+  const isPaused = guardian ? guardian.status === "paused" || guardian.status === "Paused" : false;
+  const profiled = !!profile;
+
+  const saveField = async (field: string, value: string) => {
+    const res = await fetch("/api/v1/profiles/update", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletAddress, blockHeight, [field]: value }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || "Failed to save");
+    }
+    const data = await res.json();
+    onProfileUpdate(blockHeight, data.data);
+    onToast(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
+  };
+
+  return (
+    <div
+      className={`group relative rounded-xl border backdrop-blur-md transition-all duration-300 overflow-hidden ${
+        isPrimary
+          ? "border-orange-500/25 bg-white/[0.04] shadow-lg shadow-orange-500/5"
+          : profiled
+          ? "border-white/[0.08] bg-white/[0.03] hover:border-orange-500/15"
+          : "border-dashed border-white/[0.08] bg-white/[0.02] hover:border-white/[0.15]"
+      }`}
+    >
+      {/* Collapsed / Header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left p-4 flex items-start gap-3"
+      >
+        <div className="flex-shrink-0 relative">
+          <BitmapThumbnail blockHeight={blockHeight} size={80} className={`rounded-lg transition-opacity ${profiled ? "" : "opacity-60 group-hover:opacity-90"}`} />
+          {isPrimary && (
+            <span className="absolute -top-1.5 -right-1.5 text-sm">⭐</span>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="font-semibold text-white truncate text-sm">
+              {profile?.displayName || profile?.handle || `Block #${blockHeight}`}
+            </span>
+            {profile && (
+              <CrownShield tier={(profile.tier || 1) as ShieldTier} size={20} verified={profile.verified} />
+            )}
+          </div>
+          {profile && (
+            <p className="text-gray-500 text-xs truncate">@{profile.handle} · #{blockHeight}</p>
+          )}
+          {!profile && (
+            <p className="text-gray-600 text-xs">#{blockHeight} · Not profiled</p>
+          )}
+
+          {/* Quick stats row */}
+          <div className="flex items-center gap-3 mt-2 text-xs">
+            {guardian ? (
+              <span className="flex items-center gap-1.5">
+                <PulsingDot active={isActive} />
+                <span className={isActive ? "text-green-400" : isPaused ? "text-yellow-400" : "text-gray-500"}>
+                  {isActive ? "Online" : isPaused ? "Paused" : guardian.status}
+                </span>
+              </span>
+            ) : (
+              <span className="text-gray-600">No Guardian</span>
+            )}
+            {guardian && <span className="text-gray-600">🏗️ {guardian.worldObjectCount}</span>}
+            {isPrimary && <span className="text-orange-400/70 text-[10px] uppercase tracking-wider font-medium">Primary</span>}
+          </div>
+        </div>
+
+        <span className={`text-gray-600 text-xs transition-transform duration-300 mt-2 ${expanded ? "rotate-180" : ""}`}>
+          ▼
+        </span>
+      </button>
+
+      {/* Expanded */}
+      <div
+        className="transition-all duration-300 ease-in-out overflow-hidden"
+        style={{ maxHeight: expanded ? "800px" : "0px", opacity: expanded ? 1 : 0 }}
+      >
+        <div className="px-4 pb-4 space-y-4 border-t border-white/[0.05] pt-4">
+          {profiled ? (
+            <>
+              {/* Profile Section */}
+              <div>
+                <h4 className="text-[10px] uppercase tracking-widest text-gray-500 mb-2 font-medium">Profile</h4>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] text-gray-600 uppercase tracking-wider">Display Name</label>
+                    <InlineEdit
+                      value={profile!.displayName || ""}
+                      placeholder="Set display name"
+                      onSave={(v) => saveField("displayName", v)}
+                      className="text-sm text-white block"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-600 uppercase tracking-wider">Bio</label>
+                    <InlineEdit
+                      value={profile!.bio || ""}
+                      placeholder="Write a bio…"
+                      onSave={(v) => saveField("bio", v)}
+                      multiline
+                      className="text-sm text-gray-300 block"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-600 uppercase tracking-wider">Handle</label>
+                    <InlineEdit
+                      value={profile!.handle}
+                      placeholder="handle"
+                      onSave={(v) => saveField("handle", v)}
+                      className="text-sm text-gray-400 block"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 pt-1">
+                    {!isPrimary && (
+                      <button
+                        onClick={() => onSetPrimary(blockHeight)}
+                        disabled={settingPrimary !== null}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/20 hover:bg-orange-500/20 transition-all disabled:opacity-50"
+                      >
+                        {settingPrimary === blockHeight ? "Setting…" : "⭐ Set as Primary"}
+                      </button>
+                    )}
+                    <Link
+                      href={`/agent/${profile!.handle}`}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.05] text-gray-400 border border-white/[0.08] hover:bg-white/[0.08] transition-all"
+                    >
+                      View Public Profile →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              {/* Guardian Section */}
+              <div>
+                <h4 className="text-[10px] uppercase tracking-widest text-gray-500 mb-2 font-medium">Guardian</h4>
+                {guardian ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <PulsingDot active={isActive} />
+                      <span className={isActive ? "text-green-400" : "text-yellow-400"}>
+                        {isActive ? "Online" : isPaused ? "Paused" : guardian.status}
+                      </span>
+                      <span className="text-gray-600 text-xs">· Last heartbeat: {timeAgo(guardian.lastHeartbeat)}</span>
+                    </div>
+                    {guardian.lastAction && (
+                      <p className="text-gray-500 text-xs italic">&ldquo;{guardian.lastAction}&rdquo; — {timeAgo(guardian.lastActionTime)}</p>
+                    )}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Link href={`/agent/${profile!.handle}?tab=guardian`} className="text-xs px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-all">
+                        Configure Guardian →
+                      </Link>
+                      <Link href={`/agent/${profile!.handle}?tab=openclaw`} className="text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all">
+                        Connect OpenClaw →
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-gray-600 text-xs">No Guardian assigned</p>
+                )}
+              </div>
+
+              {/* World Section */}
+              <div>
+                <h4 className="text-[10px] uppercase tracking-widest text-gray-500 mb-2 font-medium">World</h4>
+                <p className="text-gray-400 text-sm mb-2">🏗️ {guardian?.worldObjectCount ?? 0} objects</p>
+                <div className="flex flex-wrap gap-2">
+                  <Link href={`/agent/${profile!.handle}`} className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all">
+                    Enter Block →
+                  </Link>
+                  {guardian && (
+                    <Link href={`/agent/${profile!.handle}?chat=1`} className="text-xs px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-all">
+                      Build with Guardian →
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            /* Unprofiled */
+            <div className="text-center py-4">
+              <p className="text-gray-500 text-sm mb-3">This block hasn&apos;t been profiled yet.</p>
+              <Link
+                href="/verify"
+                className="inline-flex px-5 py-2.5 bg-gradient-to-r from-orange-600 to-amber-500 text-white text-sm font-semibold rounded-lg hover:from-orange-500 hover:to-amber-400 transition-all shadow-lg shadow-orange-500/20"
+              >
+                ⚡ Create Profile
+              </Link>
+              <div className="mt-4 space-y-1">
+                {["Guardian", "World Building", "Marketplace"].map((s) => (
+                  <p key={s} className="text-gray-700 text-xs">🔒 {s} — <span className="italic">Activate to unlock</span></p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Actions — always shown */}
+          <div className="border-t border-white/[0.05] pt-3">
+            <h4 className="text-[10px] uppercase tracking-widest text-gray-500 mb-2 font-medium">Actions</h4>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => onTransfer(blockHeight, profile?.handle)}
+                className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.04] text-gray-400 border border-white/[0.08] hover:bg-white/[0.08] transition-all"
+              >
+                Transfer Bitmap
+              </button>
+              <a
+                href="https://bitmap.market"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.04] text-gray-400 border border-white/[0.08] hover:bg-white/[0.08] transition-all"
+              >
+                List on Marketplace
+              </a>
+              <a
+                href="https://bitmap.market"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.04] text-gray-400 border border-white/[0.08] hover:bg-white/[0.08] transition-all"
+              >
+                Create Delegation
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Main Page ─── */
 export default function ProfileHubPage() {
   const { isConnected, walletAddress, connect, availableWallets } = useGlobalWallet();
   const [profiles, setProfiles] = useState<BlockProfileData[]>([]);
@@ -79,6 +424,7 @@ export default function ProfileHubPage() {
   const [loading, setLoading] = useState(true);
   const [settingPrimary, setSettingPrimary] = useState<number | null>(null);
   const [transferModal, setTransferModal] = useState<{ blockHeight: number; handle?: string } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   const guardianMap = new Map<number, GuardianDetail>();
   if (empireStats) {
@@ -97,6 +443,8 @@ export default function ProfileHubPage() {
         fetch(`/api/v1/profiles/empire-stats/${walletAddress}`),
       ]);
 
+      let allBlocks: number[] = [];
+
       if (profilesRes.ok) {
         const pData = await profilesRes.json();
         if (pData.success) setProfiles(pData.data.profiles || []);
@@ -104,13 +452,21 @@ export default function ProfileHubPage() {
 
       if (userRes.ok) {
         const uData = await userRes.json();
-        if (uData.success) setOwnedBlocks(uData.data.ownedBlocks || []);
+        if (uData.success) allBlocks = [...(uData.data.ownedBlocks || [])];
       }
 
       if (statsRes.ok) {
         const sData = await statsRes.json();
-        if (sData.success) setEmpireStats(sData.data);
+        if (sData.success) {
+          setEmpireStats(sData.data);
+          if (sData.data.ownedBlocks) {
+            const merged = new Set([...allBlocks, ...sData.data.ownedBlocks]);
+            allBlocks = [...merged];
+          }
+        }
       }
+
+      setOwnedBlocks(allBlocks);
     } catch (err) {
       console.error("Failed to fetch profile data:", err);
     } finally {
@@ -143,9 +499,14 @@ export default function ProfileHubPage() {
     }
   };
 
-  const primaryProfile = profiles.find((p) => p.isPrimary) || profiles[0];
-  const profiledBlockHeights = new Set(profiles.map((p) => p.blockHeight));
-  const unprofiledBlocks = ownedBlocks.filter((b) => !profiledBlockHeights.has(b));
+  const handleProfileUpdate = (blockHeight: number, data: Partial<BlockProfileData>) => {
+    setProfiles((prev) =>
+      prev.map((p) => (p.blockHeight === blockHeight ? { ...p, ...data } : p))
+    );
+  };
+
+  const profileMap = new Map(profiles.map((p) => [p.blockHeight, p]));
+  const allBlockHeights = [...new Set([...ownedBlocks, ...profiles.map((p) => p.blockHeight)])].sort((a, b) => a - b);
 
   // ─── Not Connected ───
   if (!isConnected) {
@@ -190,7 +551,7 @@ export default function ProfileHubPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white relative">
-      {/* Matrix grid background */}
+      {/* Grid background */}
       <div
         className="fixed inset-0 pointer-events-none opacity-[0.03]"
         style={{
@@ -201,20 +562,16 @@ export default function ProfileHubPage() {
       />
 
       <div className="relative max-w-6xl mx-auto px-4 py-8 sm:py-12">
-        {/* ═══ HEADER ═══ */}
+        {/* Header */}
         <div className="mb-10">
           <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-orange-400 via-amber-300 to-orange-500 bg-clip-text text-transparent">
             Command Center
           </h1>
-          <p className="text-gray-400 mt-2">
-            Manage your digital bitmap empire
-          </p>
-          <p className="text-gray-600 text-sm mt-1 font-mono truncate">
-            {walletAddress}
-          </p>
+          <p className="text-gray-400 mt-2">Manage your digital bitmap empire</p>
+          <p className="text-gray-600 text-sm mt-1 font-mono truncate">{walletAddress}</p>
         </div>
 
-        {/* ═══ EMPIRE STATS BANNER ═══ */}
+        {/* Empire Stats */}
         {empireStats && (
           <section className="mb-10">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -226,236 +583,42 @@ export default function ProfileHubPage() {
           </section>
         )}
 
-        {/* ═══ PRIMARY PROFILE ═══ */}
-        {primaryProfile && (
+        {/* Block Cards Grid */}
+        {allBlockHeights.length > 0 && (
           <section className="mb-12">
             <h2 className="text-lg font-semibold bg-gradient-to-r from-orange-400 to-amber-300 bg-clip-text text-transparent mb-4 uppercase tracking-wider text-sm">
-              Primary Identity
+              Your Blocks
+              <span className="text-gray-600 text-xs font-normal ml-2" style={{ WebkitTextFillColor: "rgb(75,85,99)" }}>
+                ({allBlockHeights.length})
+              </span>
             </h2>
-            <div className="relative overflow-hidden rounded-2xl border border-orange-500/20 bg-white/[0.03] backdrop-blur-md p-6 sm:p-8 transition-all hover:border-orange-500/30">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-transparent to-purple-500/5" />
-
-              <div className="relative flex flex-col sm:flex-row items-start gap-6">
-                {/* Large bitmap thumbnail */}
-                <div className="flex-shrink-0">
-                  <BitmapThumbnail blockHeight={primaryProfile.blockHeight} size={160} className="border-2 border-orange-500/30 rounded-lg" />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h2 className="text-2xl sm:text-3xl font-bold text-white truncate">
-                      {primaryProfile.displayName || primaryProfile.handle}
-                    </h2>
-                    <CrownShield
-                      tier={(primaryProfile.tier || 1) as ShieldTier}
-                      size={36}
-                      verified={primaryProfile.verified}
-                    />
-                  </div>
-                  <p className="text-gray-400 text-sm mb-1">@{primaryProfile.handle}</p>
-                  <p className="text-gray-600 text-xs font-mono mb-4 truncate">
-                    Block #{primaryProfile.blockHeight}
-                    {primaryProfile.genomeHash && ` · ${primaryProfile.genomeHash.slice(0, 16)}…`}
-                  </p>
-
-                  {/* Guardian status */}
-                  {(() => {
-                    const g = guardianMap.get(primaryProfile.blockHeight);
-                    if (!g) return null;
-                    const isActive = g.status === "active" || g.status === "Online";
-                    return (
-                      <div className="space-y-1.5 mb-5">
-                        <div className="flex items-center gap-2 text-sm">
-                          <PulsingDot active={isActive} />
-                          <span className={isActive ? "text-green-400" : "text-yellow-400"}>
-                            Guardian {isActive ? "Online" : "Paused"}
-                          </span>
-                        </div>
-                        <p className="text-gray-500 text-xs">
-                          Last heartbeat: {timeAgo(g.lastHeartbeat)}
-                        </p>
-                        {g.lastAction && (
-                          <p className="text-gray-500 text-xs italic">
-                            &ldquo;{g.lastAction}&rdquo; — {timeAgo(g.lastActionTime)}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Quick actions */}
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={`/agent/${primaryProfile.handle}`}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/20 hover:bg-orange-500/20 transition-all"
-                    >
-                      View Block →
-                    </Link>
-                    <Link
-                      href={`/agent/${primaryProfile.handle}?chat=1`}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-all"
-                    >
-                      Talk to Guardian →
-                    </Link>
-                    <Link
-                      href={`/agent/${primaryProfile.handle}/edit`}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-white/[0.05] text-gray-400 border border-white/[0.08] hover:bg-white/[0.08] transition-all"
-                    >
-                      Edit Profile
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ═══ ALL BLOCK PROFILES ═══ */}
-        {profiles.length > 0 && (
-          <section className="mb-12">
-            <h2 className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent mb-4 uppercase tracking-wider text-sm">
-              Block Profiles
-              <span className="text-gray-600 text-xs font-normal ml-2 bg-none text-transparent bg-clip-text" style={{ WebkitTextFillColor: 'rgb(75,85,99)' }}>({profiles.length})</span>
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {profiles.map((profile) => {
-                const g = guardianMap.get(profile.blockHeight);
-                const isActive = g ? (g.status === "active" || g.status === "Online") : false;
-                const isPrimary = profile.isPrimary || (primaryProfile?.id === profile.id && !profiles.some(p => p.isPrimary));
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {allBlockHeights.map((h) => {
+                const profile = profileMap.get(h) || null;
+                const primaryProfile = profiles.find((p) => p.isPrimary) || profiles[0];
+                const isPrimary = profile ? (profile.isPrimary || (!profiles.some((p) => p.isPrimary) && primaryProfile?.id === profile.id)) : false;
                 return (
-                  <div
-                    key={profile.id}
-                    className={`group relative rounded-xl border p-4 backdrop-blur-md transition-all hover:scale-[1.01] hover:shadow-lg hover:shadow-black/20 ${
-                      isPrimary
-                        ? "border-orange-500/20 bg-white/[0.04]"
-                        : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]"
-                    }`}
-                  >
-                    {isPrimary && (
-                      <div className="absolute top-2 right-2 text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">⭐ Primary</div>
-                    )}
-
-                    <div className="flex items-start gap-3">
-                      <BitmapThumbnail blockHeight={profile.blockHeight} size={80} className="rounded-lg" />
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-white truncate text-sm">
-                            {profile.displayName || profile.handle}
-                          </span>
-                          <CrownShield
-                            tier={(profile.tier || 1) as ShieldTier}
-                            size={20}
-                            verified={profile.verified}
-                          />
-                        </div>
-                        <p className="text-gray-500 text-xs truncate">
-                          @{profile.handle} · #{profile.blockHeight}
-                        </p>
-
-                        {/* Guardian status */}
-                        {g ? (
-                          <div className="mt-2 space-y-0.5">
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <PulsingDot active={isActive} />
-                              <span className={isActive ? "text-green-400" : "text-yellow-400"}>
-                                {isActive ? "Online" : "Paused"}
-                              </span>
-                              <span className="text-gray-600">· {timeAgo(g.lastHeartbeat)}</span>
-                            </div>
-                            <p className="text-gray-600 text-xs truncate">
-                              {g.lastAction ? `${g.lastAction} — ${timeAgo(g.lastActionTime)}` : "No activity yet"}
-                            </p>
-                            <p className="text-gray-500 text-xs">🏗️ {g.worldObjectCount} objects</p>
-                          </div>
-                        ) : (
-                          <p className="text-gray-600 text-xs mt-2">No Guardian assigned</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/[0.05]">
-                      <Link
-                        href={`/agent/${profile.handle}`}
-                        className="text-xs text-gray-400 hover:text-white transition-colors"
-                      >
-                        View
-                      </Link>
-                      <Link
-                        href={`/agent/${profile.handle}?chat=1`}
-                        className="text-xs text-gray-400 hover:text-purple-400 transition-colors"
-                      >
-                        Guardian
-                      </Link>
-                      {!isPrimary ? (
-                        <button
-                          onClick={() => handleSetPrimary(profile.blockHeight)}
-                          disabled={settingPrimary !== null}
-                          className="text-xs text-gray-400 hover:text-orange-400 transition-colors disabled:opacity-50"
-                        >
-                          {settingPrimary === profile.blockHeight ? "Setting…" : "Set Primary"}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-gray-600">Primary</span>
-                      )}
-                      <button
-                        onClick={() => setTransferModal({ blockHeight: profile.blockHeight, handle: profile.handle })}
-                        className="text-xs text-gray-600 hover:text-gray-300 transition-colors ml-auto"
-                      >
-                        Transfer
-                      </button>
-                    </div>
-                  </div>
+                  <BlockCard
+                    key={h}
+                    blockHeight={h}
+                    profile={profile}
+                    guardian={guardianMap.get(h) || null}
+                    isPrimary={isPrimary}
+                    onSetPrimary={handleSetPrimary}
+                    settingPrimary={settingPrimary}
+                    onTransfer={(bh, handle) => setTransferModal({ blockHeight: bh, handle })}
+                    onProfileUpdate={handleProfileUpdate}
+                    walletAddress={walletAddress!}
+                    onToast={setToast}
+                  />
                 );
               })}
             </div>
           </section>
         )}
 
-        {/* ═══ UNPROFILED BITMAPS ═══ */}
-        {unprofiledBlocks.length > 0 && (
-          <section className="mb-12">
-            <h2 className="text-lg font-semibold bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent mb-4 uppercase tracking-wider text-sm">
-              Unprofiled Bitmaps
-              <span className="text-gray-600 text-xs font-normal ml-2" style={{ WebkitTextFillColor: 'rgb(75,85,99)' }}>({unprofiledBlocks.length})</span>
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {unprofiledBlocks.map((blockHeight) => (
-                <div
-                  key={blockHeight}
-                  className="group rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] backdrop-blur-md p-4 hover:border-white/[0.15] transition-all hover:scale-[1.01]"
-                >
-                  <div className="flex items-center gap-3">
-                    <BitmapThumbnail blockHeight={blockHeight} size={56} className="rounded-lg opacity-60 group-hover:opacity-100 transition-opacity" />
-                    <div className="flex-1">
-                      <p className="text-white font-medium text-sm">Block #{blockHeight}</p>
-                      <p className="text-gray-600 text-xs">No Guardian assigned — activate to bring this block to life</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/[0.05]">
-                    <Link
-                      href="/verify"
-                      className="text-xs px-3 py-1.5 rounded-md bg-gradient-to-r from-orange-600 to-amber-500 text-white font-medium hover:from-orange-500 hover:to-amber-400 transition-all"
-                    >
-                      ⚡ Activate
-                    </Link>
-                    <button
-                      onClick={() => setTransferModal({ blockHeight })}
-                      className="text-xs px-3 py-1.5 rounded-md text-gray-600 hover:text-gray-300 transition-colors ml-auto"
-                    >
-                      Transfer
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ═══ EMPTY STATE ═══ */}
-        {profiles.length === 0 && ownedBlocks.length === 0 && (
+        {/* Empty State */}
+        {allBlockHeights.length === 0 && (
           <div className="text-center py-16">
             <div className="text-5xl mb-4">🧬</div>
             <h2 className="text-xl font-semibold text-white mb-2">No Bitmaps Found</h2>
@@ -472,7 +635,7 @@ export default function ProfileHubPage() {
         )}
       </div>
 
-      {/* ═══ TRANSFER MODAL ═══ */}
+      {/* Transfer Modal */}
       {transferModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
@@ -484,10 +647,8 @@ export default function ProfileHubPage() {
           >
             <h3 className="text-lg font-semibold text-white mb-2">Transfer Bitmap</h3>
             <p className="text-gray-400 text-sm mb-4">
-              Bitmap transfers are done through your wallet application. Use the inscription ID below
-              to locate and send this bitmap.
+              Bitmap transfers are done through your wallet application. Use the inscription ID below to locate and send this bitmap.
             </p>
-
             <div className="bg-black/30 rounded-lg p-3 mb-4 border border-white/[0.05]">
               <p className="text-gray-500 text-xs mb-1">Block Height</p>
               <p className="text-white font-mono text-sm">{transferModal.blockHeight}</p>
@@ -498,15 +659,10 @@ export default function ProfileHubPage() {
                 </>
               )}
               <p className="text-gray-500 text-xs mb-1 mt-2">Inscription ID</p>
-              <p className="text-white font-mono text-xs break-all">
-                {transferModal.blockHeight}.bitmap
-              </p>
+              <p className="text-white font-mono text-xs break-all">{transferModal.blockHeight}.bitmap</p>
             </div>
-
             <button
-              onClick={() => {
-                navigator.clipboard.writeText(`${transferModal.blockHeight}.bitmap`);
-              }}
+              onClick={() => navigator.clipboard.writeText(`${transferModal.blockHeight}.bitmap`)}
               className="w-full px-4 py-2 text-sm bg-white/[0.05] text-gray-300 rounded-lg hover:bg-white/[0.08] border border-white/[0.08] transition-colors mb-2"
             >
               Copy Inscription ID
@@ -520,6 +676,9 @@ export default function ProfileHubPage() {
           </div>
         </div>
       )}
+
+      {/* Toast */}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );
 }

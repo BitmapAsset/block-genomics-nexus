@@ -10,12 +10,30 @@ export async function GET(
   try {
     const { address } = await params;
 
-    const user = await prisma.user.findUnique({
-      where: { walletAddress: address },
-      include: { blockProfiles: true },
-    });
+    const [user, blocksFromBlock, blocksFromProfile] = await Promise.all([
+      prisma.user.findUnique({
+        where: { walletAddress: address },
+        include: { blockProfiles: true },
+      }),
+      prisma.block.findMany({
+        where: { ownerAddress: address },
+        select: { height: true },
+      }),
+      prisma.blockProfile.findMany({
+        where: { walletAddress: address },
+        select: { blockHeight: true },
+      }),
+    ]);
 
     if (!user) return error('User not found', 404);
+
+    const ownedBlocks = [
+      ...new Set([
+        ...(user.ownedBlocks || []),
+        ...blocksFromBlock.map((b) => b.height),
+        ...blocksFromProfile.map((bp) => bp.blockHeight),
+      ]),
+    ];
 
     logActivity(address, 'login', { method: 'wallet_lookup' });
 
@@ -28,7 +46,7 @@ export async function GET(
       tier: user.tier,
       verified: user.verified,
       blockProfiles: user.blockProfiles,
-      ownedBlocks: user.ownedBlocks,
+      ownedBlocks,
     });
   } catch (e: any) {
     return error(e.message, 500);
