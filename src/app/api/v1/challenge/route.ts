@@ -11,7 +11,8 @@ export async function POST(req: NextRequest) {
     if (!walletAddress) return error('walletAddress required', 400);
 
     const nonce = crypto.randomBytes(32).toString('hex');
-    const message = `Block Genomics Verification\n\nWallet: ${walletAddress}\nNonce: ${nonce}\nTimestamp: ${new Date().toISOString()}`;
+    // Keep message simple — Xverse mobile rejects messages with special formatting
+    const message = `Block Genomics verification: ${nonce}`;
 
     setChallenge(walletAddress, nonce);
 

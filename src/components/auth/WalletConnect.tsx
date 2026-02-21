@@ -16,6 +16,7 @@ interface BlockProfileInfo {
   displayName?: string;
   tier?: number;
   verified?: boolean;
+  isPrimary?: boolean;
 }
 
 const WALLETS: { type: WalletType; name: string; desc: string; color: string; icon: string; url: string; glow: string }[] = [
@@ -26,7 +27,7 @@ const WALLETS: { type: WalletType; name: string; desc: string; color: string; ic
 
 export default function WalletConnect() {
   const {
-    isConnected, isConnecting, walletAddress, walletType, profile,
+    isConnected, isConnecting, walletAddress, walletType,
     connect, disconnect, availableWallets,
   } = useGlobalWallet();
   const [open, setOpen] = useState(false);
@@ -97,12 +98,13 @@ export default function WalletConnect() {
     setLoadingProfiles(false);
   }, [walletAddress]);
 
-  // Fetch block data when dropdown opens
+  // Fetch block data every time dropdown opens (catches newly created profiles)
   useEffect(() => {
     if (open && isConnected && walletAddress) {
       fetchWalletData();
     }
-  }, [open, isConnected, walletAddress, fetchWalletData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   return (
     <>
@@ -122,14 +124,14 @@ export default function WalletConnect() {
             </span>
           </button>
           {open && (() => {
+            // Derive primary from blockProfiles (isPrimary flag, or first)
+            const primaryBp = blockProfiles.find(bp => bp.isPrimary) || blockProfiles[0] || null;
             // Blocks that have profiles
             const profiledBlocks = new Set(blockProfiles.map(bp => bp.blockHeight));
             // Blocks without profiles
             const unprofiledBlocks = ownedBlocks.filter(b => !profiledBlocks.has(b));
-            // Primary profile's block profile (if any)
-            const primaryBp = profile?.anchorBlock ? blockProfiles.find(bp => bp.blockHeight === profile.anchorBlock) : null;
             // Other block profiles (not the primary)
-            const otherProfiles = blockProfiles.filter(bp => bp.blockHeight !== profile?.anchorBlock);
+            const otherProfiles = blockProfiles.filter(bp => bp !== primaryBp);
 
             return (
             <div className="absolute right-0 mt-2 w-80 rounded-xl p-2 shadow-xl z-50" style={{ background: 'rgba(12,12,20,0.95)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}>
@@ -164,10 +166,10 @@ export default function WalletConnect() {
 
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
 
-              {/* Primary profile */}
-              {profile?.handle && (
+              {/* Primary profile — derived from blockProfiles, not GlobalWalletContext */}
+              {primaryBp && (
                 <Link
-                  href={`/agent/${profile.handle}`}
+                  href={`/agent/${primaryBp.handle}`}
                   className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-white/5 transition-colors"
                   style={{ color: '#e2e8f0' }}
                   onClick={() => setOpen(false)}
@@ -175,12 +177,10 @@ export default function WalletConnect() {
                   <span className="text-base">👑</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-semibold truncate">@{profile.handle}</span>
+                      <span className="text-sm font-semibold truncate">@{primaryBp.handle}</span>
                       <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'rgba(250,204,21,0.1)', color: '#facc15', border: '1px solid rgba(250,204,21,0.2)' }}>Primary</span>
                     </div>
-                    {profile.anchorBlock ? (
-                      <p className="text-[10px] mt-0.5" style={{ color: '#64748b' }}>Block #{profile.anchorBlock.toLocaleString()}</p>
-                    ) : null}
+                    <p className="text-[10px] mt-0.5" style={{ color: '#64748b' }}>Block #{primaryBp.blockHeight.toLocaleString()}</p>
                   </div>
                   <span style={{ color: '#475569' }}>→</span>
                 </Link>
@@ -248,8 +248,8 @@ export default function WalletConnect() {
                 style={{ color: '#e2e8f0' }}
                 onClick={() => setOpen(false)}
               >
-                <span>{profile?.handle ? '⚙️' : '✨'}</span>
-                {profile?.handle ? 'Verify / Settings' : 'Verify / Create Profile'}
+                <span>{primaryBp ? '⚙️' : '✨'}</span>
+                {primaryBp ? 'Verify / Settings' : 'Verify / Create Profile'}
               </Link>
 
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
