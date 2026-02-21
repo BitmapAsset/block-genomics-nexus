@@ -1310,6 +1310,180 @@ const RoadGrid = memo(function RoadGrid({ parcels }: { parcels: ParcelData[] }) 
   );
 });
 
+/* ─── Street Infrastructure — sidewalks, yellow center lines, white edge lines, street lights ─── */
+const StreetInfrastructure = memo(function StreetInfrastructure({ viewMode }: { viewMode: string }) {
+  const isVisible = viewMode === 'street' || viewMode === 'heights' || viewMode === 'isometric';
+  const half = BLOCK_SIZE / 2;
+  const mainInterval = BLOCK_SIZE / 4;
+  const roadWidth = BLOCK_SIZE * 0.035;
+  const minorWidth = BLOCK_SIZE * 0.018;
+
+  // Compute all infrastructure geometry
+  const { sidewalks, curbs, yellowDashes, whiteEdges, lights } = useMemo(() => {
+    if (!isVisible) return { sidewalks: [] as any[], curbs: [] as any[], yellowDashes: [] as THREE.Matrix4[], whiteEdges: [] as THREE.Matrix4[], lights: [] as { x: number; z: number }[] };
+
+    const sidewalks: { x: number; z: number; w: number; d: number }[] = [];
+    const curbs: { x: number; z: number; w: number; d: number }[] = [];
+    const yellowDashes: THREE.Matrix4[] = [];
+    const whiteEdges: THREE.Matrix4[] = [];
+    const lights: { x: number; z: number }[] = [];
+
+    const sidewalkRatio = 0.15;
+    const dashLen = 0.3;
+    const dashGap = 0.2;
+    const lineW = 0.02;
+
+    // Process main roads (horizontal + vertical)
+    for (let i = 0; i <= 4; i++) {
+      const pos = -half + i * mainInterval;
+      const sw = roadWidth * sidewalkRatio;
+
+      // Horizontal road at z=pos
+      // Sidewalks on both sides
+      sidewalks.push({ x: 0, z: pos - roadWidth / 2 - sw / 2, w: BLOCK_SIZE + 1, d: sw });
+      sidewalks.push({ x: 0, z: pos + roadWidth / 2 + sw / 2, w: BLOCK_SIZE + 1, d: sw });
+      // Curbs (thin dark strip at road edge)
+      curbs.push({ x: 0, z: pos - roadWidth / 2 - 0.005, w: BLOCK_SIZE + 1, d: 0.01 });
+      curbs.push({ x: 0, z: pos + roadWidth / 2 + 0.005, w: BLOCK_SIZE + 1, d: 0.01 });
+
+      // Vertical road at x=pos
+      sidewalks.push({ x: pos - roadWidth / 2 - sw / 2, z: 0, w: sw, d: BLOCK_SIZE + 1 });
+      sidewalks.push({ x: pos + roadWidth / 2 + sw / 2, z: 0, w: sw, d: BLOCK_SIZE + 1 });
+      curbs.push({ x: pos - roadWidth / 2 - 0.005, z: 0, w: 0.01, d: BLOCK_SIZE + 1 });
+      curbs.push({ x: pos + roadWidth / 2 + 0.005, z: 0, w: 0.01, d: BLOCK_SIZE + 1 });
+
+      // Yellow center dashes + white edge lines for horizontal road
+      const numDashes = Math.floor(BLOCK_SIZE / (dashLen + dashGap));
+      for (let d = 0; d < numDashes; d++) {
+        const t = -half + (d + 0.5) * (dashLen + dashGap);
+        // Yellow center dash — horizontal
+        const mh = new THREE.Matrix4();
+        mh.compose(new THREE.Vector3(t, 0.005, pos), new THREE.Quaternion(), new THREE.Vector3(dashLen, 1, lineW));
+        yellowDashes.push(mh);
+        // Yellow center dash — vertical
+        const mv = new THREE.Matrix4();
+        mv.compose(new THREE.Vector3(pos, 0.005, t), new THREE.Quaternion(), new THREE.Vector3(lineW, 1, dashLen));
+        yellowDashes.push(mv);
+      }
+
+      // White edge lines (solid) — horizontal road
+      whiteEdges.push(
+        new THREE.Matrix4().compose(new THREE.Vector3(0, 0.005, pos - roadWidth / 2 + lineW / 2), new THREE.Quaternion(), new THREE.Vector3(BLOCK_SIZE + 1, 1, lineW)),
+        new THREE.Matrix4().compose(new THREE.Vector3(0, 0.005, pos + roadWidth / 2 - lineW / 2), new THREE.Quaternion(), new THREE.Vector3(BLOCK_SIZE + 1, 1, lineW)),
+      );
+      // White edge lines — vertical road
+      whiteEdges.push(
+        new THREE.Matrix4().compose(new THREE.Vector3(pos - roadWidth / 2 + lineW / 2, 0.005, 0), new THREE.Quaternion(), new THREE.Vector3(lineW, 1, BLOCK_SIZE + 1)),
+        new THREE.Matrix4().compose(new THREE.Vector3(pos + roadWidth / 2 - lineW / 2, 0.005, 0), new THREE.Quaternion(), new THREE.Vector3(lineW, 1, BLOCK_SIZE + 1)),
+      );
+
+      // Street lights along horizontal road (on sidewalk, every 3 units)
+      for (let t = -half; t <= half; t += 3) {
+        if (lights.length < 50) lights.push({ x: t, z: pos - roadWidth / 2 - sw / 2 });
+      }
+      // Street lights along vertical road
+      for (let t = -half; t <= half; t += 3) {
+        if (lights.length < 50) lights.push({ x: pos + roadWidth / 2 + sw / 2, z: t });
+      }
+    }
+
+    return { sidewalks, curbs, yellowDashes, whiteEdges, lights };
+  }, [isVisible, half]);
+
+  // Instanced mesh refs
+  const yellowRef = useRef<THREE.InstancedMesh>(null);
+  const whiteRef = useRef<THREE.InstancedMesh>(null);
+  const poleRef = useRef<THREE.InstancedMesh>(null);
+  const lampRef = useRef<THREE.InstancedMesh>(null);
+
+  useEffect(() => {
+    if (yellowRef.current && yellowDashes.length > 0) {
+      for (let i = 0; i < yellowDashes.length; i++) yellowRef.current.setMatrixAt(i, yellowDashes[i]);
+      yellowRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [yellowDashes]);
+
+  useEffect(() => {
+    if (whiteRef.current && whiteEdges.length > 0) {
+      for (let i = 0; i < whiteEdges.length; i++) whiteRef.current.setMatrixAt(i, whiteEdges[i]);
+      whiteRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [whiteEdges]);
+
+  useEffect(() => {
+    if (!poleRef.current || !lampRef.current || lights.length === 0) return;
+    for (let i = 0; i < lights.length; i++) {
+      const { x, z } = lights[i];
+      const poleMat = new THREE.Matrix4().compose(
+        new THREE.Vector3(x, 0.75, z),
+        new THREE.Quaternion(),
+        new THREE.Vector3(1, 1, 1)
+      );
+      poleRef.current.setMatrixAt(i, poleMat);
+      const lampMat = new THREE.Matrix4().compose(
+        new THREE.Vector3(x, 1.55, z),
+        new THREE.Quaternion(),
+        new THREE.Vector3(1, 1, 1)
+      );
+      lampRef.current.setMatrixAt(i, lampMat);
+    }
+    poleRef.current.instanceMatrix.needsUpdate = true;
+    lampRef.current.instanceMatrix.needsUpdate = true;
+  }, [lights]);
+
+  if (!isVisible) return null;
+
+  return (
+    <group>
+      {/* Sidewalks */}
+      {sidewalks.map((s, i) => (
+        <mesh key={`sw-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[s.x, 0.03, s.z]}>
+          <planeGeometry args={[s.w, s.d]} />
+          <meshStandardMaterial color="#888888" roughness={0.95} metalness={0} />
+        </mesh>
+      ))}
+      {/* Curb edges */}
+      {curbs.map((c, i) => (
+        <mesh key={`curb-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[c.x, 0.035, c.z]}>
+          <planeGeometry args={[c.w, c.d]} />
+          <meshStandardMaterial color="#555555" roughness={0.9} metalness={0} />
+        </mesh>
+      ))}
+      {/* Yellow center dashes */}
+      {yellowDashes.length > 0 && (
+        <instancedMesh ref={yellowRef} args={[undefined, undefined, yellowDashes.length]}>
+          <planeGeometry args={[1, 1]} />
+          <meshStandardMaterial color="#ffd700" roughness={0.7} metalness={0} side={THREE.DoubleSide} />
+        </instancedMesh>
+      )}
+      {/* White edge lines */}
+      {whiteEdges.length > 0 && (
+        <instancedMesh ref={whiteRef} args={[undefined, undefined, whiteEdges.length]}>
+          <planeGeometry args={[1, 1]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.7} metalness={0} side={THREE.DoubleSide} />
+        </instancedMesh>
+      )}
+      {/* Street light poles — instanced */}
+      {lights.length > 0 && (
+        <>
+          <instancedMesh ref={poleRef} args={[undefined, undefined, lights.length]}>
+            <cylinderGeometry args={[0.02, 0.02, 1.5, 6]} />
+            <meshStandardMaterial color="#2a2a2a" roughness={0.8} metalness={0.3} />
+          </instancedMesh>
+          <instancedMesh ref={lampRef} args={[undefined, undefined, lights.length]}>
+            <sphereGeometry args={[0.05, 6, 6]} />
+            <meshStandardMaterial color="#ffcc66" emissive="#ffaa44" emissiveIntensity={2} />
+          </instancedMesh>
+          {/* Point lights — cap at 50 */}
+          {lights.slice(0, 50).map((l, i) => (
+            <pointLight key={`sl-${i}`} position={[l.x, 1.6, l.z]} color="#ffaa44" intensity={0.5} distance={4} />
+          ))}
+        </>
+      )}
+    </group>
+  );
+});
+
 /* ─── Street Signs at Intersections ─── */
 function StreetSigns({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: string }) {
   const isStreet = viewMode === 'street';
@@ -5620,6 +5794,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           {parcels.length <= 2000 && <RoadGrid parcels={parcels} />}
           {parcels.length <= 1500 && <StreetSigns parcels={parcels} viewMode={viewMode} />}
           <DirectionIndicators parcels={parcels} viewMode={viewMode} />
+          <StreetInfrastructure viewMode={viewMode} />
           <MiniMap parcels={parcels} viewMode={viewMode} />
           <GridLines />
           <GroundGlow />
