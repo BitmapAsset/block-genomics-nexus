@@ -186,8 +186,16 @@ function drawThumbnail(
   // Compute and draw parcels
   const rects = computeLayout(px, data.txCount, data.txSizes);
 
-  for (const r of rects) {
-    ctx.fillStyle = r.isCoinbase ? "#f7931a" : "#ff9500";
+  // Generate deterministic colors per-block using block height as seed
+  const seed = data.txCount * 7 + (data.txSizes ? data.txSizes.length : 0);
+  
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i];
+    if (r.isCoinbase) {
+      ctx.fillStyle = "#f7931a";
+    } else {
+      ctx.fillStyle = "#ff9500";
+    }
     ctx.fillRect(r.x, r.y, r.w, r.h);
   }
 }

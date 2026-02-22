@@ -10,7 +10,12 @@ export async function GET(
     const { address } = await params;
 
     const profiles = await prisma.blockProfile.findMany({
-      where: { walletAddress: address },
+      where: {
+        walletAddress: {
+          equals: address,
+          mode: 'insensitive',
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
 

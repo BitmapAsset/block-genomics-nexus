@@ -209,20 +209,25 @@ function BlockCard({
       }`}
     >
       {/* Collapsed / Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full text-left p-4 flex items-start gap-3"
-      >
-        <div className="flex-shrink-0 relative">
+      <div className="w-full text-left p-4 flex items-start gap-3">
+        <Link
+          href={`/block/${blockHeight}`}
+          onClick={(e) => e.stopPropagation()}
+          className="flex-shrink-0 relative"
+        >
           <BitmapThumbnail blockHeight={blockHeight} size={80} className={`rounded-lg transition-opacity ${profiled ? "" : "opacity-60 group-hover:opacity-90"}`} />
           {isPrimary && (
             <span className="absolute -top-1.5 -right-1.5 text-sm">⭐</span>
           )}
-        </div>
+        </Link>
 
-        <div className="flex-1 min-w-0">
+        <Link
+          href={`/block/${blockHeight}`}
+          onClick={(e) => e.stopPropagation()}
+          className="flex-1 min-w-0"
+        >
           <div className="flex items-center gap-2 mb-0.5">
-            <span className="font-semibold text-white truncate text-sm">
+            <span className="font-semibold text-white truncate text-sm hover:text-orange-400 transition-colors">
               {profile?.displayName || profile?.handle || `Block #${blockHeight}`}
             </span>
             {profile && (
@@ -251,12 +256,15 @@ function BlockCard({
             {guardian && <span className="text-gray-600">🏗️ {guardian.worldObjectCount}</span>}
             {isPrimary && <span className="text-orange-400/70 text-[10px] uppercase tracking-wider font-medium">Primary</span>}
           </div>
-        </div>
+        </Link>
 
-        <span className={`text-gray-600 text-xs transition-transform duration-300 mt-2 ${expanded ? "rotate-180" : ""}`}>
-          ▼
-        </span>
-      </button>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-gray-600 text-xs transition-transform duration-300 mt-2 hover:text-gray-400 p-1"
+        >
+          <span className={`inline-block transition-transform duration-300 ${expanded ? "rotate-180" : ""}`}>▼</span>
+        </button>
+      </div>
 
       {/* Expanded */}
       <div

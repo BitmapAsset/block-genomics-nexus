@@ -11,16 +11,31 @@ export async function GET(
     const { address } = await params;
 
     const [user, blocksFromBlock, blocksFromProfile] = await Promise.all([
-      prisma.user.findUnique({
-        where: { walletAddress: address },
+      prisma.user.findFirst({
+        where: {
+          walletAddress: {
+            equals: address,
+            mode: 'insensitive',
+          },
+        },
         include: { blockProfiles: true },
       }),
       prisma.block.findMany({
-        where: { ownerAddress: address },
+        where: {
+          ownerAddress: {
+            equals: address,
+            mode: 'insensitive',
+          },
+        },
         select: { height: true },
       }),
       prisma.blockProfile.findMany({
-        where: { walletAddress: address },
+        where: {
+          walletAddress: {
+            equals: address,
+            mode: 'insensitive',
+          },
+        },
         select: { blockHeight: true },
       }),
     ]);
