@@ -6,9 +6,16 @@ import { useEffect, useRef, useState } from "react";
 const blockCache = new Map<number, BlockData>();
 const inflightRequests = new Map<number, Promise<BlockData>>();
 
+const MAX_TXS = 5000;
+
+interface TxInfo {
+  vbytes: number;
+  isCoinbase: boolean;
+}
+
 interface BlockData {
   txCount: number;
-  txSizes: number[] | null; // null = equal-area mode
+  txs: TxInfo[];
 }
 
 async function fetchBlockData(blockHeight: number): Promise<BlockData> {
@@ -16,39 +23,32 @@ async function fetchBlockData(blockHeight: number): Promise<BlockData> {
   if (inflightRequests.has(blockHeight)) return inflightRequests.get(blockHeight)!;
 
   const promise = (async (): Promise<BlockData> => {
-    // Get block hash
     const hashRes = await fetch(`https://mempool.space/api/block-height/${blockHeight}`);
     if (!hashRes.ok) throw new Error("hash fetch failed");
     const hash = await hashRes.text();
 
-    // Get block info for tx count
     const infoRes = await fetch(`https://mempool.space/api/block/${hash}`);
     if (!infoRes.ok) throw new Error("block info fetch failed");
     const info = await infoRes.json();
     const txCount: number = info.tx_count || 1;
 
-    let txSizes: number[] | null = null;
+    const fetchCount = Math.min(txCount, MAX_TXS);
+    const pages = Math.ceil(fetchCount / 25);
+    const txs: TxInfo[] = [];
 
-    // For smaller blocks, fetch actual tx sizes for realistic Mondrian
-    if (txCount <= 500) {
-      try {
-        const pages = Math.ceil(txCount / 25);
-        const allTxs: { weight: number }[] = [];
-        for (let i = 0; i < pages; i++) {
-          const txRes = await fetch(`https://mempool.space/api/block/${hash}/txs/${i * 25}`);
-          if (!txRes.ok) break;
-          const txs = await txRes.json();
-          allTxs.push(...txs);
-        }
-        if (allTxs.length > 0) {
-          txSizes = allTxs.map((tx) => Math.ceil((tx.weight || 400) / 4)); // vbytes
-        }
-      } catch {
-        // Fall back to equal area
+    for (let i = 0; i < pages; i++) {
+      const txRes = await fetch(`https://mempool.space/api/block/${hash}/txs/${i * 25}`);
+      if (!txRes.ok) break;
+      const batch: { weight: number }[] = await txRes.json();
+      for (let j = 0; j < batch.length && txs.length < fetchCount; j++) {
+        txs.push({
+          vbytes: Math.ceil((batch[j].weight || 400) / 4),
+          isCoinbase: txs.length === 0,
+        });
       }
     }
 
-    const data: BlockData = { txCount, txSizes };
+    const data: BlockData = { txCount, txs };
     blockCache.set(blockHeight, data);
     inflightRequests.delete(blockHeight);
     return data;
@@ -58,114 +58,88 @@ async function fetchBlockData(blockHeight: number): Promise<BlockData> {
   return promise;
 }
 
-// ── Mondrian layout ──
-interface Rect {
+// ── Bitfeed-style square packing ──
+
+interface PackedRect {
   x: number;
   y: number;
-  w: number;
-  h: number;
+  size: number;
   isCoinbase: boolean;
 }
 
-function computeLayout(
-  size: number,
-  txCount: number,
-  txSizes: number[] | null
-): Rect[] {
-  if (txCount === 0) return [];
+interface Slot {
+  x: number;
+  y: number;
+  size: number;
+}
 
-  // Scale gap down for high-tx blocks so parcels don't disappear
-  const estRows = Math.max(1, Math.round(Math.sqrt(txCount)));
-  const gapRatio = estRows > 30 ? 0.005 : estRows > 20 ? 0.01 : 0.02;
-  const gap = Math.max(0, Math.round(size * gapRatio));
-  const canvasSize = size;
+function packSquares(txs: TxInfo[]): { rects: PackedRect[]; gridSize: number } {
+  if (txs.length === 0) return { rects: [], gridSize: 1 };
 
-  // Determine vbytes per tx
-  const vbytes: number[] = txSizes
-    ? txSizes.slice(0, txCount)
-    : Array.from({ length: txCount }, () => 1);
+  // Compute square side per tx
+  const squares = txs.map((tx) => ({
+    side: Math.max(1, Math.ceil(Math.sqrt(tx.vbytes / 256))),
+    isCoinbase: tx.isCoinbase,
+  }));
 
-  const totalVbytes = vbytes.reduce((a, b) => a + b, 0);
-  if (totalVbytes === 0) return [];
+  // Sort by size descending for packing
+  const indices = squares.map((_, i) => i);
+  indices.sort((a, b) => squares[b].side - squares[a].side);
 
-  // Partition txs into rows using a greedy algorithm
-  // Target: sqrt(txCount) rows for roughly square parcels
-  const targetRows = Math.max(1, Math.round(Math.sqrt(txCount)));
-  const targetVbytesPerRow = totalVbytes / targetRows;
+  const totalArea = squares.reduce((s, sq) => s + sq.side * sq.side, 0);
+  const gridSize = Math.max(1, Math.ceil(Math.sqrt(totalArea)));
 
-  const rows: { txIndices: number[]; totalVbytes: number }[] = [];
-  let currentRow: number[] = [];
-  let currentRowVbytes = 0;
+  // Greedy slot-based packing
+  const slots: Slot[] = [{ x: 0, y: 0, size: gridSize }];
+  const rects: PackedRect[] = [];
 
-  for (let i = 0; i < vbytes.length; i++) {
-    currentRow.push(i);
-    currentRowVbytes += vbytes[i];
-
-    if (
-      currentRowVbytes >= targetVbytesPerRow &&
-      i < vbytes.length - 1
-    ) {
-      rows.push({ txIndices: currentRow, totalVbytes: currentRowVbytes });
-      currentRow = [];
-      currentRowVbytes = 0;
-    }
-  }
-  if (currentRow.length > 0) {
-    rows.push({ txIndices: currentRow, totalVbytes: currentRowVbytes });
-  }
-
-  // Compute row heights proportional to their total vbytes
-  const rowTotalVbytes = rows.reduce((a, r) => a + r.totalVbytes, 0);
-  const totalGapY = gap * (rows.length - 1);
-  const usableHeight = canvasSize - totalGapY;
-
-  const rects: Rect[] = [];
-  let y = 0;
-
-  for (let ri = 0; ri < rows.length; ri++) {
-    const row = rows[ri];
-    const rowHeight = Math.max(
-      1,
-      ri === rows.length - 1
-        ? canvasSize - y
-        : Math.round((row.totalVbytes / rowTotalVbytes) * usableHeight)
-    );
-
-    const totalGapX = gap * (row.txIndices.length - 1);
-    const usableWidth = canvasSize - totalGapX;
-    let x = 0;
-
-    for (let ti = 0; ti < row.txIndices.length; ti++) {
-      const txIdx = row.txIndices[ti];
-      const txW =
-        ti === row.txIndices.length - 1
-          ? canvasSize - x
-          : Math.max(
-              1,
-              Math.round((vbytes[txIdx] / row.totalVbytes) * usableWidth)
-            );
-
-      rects.push({
-        x,
-        y,
-        w: Math.max(1, txW - (ti < row.txIndices.length - 1 ? gap : 0)),
-        h: Math.max(1, rowHeight - (ri < rows.length - 1 ? gap : 0)),
-        isCoinbase: txIdx === 0,
-      });
-
-      x += txW + (ti < row.txIndices.length - 1 ? gap : 0);
+  for (const idx of indices) {
+    const side = squares[idx].side;
+    
+    // Find first slot that fits
+    let bestSlotIdx = -1;
+    for (let si = 0; si < slots.length; si++) {
+      if (slots[si].size >= side) {
+        bestSlotIdx = si;
+        break;
+      }
     }
 
-    y += rowHeight + (ri < rows.length - 1 ? gap : 0);
+    if (bestSlotIdx === -1) {
+      // Doesn't fit — skip (shouldn't happen with correct grid sizing)
+      continue;
+    }
+
+    const slot = slots[bestSlotIdx];
+    slots.splice(bestSlotIdx, 1);
+
+    rects.push({
+      x: slot.x,
+      y: slot.y,
+      size: side,
+      isCoinbase: squares[idx].isCoinbase,
+    });
+
+    const remainder = slot.size - side;
+    if (remainder > 0) {
+      // Right strip
+      slots.push({ x: slot.x + side, y: slot.y, size: remainder });
+      // Bottom strip (full width of original slot)
+      slots.push({ x: slot.x, y: slot.y + side, size: remainder });
+    }
+
+    // Sort slots: prefer top-left, then smaller slots first for tighter packing
+    slots.sort((a, b) => a.y - b.y || a.x - b.x || a.size - b.size);
   }
 
-  return rects;
+  return { rects, gridSize };
 }
 
 function drawThumbnail(
   canvas: HTMLCanvasElement,
   size: number,
-  data: BlockData
+  data: BlockData,
+  variant: "dark" | "light"
 ) {
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
   const px = size * dpr;
@@ -177,26 +151,26 @@ function drawThumbnail(
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  ctx.clearRect(0, 0, px, px);
-
   // Background
-  ctx.fillStyle = "#000000";
+  ctx.fillStyle = variant === "light" ? "#ffffff" : "#000000";
   ctx.fillRect(0, 0, px, px);
 
-  // Compute and draw parcels
-  const rects = computeLayout(px, data.txCount, data.txSizes);
+  if (data.txs.length === 0) return;
 
-  // Generate deterministic colors per-block using block height as seed
-  const seed = data.txCount * 7 + (data.txSizes ? data.txSizes.length : 0);
-  
-  for (let i = 0; i < rects.length; i++) {
-    const r = rects[i];
-    if (r.isCoinbase) {
-      ctx.fillStyle = "#f7931a";
-    } else {
-      ctx.fillStyle = "#ff9500";
-    }
-    ctx.fillRect(r.x, r.y, r.w, r.h);
+  const { rects, gridSize } = packSquares(data.txs);
+  const cellSize = px / gridSize;
+  // Gap = ~1px at device level, scaled
+  const gap = Math.max(0.5, cellSize * 0.06);
+
+  for (const r of rects) {
+    const x = r.x * cellSize;
+    const y = r.y * cellSize;
+    const w = r.size * cellSize - gap;
+    const h = r.size * cellSize - gap;
+    if (w <= 0 || h <= 0) continue;
+
+    ctx.fillStyle = r.isCoinbase ? "#f7931a" : "#ff9500";
+    ctx.fillRect(x, y, w, h);
   }
 }
 
@@ -205,10 +179,12 @@ export default function BitmapThumbnail({
   blockHeight,
   size = 64,
   className,
+  variant = "dark",
 }: {
   blockHeight: number;
   size?: number;
   className?: string;
+  variant?: "dark" | "light";
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -234,9 +210,9 @@ export default function BitmapThumbnail({
 
   useEffect(() => {
     if (state === "ready" && data && canvasRef.current) {
-      drawThumbnail(canvasRef.current, size, data);
+      drawThumbnail(canvasRef.current, size, data, variant);
     }
-  }, [state, data, size]);
+  }, [state, data, size, variant]);
 
   if (state === "loading") {
     return (

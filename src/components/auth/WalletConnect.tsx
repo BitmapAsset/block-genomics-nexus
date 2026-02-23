@@ -215,23 +215,40 @@ export default function WalletConnect() {
                       </Link>
                     ))}
                     {/* Unprofiled blocks */}
-                    {unprofiledBlocks.map(blockHeight => (
-                      <div key={blockHeight} className="flex items-center gap-2.5 rounded-lg px-3 py-2">
-                        <BitmapThumbnail blockHeight={blockHeight} size={36} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium" style={{ color: '#e2e8f0' }}>Block #{blockHeight.toLocaleString()}</p>
-                          <p className="text-[11px]" style={{ color: '#64748b' }}>No Profile</p>
+                    {unprofiledBlocks.map(blockHeight => {
+                      // Check if this block actually has a profile (may have been created under a different wallet query path)
+                      const matchedProfile = blockProfiles.find(bp => bp.blockHeight === blockHeight);
+                      return (
+                        <div key={blockHeight} className="flex items-center gap-2.5 rounded-lg px-3 py-2">
+                          <BitmapThumbnail blockHeight={blockHeight} size={36} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium" style={{ color: '#e2e8f0' }}>Block #{blockHeight.toLocaleString()}</p>
+                            <p className="text-[11px]" style={{ color: '#64748b' }}>
+                              {matchedProfile ? `@${matchedProfile.handle}` : 'No Profile'}
+                            </p>
+                          </div>
+                          {matchedProfile ? (
+                            <Link
+                              href={`/agent/${matchedProfile.handle}`}
+                              className="text-[10px] font-medium px-2 py-1 rounded-md hover:bg-white/10 transition-colors"
+                              style={{ color: '#facc15', border: '1px solid rgba(250,204,21,0.2)' }}
+                              onClick={() => setOpen(false)}
+                            >
+                              View →
+                            </Link>
+                          ) : (
+                            <Link
+                              href="/verify"
+                              className="text-[10px] font-medium px-2 py-1 rounded-md hover:bg-white/10 transition-colors"
+                              style={{ color: '#00ffc8', border: '1px solid rgba(0,255,200,0.2)' }}
+                              onClick={() => setOpen(false)}
+                            >
+                              Create →
+                            </Link>
+                          )}
                         </div>
-                        <Link
-                          href="/verify"
-                          className="text-[10px] font-medium px-2 py-1 rounded-md hover:bg-white/10 transition-colors"
-                          style={{ color: '#00ffc8', border: '1px solid rgba(0,255,200,0.2)' }}
-                          onClick={() => setOpen(false)}
-                        >
-                          Create →
-                        </Link>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </>
               )}

@@ -18,6 +18,22 @@ import prisma from '@/lib/prisma';
 const MEMPOOL_API = 'https://mempool.space/api';
 
 /* ═══════════════════════════════════════════
+   CASCADING HEARTBEAT PROTOCOL CONSTANTS
+   
+   Bitcoin block → Brain heartbeat (0s) → Guardian heartbeat (+21s)
+   21 = tribute to Bitcoin's 21M cap
+   
+   Minimum 30s cooldown between heartbeats to prevent waste
+   when multiple blocks arrive in rapid succession.
+   ═══════════════════════════════════════════ */
+
+/** Seconds after Brain heartbeat before Guardian heartbeats fire */
+export const GUARDIAN_HEARTBEAT_OFFSET_MS = 21_000;
+
+/** Minimum cooldown between heartbeat cycles (prevents waste on rapid blocks) */
+export const HEARTBEAT_COOLDOWN_MS = 30_000;
+
+/* ═══════════════════════════════════════════
    BLOCK TIP DETECTION
    ═══════════════════════════════════════════ */
 
@@ -61,6 +77,22 @@ async function setLastKnownHeight(height: number): Promise<void> {
     where: { key: 'lastHeartbeatBlockHeight' },
     create: { key: 'lastHeartbeatBlockHeight', value: height.toString() },
     update: { value: height.toString() },
+  });
+}
+
+/** Get last heartbeat execution timestamp (ms) for cooldown enforcement */
+async function getLastHeartbeatTimestamp(): Promise<number | null> {
+  const record = await prisma.systemState.findUnique({
+    where: { key: 'lastHeartbeatTimestamp' },
+  });
+  return record ? parseInt(record.value, 10) : null;
+}
+
+async function setLastHeartbeatTimestamp(ms: number): Promise<void> {
+  await prisma.systemState.upsert({
+    where: { key: 'lastHeartbeatTimestamp' },
+    create: { key: 'lastHeartbeatTimestamp', value: ms.toString() },
+    update: { value: ms.toString() },
   });
 }
 
@@ -252,8 +284,30 @@ export async function executeBlockHeartbeat(force = false): Promise<BlockHeartbe
     };
   }
 
-  // New block detected! Update height first
+  // ── Cooldown check ──
+  // If multiple blocks arrive in quick succession (e.g. 3 blocks in 60s),
+  // only fire one heartbeat per HEARTBEAT_COOLDOWN_MS (30s minimum).
+  if (!force) {
+    const lastTs = await getLastHeartbeatTimestamp();
+    if (lastTs && Date.now() - lastTs < HEARTBEAT_COOLDOWN_MS) {
+      // Still update height so we don't re-trigger on same block
+      await setLastKnownHeight(currentHeight);
+      return {
+        newBlock: true,
+        blockHeight: currentHeight,
+        previousHeight,
+        guardiansChecked: 0,
+        guardiansOnline: 0,
+        guardiansDegraded: 0,
+        guardiansOffline: 0,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  // New block detected! Update height + timestamp
   await setLastKnownHeight(currentHeight);
+  await setLastHeartbeatTimestamp(Date.now());
 
   // Fetch all active guardians with LLM keys or self-hosted endpoints
   const guardians = await prisma.guardianAgent.findMany({
