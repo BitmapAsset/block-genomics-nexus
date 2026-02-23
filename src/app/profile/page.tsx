@@ -438,16 +438,26 @@ export default function ProfileHubPage() {
     }
   }
 
-  /* Suppress Xverse internal errors (SIP10 token balance check) */
+  /* Suppress Xverse internal errors (SIP10 token balance check, validating request) */
   useEffect(() => {
-    const handler = (event: PromiseRejectionEvent) => {
+    const rejectHandler = (event: PromiseRejectionEvent) => {
       const msg = event?.reason?.message || String(event?.reason) || "";
-      if (/validating request|SIP10/i.test(msg)) {
+      if (/validating request|SIP10|token.?balance/i.test(msg)) {
         event.preventDefault();
       }
     };
-    window.addEventListener("unhandledrejection", handler);
-    return () => window.removeEventListener("unhandledrejection", handler);
+    const errorHandler = (event: ErrorEvent) => {
+      const msg = event?.message || "";
+      if (/validating request|SIP10|token.?balance/i.test(msg)) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("unhandledrejection", rejectHandler);
+    window.addEventListener("error", errorHandler);
+    return () => {
+      window.removeEventListener("unhandledrejection", rejectHandler);
+      window.removeEventListener("error", errorHandler);
+    };
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -533,6 +543,21 @@ export default function ProfileHubPage() {
   };
 
   const profileMap = new Map(profiles.map((p) => [p.blockHeight, p]));
+
+  // If user has a verified handle but no BlockProfile for their anchor block, inject a synthetic profile
+  if (userFallback?.handle && userFallback.anchorBlock && !profileMap.has(userFallback.anchorBlock)) {
+    profileMap.set(userFallback.anchorBlock, {
+      id: `user-fallback-${userFallback.anchorBlock}`,
+      walletAddress: walletAddress || "",
+      blockHeight: userFallback.anchorBlock,
+      handle: userFallback.handle,
+      displayName: userFallback.displayName,
+      tier: userFallback.tier || 1,
+      verified: userFallback.verified,
+      isPrimary: true,
+    } as BlockProfileData);
+  }
+
   const allBlockHeights = [...new Set([...ownedBlocks, ...profiles.map((p) => p.blockHeight)])].sort((a, b) => a - b);
 
   // ─── Not Connected ───
