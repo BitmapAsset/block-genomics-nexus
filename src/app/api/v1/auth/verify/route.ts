@@ -180,6 +180,35 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Auto-create BlockProfile for the anchor block if one doesn't exist yet
+    if (verifiedBlockHeight && normalizedHandle) {
+      try {
+        const existingProfile = await prisma.blockProfile.findFirst({
+          where: { walletAddress, blockHeight: verifiedBlockHeight },
+        });
+        if (!existingProfile) {
+          const profileGenomeHash = '0x' + crypto.createHash('sha256')
+            .update(`${walletAddress}:${verifiedBlockHeight}:profile`)
+            .digest('hex');
+          await prisma.blockProfile.create({
+            data: {
+              walletAddress,
+              blockHeight: verifiedBlockHeight,
+              handle: normalizedHandle,
+              displayName: displayName || null,
+              genomeHash: profileGenomeHash,
+              tier: 1,
+              verified: true,
+              isPrimary: true,
+            },
+          });
+        }
+      } catch (profileErr: any) {
+        // Don't fail the verify flow if profile creation has a conflict
+        console.warn('[auth] Auto-create BlockProfile failed (non-fatal):', profileErr?.message);
+      }
+    }
+
     // Log activity
     logActivity(walletAddress, 'verification', { tier, blockHeight: verifiedBlockHeight, handle: normalizedHandle });
 

@@ -423,6 +423,7 @@ function BlockCard({
 export default function ProfileHubPage() {
   const { isConnected, walletAddress, connect, availableWallets } = useGlobalWallet();
   const [profiles, setProfiles] = useState<BlockProfileData[]>([]);
+  const [userFallback, setUserFallback] = useState<{ handle: string; displayName?: string; tier: number; verified: boolean; anchorBlock?: number } | null>(null);
   const [ownedBlocks, setOwnedBlocks] = useState<number[]>([]);
   const [empireStats, setEmpireStats] = useState<EmpireStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -468,7 +469,14 @@ export default function ProfileHubPage() {
 
       if (userRes.ok) {
         const uData = await userRes.json();
-        if (uData.success) allBlocks = [...(uData.data.ownedBlocks || [])];
+        if (uData.success) {
+          allBlocks = [...(uData.data.ownedBlocks || [])];
+          // Store user-level data as fallback if they have a handle but no BlockProfiles
+          const u = uData.data;
+          if (u.handle) {
+            setUserFallback({ handle: u.handle, displayName: u.displayName, tier: u.tier ?? 1, verified: !!u.verified, anchorBlock: u.anchorBlock });
+          }
+        }
       }
 
       if (statsRes.ok) {
@@ -607,7 +615,7 @@ export default function ProfileHubPage() {
           <h2 className="text-lg font-semibold bg-gradient-to-r from-orange-400 to-amber-300 bg-clip-text text-transparent mb-4 uppercase tracking-wider text-sm">
             Your Profiles
             <span className="text-gray-600 text-xs font-normal ml-2" style={{ WebkitTextFillColor: "rgb(75,85,99)" }}>
-              ({profiles.length})
+              ({profiles.length || (userFallback ? 1 : 0)})
             </span>
           </h2>
           {profiles.length > 0 ? (
@@ -638,6 +646,32 @@ export default function ProfileHubPage() {
                   </div>
                 </Link>
               ))}
+            </div>
+          ) : userFallback ? (
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+              <Link
+                href={`/agent/${userFallback.handle}`}
+                className="flex-shrink-0 group relative rounded-xl border border-orange-500/20 bg-white/[0.03] backdrop-blur-md p-4 transition-all duration-300 hover:border-orange-500/30 hover:bg-white/[0.05] hover:shadow-lg hover:shadow-orange-500/5 w-56"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500/30 to-purple-500/30 flex items-center justify-center text-lg font-bold text-white/80 flex-shrink-0">
+                    {(userFallback.displayName || userFallback.handle).charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-semibold text-white truncate">
+                        {userFallback.displayName || userFallback.handle}
+                      </span>
+                      <CrownShield tier={(userFallback.tier || 1) as ShieldTier} size={16} verified={userFallback.verified} />
+                    </div>
+                    <p className="text-xs text-gray-500 truncate">@{userFallback.handle}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  {userFallback.anchorBlock && <span>#{userFallback.anchorBlock}</span>}
+                  <span className="text-orange-400/70">User Profile</span>
+                </div>
+              </Link>
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] p-6 text-center">
