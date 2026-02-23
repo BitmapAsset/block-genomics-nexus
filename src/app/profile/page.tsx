@@ -376,7 +376,7 @@ function BlockCard({
             <div className="text-center py-4">
               <p className="text-gray-500 text-sm mb-3">This block hasn&apos;t been profiled yet.</p>
               <Link
-                href="/verify"
+                href={`/verify?block=${blockHeight}`}
                 className="inline-flex px-5 py-2.5 bg-gradient-to-r from-orange-600 to-amber-500 text-white text-sm font-semibold rounded-lg hover:from-orange-500 hover:to-amber-400 transition-all shadow-lg shadow-orange-500/20"
               >
                 ⚡ Create Profile
@@ -437,6 +437,18 @@ export default function ProfileHubPage() {
     }
   }
 
+  /* Suppress Xverse internal errors (SIP10 token balance check) */
+  useEffect(() => {
+    const handler = (event: PromiseRejectionEvent) => {
+      const msg = event?.reason?.message || String(event?.reason) || "";
+      if (/validating request|SIP10/i.test(msg)) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("unhandledrejection", handler);
+    return () => window.removeEventListener("unhandledrejection", handler);
+  }, []);
+
   const fetchData = useCallback(async () => {
     if (!walletAddress) return;
     setLoading(true);
@@ -471,8 +483,11 @@ export default function ProfileHubPage() {
       }
 
       setOwnedBlocks(allBlocks);
-    } catch (err) {
-      console.error("Failed to fetch profile data:", err);
+    } catch (err: any) {
+      const msg = err?.message || String(err) || "";
+      if (!/validating request|SIP10/i.test(msg)) {
+        console.error("Failed to fetch profile data:", err);
+      }
     } finally {
       setLoading(false);
     }
@@ -586,6 +601,56 @@ export default function ProfileHubPage() {
             </div>
           </section>
         )}
+
+        {/* Your Profiles */}
+        <section className="mb-10">
+          <h2 className="text-lg font-semibold bg-gradient-to-r from-orange-400 to-amber-300 bg-clip-text text-transparent mb-4 uppercase tracking-wider text-sm">
+            Your Profiles
+            <span className="text-gray-600 text-xs font-normal ml-2" style={{ WebkitTextFillColor: "rgb(75,85,99)" }}>
+              ({profiles.length})
+            </span>
+          </h2>
+          {profiles.length > 0 ? (
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+              {profiles.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/agent/${p.handle}`}
+                  className="flex-shrink-0 group relative rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-4 transition-all duration-300 hover:border-orange-500/20 hover:bg-white/[0.05] hover:shadow-lg hover:shadow-orange-500/5 w-56"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500/30 to-purple-500/30 flex items-center justify-center text-lg font-bold text-white/80 flex-shrink-0">
+                      {(p.displayName || p.handle).charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-semibold text-white truncate">
+                          {p.displayName || p.handle}
+                        </span>
+                        <CrownShield tier={(p.tier || 1) as ShieldTier} size={16} verified={p.verified} />
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">@{p.handle}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <span>#{p.blockHeight}</span>
+                    {p.isPrimary && <span className="text-orange-400">⭐ Primary</span>}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] p-6 text-center">
+              <p className="text-gray-500 text-sm mb-3">No profiles yet. Create one to unlock Guardians, World Building, and more.</p>
+              <Link
+                href="/verify"
+                className="inline-flex px-5 py-2.5 bg-gradient-to-r from-orange-600 to-amber-500 text-white text-sm font-semibold rounded-lg hover:from-orange-500 hover:to-amber-400 transition-all shadow-lg shadow-orange-500/20"
+              >
+                ⚡ Create Your First Profile
+              </Link>
+            </div>
+          )}
+        </section>
 
         {/* Block Cards Grid */}
         {allBlockHeights.length > 0 && (
