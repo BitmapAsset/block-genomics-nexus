@@ -1,34 +1,10 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextRequest, NextResponse } from 'next/server';
 
+// Legacy Phase 2 route — schema migrated. Returns empty data for backward compat.
 export async function GET() {
-  try {
-    const agents = await prisma.agent.findMany({
-      orderBy: { trustScore: 'desc' },
-      take: 50,
-      select: {
-        id: true,
-        address: true,
-        displayName: true,
-        trustScore: true,
-        totalVerifications: true,
-        successfulVerifications: true,
-        rank: true,
-        badges: true,
-        lastActiveAt: true,
-      },
-    });
+  return NextResponse.json({ success: true, data: [], message: 'Schema migrated — use /api/v1/blocks, /api/v1/users, /api/v1/delegations' });
+}
 
-    const totalBlocks = await prisma.block.count();
-    const verifiedBlocks = await prisma.block.count({ where: { verificationStatus: 'verified' } });
-    const totalVerifications = await prisma.verification.count();
-
-    return NextResponse.json({
-      leaderboard: agents,
-      stats: { totalBlocks, verifiedBlocks, totalVerifications, totalAgents: agents.length },
-    });
-  } catch (error) {
-    console.error('Leaderboard error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+export async function POST(req: NextRequest) {
+  return NextResponse.json({ success: true, data: null, message: 'Schema migrated — use new API routes' });
 }

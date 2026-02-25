@@ -123,19 +123,30 @@
 - [ ] Verification that transaction belongs to the claimed block
 - [ ] Agent-to-transaction binding (signed by block owner)
 
-### 5b. Delegated Verification (Tier 3)
-- [ ] Block owner creates delegation certificate
-- [ ] Certificate contains: agent ID, block number, expiry, permissions
-- [ ] Block owner signs certificate with Bitmap wallet
-- [ ] Anyone can verify the delegation chain (agent → certificate → block owner → Bitcoin)
-- [ ] Revocation mechanism (owner can revoke delegations)
-- [ ] Renewal flow
+### 5b. Delegated Verification (Tier 3) ✅
+- [x] Block owner creates delegation listing (price, spots, duration)
+- [x] Two duration options: 30-day and 365-day
+- [x] BIP-322 wallet signature for all delegation actions
+- [x] Delegation marketplace page with search/filter/sort
+- [x] Revocation mechanism (owner can revoke delegations)
 
-### 5c. Revenue System
-- [ ] Block owners set pricing for Tier 2/3 verifications
-- [ ] Payment flow (BTC Lightning preferred, on-chain fallback)
-- [ ] Revenue tracking dashboard for block owners
-- [ ] Platform fee structure (Block Genomics takes X%)
+### 5c. Revenue System ✅
+- [x] Block owners set pricing in sats
+- [x] Protocol fee: 97% owner / 2.5% treasury / 0.5% Nexus Brain
+- [x] Payment flow via native Bitcoin
+- [ ] Lightning Network integration (future)
+
+### 5d. Trustless On-Chain Delegation (Future Upgrade)
+**Goal:** Remove server dependency for delegation expiry — fully trustless on Bitcoin.
+
+Current state: Delegation expiry tracked in our database. Wallet ownership and payment are trustless (BIP-322 + on-chain tx), but expiry enforcement is centralized.
+
+Future options:
+- [ ] **CLTV/CSV timelocked transactions** — Delegation payment locked in 2-of-2 multisig, auto-releases to owner after duration expires. No server needed to enforce expiry.
+- [ ] **Inscription-based delegation certificates** — Inscribe delegation terms (wallet, block, expiry) on Bitcoin. Anyone can verify on-chain without our backend.
+- [ ] **DLCs (Discreet Log Contracts)** — Fully on-chain conditional delegation with oracle-free expiry.
+
+This upgrade makes Block Genomics delegation **fully trustless end-to-end**: wallet proof (BIP-322) + payment (on-chain) + expiry (on-chain) — no server trust required.
 
 ---
 
@@ -171,7 +182,24 @@
 
 ---
 
-## Phase 7: Growth & Ecosystem
+## Phase 7: Native Game Client (Post-Traction)
+**Goal:** Game-level immersion while keeping web version for accessibility.
+
+- [ ] **Unreal Engine 5 or Godot native client** — connects to existing backend API
+- [ ] Same Supabase Realtime for chat/presence
+- [ ] Same wallet signing (BIP-322) via built-in signer or WalletConnect
+- [ ] Same Guardian Shell / Monitor API integration
+- [ ] LOD (level of detail), instanced meshes, GPU-accelerated rendering
+- [ ] Distribution: Steam, Epic, or direct download
+- [ ] Web version remains primary — native client is premium experience
+
+**Trigger:** Launch after gaining meaningful user traction on web version.
+**Estimated effort:** 3-6 months with a game dev.
+**Key insight:** Backend is already built for this — native client is just a new frontend.
+
+---
+
+## Phase 8: Growth & Ecosystem
 **Goal:** Become the standard.
 
 - [ ] Partnership with Bitmap marketplaces

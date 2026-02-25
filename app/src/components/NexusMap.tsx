@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, OrthographicCamera } from "@react-three/drei";
-import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { useRouter } from "next/navigation";
 import BlockGrid from "@/components/nexus/BlockGrid";
 
@@ -19,15 +18,14 @@ export default function NexusMap() {
   const router = useRouter();
   const [centerHeight, setCenterHeight] = useState(DEFAULT_CENTER);
   const [hover, setHover] = useState<HoverInfo>(null);
-  const [detailLevel, setDetailLevel] = useState<"far" | "mid" | "near">(
-    "mid"
-  );
+  const [detailLevel, setDetailLevel] = useState<"far" | "mid" | "near">("mid");
   const [searchValue, setSearchValue] = useState("");
 
+  // Small grid sizes to keep it fast on all devices
   const gridSize = useMemo(() => {
-    if (detailLevel === "far") return 50;
-    if (detailLevel === "near") return 100;
-    return 80;
+    if (detailLevel === "far") return 20;
+    if (detailLevel === "near") return 35;
+    return 25;
   }, [detailLevel]);
 
   const blockSize = useMemo(() => {
@@ -59,24 +57,30 @@ export default function NexusMap() {
     [searchValue]
   );
 
+  const epochs = [
+    { label: "Epoch 1", range: "0 – 209,999", color: "#f7931a", reward: "50 BTC" },
+    { label: "Epoch 2", range: "210K – 419,999", color: "#66ccff", reward: "25 BTC" },
+    { label: "Epoch 3", range: "420K – 629,999", color: "#a855f7", reward: "12.5 BTC" },
+    { label: "Epoch 4", range: "630K – 839,999", color: "#22c55e", reward: "6.25 BTC" },
+    { label: "Epoch 5", range: "840K +", color: "#10b981", reward: "3.125 BTC" },
+  ];
+
   return (
     <div className="relative h-full w-full">
-      <div className="absolute left-6 top-6 z-20 flex flex-col gap-3">
+      <div className="absolute left-6 top-6 z-20">
         <div className="text-lg font-semibold text-white">The Nexus</div>
-        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
-          <input
-            value={searchValue}
-            onChange={(event) => setSearchValue(event.target.value)}
-            placeholder="Search block #"
-            className="w-40 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-accent-cyan/60 focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
-          >
-            Go
-          </button>
-        </form>
+      </div>
+
+      {/* Epoch Legend */}
+      <div className="absolute right-4 top-4 z-20 rounded-xl border border-white/10 bg-black/60 backdrop-blur-sm px-3 py-2.5 space-y-1.5">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-1">Bitcoin Epochs</div>
+        {epochs.map((e) => (
+          <div key={e.label} className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: e.color, boxShadow: `0 0 6px ${e.color}40` }} />
+            <span className="text-[11px] font-semibold text-white/90">{e.label}</span>
+            <span className="text-[10px] text-white/40">{e.reward}</span>
+          </div>
+        ))}
       </div>
 
       {hover && (
@@ -89,8 +93,8 @@ export default function NexusMap() {
       )}
 
       <Canvas
-        dpr={[1, 2]}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
+        dpr={[1, 1.5]}
+        gl={{ antialias: false, powerPreference: "high-performance" }}
         className="h-full w-full"
       >
         <color attach="background" args={["#0a0a0f"]} />
@@ -120,9 +124,7 @@ export default function NexusMap() {
           onSelect={(height) => router.push(`/block/${height}`)}
         />
 
-        <EffectComposer>
-          <Bloom luminanceThreshold={0.2} luminanceSmoothing={0.6} intensity={0.8} />
-        </EffectComposer>
+        {/* No Bloom — saves significant GPU on all devices */}
       </Canvas>
     </div>
   );

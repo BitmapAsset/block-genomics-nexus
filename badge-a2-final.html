@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>A2 Crown Shield — Final</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a14; color: #fff; font-family: -apple-system, sans-serif; padding: 30px; }
+  h1 { text-align: center; font-size: 22px; color: #f7931a; margin-bottom: 6px; }
+  .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 40px; }
+  .section { text-align: center; margin-bottom: 40px; }
+  .section h2 { font-size: 15px; color: #999; margin-bottom: 20px; }
+  .row { display: flex; gap: 50px; justify-content: center; flex-wrap: wrap; }
+  .item { text-align: center; }
+  .label { font-size: 12px; font-weight: 700; margin-top: 8px; }
+  .sublabel { font-size: 10px; color: #555; }
+  hr { border: none; border-top: 1px solid #1a1a2e; margin: 15px auto 35px; width: 60%; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; background: #0d0d1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 10px 18px; margin: 5px; }
+  .chip .n { font-weight: 700; font-size: 14px; }
+  .chip .h { color: #666; font-size: 11px; }
+  .sizes { display: flex; gap: 25px; align-items: flex-end; justify-content: center; margin-bottom: 18px; }
+  .sizes .si { text-align: center; }
+  .sizes .si span { display: block; color: #555; font-size: 9px; margin-top: 3px; }
+  .card { background: #0d0d1a; border: 1px solid #1a1a2e; border-radius: 14px; padding: 18px 22px; min-width: 200px; max-width: 260px; text-align: left; }
+  .card .hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .card .bio { color: #888; font-size: 11px; line-height: 1.5; }
+  .card .meta { color: #444; font-size: 9px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<h1>👑 A2 Crown Shield — Polished</h1>
+<p class="sub">Original design, sharper rendering via SVG</p>
+
+<div class="section">
+<h2>Full Size — 3 Tiers</h2>
+<div class="row" id="hero"></div>
+</div>
+<hr>
+<div class="section">
+<h2>Scale Test</h2>
+<div id="scales"></div>
+</div>
+<hr>
+<div class="section">
+<h2>Next to Handles</h2>
+<div id="handles"></div>
+</div>
+<hr>
+<div class="section">
+<h2>Profile Cards</h2>
+<div class="row" id="cards"></div>
+</div>
+
+<script>
+const T = {
+  1: { c: '#f7931a', a: '#ffd27d', l: 'GOLD', f: 'Tier 1 — Block Owner' },
+  2: { c: '#66ccff', a: '#a8e0ff', l: 'CYAN', f: 'Tier 2 — Parcel Owner' },
+  3: { c: '#a855f7', a: '#d4a8ff', l: 'PURPLE', f: 'Tier 3 — Delegated' },
+};
+
+function badge(size, tier) {
+  const t = T[tier];
+  const s = size;
+  // All coordinates in viewBox 0 0 100 100
+  return `<svg width="${s}" height="${s}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="g${tier}${s}" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="${t.c}" stop-opacity="0.35"/>
+      <stop offset="50%" stop-color="${t.c}" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="${t.c}" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sf${tier}${s}" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#1a1a30"/>
+      <stop offset="50%" stop-color="#111122"/>
+      <stop offset="100%" stop-color="#08081a"/>
+    </linearGradient>
+    <linearGradient id="sb${tier}${s}" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="${t.c}"/>
+      <stop offset="30%" stop-color="${t.a}"/>
+      <stop offset="70%" stop-color="${t.a}"/>
+      <stop offset="100%" stop-color="${t.c}"/>
+    </linearGradient>
+    <linearGradient id="cr${tier}${s}" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="${t.a}"/>
+      <stop offset="50%" stop-color="${t.c}"/>
+      <stop offset="100%" stop-color="${t.c}" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="bt${tier}${s}" x1="50%" y1="20%" x2="50%" y2="80%">
+      <stop offset="0%" stop-color="${t.a}"/>
+      <stop offset="40%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="${t.c}"/>
+    </linearGradient>
+    <radialGradient id="bg${tier}${s}" cx="50%" cy="54%" r="18%">
+      <stop offset="0%" stop-color="${t.c}" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="${t.c}" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="ds${tier}${s}">
+      <feDropShadow dx="0" dy="0.5" stdDeviation="1.5" flood-color="${t.c}" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  
+  <!-- Outer glow -->
+  <circle cx="50" cy="50" r="48" fill="url(#g${tier}${s})"/>
+  
+  <!-- Shield body (rounded A2 shape) -->
+  <path d="M50,20 C62,20 78,23 80,30 L80,54 C78,66 68,78 50,88 C32,78 22,66 20,54 L20,30 C22,23 38,20 50,20 Z" 
+        fill="url(#sf${tier}${s})" stroke="url(#sb${tier}${s})" stroke-width="2.5"/>
+  
+  <!-- Crown (3 points — original A2) -->
+  <path d="M36,28 L39,19 L46,25 L50,15 L54,25 L61,19 L64,28 Z" 
+        fill="url(#cr${tier}${s})" stroke="${t.a}" stroke-opacity="0.4" stroke-width="0.5"/>
+  
+  <!-- Crown base band -->
+  <rect x="36" y="27.5" width="28" height="2.5" rx="0.5" fill="${t.c}" opacity="0.8"/>
+  
+  <!-- Crown jewels -->
+  <circle cx="39" cy="19.5" r="1.3" fill="white" opacity="0.7"/>
+  <circle cx="50" cy="16" r="1.5" fill="white" opacity="0.8"/>
+  <circle cx="61" cy="19.5" r="1.3" fill="white" opacity="0.7"/>
+  
+  <!-- BTC glow -->
+  <circle cx="50" cy="54" r="16" fill="url(#bg${tier}${s})"/>
+  
+  <!-- ₿ symbol -->
+  <text x="50" y="55" text-anchor="middle" dominant-baseline="central" 
+        font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif" 
+        font-weight="bold" font-size="28" 
+        fill="url(#bt${tier}${s})" filter="url(#ds${tier}${s})">₿</text>
+  
+  <!-- Verified check background -->
+  <circle cx="50" cy="78" r="6" fill="#22ff88" fill-opacity="0.1"/>
+  
+  <!-- Verified check mark -->
+  <polyline points="46.5,78 49,80.5 54,75.5" 
+            fill="none" stroke="#22ff88" stroke-width="2.2" 
+            stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+}
+
+// Hero
+const hero = document.getElementById('hero');
+[1,2,3].forEach(t => {
+  const d = document.createElement('div');
+  d.className = 'item';
+  d.innerHTML = badge(180, t) + `<div class="label" style="color:${T[t].c}">${T[t].l}</div><div class="sublabel">${T[t].f}</div>`;
+  hero.appendChild(d);
+});
+
+// Scale test
+const scales = document.getElementById('scales');
+[1,2,3].forEach(t => {
+  const row = document.createElement('div');
+  row.className = 'sizes';
+  [16,24,32,48,64,96,140].forEach(sz => {
+    const si = document.createElement('div');
+    si.className = 'si';
+    si.innerHTML = badge(sz, t) + `<span>${sz}px</span>`;
+    row.appendChild(si);
+  });
+  scales.appendChild(row);
+});
+
+// Handles
+const handles = document.getElementById('handles');
+[
+  { n: 'Gravity', h: '@gravity', t: 1 },
+  { n: 'Pepe', h: '@pepe', t: 1 },
+  { n: 'Builder42', h: '@builder42', t: 2 },
+  { n: 'NewUser', h: '@newuser', t: 3 },
+].forEach(u => {
+  const chip = document.createElement('div');
+  chip.className = 'chip';
+  chip.innerHTML = badge(26, u.t) + `<span class="n">${u.n}</span><span class="h">${u.h}</span>`;
+  handles.appendChild(chip);
+});
+
+// Cards
+const cards = document.getElementById('cards');
+[
+  { n: 'Gravity', h: '@gravity', t: 1, bio: 'Polymath. Builder. Bitmap pioneer.', meta: 'Trust: 94 · Block #500000' },
+  { n: 'Agent Alpha', h: '@agent_alpha', t: 2, bio: 'Autonomous trading agent.', meta: 'Trust: 72 · Parcel #210000:tx42' },
+  { n: 'Explorer', h: '@explorer', t: 3, bio: 'Learning the ropes.', meta: 'Trust: 45 · Delegated via @gravity' },
+].forEach(p => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<div class="hdr">${badge(30, p.t)}<span style="font-weight:700;font-size:13px">${p.n}</span><span style="color:#666;font-size:10px">${p.h}</span></div><div class="bio">${p.bio}</div><div class="meta">${p.meta}</div>`;
+  cards.appendChild(card);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1500px; height: 500px; overflow: hidden; background: #000; }
+
+  .banner {
+    width: 1500px;
+    height: 500px;
+    position: relative;
+    background: radial-gradient(ellipse 120% 80% at 50% 60%, #0a1628 0%, #050a12 50%, #000000 100%);
+    overflow: hidden;
+    font-family: -apple-system, 'SF Pro Display', 'Inter', sans-serif;
+  }
+
+  /* Grid lines */
+  .grid {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(rgba(0,255,204,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,204,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    transform: perspective(800px) rotateX(45deg);
+    transform-origin: center 120%;
+    opacity: 0.6;
+  }
+
+  /* Horizontal horizon glow */
+  .horizon {
+    position: absolute;
+    bottom: 160px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent 5%, rgba(0,255,204,0.4) 30%, rgba(247,147,26,0.6) 50%, rgba(0,255,204,0.4) 70%, transparent 95%);
+    box-shadow: 0 0 40px 10px rgba(247,147,26,0.15), 0 0 80px 20px rgba(0,255,204,0.08);
+  }
+
+  /* Bitmap blocks scattered */
+  .blocks-container {
+    position: absolute;
+    bottom: 120px;
+    left: 0;
+    right: 0;
+    height: 200px;
+    perspective: 1200px;
+  }
+
+  .block-row {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    transform: perspective(800px) rotateX(55deg) translateZ(0);
+    transform-origin: center bottom;
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%) perspective(800px) rotateX(55deg);
+  }
+
+  .bitmap-block {
+    width: 50px;
+    height: 50px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 1px;
+    opacity: 0.7;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .bitmap-block .cell {
+    background: rgba(247,147,26,0.3);
+    border-radius: 0.5px;
+  }
+
+  /* Floating particles */
+  .particles {
+    position: absolute;
+    inset: 0;
+  }
+  .particle {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: rgba(0,255,204,0.5);
+  }
+
+  /* Energy beams */
+  .beam {
+    position: absolute;
+    width: 1px;
+    background: linear-gradient(to top, rgba(247,147,26,0.4), transparent);
+    bottom: 162px;
+  }
+
+  /* NEXUS title */
+  .title-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -55%);
+    text-align: center;
+    z-index: 10;
+  }
+
+  .nexus-title {
+    font-size: 140px;
+    font-weight: 900;
+    letter-spacing: 30px;
+    line-height: 1;
+    background: linear-gradient(180deg,
+      #ffffff 0%,
+      #00ffcc 30%,
+      #f7931a 60%,
+      #ff6600 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 40px rgba(0,255,204,0.4)) drop-shadow(0 0 80px rgba(247,147,26,0.3));
+    text-transform: uppercase;
+    position: relative;
+  }
+
+  /* Glow behind NEXUS */
+  .nexus-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 800px;
+    height: 200px;
+    background: radial-gradient(ellipse, rgba(0,255,204,0.12) 0%, rgba(247,147,26,0.06) 40%, transparent 70%);
+    z-index: 5;
+    filter: blur(30px);
+  }
+
+  .subtitle {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 12px;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    margin-top: 10px;
+  }
+
+  .tagline {
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 6px;
+    color: rgba(0,255,204,0.5);
+    text-transform: uppercase;
+    margin-top: 20px;
+  }
+
+  /* Corner accents */
+  .corner {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    z-index: 20;
+  }
+  .corner.tl { top: 20px; left: 30px; border-top: 2px solid rgba(0,255,204,0.3); border-left: 2px solid rgba(0,255,204,0.3); }
+  .corner.tr { top: 20px; right: 30px; border-top: 2px solid rgba(0,255,204,0.3); border-right: 2px solid rgba(0,255,204,0.3); }
+  .corner.bl { bottom: 20px; left: 30px; border-bottom: 2px solid rgba(247,147,26,0.3); border-left: 2px solid rgba(247,147,26,0.3); }
+  .corner.br { bottom: 20px; right: 30px; border-bottom: 2px solid rgba(247,147,26,0.3); border-right: 2px solid rgba(247,147,26,0.3); }
+
+  /* BG logo small */
+  .logo-mark {
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 8px;
+    color: rgba(255,255,255,0.25);
+    text-transform: uppercase;
+    z-index: 20;
+  }
+
+  /* Bottom tagline */
+  .bottom-tag {
+    position: absolute;
+    bottom: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 4px;
+    color: rgba(247,147,26,0.4);
+    text-transform: uppercase;
+    z-index: 20;
+    white-space: nowrap;
+  }
+
+  /* Side decorative lines */
+  .side-line-left {
+    position: absolute;
+    left: 50px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: 200px;
+    background: linear-gradient(to bottom, transparent, rgba(0,255,204,0.2), transparent);
+  }
+  .side-line-right {
+    position: absolute;
+    right: 50px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: 200px;
+    background: linear-gradient(to bottom, transparent, rgba(0,255,204,0.2), transparent);
+  }
+
+  /* Bitcoin symbol accents */
+  .btc-accent {
+    position: absolute;
+    font-size: 24px;
+    color: rgba(247,147,26,0.15);
+    z-index: 2;
+  }
+</style>
+</head>
+<body>
+<div class="banner">
+  <!-- Perspective grid floor -->
+  <div class="grid"></div>
+
+  <!-- Horizon glow line -->
+  <div class="horizon"></div>
+
+  <!-- Energy beams -->
+  <div class="beam" style="left: 300px; height: 120px; opacity: 0.3;"></div>
+  <div class="beam" style="left: 500px; height: 80px; opacity: 0.2;"></div>
+  <div class="beam" style="left: 750px; height: 150px; opacity: 0.4; background: linear-gradient(to top, rgba(0,255,204,0.4), transparent);"></div>
+  <div class="beam" style="left: 1000px; height: 90px; opacity: 0.25;"></div>
+  <div class="beam" style="left: 1200px; height: 110px; opacity: 0.3;"></div>
+
+  <!-- Floating particles -->
+  <div class="particles">
+    <div class="particle" style="top: 15%; left: 10%; opacity: 0.6;"></div>
+    <div class="particle" style="top: 25%; left: 20%; opacity: 0.4; width: 3px; height: 3px; background: rgba(247,147,26,0.5);"></div>
+    <div class="particle" style="top: 35%; left: 85%; opacity: 0.5;"></div>
+    <div class="particle" style="top: 18%; left: 75%; opacity: 0.3; width: 3px; height: 3px;"></div>
+    <div class="particle" style="top: 40%; left: 15%; opacity: 0.4;"></div>
+    <div class="particle" style="top: 30%; left: 90%; opacity: 0.5; background: rgba(247,147,26,0.4);"></div>
+    <div class="particle" style="top: 45%; left: 5%; opacity: 0.3;"></div>
+    <div class="particle" style="top: 20%; left: 50%; opacity: 0.2; width: 4px; height: 4px; background: rgba(0,255,204,0.3);"></div>
+    <div class="particle" style="top: 50%; left: 35%; opacity: 0.3;"></div>
+    <div class="particle" style="top: 22%; left: 65%; opacity: 0.4; background: rgba(247,147,26,0.3);"></div>
+  </div>
+
+  <!-- Bitcoin accents -->
+  <div class="btc-accent" style="top: 80px; left: 120px;">₿</div>
+  <div class="btc-accent" style="top: 120px; right: 150px; font-size: 18px;">₿</div>
+  <div class="btc-accent" style="bottom: 100px; left: 200px; font-size: 16px;">₿</div>
+  <div class="btc-accent" style="bottom: 80px; right: 220px; font-size: 20px;">₿</div>
+
+  <!-- Side lines -->
+  <div class="side-line-left"></div>
+  <div class="side-line-right"></div>
+
+  <!-- Corner accents -->
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+
+  <!-- Logo -->
+  <div class="logo-mark">Block Genomics</div>
+
+  <!-- Glow -->
+  <div class="nexus-glow"></div>
+
+  <!-- Main title -->
+  <div class="title-container">
+    <div class="nexus-title">NEXUS</div>
+    <div class="subtitle">The Bitcoin Metaverse</div>
+    <div class="tagline">Own Blocks · Build Worlds · Connect</div>
+  </div>
+
+  <!-- Bottom -->
+  <div class="bottom-tag">Every Block Is A World · 2.1km × 2.1km · Powered by Bitmap</div>
+</div>
+</body>
+</html>

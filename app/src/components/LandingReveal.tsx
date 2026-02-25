@@ -39,6 +39,16 @@ const LandingReveal: React.FC<LandingRevealProps> = ({ children }) => {
         </div>
       </div>
 
+      {/* Soft dark gradient overlay for text readability */}
+      <div
+        className="fixed inset-0 z-15 pointer-events-none"
+        style={{
+          background: 'linear-gradient(to bottom, rgba(3,3,8,0.1) 0%, rgba(3,3,8,0.25) 30%, rgba(3,3,8,0.35) 50%, rgba(3,3,8,0.5) 100%)',
+          opacity: phase === 'waiting' ? 0 : 1,
+          transition: 'opacity 1.5s ease-out',
+        }}
+      />
+
       {/* Main content overlay */}
       <div
         className="relative z-20"

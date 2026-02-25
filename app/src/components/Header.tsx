@@ -1,136 +1,162 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
-import { useWallet, type WalletType } from "@/context/WalletContext";
+import { usePathname } from "next/navigation";
+import WalletConnect from "@/components/auth/WalletConnect";
+import GlobalSearch from "@/components/GlobalSearch";
 
 const navLinks = [
-  { href: "/explore", label: "Explore" },
-  { href: "/verify", label: "Verify" },
   { href: "/nexus", label: "Nexus" },
-  { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/directory", label: "Directory" },
+  { href: "/live", label: "TimesSquare", isLive: true },
+  { href: "/marketplace", label: "Marketplace" },
+  { href: "/verify", label: "Verify" },
+  { href: "/whitepaper", label: "White Paper" },
+  { href: "/brain", label: "Brain", isBrain: true },
 ];
 
+const nexusStyle = {
+  color: '#00ffcc',
+  background: 'rgba(0,255,204,0.08)',
+  border: '1px solid rgba(0,255,204,0.25)',
+  boxShadow: '0 0 15px rgba(0,255,204,0.2), inset 0 0 10px rgba(0,255,204,0.05)',
+  textShadow: '0 0 10px rgba(0,255,204,0.6)',
+  animation: 'nexusPulse 2s ease-in-out infinite',
+};
+
+const brainStyle = {
+  color: '#a78bfa',
+  background: 'rgba(167,139,250,0.08)',
+  border: '1px solid rgba(167,139,250,0.2)',
+  boxShadow: '0 0 12px rgba(167,139,250,0.15)',
+};
+
+function NavLink({ link }: { link: { href: string; label: string; isBrain?: boolean; isLive?: boolean } }) {
+  const isNexus = link.href === '/nexus';
+  const isBrain = !!(link as any).isBrain;
+  const isLive = !!(link as any).isLive;
+  const liveStyle: React.CSSProperties = { color: '#ff6b6b', textShadow: '0 0 8px rgba(255,51,51,0.3)' };
+  return (
+    <Link
+      href={link.href}
+      className={`px-3 py-2 text-sm rounded-lg transition-all ${isNexus ? 'font-bold' : isBrain ? 'font-semibold' : isLive ? 'font-semibold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
+      style={isNexus ? nexusStyle : isBrain ? brainStyle : isLive ? liveStyle : undefined}
+    >
+      {isNexus ? '⚡ ' : ''}
+      {isLive ? (
+        <span className="inline-flex items-center gap-1.5">
+          📺
+          <span>{link.label}</span>
+        </span>
+      ) : isBrain ? (
+        <span className="inline-flex items-center gap-1.5">
+          🧠
+          <span>{link.label}</span>
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+        </span>
+      ) : link.label}
+    </Link>
+  );
+}
+
 export default function Header() {
-  const { isConnected, isConnecting, address, walletType, connect, disconnect } =
-    useWallet();
-  const [showDropdown, setShowDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown on click outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleConnect = async (type: WalletType) => {
-    setShowDropdown(false);
-    await connect(type);
-  };
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
+  const inNexus = pathname === '/nexus' || pathname.startsWith('/nexus/');
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-bg-primary/80 backdrop-blur-xl">
+    <header
+      className="sticky top-0 z-50 border-b backdrop-blur-xl transition-all duration-500"
+      style={inNexus ? {
+        background: 'rgba(2,2,8,0.92)',
+        borderColor: 'rgba(0,255,204,0.15)',
+        boxShadow: '0 1px 30px rgba(0,255,204,0.08), inset 0 -1px 0 rgba(0,255,204,0.1)',
+      } : {
+        background: 'rgba(var(--bg-primary), 0.8)',
+        borderColor: 'var(--border)',
+      }}
+    >
+      {/* Nexus neon scanline */}
+      {inNexus && (
+        <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{
+          background: 'linear-gradient(90deg, transparent 0%, #00ffcc 20%, #a855f7 50%, #f7931a 80%, transparent 100%)',
+          opacity: 0.6,
+          animation: 'nexusScanline 3s ease-in-out infinite',
+        }} />
+      )}
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-cyan/10 border border-accent-cyan/20 group-hover:border-accent-cyan/40 transition-colors">
-            <span className="text-accent-cyan font-bold text-sm">BG</span>
-          </div>
-          <span className="text-lg font-semibold tracking-tight">
-            <span className="text-gradient-cyan-purple">Block Genomics</span>
+        <Link href="/" className="flex items-center group">
+          <span
+            className="text-xl sm:text-2xl font-black tracking-tight"
+            style={{
+              background: 'linear-gradient(135deg, #00ffcc 0%, #ffffff 30%, #aa44ff 60%, #ff8800 100%)',
+              backgroundSize: '200% 200%',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              animation: 'brandShimmer 4s ease-in-out infinite',
+              filter: 'drop-shadow(0 0 12px rgba(0,255,204,0.3))',
+            }}
+          >
+            Block Genomics
           </span>
         </Link>
 
-        {/* Navigation */}
+        {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-1">
+          {navLinks.map((link) => <NavLink key={link.href} link={link} />)}
+        </nav>
+
+        <div className="flex items-center gap-2">
+          <GlobalSearch />
+          <WalletConnect />
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="md:hidden flex flex-col gap-[5px] p-2 rounded-lg hover:bg-bg-tertiary/50 transition-colors"
+            aria-label="Toggle menu"
+          >
+            <span className={`block w-5 h-[2px] bg-text-secondary transition-all ${menuOpen ? 'rotate-45 translate-y-[7px]' : ''}`} />
+            <span className={`block w-5 h-[2px] bg-text-secondary transition-all ${menuOpen ? 'opacity-0' : ''}`} />
+            <span className={`block w-5 h-[2px] bg-text-secondary transition-all ${menuOpen ? '-rotate-45 -translate-y-[7px]' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile menu dropdown */}
+      {menuOpen && (
+        <nav className="md:hidden border-t border-border bg-bg-primary/95 backdrop-blur-xl px-4 py-3 flex flex-col gap-1">
+          <div className="pb-2">
+            <GlobalSearch />
+          </div>
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="px-3 py-2 text-sm text-text-secondary hover:text-text-primary rounded-lg hover:bg-bg-tertiary/50 transition-colors"
+              onClick={() => setMenuOpen(false)}
+              className={`px-4 py-3 text-sm rounded-lg transition-all ${link.href === '/nexus' ? 'font-bold' : (link as any).isBrain ? 'font-semibold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
+              style={link.href === '/nexus' ? nexusStyle : (link as any).isBrain ? brainStyle : undefined}
             >
-              {link.label}
+              {link.href === '/nexus' ? '⚡ ' : ''}
+              {(link as any).isBrain ? (
+                <span className="inline-flex items-center gap-1.5">
+                  🧠
+                  <span>{link.label}</span>
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                  </span>
+                </span>
+              ) : link.label}
             </Link>
           ))}
         </nav>
-
-        {/* Wallet Button */}
-        <div className="relative" ref={dropdownRef}>
-          {isConnected ? (
-            <button
-              onClick={disconnect}
-              className="flex items-center gap-2 rounded-lg border border-accent-cyan/30 bg-accent-cyan/5 px-4 py-2 text-sm font-medium text-accent-cyan hover:bg-accent-cyan/10 hover:border-accent-cyan/50 transition-all"
-            >
-              <span className="h-2 w-2 rounded-full bg-success" />
-              <span className="hidden sm:inline text-xs text-text-muted mr-1">
-                {walletType === "unisat" ? "🟧" : "🟣"}
-              </span>
-              {address?.slice(0, 6)}…{address?.slice(-4)}
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              disabled={isConnecting}
-              className="flex items-center gap-2 rounded-lg border border-accent-cyan/30 bg-accent-cyan/5 px-4 py-2 text-sm font-medium text-accent-cyan hover:bg-accent-cyan/10 hover:border-accent-cyan/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isConnecting ? (
-                <>
-                  <span className="h-2 w-2 rounded-full bg-accent-cyan animate-pulse" />
-                  Connecting…
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 013 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 013 6v3"
-                    />
-                  </svg>
-                  Connect Wallet
-                </>
-              )}
-            </button>
-          )}
-
-          {/* Wallet selector dropdown */}
-          {showDropdown && !isConnected && (
-            <div className="absolute right-0 mt-2 w-56 glass-panel p-2 shadow-xl z-50">
-              <button
-                onClick={() => handleConnect("unisat")}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-text-primary hover:bg-bg-tertiary/50 transition-colors"
-              >
-                <span className="text-lg">🟧</span>
-                <div className="text-left">
-                  <div className="font-medium">Unisat</div>
-                  <div className="text-xs text-text-muted">BRC-20 & Ordinals</div>
-                </div>
-              </button>
-              <button
-                onClick={() => handleConnect("xverse")}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-text-primary hover:bg-bg-tertiary/50 transition-colors"
-              >
-                <span className="text-lg">🟣</span>
-                <div className="text-left">
-                  <div className="font-medium">Xverse</div>
-                  <div className="text-xs text-text-muted">Bitcoin Web3</div>
-                </div>
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </header>
   );
 }

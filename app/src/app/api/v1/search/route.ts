@@ -1,92 +1,107 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 
-export async function GET(request: NextRequest) {
+/**
+ * Global Search API
+ * GET /api/v1/search?q=<query>&limit=8
+ * Searches: blocks (by height), users (by handle, displayName)
+ */
+export async function GET(req: NextRequest) {
+  const q = req.nextUrl.searchParams.get('q')?.trim();
+  const limit = Math.min(Number(req.nextUrl.searchParams.get('limit')) || 8, 20);
+
+  if (!q || q.length < 1) {
+    return NextResponse.json({ success: true, data: { blocks: [], agents: [], users: [] } });
+  }
+
+  const qLower = q.toLowerCase();
+  const qNum = Number(q);
+  const isNumeric = !isNaN(qNum) && Number.isFinite(qNum) && qNum > 0;
+
   try {
-    const { searchParams } = new URL(request.url);
-    const rawQuery = searchParams.get("q")?.trim() ?? "";
-    const limitParam = Number(searchParams.get("limit") ?? 10);
-    const limit = Number.isFinite(limitParam)
-      ? Math.min(Math.max(1, limitParam), 50)
-      : 10;
-
-    if (!rawQuery) {
-      return NextResponse.json({ query: "", count: 0, results: [] });
-    }
-
-    if (rawQuery.length > 100) {
-      return NextResponse.json(
-        { error: "Query too long" },
-        { status: 400 }
-      );
-    }
-
-    const query = rawQuery.replace(/[\u0000-\u001F\u007F]/g, "");
-
-    type SearchResult = {
-      type: "agent" | "block";
-      id: string;
-      name: string;
-      blockHeight: number;
-      genome: string | null;
-      trustScore: number | null;
-      matchField: string;
-    };
-
-    const agentResults = await prisma.agent.findMany({
-      where: {
-        displayName: {
-          contains: query,
-          mode: "insensitive",
+    const [users, blocks] = await Promise.all([
+      prisma.user.findMany({
+        where: {
+          OR: [
+            { handle: { contains: qLower, mode: 'insensitive' } },
+            { displayName: { contains: q, mode: 'insensitive' } },
+          ],
         },
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      include: {
-        genomes: { orderBy: { generatedAt: "desc" }, take: 1 },
-      },
-    });
+        select: {
+          walletAddress: true,
+          handle: true,
+          displayName: true,
+          tier: true,
+          avatar: true,
+          verified: true,
+          anchorBlock: true,
+        },
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
 
-    const results: SearchResult[] = agentResults.map((agent) => ({
-      type: "agent",
-      id: agent.id,
-      name: agent.displayName || "Anonymous Agent",
-      blockHeight: agent.genomes[0]?.blockHeight ?? 0,
-      genome: agent.genomes[0]?.sequence ?? null,
-      trustScore: Math.round(agent.trustScore),
-      matchField: "name",
-    }));
+      isNumeric
+        ? prisma.block.findMany({
+            where: {
+              height: {
+                gte: Math.floor(qNum),
+                lte: Math.floor(qNum) + (q.length < 6 ? 999 : 0),
+              },
+            },
+            select: {
+              height: true,
+              ownerAddress: true,
+              label: true,
+            },
+            take: limit,
+            orderBy: { height: 'asc' },
+          })
+        : Promise.resolve([]),
+    ]);
 
-    const numericHeight = Number.parseInt(query, 10);
-    if (!Number.isNaN(numericHeight)) {
-      const block = await prisma.block.findUnique({
-        where: { height: numericHeight },
-        include: { genome: true },
-      });
+    // Check which users have guardians (agents)
+    const walletsWithGuardians = users.length > 0
+      ? new Set(
+          (await prisma.guardianAgent.findMany({
+            where: { ownerAddress: { in: users.map((u) => u.walletAddress) } },
+            select: { ownerAddress: true },
+          })).map((g) => g.ownerAddress)
+        )
+      : new Set<string>();
 
-      if (block) {
-        results.unshift({
-          type: "block" as const,
-          id: String(block.height),
-          name: `Block #${block.height.toLocaleString()}`,
-          blockHeight: block.height,
-          genome: block.genome?.sequence ?? null,
-          trustScore: null,
-          matchField: "blockHeight",
-        });
-      }
-    }
+    const agents = users.filter((u) => walletsWithGuardians.has(u.walletAddress));
+    const regularUsers = users.filter((u) => !walletsWithGuardians.has(u.walletAddress));
 
     return NextResponse.json({
-      query,
-      count: results.length,
-      results: results.slice(0, limit),
+      success: true,
+      data: {
+        blocks: blocks.map((b) => ({
+          type: 'block' as const,
+          height: b.height,
+          ownerAddress: b.ownerAddress,
+          label: b.label,
+          url: `/block/${b.height}`,
+        })),
+        agents: agents.map((a) => ({
+          type: 'agent' as const,
+          handle: a.handle,
+          displayName: a.displayName,
+          tier: a.tier,
+          avatarUrl: a.avatar,
+          url: a.handle ? `/agent/${a.handle}` : `/verify`,
+        })),
+        users: regularUsers.map((u) => ({
+          type: 'user' as const,
+          handle: u.handle,
+          displayName: u.displayName,
+          tier: u.tier,
+          avatarUrl: u.avatar,
+          url: u.handle ? `/agent/${u.handle}` : `/verify`,
+        })),
+      },
     });
   } catch (error) {
-    console.error("Search error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    console.error('Search error:', error);
+    return NextResponse.json({ success: false, error: 'Search failed' }, { status: 500 });
   }
 }

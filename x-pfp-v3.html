@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { width: 800px; height: 800px; overflow: hidden; background: #000; }
+canvas { width: 800px; height: 800px; }
+</style>
+</head>
+<body>
+<canvas id="c" width="800" height="800"></canvas>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const W = 800, H = 800, cx = W/2, cy = H/2;
+
+// === BACKGROUND — Pure dark ===
+ctx.fillStyle = '#020408';
+ctx.fillRect(0, 0, W, H);
+
+// Very subtle radial warmth
+const bg2 = ctx.createRadialGradient(cx, cy, 50, cx, cy, 400);
+bg2.addColorStop(0, 'rgba(247,147,26,0.03)');
+bg2.addColorStop(1, 'rgba(0,0,0,0)');
+ctx.fillStyle = bg2;
+ctx.fillRect(0, 0, W, H);
+
+// === THE MARK: DNA Helix forming a ₿ shape ===
+// Two helical strands that twist to create the Bitcoin symbol silhouette
+
+// Main circle boundary
+const R = 240;
+
+// Helix parameters
+const turns = 3.5;
+const helixRadius = 65;
+const points = 200;
+
+function drawStrand(phase, color, glowColor, lineW) {
+  const pts = [];
+  for (let i = 0; i <= points; i++) {
+    const t = i / points;
+    const angle = t * turns * Math.PI * 2 + phase;
+    const y = cy - R * 0.75 + t * R * 1.5;
+    const x = cx + Math.cos(angle) * helixRadius;
+    const depth = Math.sin(angle);
+    pts.push({ x, y, depth });
+  }
+  
+  // Glow pass
+  ctx.beginPath();
+  pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+  ctx.strokeStyle = glowColor;
+  ctx.lineWidth = lineW + 8;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  
+  // Main pass
+  ctx.beginPath();
+  pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineW;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  
+  return pts;
+}
+
+// Draw base pair rungs first (behind strands)
+for (let i = 0; i < points; i += 6) {
+  const t = i / points;
+  const angle = t * turns * Math.PI * 2;
+  const y = cy - R * 0.75 + t * R * 1.5;
+  const x1 = cx + Math.cos(angle) * helixRadius;
+  const x2 = cx + Math.cos(angle + Math.PI) * helixRadius;
+  
+  const alpha = 0.06 + Math.abs(Math.sin(angle)) * 0.08;
+  ctx.beginPath();
+  ctx.moveTo(x1, y);
+  ctx.lineTo(x2, y);
+  const rungGrad = ctx.createLinearGradient(x1, y, x2, y);
+  rungGrad.addColorStop(0, `rgba(247,147,26,${alpha})`);
+  rungGrad.addColorStop(0.5, `rgba(255,255,255,${alpha * 0.5})`);
+  rungGrad.addColorStop(1, `rgba(0,200,255,${alpha * 0.8})`);
+  ctx.strokeStyle = rungGrad;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+// Draw the two strands
+drawStrand(0, 'rgba(247,147,26,0.85)', 'rgba(247,147,26,0.12)', 4);
+drawStrand(Math.PI, 'rgba(0,200,255,0.7)', 'rgba(0,200,255,0.08)', 3.5);
+
+// Nucleotide dots at intersections
+for (let i = 0; i < points; i += 6) {
+  const t = i / points;
+  const angle = t * turns * Math.PI * 2;
+  const y = cy - R * 0.75 + t * R * 1.5;
+  
+  // Orange strand dot
+  const x1 = cx + Math.cos(angle) * helixRadius;
+  ctx.beginPath();
+  ctx.arc(x1, y, 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(247,147,26,0.6)';
+  ctx.fill();
+  
+  // Cyan strand dot
+  const x2 = cx + Math.cos(angle + Math.PI) * helixRadius;
+  ctx.beginPath();
+  ctx.arc(x2, y, 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,200,255,0.5)';
+  ctx.fill();
+}
+
+// === ₿ SYMBOL — Overlaid, bold, integrated ===
+ctx.font = '900 260px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial';
+ctx.textAlign = 'center';
+ctx.textBaseline = 'middle';
+
+// Soft glow behind
+ctx.shadowColor = '#f7931a';
+ctx.shadowBlur = 50;
+ctx.fillStyle = 'rgba(247,147,26,0.06)';
+ctx.fillText('₿', cx, cy + 5);
+ctx.shadowBlur = 30;
+ctx.fillStyle = 'rgba(247,147,26,0.08)';
+ctx.fillText('₿', cx, cy + 5);
+ctx.shadowBlur = 0;
+
+// Main ₿
+const btcGrad = ctx.createLinearGradient(cx - 80, cy - 130, cx + 80, cy + 130);
+btcGrad.addColorStop(0, '#FFE066');
+btcGrad.addColorStop(0.2, '#FFD700');
+btcGrad.addColorStop(0.4, '#F7931A');
+btcGrad.addColorStop(0.6, '#F7931A');
+btcGrad.addColorStop(0.8, '#E8850F');
+btcGrad.addColorStop(1, '#FFB347');
+ctx.fillStyle = btcGrad;
+ctx.fillText('₿', cx, cy + 5);
+
+// Very subtle edge highlight
+ctx.strokeStyle = 'rgba(255,230,100,0.12)';
+ctx.lineWidth = 1;
+ctx.strokeText('₿', cx, cy + 5);
+
+// === SMALL CROWN — Minimal, top ===
+const crY = cy - 195;
+
+ctx.beginPath();
+ctx.moveTo(cx - 22, crY + 16);
+ctx.lineTo(cx - 22, crY + 5);
+ctx.lineTo(cx - 11, crY + 10);
+ctx.lineTo(cx, crY);
+ctx.lineTo(cx + 11, crY + 10);
+ctx.lineTo(cx + 22, crY + 5);
+ctx.lineTo(cx + 22, crY + 16);
+ctx.closePath();
+
+const crGrad = ctx.createLinearGradient(cx, crY, cx, crY + 16);
+crGrad.addColorStop(0, '#FFD700');
+crGrad.addColorStop(1, '#F7931A');
+ctx.fillStyle = crGrad;
+ctx.shadowColor = '#ffd700';
+ctx.shadowBlur = 10;
+ctx.fill();
+ctx.shadowBlur = 0;
+
+// Center jewel
+ctx.beginPath();
+ctx.arc(cx, crY + 3, 2, 0, Math.PI * 2);
+ctx.fillStyle = '#00ffcc';
+ctx.shadowColor = '#00ffcc';
+ctx.shadowBlur = 5;
+ctx.fill();
+ctx.shadowBlur = 0;
+
+// === CIRCULAR BORDER — Thin, premium ===
+ctx.beginPath();
+ctx.arc(cx, cy, R + 20, 0, Math.PI * 2);
+const borderGrad = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+borderGrad.addColorStop(0, 'rgba(255,215,0,0.35)');
+borderGrad.addColorStop(0.25, 'rgba(247,147,26,0.2)');
+borderGrad.addColorStop(0.5, 'rgba(247,147,26,0.35)');
+borderGrad.addColorStop(0.75, 'rgba(0,200,255,0.15)');
+borderGrad.addColorStop(1, 'rgba(255,215,0,0.3)');
+ctx.strokeStyle = borderGrad;
+ctx.lineWidth = 2;
+ctx.stroke();
+
+// Outer subtle glow ring
+ctx.beginPath();
+ctx.arc(cx, cy, R + 22, 0, Math.PI * 2);
+ctx.strokeStyle = 'rgba(247,147,26,0.06)';
+ctx.lineWidth = 6;
+ctx.stroke();
+</script>
+</body>
+</html>

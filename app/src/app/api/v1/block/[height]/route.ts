@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Legacy route — redirects to new schema. Use /api/v1/blocks/[height] for new API.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ height: string }> }
@@ -15,53 +16,14 @@ export async function GET(
 
     const block = await prisma.block.findUnique({
       where: { height: blockHeight },
-      include: {
-        genome: true,
-        verifications: {
-          orderBy: { startedAt: 'desc' },
-          take: 5,
-        },
-      },
+      include: { owner: { select: { walletAddress: true, handle: true, tier: true } } },
     });
 
     if (!block) {
       return NextResponse.json({ error: 'Block not found' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      block: {
-        height: block.height,
-        hash: block.hash,
-        previousHash: block.previousHash,
-        merkleRoot: block.merkleRoot,
-        timestamp: block.timestamp,
-        nonce: block.nonce,
-        difficulty: block.difficulty,
-        txCount: block.txCount,
-        size: block.size,
-        weight: block.weight,
-        version: block.version,
-        verificationStatus: block.verificationStatus,
-        verifiedAt: block.verifiedAt,
-      },
-      genome: block.genome
-        ? {
-            id: block.genome.id,
-            sequence: block.genome.sequence,
-            integrity: block.genome.integrity,
-            complexity: block.genome.complexity,
-            generatedAt: block.genome.generatedAt,
-          }
-        : null,
-      recentVerifications: block.verifications.map((v) => ({
-        id: v.id,
-        agentId: v.agentId,
-        status: v.status,
-        startedAt: v.startedAt,
-        completedAt: v.completedAt,
-        scoreAwarded: v.scoreAwarded,
-      })),
-    });
+    return NextResponse.json({ success: true, data: block });
   } catch (error) {
     console.error('Block fetch error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

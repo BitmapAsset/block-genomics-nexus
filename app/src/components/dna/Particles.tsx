@@ -5,9 +5,12 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { DNAState } from '../DNAVisualizer';
 
+/* genome-derived colour palette (matches the helix) */
 const palette = [
-  '#f7931a', '#ffb347', '#ffd27d', '#ffcc66', '#ffae42', '#f7b267',
-  '#f6d285', '#ff9f1c', '#f4a261', '#f6c177', '#f7c97f', '#ffb454',
+  '#ff0055', '#ff3366', '#ff6633', '#ffaa00',
+  '#ccff00', '#66ff33', '#00ff99', '#00ffcc',
+  '#00ccff', '#0099ff', '#3366ff', '#6633ff',
+  '#9933ff', '#cc33ff', '#ff33cc', '#ff3399',
 ];
 
 interface ParticlesProps {
@@ -23,7 +26,7 @@ const Particles: React.FC<ParticlesProps> = ({ state, particleCount = 200 }) => 
   const { positions, colors } = useMemo(() => {
     const pos = new Float32Array(particleCount * 3);
     const col = new Float32Array(particleCount * 3);
-    for (let i = 0; i < particleCount; i += 1) {
+    for (let i = 0; i < particleCount; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       const r = 8 + Math.random() * 15;
@@ -41,10 +44,10 @@ const Particles: React.FC<ParticlesProps> = ({ state, particleCount = 200 }) => 
   }, [particleCount]);
 
   const burst = useMemo(() => {
-    const count = 120;
+    const count = 100;
     const pos = new Float32Array(count * 3);
     const vel = new Float32Array(count * 3);
-    for (let i = 0; i < count; i += 1) {
+    for (let i = 0; i < count; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 4;
       pos[i * 3 + 1] = (Math.random() - 0.5) * 4;
       pos[i * 3 + 2] = (Math.random() - 0.5) * 4;
@@ -68,7 +71,7 @@ const Particles: React.FC<ParticlesProps> = ({ state, particleCount = 200 }) => 
 
     if (burstRef.current && burstActive) {
       const arr = burstRef.current.geometry.attributes.position.array as Float32Array;
-      for (let i = 0; i < burst.count; i += 1) {
+      for (let i = 0; i < burst.count; i++) {
         arr[i * 3] += burst.vel[i * 3];
         arr[i * 3 + 1] += burst.vel[i * 3 + 1];
         arr[i * 3 + 2] += burst.vel[i * 3 + 2];
@@ -118,7 +121,7 @@ const Particles: React.FC<ParticlesProps> = ({ state, particleCount = 200 }) => 
         </bufferGeometry>
         <pointsMaterial
           size={0.15}
-          color="#f6c177"
+          color="#00ff66"
           transparent
           opacity={0}
           blending={THREE.AdditiveBlending}

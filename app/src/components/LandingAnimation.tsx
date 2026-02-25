@@ -50,11 +50,14 @@ function makeEmojiTexture(emoji: string, glowColor: string, size = 256): THREE.C
 }
 
 /**
- * 🛡️ Block Genomics Verification Shield
- * 
- * Custom-designed badge: a heraldic shield with a Bitcoin ₿ symbol
- * woven into a DNA double-helix strand. Gold-to-cyan gradient.
- * Represents: security (shield), proof-of-work (₿), genomic identity (DNA).
+ * 🛡️👑 Crown Shield Badge — Block Genomics
+ *
+ * A2 Crown Shield design (finalized 2026-02-10):
+ * - 3-point crown on top with jewel dots
+ * - Rounded heraldic shield body (dark gradient)
+ * - ₿ symbol center (gold)
+ * - Green ✓ checkmark (verified)
+ * - Tiers: Gold (Tier 1), Cyan (Tier 2), Purple (Tier 3)
  */
 function makeShieldTexture(size = 512): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
@@ -63,49 +66,83 @@ function makeShieldTexture(size = 512): THREE.CanvasTexture {
   const ctx = canvas.getContext('2d')!;
   const cx = size / 2;
   const cy = size / 2;
-  const s = size / 512; // scale factor
+  const s = size / 512;
+
+  const primary = '#f7931a';
+  const secondary = '#ffcc44';
+  const checkGreen = '#22c55e';
 
   // ── Outer glow ──
-  const outerGlow = ctx.createRadialGradient(cx, cy, size * 0.2, cx, cy, size * 0.5);
-  outerGlow.addColorStop(0, 'rgba(247, 147, 26, 0.25)');
-  outerGlow.addColorStop(0.5, 'rgba(102, 204, 255, 0.12)');
+  const outerGlow = ctx.createRadialGradient(cx, cy, size * 0.15, cx, cy, size * 0.48);
+  outerGlow.addColorStop(0, 'rgba(247, 147, 26, 0.3)');
   outerGlow.addColorStop(1, 'transparent');
   ctx.fillStyle = outerGlow;
   ctx.fillRect(0, 0, size, size);
 
-  // ── Shield path (heraldic shape) ──
-  function drawShieldPath() {
+  // ── Crown (3-point) ──
+  const crownY = cy - 170 * s;
+  const crownW = 130 * s;
+  const crownH = 80 * s;
+  const crownBaseY = crownY + crownH;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx - crownW * 0.5, crownBaseY);
+  ctx.lineTo(cx - crownW * 0.4, crownY + 10 * s);   // left tip
+  ctx.lineTo(cx - crownW * 0.15, crownBaseY - 20 * s); // left valley
+  ctx.lineTo(cx, crownY);                               // center tip (tallest)
+  ctx.lineTo(cx + crownW * 0.15, crownBaseY - 20 * s); // right valley
+  ctx.lineTo(cx + crownW * 0.4, crownY + 10 * s);    // right tip
+  ctx.lineTo(cx + crownW * 0.5, crownBaseY);
+  ctx.closePath();
+
+  const crownGrad = ctx.createLinearGradient(cx - crownW * 0.5, crownY, cx + crownW * 0.5, crownBaseY);
+  crownGrad.addColorStop(0, secondary);
+  crownGrad.addColorStop(1, primary);
+  ctx.fillStyle = crownGrad;
+  ctx.fill();
+  ctx.restore();
+
+  // Crown jewels (3 dots)
+  [
+    { x: cx - crownW * 0.4, y: crownY + 10 * s, r: 7 * s },
+    { x: cx, y: crownY, r: 8 * s },
+    { x: cx + crownW * 0.4, y: crownY + 10 * s, r: 7 * s },
+  ].forEach(({ x, y, r }) => {
     ctx.beginPath();
-    ctx.moveTo(cx, cy - 170 * s);                          // top center
-    ctx.bezierCurveTo(
-      cx + 50 * s, cy - 170 * s,
-      cx + 145 * s, cy - 150 * s,
-      cx + 150 * s, cy - 130 * s                            // top right shoulder
-    );
-    ctx.lineTo(cx + 150 * s, cy - 20 * s);                 // right side
-    ctx.bezierCurveTo(
-      cx + 148 * s, cy + 60 * s,
-      cx + 100 * s, cy + 120 * s,
-      cx, cy + 180 * s                                      // bottom point
-    );
-    ctx.bezierCurveTo(
-      cx - 100 * s, cy + 120 * s,
-      cx - 148 * s, cy + 60 * s,
-      cx - 150 * s, cy - 20 * s                             // left side
-    );
-    ctx.lineTo(cx - 150 * s, cy - 130 * s);                // left shoulder
-    ctx.bezierCurveTo(
-      cx - 145 * s, cy - 150 * s,
-      cx - 50 * s, cy - 170 * s,
-      cx, cy - 170 * s                                      // back to top
-    );
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = secondary;
+    ctx.fill();
+    // jewel glow
+    const jg = ctx.createRadialGradient(x, y, 0, x, y, r * 2.5);
+    jg.addColorStop(0, 'rgba(255, 204, 68, 0.4)');
+    jg.addColorStop(1, 'transparent');
+    ctx.fillStyle = jg;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // ── Shield path (rounded heraldic) ──
+  function drawShieldPath() {
+    const top = crownBaseY - 5 * s;
+    const w = 150 * s;
+    const bottom = cy + 180 * s;
+    ctx.beginPath();
+    ctx.moveTo(cx, top);
+    ctx.bezierCurveTo(cx + 50 * s, top, cx + w, top + 20 * s, cx + w, top + 40 * s);
+    ctx.lineTo(cx + w, cy + 20 * s);
+    ctx.bezierCurveTo(cx + w - 5 * s, cy + 80 * s, cx + 100 * s, cy + 130 * s, cx, bottom);
+    ctx.bezierCurveTo(cx - 100 * s, cy + 130 * s, cx - w + 5 * s, cy + 80 * s, cx - w, cy + 20 * s);
+    ctx.lineTo(cx - w, top + 40 * s);
+    ctx.bezierCurveTo(cx - w, top + 20 * s, cx - 50 * s, top, cx, top);
     ctx.closePath();
   }
 
-  // ── Shield fill: dark base with subtle gradient ──
+  // Shield fill
   ctx.save();
   drawShieldPath();
-  const shieldGrad = ctx.createLinearGradient(cx, cy - 170 * s, cx, cy + 180 * s);
+  const shieldGrad = ctx.createLinearGradient(cx, crownBaseY, cx, cy + 180 * s);
   shieldGrad.addColorStop(0, '#1a1a2e');
   shieldGrad.addColorStop(0.5, '#12121a');
   shieldGrad.addColorStop(1, '#0a0a14');
@@ -113,163 +150,101 @@ function makeShieldTexture(size = 512): THREE.CanvasTexture {
   ctx.fill();
   ctx.restore();
 
-  // ── Shield border: gold-to-cyan gradient ──
+  // Shield border (gold)
   ctx.save();
   drawShieldPath();
   const borderGrad = ctx.createLinearGradient(cx - 150 * s, cy, cx + 150 * s, cy);
-  borderGrad.addColorStop(0, '#f7931a');
-  borderGrad.addColorStop(0.3, '#ffd27d');
-  borderGrad.addColorStop(0.7, '#66ccff');
-  borderGrad.addColorStop(1, '#a855f7');
+  borderGrad.addColorStop(0, secondary);
+  borderGrad.addColorStop(0.5, primary);
+  borderGrad.addColorStop(1, secondary);
   ctx.strokeStyle = borderGrad;
   ctx.lineWidth = 5 * s;
   ctx.stroke();
   ctx.restore();
 
-  // ── Inner shield border (thin, lighter) ──
+  // Inner border (thin)
   ctx.save();
-  ctx.translate(0, 0);
-  ctx.scale(0.92, 0.92);
-  ctx.translate(cx * 0.08 / 0.92, cy * 0.08 / 0.92);
+  ctx.translate(cx * 0.06, cy * 0.06);
+  ctx.scale(0.94, 0.94);
   drawShieldPath();
-  ctx.strokeStyle = 'rgba(255, 210, 125, 0.2)';
+  ctx.strokeStyle = `rgba(247, 147, 26, 0.2)`;
   ctx.lineWidth = 1.5 * s;
   ctx.stroke();
   ctx.restore();
 
-  // ── DNA double helix strands (behind the ₿) ──
+  // Inner glow
   ctx.save();
   drawShieldPath();
   ctx.clip();
-
-  const helixAmplitude = 40 * s;
-  const helixCenterX = cx;
-  const helixTop = cy - 140 * s;
-  const helixBottom = cy + 150 * s;
-  const helixSteps = 80;
-
-  for (let strand = 0; strand < 2; strand++) {
-    const phase = strand * Math.PI;
-    const color = strand === 0 ? '#f7931a' : '#66ccff';
-
-    ctx.beginPath();
-    for (let i = 0; i <= helixSteps; i++) {
-      const t = i / helixSteps;
-      const y = helixTop + t * (helixBottom - helixTop);
-      const x = helixCenterX + Math.sin(t * Math.PI * 4 + phase) * helixAmplitude;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = 0.25;
-    ctx.lineWidth = 2.5 * s;
-    ctx.stroke();
-
-    // Draw base-pair rungs at crossover points
-    ctx.globalAlpha = 0.15;
-    ctx.lineWidth = 1.5 * s;
-    for (let i = 0; i <= helixSteps; i++) {
-      const t = i / helixSteps;
-      const sinVal = Math.sin(t * Math.PI * 4 + phase);
-      // Draw rungs near zero-crossings
-      if (Math.abs(sinVal) < 0.15 && i % 4 === 0) {
-        const y = helixTop + t * (helixBottom - helixTop);
-        const x1 = helixCenterX - helixAmplitude * 0.8;
-        const x2 = helixCenterX + helixAmplitude * 0.8;
-        ctx.beginPath();
-        ctx.moveTo(x1, y);
-        ctx.lineTo(x2, y);
-        const rungGrad = ctx.createLinearGradient(x1, y, x2, y);
-        rungGrad.addColorStop(0, '#f7931a');
-        rungGrad.addColorStop(1, '#66ccff');
-        ctx.strokeStyle = rungGrad;
-        ctx.stroke();
-      }
-    }
-    ctx.globalAlpha = 1;
-  }
+  const innerGlow = ctx.createRadialGradient(cx, cy + 20 * s, 0, cx, cy + 20 * s, 120 * s);
+  innerGlow.addColorStop(0, 'rgba(247, 147, 26, 0.12)');
+  innerGlow.addColorStop(1, 'transparent');
+  ctx.fillStyle = innerGlow;
+  ctx.fillRect(0, 0, size, size);
   ctx.restore();
 
-  // ── Central Bitcoin ₿ symbol ──
+  // ── Central ₿ symbol ──
   ctx.save();
   drawShieldPath();
   ctx.clip();
 
-  // ₿ glow
-  const btcGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 60 * s);
+  const btcGlow = ctx.createRadialGradient(cx, cy + 20 * s, 0, cx, cy + 20 * s, 60 * s);
   btcGlow.addColorStop(0, 'rgba(247, 147, 26, 0.3)');
   btcGlow.addColorStop(1, 'transparent');
   ctx.fillStyle = btcGlow;
   ctx.beginPath();
-  ctx.arc(cx, cy, 60 * s, 0, Math.PI * 2);
+  ctx.arc(cx, cy + 20 * s, 60 * s, 0, Math.PI * 2);
   ctx.fill();
 
-  // ₿ character
   ctx.font = `bold ${90 * s}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-
-  // Text gradient: gold to white
-  const btcTextGrad = ctx.createLinearGradient(cx, cy - 45 * s, cx, cy + 45 * s);
-  btcTextGrad.addColorStop(0, '#ffd27d');
-  btcTextGrad.addColorStop(0.5, '#ffffff');
-  btcTextGrad.addColorStop(1, '#f7931a');
-  ctx.fillStyle = btcTextGrad;
-  ctx.fillText('₿', cx, cy + 2 * s);
-
-  // ₿ subtle outline
-  ctx.strokeStyle = 'rgba(247, 147, 26, 0.4)';
+  const btcGrad = ctx.createLinearGradient(cx, cy - 25 * s, cx, cy + 65 * s);
+  btcGrad.addColorStop(0, secondary);
+  btcGrad.addColorStop(0.5, '#ffffff');
+  btcGrad.addColorStop(1, primary);
+  ctx.fillStyle = btcGrad;
+  ctx.fillText('₿', cx, cy + 22 * s);
+  ctx.strokeStyle = 'rgba(247, 147, 26, 0.3)';
   ctx.lineWidth = 1.5 * s;
-  ctx.strokeText('₿', cx, cy + 2 * s);
-
+  ctx.strokeText('₿', cx, cy + 22 * s);
   ctx.restore();
 
-  // ── "BG" monogram at bottom of shield ──
+  // ── Green ✓ checkmark (bottom of shield, matching A2 design) ──
   ctx.save();
   drawShieldPath();
   ctx.clip();
-  ctx.font = `bold ${22 * s}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.letterSpacing = `${4 * s}px`;
-  ctx.fillStyle = 'rgba(102, 204, 255, 0.6)';
-  ctx.fillText('BG', cx, cy + 135 * s);
-  ctx.restore();
-
-  // ── Checkmark at top of shield ──
-  ctx.save();
-  drawShieldPath();
-  ctx.clip();
-  const checkY = cy - 130 * s;
+  const checkCY = cy + 130 * s;
   ctx.beginPath();
-  ctx.moveTo(cx - 18 * s, checkY);
-  ctx.lineTo(cx - 6 * s, checkY + 12 * s);
-  ctx.lineTo(cx + 18 * s, checkY - 8 * s);
+  ctx.moveTo(cx - 18 * s, checkCY);
+  ctx.lineTo(cx - 6 * s, checkCY + 15 * s);
+  ctx.lineTo(cx + 24 * s, checkCY - 12 * s);
   ctx.strokeStyle = '#22ff88';
-  ctx.lineWidth = 4 * s;
+  ctx.lineWidth = 5 * s;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.stroke();
-
-  // Small glow behind checkmark
-  const checkGlow = ctx.createRadialGradient(cx, checkY, 0, cx, checkY, 25 * s);
-  checkGlow.addColorStop(0, 'rgba(34, 255, 136, 0.2)');
-  checkGlow.addColorStop(1, 'transparent');
-  ctx.fillStyle = checkGlow;
+  // check glow
+  const cg = ctx.createRadialGradient(cx, checkCY, 0, cx, checkCY, 30 * s);
+  cg.addColorStop(0, 'rgba(34, 255, 136, 0.25)');
+  cg.addColorStop(1, 'transparent');
+  ctx.fillStyle = cg;
   ctx.beginPath();
-  ctx.arc(cx, checkY, 25 * s, 0, Math.PI * 2);
+  ctx.arc(cx, checkCY, 30 * s, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+
+  // (No BG monogram — removed per Gravity's finalized A2 design)
 
   // ── Corner accents (tiny diamonds) ──
   ctx.save();
   drawShieldPath();
   ctx.clip();
   const diamonds = [
-    { x: cx - 110 * s, y: cy - 80 * s },
-    { x: cx + 110 * s, y: cy - 80 * s },
-    { x: cx - 90 * s, y: cy + 50 * s },
-    { x: cx + 90 * s, y: cy + 50 * s },
+    { x: cx - 110 * s, y: cy - 40 * s },
+    { x: cx + 110 * s, y: cy - 40 * s },
+    { x: cx - 90 * s, y: cy + 60 * s },
+    { x: cx + 90 * s, y: cy + 60 * s },
   ];
   diamonds.forEach(({ x, y }) => {
     ctx.beginPath();
@@ -475,9 +450,14 @@ const LandingScene: React.FC = () => {
 
     if (groupRef.current) groupRef.current.rotation.y += 0.0008;
 
+    // Fade out the entire core (₿, glow, rings, cubes) after animation finishes
+    // Starts fading at t=4s, fully gone by t=7s
+    const coreFade = t < 4 ? 1 : t > 7 ? 0 : 1 - (t - 4) / 3;
+
     if (coreRef.current) {
       coreRef.current.rotation.y += 0.003;
       coreRef.current.rotation.x = Math.sin(clock.elapsedTime * 0.5) * 0.15;
+      coreRef.current.visible = coreFade > 0.01;
     }
 
     // Inner cube rotates opposite direction
@@ -485,28 +465,27 @@ const LandingScene: React.FC = () => {
       innerCubeRef.current.rotation.y -= 0.005;
       innerCubeRef.current.rotation.z += 0.002;
       const iMat = innerCubeRef.current.material as THREE.LineBasicMaterial;
-      iMat.opacity = 0.15 + Math.sin(clock.elapsedTime * 3) * 0.1;
+      iMat.opacity = (0.15 + Math.sin(clock.elapsedTime * 3) * 0.1) * coreFade;
     }
 
-    // ₿ always faces camera, pulses gently
+    // ₿ always faces camera, pulses gently — stays PERMANENT (never fades)
     if (btcSpriteRef.current) {
       const btcMat = btcSpriteRef.current.material as THREE.SpriteMaterial;
       const btcScale = 2.2 + Math.sin(clock.elapsedTime * 2) * 0.15;
       btcSpriteRef.current.scale.setScalar(btcScale);
-      // Brighter during verification
       if (t >= PHASE_CONVERGE_END && t < PHASE_BURST_END) {
         btcMat.opacity = 0.7 + Math.sin(clock.elapsedTime * 4) * 0.2;
       } else {
-        btcMat.opacity = 0.5 + Math.sin(clock.elapsedTime * 1.5) * 0.1;
+        btcMat.opacity = 0.4 + Math.sin(clock.elapsedTime * 1.5) * 0.1;
       }
     }
 
-    // Energy rings pulse outward
+    // Energy rings pulse outward — fade with core
     if (ring1Ref.current) {
       const rScale = 2.5 + Math.sin(clock.elapsedTime * 1.2) * 0.5;
       ring1Ref.current.scale.setScalar(rScale);
       const rMat = ring1Ref.current.material as THREE.MeshBasicMaterial;
-      rMat.opacity = 0.06 + Math.sin(clock.elapsedTime * 1.2) * 0.04;
+      rMat.opacity = (0.06 + Math.sin(clock.elapsedTime * 1.2) * 0.04) * coreFade;
     }
     if (ring2Ref.current) {
       const rScale = 3.0 + Math.cos(clock.elapsedTime * 0.9) * 0.6;
@@ -514,19 +493,19 @@ const LandingScene: React.FC = () => {
       ring2Ref.current.rotation.x = Math.PI / 2;
       ring2Ref.current.rotation.z += 0.001;
       const rMat = ring2Ref.current.material as THREE.MeshBasicMaterial;
-      rMat.opacity = 0.04 + Math.cos(clock.elapsedTime * 0.9) * 0.03;
+      rMat.opacity = (0.04 + Math.cos(clock.elapsedTime * 0.9) * 0.03) * coreFade;
     }
 
     if (coreMeshRef.current) {
       const mat = coreMeshRef.current.material as THREE.LineBasicMaterial;
       if (t < PHASE_CONVERGE_END) {
-        mat.opacity = 0.3 + t / PHASE_CONVERGE_END * 0.4;
+        mat.opacity = (0.3 + t / PHASE_CONVERGE_END * 0.4) * coreFade;
       } else if (t < PHASE_VERIFY_END) {
         const vt = (t - PHASE_CONVERGE_END) / (PHASE_VERIFY_END - PHASE_CONVERGE_END);
-        mat.opacity = 0.7 + Math.sin(vt * Math.PI * 4) * 0.3;
+        mat.opacity = (0.7 + Math.sin(vt * Math.PI * 4) * 0.3) * coreFade;
         mat.color.lerp(new THREE.Color('#22ff88'), 0.03);
       } else {
-        mat.opacity = 0.5 + Math.sin(clock.elapsedTime * 2) * 0.15;
+        mat.opacity = (0.5 + Math.sin(clock.elapsedTime * 2) * 0.15) * coreFade;
         mat.color.lerp(new THREE.Color('#f7931a'), 0.005);
       }
     }
@@ -535,14 +514,14 @@ const LandingScene: React.FC = () => {
       const mat = coreGlowRef.current.material as THREE.MeshBasicMaterial;
       if (t >= PHASE_CONVERGE_END && t < PHASE_BURST_END) {
         const vt = (t - PHASE_CONVERGE_END) / (PHASE_BURST_END - PHASE_CONVERGE_END);
-        mat.opacity = 0.15 + vt * 0.3;
+        mat.opacity = (0.15 + vt * 0.3) * coreFade;
         const s = 2.5 + Math.sin(vt * Math.PI * 3) * 0.8;
         coreGlowRef.current.scale.setScalar(s);
       } else if (t >= PHASE_BURST_END) {
-        mat.opacity = 0.08 + Math.sin(clock.elapsedTime * 1.5) * 0.04;
+        mat.opacity = (0.08 + Math.sin(clock.elapsedTime * 1.5) * 0.04) * coreFade;
         coreGlowRef.current.scale.setScalar(2.5 + Math.sin(clock.elapsedTime * 0.8) * 0.3);
       } else {
-        mat.opacity = t / PHASE_CONVERGE_END * 0.12;
+        mat.opacity = (t / PHASE_CONVERGE_END * 0.12) * coreFade;
         coreGlowRef.current.scale.setScalar(2);
       }
     }
@@ -750,8 +729,9 @@ const LandingAnimation: React.FC<LandingAnimationProps> = ({ onRevealed }) => {
       <Canvas
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+        style={{ background: 'transparent' }}
       >
-        <color attach="background" args={['#0a0a0f']} />
+        {/* No background color — transparent to show LandingBackground beneath */}
         <fog attach="fog" args={['#0a0a0f', 25, 80]} />
         <PerspectiveCamera makeDefault fov={50} position={[0, 1, 16]} />
 

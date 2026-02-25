@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #0a0a0f; gap: 60px; padding: 40px; }
+  .logo-container { position: relative; }
+  
+  /* Main Logo — Full horizontal */
+  .logo-full {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo-icon {
+    width: 64px;
+    height: 64px;
+    position: relative;
+  }
+  .logo-text {
+    font-family: -apple-system, 'SF Pro Display', 'Inter', sans-serif;
+    font-weight: 900;
+    font-size: 42px;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, #00ffcc 0%, #ffffff 30%, #aa44ff 60%, #ff8800 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 20px rgba(0,255,204,0.3));
+  }
+  
+  /* Icon-only version */
+  .logo-square {
+    width: 200px;
+    height: 200px;
+    border-radius: 32px;
+    background: linear-gradient(135deg, #0a0a12 0%, #111122 100%);
+    border: 2px solid rgba(0,255,204,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 40px rgba(0,255,204,0.1);
+  }
+  
+  /* Watermark version — white on transparent */
+  .watermark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0.8;
+  }
+  .watermark-text {
+    font-family: -apple-system, 'SF Pro Display', 'Inter', sans-serif;
+    font-weight: 800;
+    font-size: 24px;
+    color: white;
+    letter-spacing: -0.5px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  }
+  
+  .label {
+    color: #475569;
+    font-family: monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    margin-bottom: 12px;
+  }
+  
+  .version { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+</style>
+</head>
+<body>
+
+<!-- VERSION 1: Full Logo (for intro/outro) -->
+<div class="version">
+  <div class="label">Full Logo — Intro / Outro</div>
+  <div class="logo-full">
+    <svg class="logo-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- DNA Helix simplified -->
+      <defs>
+        <linearGradient id="g1" x1="0" y1="0" x2="64" y2="64">
+          <stop offset="0%" stop-color="#00ffcc"/>
+          <stop offset="50%" stop-color="#aa44ff"/>
+          <stop offset="100%" stop-color="#ff8800"/>
+        </linearGradient>
+        <linearGradient id="g2" x1="64" y1="0" x2="0" y2="64">
+          <stop offset="0%" stop-color="#ff8800"/>
+          <stop offset="50%" stop-color="#aa44ff"/>
+          <stop offset="100%" stop-color="#00ffcc"/>
+        </linearGradient>
+      </defs>
+      <!-- Bitmap grid (3x3) -->
+      <rect x="8" y="8" width="14" height="14" rx="2" fill="url(#g1)" opacity="0.9"/>
+      <rect x="25" y="8" width="14" height="14" rx="2" fill="url(#g1)" opacity="0.7"/>
+      <rect x="42" y="8" width="14" height="14" rx="2" fill="url(#g1)" opacity="0.5"/>
+      <rect x="8" y="25" width="14" height="14" rx="2" fill="url(#g2)" opacity="0.6"/>
+      <rect x="25" y="25" width="14" height="14" rx="2" fill="#ffffff" opacity="0.9"/>
+      <rect x="42" y="25" width="14" height="14" rx="2" fill="url(#g1)" opacity="0.6"/>
+      <rect x="8" y="42" width="14" height="14" rx="2" fill="url(#g1)" opacity="0.4"/>
+      <rect x="25" y="42" width="14" height="14" rx="2" fill="url(#g2)" opacity="0.7"/>
+      <rect x="42" y="42" width="14" height="14" rx="2" fill="url(#g2)" opacity="0.9"/>
+      <!-- ₿ symbol in center -->
+      <text x="32" y="37" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="14" fill="#0a0a0f">₿</text>
+    </svg>
+    <span class="logo-text">Block Genomics</span>
+  </div>
+</div>
+
+<!-- VERSION 2: App Icon (square, for profile pic overlays) -->
+<div class="version">
+  <div class="label">App Icon — Profile / Thumbnail</div>
+  <div class="logo-square">
+    <svg width="120" height="120" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="g3" x1="0" y1="0" x2="64" y2="64">
+          <stop offset="0%" stop-color="#00ffcc"/>
+          <stop offset="50%" stop-color="#aa44ff"/>
+          <stop offset="100%" stop-color="#ff8800"/>
+        </linearGradient>
+        <linearGradient id="g4" x1="64" y1="0" x2="0" y2="64">
+          <stop offset="0%" stop-color="#ff8800"/>
+          <stop offset="50%" stop-color="#aa44ff"/>
+          <stop offset="100%" stop-color="#00ffcc"/>
+        </linearGradient>
+      </defs>
+      <rect x="8" y="8" width="14" height="14" rx="2" fill="url(#g3)" opacity="0.9"/>
+      <rect x="25" y="8" width="14" height="14" rx="2" fill="url(#g3)" opacity="0.7"/>
+      <rect x="42" y="8" width="14" height="14" rx="2" fill="url(#g3)" opacity="0.5"/>
+      <rect x="8" y="25" width="14" height="14" rx="2" fill="url(#g4)" opacity="0.6"/>
+      <rect x="25" y="25" width="14" height="14" rx="2" fill="#ffffff" opacity="0.9"/>
+      <rect x="42" y="25" width="14" height="14" rx="2" fill="url(#g3)" opacity="0.6"/>
+      <rect x="8" y="42" width="14" height="14" rx="2" fill="url(#g3)" opacity="0.4"/>
+      <rect x="25" y="42" width="14" height="14" rx="2" fill="url(#g4)" opacity="0.7"/>
+      <rect x="42" y="42" width="14" height="14" rx="2" fill="url(#g4)" opacity="0.9"/>
+      <text x="32" y="37" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="14" fill="#0a0a0f">₿</text>
+    </svg>
+  </div>
+</div>
+
+<!-- VERSION 3: Watermark (for corner overlay during video) -->
+<div class="version">
+  <div class="label">Watermark — Corner Overlay During Video</div>
+  <div class="watermark">
+    <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+      <rect x="8" y="8" width="14" height="14" rx="2" fill="#ffffff" opacity="0.9"/>
+      <rect x="25" y="8" width="14" height="14" rx="2" fill="#ffffff" opacity="0.7"/>
+      <rect x="42" y="8" width="14" height="14" rx="2" fill="#ffffff" opacity="0.5"/>
+      <rect x="8" y="25" width="14" height="14" rx="2" fill="#ffffff" opacity="0.6"/>
+      <rect x="25" y="25" width="14" height="14" rx="2" fill="#ffffff" opacity="0.9"/>
+      <rect x="42" y="25" width="14" height="14" rx="2" fill="#ffffff" opacity="0.6"/>
+      <rect x="8" y="42" width="14" height="14" rx="2" fill="#ffffff" opacity="0.4"/>
+      <rect x="25" y="42" width="14" height="14" rx="2" fill="#ffffff" opacity="0.7"/>
+      <rect x="42" y="42" width="14" height="14" rx="2" fill="#ffffff" opacity="0.9"/>
+      <text x="32" y="37" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="14" fill="#333">₿</text>
+    </svg>
+    <span class="watermark-text">Block Genomics</span>
+  </div>
+</div>
+
+<!-- VERSION 4: CTA End Card -->
+<div class="version">
+  <div class="label">End Card — Call to Action</div>
+  <div style="background: linear-gradient(135deg, #0a0a12, #111128); border-radius: 20px; padding: 40px 60px; border: 1px solid rgba(0,255,204,0.2); text-align: center; box-shadow: 0 0 60px rgba(0,255,204,0.1);">
+    <div class="logo-full" style="justify-content: center; margin-bottom: 20px;">
+      <svg width="48" height="48" viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="g5" x1="0" y1="0" x2="64" y2="64">
+            <stop offset="0%" stop-color="#00ffcc"/>
+            <stop offset="50%" stop-color="#aa44ff"/>
+            <stop offset="100%" stop-color="#ff8800"/>
+          </linearGradient>
+        </defs>
+        <rect x="8" y="8" width="14" height="14" rx="2" fill="url(#g5)" opacity="0.9"/>
+        <rect x="25" y="8" width="14" height="14" rx="2" fill="url(#g5)" opacity="0.7"/>
+        <rect x="42" y="8" width="14" height="14" rx="2" fill="url(#g5)" opacity="0.5"/>
+        <rect x="8" y="25" width="14" height="14" rx="2" fill="url(#g5)" opacity="0.6"/>
+        <rect x="25" y="25" width="14" height="14" rx="2" fill="#ffffff" opacity="0.9"/>
+        <rect x="42" y="25" width="14" height="14" rx="2" fill="url(#g5)" opacity="0.6"/>
+        <rect x="8" y="42" width="14" height="14" rx="2" fill="url(#g5)" opacity="0.4"/>
+        <rect x="25" y="42" width="14" height="14" rx="2" fill="url(#g5)" opacity="0.7"/>
+        <rect x="42" y="42" width="14" height="14" rx="2" fill="url(#g5)" opacity="0.9"/>
+        <text x="32" y="37" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="14" fill="#0a0a0f">₿</text>
+      </svg>
+      <span class="logo-text" style="font-size: 36px;">Block Genomics</span>
+    </div>
+    <div style="color: rgba(0,255,204,0.7); font-family: -apple-system, sans-serif; font-size: 14px; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 8px;">Own · Build · Live</div>
+    <div style="color: #ffffff; font-family: -apple-system, sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 1px;">blockgenomics.io</div>
+  </div>
+</div>
+
+</body>
+</html>

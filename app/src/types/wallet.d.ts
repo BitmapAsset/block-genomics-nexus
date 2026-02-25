@@ -24,6 +24,7 @@ interface UnisatWallet {
   getNetwork(): Promise<string>;
   switchNetwork(network: string): Promise<void>;
   signMessage(message: string, type?: string): Promise<string>;
+  sendBitcoin(toAddress: string, satoshis: number, options?: unknown): Promise<string>;
   signPsbt(psbtHex: string, options?: unknown): Promise<string>;
   getBalance(): Promise<{ confirmed: number; unconfirmed: number; total: number }>;
   getInscriptions(
@@ -42,11 +43,27 @@ interface XverseAddress {
 
 interface BitcoinProvider {
   connect(): Promise<{ addresses: XverseAddress[] }>;
-  signMessage(message: string, options?: { address: string }): Promise<string>;
+  signMessage(message: string, options?: { address?: string; network?: string }): Promise<string>;
   disconnect(): Promise<void>;
+  // Xverse also supports request-based API
+  request?(method: string, params?: unknown): Promise<unknown>;
+}
+
+interface LeatherRpcResponse {
+  result?: {
+    addresses?: { address: string; type: string; publicKey?: string }[];
+    signature?: string;
+    hex?: string;
+  };
+  error?: { code: number; message: string };
+}
+
+interface LeatherProvider {
+  request(method: string, params?: unknown): Promise<LeatherRpcResponse>;
 }
 
 interface Window {
   unisat?: UnisatWallet;
   BitcoinProvider?: BitcoinProvider;
+  LeatherProvider?: LeatherProvider;
 }

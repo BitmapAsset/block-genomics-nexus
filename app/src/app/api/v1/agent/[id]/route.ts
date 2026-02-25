@@ -1,70 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
+// Legacy Phase 2 route — schema migrated. Returns empty data for backward compat.
+export async function GET() {
+  return NextResponse.json({ success: true, data: [], message: 'Schema migrated — use /api/v1/blocks, /api/v1/users, /api/v1/delegations' });
+}
 
-    if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
-      return NextResponse.json({ error: 'Invalid agent id' }, { status: 400 });
-    }
-
-    const agent = await prisma.agent.findUnique({
-      where: { id },
-      include: {
-        genomes: {
-          include: { block: true },
-          orderBy: { generatedAt: 'desc' },
-        },
-        verifications: {
-          orderBy: { startedAt: 'desc' },
-          take: 10,
-        },
-      },
-    });
-
-    if (!agent) {
-      return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({
-      agent: {
-        id: agent.id,
-        address: agent.address,
-        displayName: agent.displayName,
-        avatarUrl: agent.avatarUrl,
-        trustScore: agent.trustScore,
-        totalVerifications: agent.totalVerifications,
-        successfulVerifications: agent.successfulVerifications,
-        failedVerifications: agent.failedVerifications,
-        rank: agent.rank,
-        badges: agent.badges,
-        createdAt: agent.createdAt,
-        lastActiveAt: agent.lastActiveAt,
-      },
-      genomes: agent.genomes.map((g) => ({
-        id: g.id,
-        blockHeight: g.blockHeight,
-        blockHash: g.blockHash,
-        sequence: g.sequence,
-        integrity: g.integrity,
-        complexity: g.complexity,
-        generatedAt: g.generatedAt,
-      })),
-      recentVerifications: agent.verifications.map((v) => ({
-        id: v.id,
-        blockHeight: v.blockHeight,
-        status: v.status,
-        startedAt: v.startedAt,
-        completedAt: v.completedAt,
-        scoreAwarded: v.scoreAwarded,
-      })),
-    });
-  } catch (error) {
-    console.error('Agent fetch error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+export async function POST(req: NextRequest) {
+  return NextResponse.json({ success: true, data: null, message: 'Schema migrated — use new API routes' });
 }

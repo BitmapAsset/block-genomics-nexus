@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html><head><style>
+body { margin: 0; background: #000; width: 1500px; height: 500px; overflow: hidden; }
+canvas { width: 1500px; height: 500px; }
+</style></head><body>
+<canvas id="c" width="1500" height="500"></canvas>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const W = 1500, H = 500;
+
+// Dark background with gradient
+const bg = ctx.createLinearGradient(0, 0, W, H);
+bg.addColorStop(0, '#0a0a12');
+bg.addColorStop(0.5, '#12122a');
+bg.addColorStop(1, '#0a0a12');
+ctx.fillStyle = bg;
+ctx.fillRect(0, 0, W, H);
+
+// Grid lines (subtle)
+ctx.strokeStyle = 'rgba(247,147,26,0.06)';
+ctx.lineWidth = 1;
+for (let x = 0; x < W; x += 40) {
+  ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+}
+for (let y = 0; y < H; y += 40) {
+  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+}
+
+// Floating particles
+for (let i = 0; i < 80; i++) {
+  const x = Math.random() * W;
+  const y = Math.random() * H;
+  const r = Math.random() * 2 + 0.5;
+  const alpha = Math.random() * 0.4 + 0.1;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(247,147,26,${alpha})`;
+  ctx.fill();
+}
+
+// DNA helix on the left
+ctx.save();
+for (let i = 0; i < 300; i++) {
+  const t = i / 300 * Math.PI * 6;
+  const x = 180 + Math.sin(t) * 60;
+  const x2 = 180 - Math.sin(t) * 60;
+  const y = 30 + i * 1.47;
+  const alpha = 0.15 + Math.abs(Math.sin(t)) * 0.35;
+  
+  // Backbone dots
+  ctx.beginPath();
+  ctx.arc(x, y, 3, 0, Math.PI*2);
+  ctx.fillStyle = `rgba(247,147,26,${alpha})`;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x2, y, 3, 0, Math.PI*2);
+  ctx.fillStyle = `rgba(0,204,255,${alpha})`;
+  ctx.fill();
+  
+  // Rungs every few steps
+  if (i % 8 === 0) {
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x2, y);
+    ctx.strokeStyle = `rgba(180,77,255,${alpha * 0.5})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+}
+ctx.restore();
+
+// DNA helix on the right (mirrored)
+ctx.save();
+for (let i = 0; i < 300; i++) {
+  const t = i / 300 * Math.PI * 6 + Math.PI;
+  const x = 1320 + Math.sin(t) * 60;
+  const x2 = 1320 - Math.sin(t) * 60;
+  const y = 30 + i * 1.47;
+  const alpha = 0.15 + Math.abs(Math.sin(t)) * 0.35;
+  
+  ctx.beginPath();
+  ctx.arc(x, y, 3, 0, Math.PI*2);
+  ctx.fillStyle = `rgba(247,147,26,${alpha})`;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x2, y, 3, 0, Math.PI*2);
+  ctx.fillStyle = `rgba(0,204,255,${alpha})`;
+  ctx.fill();
+  
+  if (i % 8 === 0) {
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x2, y);
+    ctx.strokeStyle = `rgba(180,77,255,${alpha * 0.5})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+}
+ctx.restore();
+
+// Center text: "BLOCK GENOMICS"
+ctx.save();
+ctx.font = '900 72px "Arial Black", Arial, sans-serif';
+ctx.textAlign = 'center';
+ctx.textBaseline = 'middle';
+ctx.letterSpacing = '8px';
+
+// Text glow
+ctx.shadowColor = 'rgba(247,147,26,0.5)';
+ctx.shadowBlur = 30;
+ctx.fillStyle = '#f7931a';
+ctx.fillText('BLOCK GENOMICS', W/2, H/2 - 30);
+ctx.restore();
+
+// Subtitle
+ctx.save();
+ctx.font = '300 24px Arial, sans-serif';
+ctx.textAlign = 'center';
+ctx.textBaseline = 'middle';
+ctx.fillStyle = 'rgba(255,255,255,0.6)';
+ctx.letterSpacing = '6px';
+ctx.fillText('BITCOIN DNA FOR THE DECENTRALIZED WORLD', W/2, H/2 + 30);
+ctx.restore();
+
+// Accent line under subtitle
+const lineGrd = ctx.createLinearGradient(W/2 - 200, 0, W/2 + 200, 0);
+lineGrd.addColorStop(0, 'rgba(247,147,26,0)');
+lineGrd.addColorStop(0.3, 'rgba(247,147,26,0.6)');
+lineGrd.addColorStop(0.5, 'rgba(247,147,26,1)');
+lineGrd.addColorStop(0.7, 'rgba(247,147,26,0.6)');
+lineGrd.addColorStop(1, 'rgba(247,147,26,0)');
+ctx.beginPath();
+ctx.moveTo(W/2 - 200, H/2 + 55);
+ctx.lineTo(W/2 + 200, H/2 + 55);
+ctx.strokeStyle = lineGrd;
+ctx.lineWidth = 2;
+ctx.stroke();
+
+// Small ₿ symbols scattered
+ctx.save();
+ctx.font = '20px Arial';
+const positions = [[400,100],[600,400],[900,80],[1100,420],[350,350],[1050,150]];
+positions.forEach(([px,py]) => {
+  ctx.fillStyle = `rgba(247,147,26,${Math.random()*0.15+0.05})`;
+  ctx.fillText('₿', px, py);
+});
+ctx.restore();
+</script>
+</body></html>

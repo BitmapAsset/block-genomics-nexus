@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Block Genomics — Crown Shield Refined</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a14; color: #fff; font-family: -apple-system, 'Helvetica Neue', sans-serif; padding: 40px; }
+  h1 { text-align: center; font-size: 24px; margin-bottom: 8px; color: #f7931a; }
+  .subtitle { text-align: center; color: #777; margin-bottom: 50px; font-size: 13px; }
+  .section { text-align: center; margin-bottom: 50px; }
+  .section h2 { font-size: 18px; margin-bottom: 20px; color: #ccc; }
+  .row { display: flex; gap: 50px; justify-content: center; flex-wrap: wrap; margin-bottom: 15px; }
+  .item { text-align: center; }
+  .label { font-size: 11px; margin-top: 6px; font-weight: 600; }
+  .sublabel { font-size: 9px; color: #555; }
+  hr { border: none; border-top: 1px solid #1a1a2e; margin: 20px auto 40px; width: 60%; }
+  .handle-row { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; background: #0d0d1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 10px 18px; }
+  .chip .name { font-weight: 700; font-size: 15px; }
+  .chip .at { color: #777; font-size: 12px; }
+  .size-row { display: flex; gap: 30px; align-items: flex-end; justify-content: center; margin-top: 15px; }
+  .size-item { text-align: center; }
+  .size-item .sz { color: #555; font-size: 10px; margin-top: 4px; }
+  .context-row { display: flex; gap: 25px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+  .context-card { background: #0d0d1a; border: 1px solid #1a1a2e; border-radius: 14px; padding: 18px 24px; min-width: 220px; }
+  .context-card .header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .context-card .header .name { font-weight: 700; font-size: 14px; }
+  .context-card .header .at { color: #666; font-size: 11px; }
+  .context-card .body { color: #888; font-size: 12px; line-height: 1.5; }
+  .context-card .meta { color: #444; font-size: 10px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h1>👑 Crown Shield — Refined & Universal</h1>
+<p class="subtitle">The Block Genomics verification badge. Recognizable at any size, on any surface.</p>
+
+<div id="content"></div>
+
+<script>
+const TIERS = {
+  1: { name: 'Block Owner', full: 'Tier 1 — Block Owner', color: '#f7931a', accent: '#ffd27d', glow: 'rgba(247,147,26,', label: 'GOLD', bg: '#2a1800' },
+  2: { name: 'Parcel Owner', full: 'Tier 2 — Parcel Owner', color: '#66ccff', accent: '#b0e0ff', glow: 'rgba(102,204,255,', label: 'CYAN', bg: '#001a2e' },
+  3: { name: 'Delegated', full: 'Tier 3 — Delegated', color: '#a855f7', accent: '#d4a8ff', glow: 'rgba(168,85,247,', label: 'PURPLE', bg: '#150028' },
+};
+
+function drawCrownShield(ctx, size, tier) {
+  const cx = size/2, cy = size/2, s = size/100;
+  
+  // ── Outer glow ──
+  const glow = ctx.createRadialGradient(cx, cy + 2*s, size*0.12, cx, cy + 2*s, size*0.5);
+  glow.addColorStop(0, tier.glow + '0.35)');
+  glow.addColorStop(0.5, tier.glow + '0.08)');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(cx, cy, size*0.5, 0, Math.PI*2); ctx.fill();
+  
+  // ── Shield path (refined proportions) ──
+  function shield(inset) {
+    const i = inset || 0;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - (36-i)*s);
+    ctx.bezierCurveTo(
+      cx + (16-i*0.4)*s, cy - (36-i)*s,
+      cx + (33-i)*s, cy - (31-i)*s,
+      cx + (34-i)*s, cy - (23-i)*s
+    );
+    ctx.lineTo(cx + (34-i)*s, cy + (3+i*0.2)*s);
+    ctx.bezierCurveTo(
+      cx + (32-i)*s, cy + (18-i*0.3)*s,
+      cx + (20-i*0.5)*s, cy + (31-i*0.5)*s,
+      cx, cy + (42-i)*s
+    );
+    ctx.bezierCurveTo(
+      cx - (20-i*0.5)*s, cy + (31-i*0.5)*s,
+      cx - (32-i)*s, cy + (18-i*0.3)*s,
+      cx - (34-i)*s, cy + (3+i*0.2)*s
+    );
+    ctx.lineTo(cx - (34-i)*s, cy - (23-i)*s);
+    ctx.bezierCurveTo(
+      cx - (33-i)*s, cy - (31-i)*s,
+      cx - (16-i*0.4)*s, cy - (36-i)*s,
+      cx, cy - (36-i)*s
+    );
+    ctx.closePath();
+  }
+  
+  // ── Shield fill — subtle gradient with tier color tint ──
+  shield();
+  const fill = ctx.createLinearGradient(cx, cy - 36*s, cx, cy + 42*s);
+  fill.addColorStop(0, '#1a1a30');
+  fill.addColorStop(0.4, '#101020');
+  fill.addColorStop(1, '#08081a');
+  ctx.fillStyle = fill;
+  ctx.fill();
+  
+  // Subtle inner tier-colored tint
+  shield();
+  const tint = ctx.createRadialGradient(cx, cy - 5*s, 0, cx, cy, 35*s);
+  tint.addColorStop(0, tier.glow + '0.06)');
+  tint.addColorStop(1, 'transparent');
+  ctx.fillStyle = tint;
+  ctx.fill();
+  
+  // ── Outer border — clean, tier colored ──
+  shield();
+  const border = ctx.createLinearGradient(cx - 34*s, cy, cx + 34*s, cy);
+  border.addColorStop(0, tier.color);
+  border.addColorStop(0.3, tier.accent);
+  border.addColorStop(0.7, tier.accent);
+  border.addColorStop(1, tier.color);
+  ctx.strokeStyle = border;
+  ctx.lineWidth = Math.max(2*s, 1.5);
+  ctx.stroke();
+  
+  // ── Inner border (subtle) ──
+  shield(4);
+  ctx.strokeStyle = tier.color + '22';
+  ctx.lineWidth = Math.max(0.8*s, 0.5);
+  ctx.stroke();
+  
+  // ── Crown — refined 5-point crown ──
+  const crownY = cy - 27*s;
+  const crownW = 20*s;
+  const crownH = 12*s;
+  const points = 5;
+  
+  ctx.beginPath();
+  // Base of crown
+  ctx.moveTo(cx - crownW, crownY);
+  
+  // Crown points
+  for (let i = 0; i < points; i++) {
+    const px = cx - crownW + (crownW*2) * (i / (points-1));
+    const tipY = crownY - crownH - (i === Math.floor(points/2) ? 3*s : 0); // Center point taller
+    const valleyX = px + crownW*2/(points-1) * 0.5;
+    
+    ctx.lineTo(px, tipY);
+    if (i < points - 1) {
+      ctx.lineTo(valleyX, crownY - 2*s);
+    }
+  }
+  ctx.lineTo(cx + crownW, crownY);
+  ctx.closePath();
+  
+  const crownGrad = ctx.createLinearGradient(cx, crownY - crownH - 3*s, cx, crownY);
+  crownGrad.addColorStop(0, tier.accent);
+  crownGrad.addColorStop(0.6, tier.color);
+  crownGrad.addColorStop(1, tier.color + 'aa');
+  ctx.fillStyle = crownGrad;
+  ctx.fill();
+  
+  // Crown outline
+  ctx.strokeStyle = tier.accent + '66';
+  ctx.lineWidth = Math.max(0.5*s, 0.5);
+  ctx.stroke();
+  
+  // Crown jewels (3 small circles on the points)
+  [0, Math.floor(points/2), points-1].forEach(i => {
+    const px = cx - crownW + (crownW*2) * (i / (points-1));
+    const tipY = crownY - crownH - (i === Math.floor(points/2) ? 3*s : 0);
+    ctx.beginPath();
+    ctx.arc(px, tipY + 1.5*s, 1.5*s, 0, Math.PI*2);
+    ctx.fillStyle = '#ffffff88';
+    ctx.fill();
+  });
+  
+  // Crown base band
+  ctx.beginPath();
+  ctx.moveTo(cx - crownW, crownY);
+  ctx.lineTo(cx + crownW, crownY);
+  ctx.lineTo(cx + crownW - 1*s, crownY + 3*s);
+  ctx.lineTo(cx - crownW + 1*s, crownY + 3*s);
+  ctx.closePath();
+  ctx.fillStyle = tier.color;
+  ctx.fill();
+  
+  // ── ₿ Symbol — crisp, centered ──
+  const btcY = cy + 4*s;
+  
+  // Subtle glow behind ₿
+  const btcGlow = ctx.createRadialGradient(cx, btcY, 0, cx, btcY, 16*s);
+  btcGlow.addColorStop(0, tier.glow + '0.12)');
+  btcGlow.addColorStop(1, 'transparent');
+  ctx.fillStyle = btcGlow;
+  ctx.beginPath(); ctx.arc(cx, btcY, 16*s, 0, Math.PI*2); ctx.fill();
+  
+  ctx.font = `bold ${Math.max(28*s, 10)}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  
+  // ₿ gradient
+  const btcGrad = ctx.createLinearGradient(cx, btcY - 14*s, cx, btcY + 14*s);
+  btcGrad.addColorStop(0, tier.accent);
+  btcGrad.addColorStop(0.4, '#ffffff');
+  btcGrad.addColorStop(1, tier.color);
+  ctx.fillStyle = btcGrad;
+  ctx.fillText('₿', cx, btcY);
+  
+  // Thin ₿ outline for crispness
+  ctx.strokeStyle = tier.color + '44';
+  ctx.lineWidth = Math.max(0.5*s, 0.3);
+  ctx.strokeText('₿', cx, btcY);
+  
+  // ── Verified Check — bottom of shield ──
+  const checkY = cy + 30*s;
+  const checkSize = 6*s;
+  
+  // Green check circle background
+  ctx.beginPath();
+  ctx.arc(cx, checkY, checkSize + 2*s, 0, Math.PI*2);
+  ctx.fillStyle = '#22ff8818';
+  ctx.fill();
+  
+  ctx.beginPath();
+  ctx.moveTo(cx - checkSize*0.7, checkY);
+  ctx.lineTo(cx - checkSize*0.15, checkY + checkSize*0.55);
+  ctx.lineTo(cx + checkSize*0.8, checkY - checkSize*0.45);
+  ctx.strokeStyle = '#22ff88';
+  ctx.lineWidth = Math.max(2.2*s, 1.2);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+
+const container = document.getElementById('content');
+
+// ── Section 1: Hero — Large badges ──
+const s1 = document.createElement('div');
+s1.className = 'section';
+s1.innerHTML = '<h2>The Badge — Full Size</h2>';
+
+const heroRow = document.createElement('div');
+heroRow.className = 'row';
+[1,2,3].forEach(t => {
+  const item = document.createElement('div');
+  item.className = 'item';
+  const c = document.createElement('canvas');
+  c.width = 200; c.height = 200; c.style.width = '200px'; c.style.height = '200px';
+  drawCrownShield(c.getContext('2d'), 200, TIERS[t]);
+  item.appendChild(c);
+  item.innerHTML += `<div class="label" style="color:${TIERS[t].color}">${TIERS[t].label}</div><div class="sublabel">${TIERS[t].full}</div>`;
+  heroRow.appendChild(item);
+});
+s1.appendChild(heroRow);
+container.appendChild(s1);
+
+container.appendChild(document.createElement('hr'));
+
+// ── Section 2: Scale test — multiple sizes ──
+const s2 = document.createElement('div');
+s2.className = 'section';
+s2.innerHTML = '<h2>Scale Test — Works at Every Size</h2>';
+
+[1,2,3].forEach(t => {
+  const sizeRow = document.createElement('div');
+  sizeRow.className = 'size-row';
+  sizeRow.style.marginBottom = '25px';
+  
+  [16, 24, 32, 48, 64, 96, 128].forEach(sz => {
+    const item = document.createElement('div');
+    item.className = 'size-item';
+    const c = document.createElement('canvas');
+    c.width = sz; c.height = sz; c.style.width = sz + 'px'; c.style.height = sz + 'px';
+    drawCrownShield(c.getContext('2d'), sz, TIERS[t]);
+    item.appendChild(c);
+    item.innerHTML += `<div class="sz">${sz}px</div>`;
+    sizeRow.appendChild(item);
+  });
+  s2.appendChild(sizeRow);
+});
+container.appendChild(s2);
+
+container.appendChild(document.createElement('hr'));
+
+// ── Section 3: Handle chips ──
+const s3 = document.createElement('div');
+s3.className = 'section';
+s3.innerHTML = '<h2>Next to Handles — Like X/Twitter Verified</h2>';
+
+const chipRow = document.createElement('div');
+chipRow.className = 'handle-row';
+
+const names = [
+  { name: 'Gravity', handle: '@gravity', tier: 1 },
+  { name: 'Pepe', handle: '@pepe', tier: 1 },
+  { name: 'Builder42', handle: '@builder42', tier: 2 },
+  { name: 'NewUser', handle: '@newuser', tier: 3 },
+];
+
+names.forEach(n => {
+  const chip = document.createElement('div');
+  chip.className = 'chip';
+  const c = document.createElement('canvas');
+  c.width = 28; c.height = 28; c.style.width = '28px'; c.style.height = '28px';
+  drawCrownShield(c.getContext('2d'), 28, TIERS[n.tier]);
+  chip.appendChild(c);
+  chip.innerHTML += `<span class="name">${n.name}</span><span class="at">${n.handle}</span>`;
+  chipRow.appendChild(chip);
+});
+s3.appendChild(chipRow);
+container.appendChild(s3);
+
+container.appendChild(document.createElement('hr'));
+
+// ── Section 4: In context — profile cards ──
+const s4 = document.createElement('div');
+s4.className = 'section';
+s4.innerHTML = '<h2>In Context — Profile Cards</h2>';
+
+const contextRow = document.createElement('div');
+contextRow.className = 'context-row';
+
+const profiles = [
+  { name: 'Gravity', handle: '@gravity', tier: 1, bio: 'Polymath. Builder. Bitmap pioneer. Block #500000 owner.', meta: 'Trust Score: 94 · Block #500000 · Joined Feb 2026' },
+  { name: 'Agent Alpha', handle: '@agent_alpha', tier: 2, bio: 'Autonomous trading agent. Parcel owner on Block #210000.', meta: 'Trust Score: 72 · Parcel #210000:tx42 · Joined Mar 2026' },
+  { name: 'Explorer', handle: '@explorer', tier: 3, bio: 'Learning the ropes. Delegated under @gravity.', meta: 'Trust Score: 45 · Delegated via @gravity · Joined Apr 2026' },
+];
+
+profiles.forEach(p => {
+  const card = document.createElement('div');
+  card.className = 'context-card';
+  
+  const header = document.createElement('div');
+  header.className = 'header';
+  const c = document.createElement('canvas');
+  c.width = 32; c.height = 32; c.style.width = '32px'; c.style.height = '32px';
+  drawCrownShield(c.getContext('2d'), 32, TIERS[p.tier]);
+  header.appendChild(c);
+  header.innerHTML += `<span class="name">${p.name}</span><span class="at">${p.handle}</span>`;
+  card.appendChild(header);
+  
+  const body = document.createElement('div');
+  body.className = 'body';
+  body.textContent = p.bio;
+  card.appendChild(body);
+  
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = p.meta;
+  card.appendChild(meta);
+  
+  contextRow.appendChild(card);
+});
+s4.appendChild(contextRow);
+container.appendChild(s4);
+
+container.appendChild(document.createElement('hr'));
+
+// ── Section 5: On dark and light backgrounds ──
+const s5 = document.createElement('div');
+s5.className = 'section';
+s5.innerHTML = '<h2>On Different Backgrounds</h2>';
+
+const bgRow = document.createElement('div');
+bgRow.className = 'row';
+
+['#0a0a14', '#111827', '#1e293b', '#1a1a2e', '#0f172a'].forEach(bg => {
+  const box = document.createElement('div');
+  box.style.cssText = `background:${bg}; border-radius:12px; padding:20px 25px; display:flex; align-items:center; gap:10px; border:1px solid #222;`;
+  
+  const c = document.createElement('canvas');
+  c.width = 36; c.height = 36; c.style.width = '36px'; c.style.height = '36px';
+  drawCrownShield(c.getContext('2d'), 36, TIERS[1]);
+  box.appendChild(c);
+  box.innerHTML += `<span style="font-weight:600;font-size:14px;">Gravity</span><span style="color:#888;font-size:11px;">${bg}</span>`;
+  bgRow.appendChild(box);
+});
+s5.appendChild(bgRow);
+container.appendChild(s5);
+
+</script>
+</body>
+</html>

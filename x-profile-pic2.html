@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html><head><style>
+* { margin: 0; padding: 0; }
+body { width: 400px; height: 400px; overflow: hidden; background: #0a0a12; }
+canvas { display: block; }
+</style></head><body>
+<canvas id="c" width="400" height="400"></canvas>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const W = 400, cx = W/2, cy = W/2 + 10, s = 2.8;
+
+// Background
+const bg = ctx.createRadialGradient(W/2, W/2, 0, W/2, W/2, W/2);
+bg.addColorStop(0, '#1a1a2e');
+bg.addColorStop(1, '#0a0a12');
+ctx.fillStyle = bg;
+ctx.fillRect(0, 0, W, W);
+
+// Shield glow
+ctx.save();
+ctx.shadowColor = 'rgba(247,147,26,0.5)';
+ctx.shadowBlur = 25;
+
+// Shield body
+ctx.beginPath();
+ctx.moveTo(cx, cy - 42*s);
+ctx.bezierCurveTo(cx-20*s, cy-42*s, cx-44*s, cy-36*s, cx-44*s, cy-24*s);
+ctx.lineTo(cx-44*s, cy+2*s);
+ctx.bezierCurveTo(cx-44*s, cy+22*s, cx-30*s, cy+36*s, cx, cy+48*s);
+ctx.bezierCurveTo(cx+30*s, cy+36*s, cx+44*s, cy+22*s, cx+44*s, cy+2*s);
+ctx.lineTo(cx+44*s, cy-24*s);
+ctx.bezierCurveTo(cx+44*s, cy-36*s, cx+20*s, cy-42*s, cx, cy-42*s);
+ctx.closePath();
+
+const fgrd = ctx.createLinearGradient(cx, cy-42*s, cx, cy+48*s);
+fgrd.addColorStop(0, '#1e1e38');
+fgrd.addColorStop(1, '#0c0c1a');
+ctx.fillStyle = fgrd;
+ctx.fill();
+
+const sgrd = ctx.createLinearGradient(cx, cy-42*s, cx, cy+48*s);
+sgrd.addColorStop(0, '#f7931a');
+sgrd.addColorStop(1, '#cc6600');
+ctx.strokeStyle = sgrd;
+ctx.lineWidth = 3;
+ctx.stroke();
+ctx.restore();
+
+// Inner border
+ctx.beginPath();
+ctx.moveTo(cx, cy-36*s);
+ctx.bezierCurveTo(cx-17*s, cy-36*s, cx-38*s, cy-31*s, cx-38*s, cy-21*s);
+ctx.lineTo(cx-38*s, cy+1*s);
+ctx.bezierCurveTo(cx-38*s, cy+19*s, cx-26*s, cy+31*s, cx, cy+42*s);
+ctx.bezierCurveTo(cx+26*s, cy+31*s, cx+38*s, cy+19*s, cx+38*s, cy+1*s);
+ctx.lineTo(cx+38*s, cy-21*s);
+ctx.bezierCurveTo(cx+38*s, cy-31*s, cx+17*s, cy-36*s, cx, cy-36*s);
+ctx.closePath();
+ctx.strokeStyle = 'rgba(247,147,26,0.25)';
+ctx.lineWidth = 1.5;
+ctx.stroke();
+
+// Crown
+ctx.save();
+ctx.shadowColor = 'rgba(247,147,26,0.7)';
+ctx.shadowBlur = 12;
+const crownY = cy - 42*s;
+
+// Left spike
+ctx.beginPath();
+ctx.moveTo(cx-12*s, crownY+2); ctx.lineTo(cx-10*s, crownY-22*s); ctx.lineTo(cx-8*s, crownY+2);
+ctx.fillStyle = '#f7931a'; ctx.fill();
+ctx.beginPath(); ctx.arc(cx-10*s, crownY-24*s, 3.5*s, 0, Math.PI*2);
+ctx.fillStyle = '#ffcc44'; ctx.fill();
+
+// Center spike
+ctx.beginPath();
+ctx.moveTo(cx-6*s, crownY+2); ctx.lineTo(cx, crownY-32*s); ctx.lineTo(cx+6*s, crownY+2);
+ctx.fillStyle = '#f7931a'; ctx.fill();
+ctx.beginPath(); ctx.arc(cx, crownY-34*s, 4.5*s, 0, Math.PI*2);
+ctx.fillStyle = '#ffcc44'; ctx.fill();
+
+// Right spike
+ctx.beginPath();
+ctx.moveTo(cx+8*s, crownY+2); ctx.lineTo(cx+10*s, crownY-22*s); ctx.lineTo(cx+12*s, crownY+2);
+ctx.fillStyle = '#f7931a'; ctx.fill();
+ctx.beginPath(); ctx.arc(cx+10*s, crownY-24*s, 3.5*s, 0, Math.PI*2);
+ctx.fillStyle = '#ffcc44'; ctx.fill();
+ctx.restore();
+
+// ₿ symbol
+ctx.save();
+ctx.font = 'bold 80px Arial';
+ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+ctx.fillStyle = '#f7931a';
+ctx.shadowColor = 'rgba(247,147,26,0.4)'; ctx.shadowBlur = 15;
+ctx.fillText('₿', cx, cy+5);
+ctx.restore();
+
+// Green ✓
+ctx.save();
+ctx.font = 'bold 28px Arial';
+ctx.textAlign = 'center';
+ctx.fillStyle = '#00cc66';
+ctx.shadowColor = 'rgba(0,204,102,0.5)'; ctx.shadowBlur = 8;
+ctx.fillText('✓', cx, cy+38*s);
+ctx.restore();
+</script>
+</body></html>

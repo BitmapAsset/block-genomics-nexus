@@ -25,43 +25,36 @@ interface SearchResult {
 // ─── Data ──────────────────────────────────────────────────────────────────
 
 async function fetchRecentAgents(): Promise<SearchResult[]> {
-  const agents = await prisma.agent.findMany({
-    include: {
-      genomes: true,
-      _count: { select: { verifications: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
 
-  return agents.map((agent) => {
-    const latestGenome = agent.genomes.reduce((latest, genome) => {
-      if (!latest) return genome;
-      return genome.generatedAt > latest.generatedAt ? genome : latest;
-    }, undefined as (typeof agent.genomes)[number] | undefined);
-
-    return {
+    return users.map((u: any) => ({
       type: "agent",
-      id: agent.id,
-      name: agent.displayName || "Anonymous Agent",
-      blockHeight: latestGenome?.blockHeight ?? 0,
-      genome: latestGenome?.sequence ?? null,
-      trustScore: Math.round(agent.trustScore),
+      id: u.id,
+      name: u.handle || "Anonymous",
+      blockHeight: 0,
+      genome: null,
+      trustScore: 0,
       matchField: "name",
-    };
-  });
+    }));
+  } catch { return []; /* Schema migrated — old models removed */ }
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 
 export default async function ExplorePage() {
-  const [recentAgents, totalAgents, totalBlocks, totalGenomes] =
-    await Promise.all([
+  let recentAgents: SearchResult[] = [], totalAgents = 0, totalBlocks = 0, totalGenomes = 0;
+  try {
+    [recentAgents, totalAgents, totalBlocks, totalGenomes] = await Promise.all([
       fetchRecentAgents(),
-      prisma.agent.count(),
-      prisma.block.count(),
-      prisma.genome.count(),
+      prisma.user.count().catch(() => 0),
+      prisma.block.count().catch(() => 0),
+      prisma.delegation.count().catch(() => 0),
     ]);
+  } catch { /* Schema migrated */ }
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
@@ -237,8 +230,15 @@ function AgentRow({ agent }: { agent: SearchResult }) {
             <div className="text-[10px] text-text-muted">Trust</div>
           </div>
         )}
-        <span className="rounded-full bg-success/10 border border-success/30 px-2.5 py-0.5 text-xs font-medium text-success">
-          ✓ Verified
+        <span className="inline-flex items-center gap-1 rounded-full bg-success/10 border border-success/30 px-2.5 py-0.5 text-xs font-medium text-success">
+          <svg width="12" height="14" viewBox="0 0 100 115" fill="none" className="inline-block">
+            <path d="M 50 18 C 30 18, 10 24, 8 36 L 8 62 C 8 82, 22 96, 50 108 C 78 96, 92 82, 92 62 L 92 36 C 90 24, 70 18, 50 18 Z" fill="#12121a" stroke="#f7931a" strokeWidth="3"/>
+            <path d="M 30 22 L 34 8 L 42 18 L 50 4 L 58 18 L 66 8 L 70 22 Z" fill="#f7931a" opacity="0.7"/>
+            <circle cx="34" cy="7" r="3" fill="#ffcc44"/><circle cx="50" cy="3" r="3.5" fill="#ffcc44"/><circle cx="66" cy="7" r="3" fill="#ffcc44"/>
+            <text x="50" y="65" textAnchor="middle" dominantBaseline="central" fill="#f7931a" fontFamily="system-ui" fontSize="42" fontWeight="bold">₿</text>
+            <path d="M 30 90 L 37 97 L 48 84" fill="none" stroke="#22ff88" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Verified
         </span>
       </div>
     </Link>
