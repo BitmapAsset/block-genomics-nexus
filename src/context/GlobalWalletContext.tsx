@@ -43,6 +43,7 @@ export interface UserProfile {
   genomeHash: string;
   bio?: string;
   tier?: number;
+  avatar?: string | null;
   createdAt?: string;
 }
 
@@ -89,6 +90,7 @@ async function fetchProfileByWallet(address: string): Promise<UserProfile | null
       genomeHash: u.genomeHash || '',
       bio: u.bio,
       tier: u.tier,
+      avatar: u.avatar || null,
       createdAt: u.createdAt,
     };
   } catch {

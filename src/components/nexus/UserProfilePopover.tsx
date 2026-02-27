@@ -1,6 +1,7 @@
 'use client';
 
 import type { Visitor } from './NexusSocial';
+import UserAvatar from '@/components/UserAvatar';
 
 interface Props {
   visitor: Visitor;
@@ -28,7 +29,7 @@ export default function UserProfilePopover({ visitor, position, onClose }: Props
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="text-2xl">{visitor.avatar}</div>
+            <UserAvatar address={visitor.genomeHash || visitor.username} handle={visitor.username} size="md" showGlow />
             <div>
               <div className="text-sm font-mono" style={{ color: visitor.color }}>{visitor.username}</div>
               <div className="text-[10px] text-[#64748b]">Genome {visitor.genomeHash}</div>

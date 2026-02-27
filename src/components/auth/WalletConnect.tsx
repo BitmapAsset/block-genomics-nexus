@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useGlobalWallet, type WalletType } from "@/context/GlobalWalletContext";
 import BitmapThumbnail from "@/components/BitmapThumbnail";
+import UserAvatar from "@/components/UserAvatar";
 
 function truncateAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -28,7 +29,7 @@ const WALLETS: { type: WalletType; name: string; desc: string; color: string; ic
 export default function WalletConnect() {
   const {
     isConnected, isConnecting, walletAddress, walletType,
-    connect, disconnect, availableWallets,
+    connect, disconnect, availableWallets, profile,
   } = useGlobalWallet();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -112,10 +113,13 @@ export default function WalletConnect() {
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setOpen(prev => !prev)}
-            className="flex items-center gap-2 rounded-full border border-accent-cyan/30 bg-accent-cyan/5 px-3 py-1.5 text-sm font-medium text-text-primary hover:border-accent-cyan/50 transition-all"
+            className="flex items-center gap-2 rounded-full border border-accent-cyan/30 bg-accent-cyan/5 px-1.5 py-1 sm:px-3 sm:py-1.5 text-sm font-medium text-text-primary hover:border-accent-cyan/50 transition-all"
           >
-            {/* Green dot */}
-            <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
+            <UserAvatar
+              address={walletAddress}
+              handle={blockProfiles[0]?.handle}
+              size="xs"
+            />
             <span className="hidden sm:inline text-xs font-mono text-accent-cyan">
               {walletAddress ? truncateAddress(walletAddress) : ''}
             </span>

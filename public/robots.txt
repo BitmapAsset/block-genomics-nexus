@@ -1,0 +1,6 @@
+# Block Genomics — blockgenomics.io
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://blockgenomics.io/sitemap.xml

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
+import UserAvatar from '@/components/UserAvatar';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 
@@ -473,9 +474,17 @@ export default function AgentProfilePage() {
           </Link>
 
           <div className="flex flex-col sm:flex-row items-start gap-6">
-            {/* Shield + Status */}
+            {/* Avatar + Shield + Status */}
             <div className="relative flex-shrink-0">
-              <CrownShield tier={agent.tier} size={80} />
+              <UserAvatar
+                address={agent.walletAddress || agent.genomeHash}
+                handle={agent.handle}
+                size="xl"
+                showGlow
+              />
+              <div className="absolute -bottom-1 -left-1">
+                <CrownShield tier={agent.tier} size={28} />
+              </div>
               <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2`}
                 style={{ background: agent.online ? '#4ade80' : '#6b7280', borderColor: '#0a0a12', boxShadow: agent.online ? '0 0 8px rgba(74,222,128,0.5)' : 'none' }} />
             </div>

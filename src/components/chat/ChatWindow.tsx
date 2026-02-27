@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
+import UserAvatar from '@/components/UserAvatar';
 
 // ─── Types ─────────────────────────────────────────────────────────
 export type ChatMode = 'block' | 'dm' | 'global';
@@ -286,6 +287,11 @@ export default function ChatWindow({
           const own = isOwn(msg);
           return (
             <div key={msg.id} className={`flex ${own ? 'justify-end' : 'justify-start'} group`}>
+              {!own && (
+                <div className="flex-shrink-0 mr-2 mt-4">
+                  <UserAvatar address={msg.senderAddress} handle={msg.senderHandle} size="xs" />
+                </div>
+              )}
               <div className={`max-w-[80%] ${own ? 'items-end' : 'items-start'} flex flex-col`}>
                 {/* Sender info (others only) */}
                 {!own && (

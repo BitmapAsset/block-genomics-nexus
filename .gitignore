@@ -10,3 +10,4 @@ prisma/dev.db
 .env.sqlite.bak
 .env.production
 .env.local
+dev.db

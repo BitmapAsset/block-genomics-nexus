@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useGlobalWallet } from "@/context/GlobalWalletContext";
 import CrownShield, { type ShieldTier } from "@/components/CrownShield";
 import BitmapThumbnail from "@/components/BitmapThumbnail";
+import UserAvatar from "@/components/UserAvatar";
 
 /* ─── Types ─── */
 interface BlockProfileData {
@@ -421,7 +422,9 @@ function BlockCard({
 
 /* ─── Main Page ─── */
 export default function ProfileHubPage() {
-  const { isConnected, walletAddress, connect, availableWallets } = useGlobalWallet();
+  const { isConnected, walletAddress, connect, availableWallets, profile: globalProfile, refreshProfile: refreshGlobalProfile } = useGlobalWallet();
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [profiles, setProfiles] = useState<BlockProfileData[]>([]);
   const [userFallback, setUserFallback] = useState<{ handle: string; displayName?: string; tier: number; verified: boolean; anchorBlock?: number } | null>(null);
   const [ownedBlocks, setOwnedBlocks] = useState<number[]>([]);
@@ -514,6 +517,49 @@ export default function ProfileHubPage() {
   useEffect(() => {
     if (isConnected && walletAddress) fetchData();
   }, [isConnected, walletAddress, fetchData]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !walletAddress) return;
+    if (file.size > 2 * 1024 * 1024) { setToast('File too large. Max 2MB.'); return; }
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+      setToast('Invalid file type. Use JPG, PNG, WebP, or GIF.'); return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const fd = new FormData();
+      fd.append('walletAddress', walletAddress);
+      fd.append('file', file);
+      const res = await fetch('/api/v1/profiles/avatar', { method: 'POST', body: fd });
+      if (res.ok) {
+        setToast('Avatar updated!');
+        await refreshGlobalProfile();
+        await fetchData();
+      } else {
+        const data = await res.json();
+        setToast(data.error || 'Failed to upload avatar');
+      }
+    } catch { setToast('Failed to upload avatar'); }
+    finally { setUploadingAvatar(false); if (avatarInputRef.current) avatarInputRef.current.value = ''; }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!walletAddress) return;
+    setUploadingAvatar(true);
+    try {
+      const res = await fetch('/api/v1/profiles/avatar', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress }),
+      });
+      if (res.ok) {
+        setToast('Avatar removed');
+        await refreshGlobalProfile();
+        await fetchData();
+      }
+    } catch { setToast('Failed to remove avatar'); }
+    finally { setUploadingAvatar(false); }
+  };
 
   const handleSetPrimary = async (blockHeight: number) => {
     if (!walletAddress || settingPrimary !== null) return;
@@ -615,12 +661,44 @@ export default function ProfileHubPage() {
 
       <div className="relative max-w-6xl mx-auto px-4 py-8 sm:py-12">
         {/* Header */}
-        <div className="mb-10">
-          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-orange-400 via-amber-300 to-orange-500 bg-clip-text text-transparent">
-            Command Center
-          </h1>
-          <p className="text-gray-400 mt-2">Manage your digital bitmap empire</p>
-          <p className="text-gray-600 text-sm mt-1 font-mono truncate">{walletAddress}</p>
+        <div className="mb-10 flex items-start gap-5">
+          {/* Avatar with upload */}
+          <div className="relative group flex-shrink-0">
+            <UserAvatar
+              address={walletAddress}
+              avatarUrl={globalProfile?.avatar}
+              handle={globalProfile?.handle}
+              size="xl"
+              showGlow
+              className="ring-2 ring-orange-500/20 group-hover:ring-orange-500/40 transition-all"
+            />
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={uploadingAvatar}
+              className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200"
+            >
+              {uploadingAvatar ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <span className="text-white text-sm font-medium">📷</span>
+              )}
+            </button>
+            {globalProfile?.avatar && (
+              <button
+                onClick={handleAvatarRemove}
+                className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                title="Remove avatar"
+              >✕</button>
+            )}
+            <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleAvatarUpload} />
+          </div>
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-orange-400 via-amber-300 to-orange-500 bg-clip-text text-transparent">
+              Command Center
+            </h1>
+            <p className="text-gray-400 mt-2">Manage your digital bitmap empire</p>
+            <p className="text-gray-600 text-sm mt-1 font-mono truncate">{walletAddress}</p>
+          </div>
         </div>
 
         {/* Empire Stats */}
@@ -652,9 +730,7 @@ export default function ProfileHubPage() {
                   className="flex-shrink-0 group relative rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-4 transition-all duration-300 hover:border-orange-500/20 hover:bg-white/[0.05] hover:shadow-lg hover:shadow-orange-500/5 w-56"
                 >
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500/30 to-purple-500/30 flex items-center justify-center text-lg font-bold text-white/80 flex-shrink-0">
-                      {(p.displayName || p.handle).charAt(0).toUpperCase()}
-                    </div>
+                    <UserAvatar address={walletAddress} avatarUrl={globalProfile?.avatar} handle={p.handle} size="md" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-semibold text-white truncate">
@@ -679,9 +755,7 @@ export default function ProfileHubPage() {
                 className="flex-shrink-0 group relative rounded-xl border border-orange-500/20 bg-white/[0.03] backdrop-blur-md p-4 transition-all duration-300 hover:border-orange-500/30 hover:bg-white/[0.05] hover:shadow-lg hover:shadow-orange-500/5 w-56"
               >
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500/30 to-purple-500/30 flex items-center justify-center text-lg font-bold text-white/80 flex-shrink-0">
-                    {(userFallback.displayName || userFallback.handle).charAt(0).toUpperCase()}
-                  </div>
+                  <UserAvatar address={walletAddress} avatarUrl={globalProfile?.avatar} handle={userFallback.handle} size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-semibold text-white truncate">
