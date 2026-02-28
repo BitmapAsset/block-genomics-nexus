@@ -24,7 +24,7 @@ const COLOR_PALETTE: Record<string, string> = {
   'c': '#ff69b4', 'd': '#ff1744', 'e': '#76ff03', 'f': '#e040fb',
 };
 
-const BACKBONE_COLOR = '#c0d0e0';
+const BACKBONE_COLOR = '#f0f4ff';
 const NUM_PAIRS = 32;
 const HELIX_TURNS = 3;
 const HELIX_RADIUS = 1.2;
@@ -95,10 +95,10 @@ const Helix: React.FC<{ genomeHash: string; state: DNAState }> = ({ genomeHash, 
 
   const backboneMat = useMemo(() => new THREE.MeshStandardMaterial({
     color: BACKBONE_COLOR,
-    metalness: 0.8,
-    roughness: 0.15,
-    emissive: '#88aacc',
-    emissiveIntensity: 0.15,
+    metalness: 0.9,
+    roughness: 0.08,
+    emissive: '#aaddff',
+    emissiveIntensity: 0.2,
   }), []);
 
   const rungMaterials = useMemo(() => {

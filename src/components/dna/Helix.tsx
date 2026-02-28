@@ -119,10 +119,10 @@ const Helix: React.FC<HelixProps> = ({ genomeHash, state }) => {
   const backboneMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: '#c0d8ee',
-        metalness: 0.8,
-        roughness: 0.15,
-        emissive: '#6699bb',
+        color: '#f0f4ff',
+        metalness: 0.9,
+        roughness: 0.08,
+        emissive: '#aaddff',
         emissiveIntensity: 0.2,
       }),
     [],
@@ -130,10 +130,10 @@ const Helix: React.FC<HelixProps> = ({ genomeHash, state }) => {
   const tubeMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: '#b0ccee',
-        metalness: 0.8,
-        roughness: 0.15,
-        emissive: '#5588aa',
+        color: '#e8eeff',
+        metalness: 0.9,
+        roughness: 0.08,
+        emissive: '#99ccff',
         emissiveIntensity: 0.25,
       }),
     [],
