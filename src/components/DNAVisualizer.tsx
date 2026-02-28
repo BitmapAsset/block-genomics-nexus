@@ -24,7 +24,7 @@ const COLOR_PALETTE: Record<string, string> = {
   'c': '#ff69b4', 'd': '#ff1744', 'e': '#76ff03', 'f': '#e040fb',
 };
 
-const BACKBONE_COLOR = '#4a5568';
+const BACKBONE_COLOR = '#c0d0e0';
 const NUM_PAIRS = 32;
 const HELIX_TURNS = 3;
 const HELIX_RADIUS = 1.2;
@@ -32,7 +32,7 @@ const VERTICAL_SPACING = 0.35;
 const TOTAL_HEIGHT = NUM_PAIRS * VERTICAL_SPACING;
 const SPHERE_RADIUS = 0.12;
 const TUBE_RADIUS = 0.06;
-const RUNG_RADIUS = 0.08;
+const RUNG_RADIUS = 0.11;
 
 function getHashChars(hash: string): string[] {
   const clean = hash.replace(/^0x/, '').toLowerCase();
@@ -95,17 +95,20 @@ const Helix: React.FC<{ genomeHash: string; state: DNAState }> = ({ genomeHash, 
 
   const backboneMat = useMemo(() => new THREE.MeshStandardMaterial({
     color: BACKBONE_COLOR,
-    metalness: 0.7,
-    roughness: 0.3,
+    metalness: 0.8,
+    roughness: 0.15,
+    emissive: '#88aacc',
+    emissiveIntensity: 0.15,
   }), []);
 
   const rungMaterials = useMemo(() => {
     return hashChars.map(c => new THREE.MeshStandardMaterial({
       color: COLOR_PALETTE[c] || '#ffffff',
-      metalness: 0.3,
-      roughness: 0.4,
+      metalness: 0.2,
+      roughness: 0.2,
       emissive: COLOR_PALETTE[c] || '#ffffff',
-      emissiveIntensity: 0.05,
+      emissiveIntensity: 0.6,
+      toneMapped: false,
     }));
   }, [hashChars]);
 
@@ -241,22 +244,27 @@ const DNAVisualizer: React.FC<DNAVisualizerProps> = ({
         <color attach="background" args={['#000000']} />
         <PerspectiveCamera makeDefault fov={60} position={[0, 0, 8]} />
 
-        <ambientLight intensity={0.3} />
+        <ambientLight intensity={0.5} />
         <directionalLight
           color="#ffffff"
-          intensity={1.2}
+          intensity={1.8}
           position={[5, 8, 5]}
           castShadow
         />
         <pointLight
-          color="#fff5ee"
-          intensity={0.8}
+          color="#ffffff"
+          intensity={1.2}
           position={[-5, 2, 4]}
         />
         <pointLight
-          color="#4466ff"
-          intensity={0.4}
+          color="#6688ff"
+          intensity={0.8}
           position={[0, -3, -6]}
+        />
+        <pointLight
+          color="#ff44aa"
+          intensity={0.5}
+          position={[3, -2, 5]}
         />
 
         <Scene genomeHash={genomeHash} state={state} />

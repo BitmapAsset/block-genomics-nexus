@@ -8,17 +8,17 @@ const Effects: React.FC<{ state: DNAState }> = ({ state }) => {
   const strength = useMemo(() => {
     switch (state) {
       case 'verifying':
-        return 1.5;
+        return 2.0;
       case 'verified':
-        return 2;
+        return 2.5;
       default:
-        return 0.8;
+        return 1.2;
     }
   }, [state]);
 
   return (
     <EffectComposer>
-      <Bloom intensity={strength} luminanceThreshold={0.85} luminanceSmoothing={0.4} />
+      <Bloom intensity={strength} luminanceThreshold={0.3} luminanceSmoothing={0.7} mipmapBlur />
     </EffectComposer>
   );
 };

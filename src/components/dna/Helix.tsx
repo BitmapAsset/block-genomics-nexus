@@ -119,22 +119,22 @@ const Helix: React.FC<HelixProps> = ({ genomeHash, state }) => {
   const backboneMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: '#4488aa',
-        metalness: 0.5,
-        roughness: 0.3,
-        emissive: '#112233',
-        emissiveIntensity: 0.3,
+        color: '#c0d8ee',
+        metalness: 0.8,
+        roughness: 0.15,
+        emissive: '#6699bb',
+        emissiveIntensity: 0.2,
       }),
     [],
   );
   const tubeMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: '#66aacc',
-        metalness: 0.6,
-        roughness: 0.2,
-        emissive: '#224466',
-        emissiveIntensity: 0.3,
+        color: '#b0ccee',
+        metalness: 0.8,
+        roughness: 0.15,
+        emissive: '#5588aa',
+        emissiveIntensity: 0.25,
       }),
     [],
   );
@@ -172,15 +172,14 @@ const Helix: React.FC<HelixProps> = ({ genomeHash, state }) => {
               position={midpoint}
               quaternion={orientation}
             >
-              <cylinderGeometry args={[0.08, 0.08, length, 8]} />
+              <cylinderGeometry args={[0.12, 0.12, length, 10]} />
               <meshStandardMaterial
                 color={bp.color}
-                metalness={0.3}
-                roughness={0.4}
+                metalness={0.2}
+                roughness={0.2}
                 emissive={bp.color}
-                emissiveIntensity={0.4}
-                transparent
-                opacity={0.9}
+                emissiveIntensity={0.6}
+                toneMapped={false}
               />
             </mesh>
 
