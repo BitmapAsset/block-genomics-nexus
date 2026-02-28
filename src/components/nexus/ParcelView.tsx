@@ -876,6 +876,246 @@ function EnergyBeams({ parcels }: { parcels: ParcelData[] }) {
   );
 }
 
+/* ─── Dimension Labels — "2.1 KM" on each block edge with tick marks ─── */
+const DimensionLabels = memo(function DimensionLabels() {
+  const half = BLOCK_SIZE / 2;
+  const y = 0.15; // slightly above ground
+  const tickInterval = BLOCK_SIZE / 4.2; // ~500m intervals
+  const tickCount = 4; // 4 ticks = 500m, 1000m, 1500m, 2000m (interior)
+
+  const ticks = useMemo(() => {
+    const result: THREE.Matrix4[] = [];
+    // For each edge, place tick marks at 500m intervals
+    for (let i = 1; i <= tickCount; i++) {
+      const t = -half + i * tickInterval;
+      // North edge (z = -half)
+      result.push(new THREE.Matrix4().compose(new THREE.Vector3(t, y, -half), new THREE.Quaternion(), new THREE.Vector3(0.02, 0.15, 0.02)));
+      // South edge (z = +half)
+      result.push(new THREE.Matrix4().compose(new THREE.Vector3(t, y, half), new THREE.Quaternion(), new THREE.Vector3(0.02, 0.15, 0.02)));
+      // West edge (x = -half)
+      result.push(new THREE.Matrix4().compose(new THREE.Vector3(-half, y, t), new THREE.Quaternion(), new THREE.Vector3(0.02, 0.15, 0.02)));
+      // East edge (x = +half)
+      result.push(new THREE.Matrix4().compose(new THREE.Vector3(half, y, t), new THREE.Quaternion(), new THREE.Vector3(0.02, 0.15, 0.02)));
+    }
+    return result;
+  }, [half]);
+
+  const tickRef = useRef<THREE.InstancedMesh>(null);
+  useEffect(() => {
+    if (tickRef.current) {
+      for (let i = 0; i < ticks.length; i++) {
+        tickRef.current.setMatrixAt(i, ticks[i]);
+      }
+      tickRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [ticks]);
+
+  const labelStyle: React.CSSProperties = {
+    color: 'white',
+    fontSize: '11px',
+    fontWeight: 700,
+    fontFamily: 'monospace',
+    textShadow: '0 0 8px rgba(255,255,255,0.6), 0 0 16px rgba(247,147,26,0.4)',
+    whiteSpace: 'nowrap' as const,
+    pointerEvents: 'none' as const,
+    userSelect: 'none' as const,
+    letterSpacing: '1px',
+  };
+
+  return (
+    <group>
+      {/* Labels on 4 edges */}
+      <Html position={[0, y + 0.1, -half - 0.3]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
+        <div style={labelStyle}>2.1 KM (2,100m)</div>
+      </Html>
+      <Html position={[0, y + 0.1, half + 0.3]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
+        <div style={labelStyle}>2.1 KM (2,100m)</div>
+      </Html>
+      <Html position={[-half - 0.3, y + 0.1, 0]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
+        <div style={labelStyle}>2.1 KM (2,100m)</div>
+      </Html>
+      <Html position={[half + 0.3, y + 0.1, 0]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
+        <div style={labelStyle}>2.1 KM (2,100m)</div>
+      </Html>
+      {/* Tick marks */}
+      {ticks.length > 0 && (
+        <instancedMesh ref={tickRef} args={[undefined, undefined, ticks.length]}>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshStandardMaterial color="#ffffff" emissive="#f7931a" emissiveIntensity={0.3} transparent opacity={0.7} />
+        </instancedMesh>
+      )}
+    </group>
+  );
+});
+
+/* ─── Default Landscape — beautiful city template for empty blocks ─── */
+const DefaultLandscape = memo(function DefaultLandscape() {
+  const half = BLOCK_SIZE / 2;
+
+  // All geometry computed once
+  const { trees, buildings, lights: lampPositions, parkTrees } = useMemo(() => {
+    const trees: THREE.Matrix4[] = [];
+    const buildings: THREE.Matrix4[] = [];
+    const lampPositions: THREE.Matrix4[] = [];
+    const parkTrees: THREE.Matrix4[] = [];
+
+    const mainInterval = BLOCK_SIZE / 4.2; // ~500m
+    const treeSpacing = 0.476; // ~50m = 0.476 world units
+
+    // Trees along 4 main roads (both directions)
+    for (let roadIdx = 0; roadIdx < 5; roadIdx++) {
+      const roadPos = -half + roadIdx * mainInterval;
+      // Trees along horizontal road
+      for (let t = -half; t <= half; t += treeSpacing) {
+        if (trees.length >= 300) break;
+        const offset = 0.2; // beside road
+        trees.push(new THREE.Matrix4().compose(
+          new THREE.Vector3(t, 0.07, roadPos + offset),
+          new THREE.Quaternion(),
+          new THREE.Vector3(0.06, 0.143, 0.06)
+        ));
+      }
+      // Trees along vertical road
+      for (let t = -half; t <= half; t += treeSpacing) {
+        if (trees.length >= 300) break;
+        trees.push(new THREE.Matrix4().compose(
+          new THREE.Vector3(roadPos - 0.2, 0.07, t),
+          new THREE.Quaternion(),
+          new THREE.Vector3(0.06, 0.143, 0.06)
+        ));
+      }
+    }
+
+    // Buildings scattered in city blocks (between roads)
+    const rng = (seed: number) => {
+      let s = seed;
+      return () => { s = (s * 16807 + 0) % 2147483647; return s / 2147483647; };
+    };
+    const rand = rng(42);
+    for (let bx = 0; bx < 4; bx++) {
+      for (let bz = 0; bz < 4; bz++) {
+        const cx = -half + (bx + 0.5) * mainInterval;
+        const cz = -half + (bz + 0.5) * mainInterval;
+        // Skip central park area
+        if (Math.abs(cx) < 1.2 && Math.abs(cz) < 1.2) continue;
+        // Place 2-4 buildings per city block
+        const count = 2 + Math.floor(rand() * 3);
+        for (let i = 0; i < count; i++) {
+          if (buildings.length >= 80) break;
+          const ox = (rand() - 0.5) * mainInterval * 0.6;
+          const oz = (rand() - 0.5) * mainInterval * 0.6;
+          const h = 0.19 + rand() * 0.57; // 20-80m tall
+          const w = 0.1 + rand() * 0.15;
+          buildings.push(new THREE.Matrix4().compose(
+            new THREE.Vector3(cx + ox, h / 2, cz + oz),
+            new THREE.Quaternion(),
+            new THREE.Vector3(w, h, w)
+          ));
+        }
+      }
+    }
+
+    // Street lights along main roads
+    for (let roadIdx = 0; roadIdx < 5; roadIdx++) {
+      const roadPos = -half + roadIdx * mainInterval;
+      for (let t = -half; t <= half; t += 1.5) {
+        if (lampPositions.length >= 60) break;
+        lampPositions.push(new THREE.Matrix4().compose(
+          new THREE.Vector3(t, 0.038, roadPos + 0.25),
+          new THREE.Quaternion(),
+          new THREE.Vector3(0.015, 0.076, 0.015)
+        ));
+      }
+    }
+
+    // Central park (~200m × 200m = ~1.9 × 1.9 world units)
+    for (let px = -0.9; px <= 0.9; px += 0.25) {
+      for (let pz = -0.9; pz <= 0.9; pz += 0.25) {
+        if (parkTrees.length >= 60) break;
+        const jx = (rand() - 0.5) * 0.15;
+        const jz = (rand() - 0.5) * 0.15;
+        parkTrees.push(new THREE.Matrix4().compose(
+          new THREE.Vector3(px + jx, 0.07, pz + jz),
+          new THREE.Quaternion(),
+          new THREE.Vector3(0.05 + rand() * 0.03, 0.1 + rand() * 0.08, 0.05 + rand() * 0.03)
+        ));
+      }
+    }
+
+    return { trees, buildings, lights: lampPositions, parkTrees };
+  }, [half]);
+
+  const treeRef = useRef<THREE.InstancedMesh>(null);
+  const buildingRef = useRef<THREE.InstancedMesh>(null);
+  const lampRef = useRef<THREE.InstancedMesh>(null);
+  const parkTreeRef = useRef<THREE.InstancedMesh>(null);
+
+  useEffect(() => {
+    if (treeRef.current) {
+      for (let i = 0; i < trees.length; i++) treeRef.current.setMatrixAt(i, trees[i]);
+      treeRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (buildingRef.current) {
+      const color = new THREE.Color();
+      for (let i = 0; i < buildings.length; i++) {
+        buildingRef.current.setMatrixAt(i, buildings[i]);
+        const shade = 0.35 + (i % 5) * 0.08;
+        color.setRGB(shade, shade, shade + 0.05);
+        buildingRef.current.setColorAt(i, color);
+      }
+      buildingRef.current.instanceMatrix.needsUpdate = true;
+      if (buildingRef.current.instanceColor) buildingRef.current.instanceColor.needsUpdate = true;
+    }
+    if (lampRef.current) {
+      for (let i = 0; i < lampPositions.length; i++) lampRef.current.setMatrixAt(i, lampPositions[i]);
+      lampRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (parkTreeRef.current) {
+      for (let i = 0; i < parkTrees.length; i++) parkTreeRef.current.setMatrixAt(i, parkTrees[i]);
+      parkTreeRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [trees, buildings, lampPositions, parkTrees]);
+
+  return (
+    <group>
+      {/* Central park ground */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]}>
+        <planeGeometry args={[1.9, 1.9]} />
+        <meshStandardMaterial color="#2d5a1e" roughness={0.95} />
+      </mesh>
+      {/* Park fountain */}
+      <mesh position={[0, 0.05, 0]}>
+        <cylinderGeometry args={[0.15, 0.18, 0.1, 16]} />
+        <meshStandardMaterial color="#6699bb" roughness={0.3} metalness={0.4} />
+      </mesh>
+      <mesh position={[0, 0.12, 0]}>
+        <cylinderGeometry args={[0.03, 0.05, 0.08, 8]} />
+        <meshStandardMaterial color="#88aacc" roughness={0.2} metalness={0.5} />
+      </mesh>
+      {/* Instanced trees along roads */}
+      <instancedMesh ref={treeRef} args={[undefined, undefined, trees.length]}>
+        <coneGeometry args={[0.5, 1, 6]} />
+        <meshStandardMaterial color="#2d8a4e" roughness={0.8} />
+      </instancedMesh>
+      {/* Park trees (denser, varied) */}
+      <instancedMesh ref={parkTreeRef} args={[undefined, undefined, parkTrees.length]}>
+        <coneGeometry args={[0.5, 1, 5]} />
+        <meshStandardMaterial color="#1e6b3a" roughness={0.85} />
+      </instancedMesh>
+      {/* Buildings */}
+      <instancedMesh ref={buildingRef} args={[undefined, undefined, buildings.length]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial roughness={0.7} metalness={0.2} />
+      </instancedMesh>
+      {/* Street lamps */}
+      <instancedMesh ref={lampRef} args={[undefined, undefined, lampPositions.length]}>
+        <cylinderGeometry args={[0.3, 0.3, 1, 4]} />
+        <meshStandardMaterial color="#888888" emissive="#ffdd88" emissiveIntensity={0.3} roughness={0.5} metalness={0.6} />
+      </instancedMesh>
+    </group>
+  );
+});
+
 /* ─── Pulsing Ground Glow (throttled to every 3rd frame) ─── */
 function GroundGlow() {
   const ref = useRef<THREE.Mesh>(null);
@@ -1208,13 +1448,13 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
 /* ─── Road Grid — structured city-style grid overlay ─── */
 const RoadGrid = memo(function RoadGrid({ parcels }: { parcels: ParcelData[] }) {
   const half = BLOCK_SIZE / 2;
-  const roadWidth = BLOCK_SIZE * 0.035; // ~3.5% of block width for main roads
-  const minorWidth = BLOCK_SIZE * 0.018; // minor roads
+  const roadWidth = 0.286; // ~30m wide (main arterial roads)
+  const minorWidth = 0.143; // ~15m wide (residential streets)
 
   const { mainRoads, minorRoads, markings } = useMemo(() => {
-    // Main roads: every 5 world units (quarter of block)
-    const mainInterval = BLOCK_SIZE / 4;
-    const minorInterval = BLOCK_SIZE / 8;
+    // Main roads: every ~500m (BLOCK_SIZE/4.2 ≈ 4.76 world units)
+    const mainInterval = BLOCK_SIZE / 4.2;
+    const minorInterval = BLOCK_SIZE / 8.4; // ~250m
     const mainRoads: { x: number; z: number; w: number; d: number }[] = [];
     const minorRoads: { x: number; z: number; w: number; d: number }[] = [];
     const markings: THREE.Matrix4[] = [];
@@ -1314,9 +1554,9 @@ const RoadGrid = memo(function RoadGrid({ parcels }: { parcels: ParcelData[] }) 
 const StreetInfrastructure = memo(function StreetInfrastructure({ viewMode }: { viewMode: string }) {
   const isVisible = viewMode === 'street' || viewMode === 'heights' || viewMode === 'isometric';
   const half = BLOCK_SIZE / 2;
-  const mainInterval = BLOCK_SIZE / 4;
-  const roadWidth = BLOCK_SIZE * 0.035;
-  const minorWidth = BLOCK_SIZE * 0.018;
+  const mainInterval = BLOCK_SIZE / 4.2;
+  const roadWidth = 0.286;
+  const minorWidth = 0.143;
 
   // Compute all infrastructure geometry
   const { sidewalks, curbs, yellowDashes, whiteEdges, lights } = useMemo(() => {
@@ -5798,6 +6038,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           <MiniMap parcels={parcels} viewMode={viewMode} />
           <GridLines />
           <GroundGlow />
+          <DimensionLabels />
+          {worldData.objects.length === 0 && <DefaultLandscape />}
 
           {viewMode !== 'dna' ? (
             <>

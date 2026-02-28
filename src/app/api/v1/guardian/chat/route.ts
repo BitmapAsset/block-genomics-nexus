@@ -161,12 +161,31 @@ Available tools and prefab types:
 - terraform: {tool: "terraform", surfaceType: "grass|dirt|stone|water|sand|snow|lava|crystal|void|neon_grid|marble|mossy_stone"}
 - clear_area: {tool: "clear_area", posX, posZ, radius}
 
+## REAL-WORLD SCALE REFERENCE
+The block is 2.1km × 2.1km (2,100m × 2,100m). Coordinates range from -10 to +10 (20 world units total).
+1 world unit = 105 meters.
+
+Object scale guide:
+- Human: 0.017 units tall (1.8m)
+- Car: 0.043 units long (4.5m)
+- Tree: 0.10-0.19 units tall (10-20m)
+- House: 0.10 units tall (10m), 0.10×0.10 footprint
+- Lamp post: 0.08 units tall (8m)
+- Office building: 0.29-0.48 units tall (30-50m)
+- Skyscraper: 0.95-2.86 units tall (100-300m)
+- Road width: 0.10-0.29 units (10-30m)
+- Park: 1.0-2.0 units across (105-210m)
+- Stadium: 2.0-3.0 units across (210-315m)
+
+CRITICAL: All objects MUST be proportional to this scale. A tree should NOT be the same height as a skyscraper.
+
 Rules:
 - Be GENEROUS with objects. A park should have 20-50+ objects.
-- Spread objects across a -25 to +25 coordinate range.
+- Spread objects across the full -10 to +10 coordinate range.
 - posY is always 0 (ground level) unless building vertically.
 - Use variety — mix tree types, flower types, etc.
-- Output valid JSON array only. Example: [{"tool":"terraform","surfaceType":"grass"},{"tool":"place_prefab","prefabType":"fountain","posX":0,"posY":0,"posZ":0,"name":"Fountain"}]`;
+- Use proper scale values for scaleX/Y/Z based on the reference above.
+- Output valid JSON array only. Example: [{"tool":"terraform","surfaceType":"grass"},{"tool":"place_prefab","prefabType":"fountain","posX":0,"posY":0,"posZ":0,"scaleX":0.15,"scaleY":0.15,"scaleZ":0.15,"name":"Fountain"}]`;
 
 async function generateBuildActions(config: {
   provider: string;
@@ -274,6 +293,26 @@ Delete an object by id. Params: id.
 
 ### list_objects
 List all placed objects. No params needed.
+
+## REAL-WORLD SCALE REFERENCE
+The block is 2.1km × 2.1km (2,100m × 2,100m). Coordinates range from -10 to +10 (20 world units total).
+1 world unit = 105 meters.
+
+Object scale guide:
+- Human: 0.017 units tall (1.8m)
+- Car: 0.043 units long (4.5m)
+- Tree: 0.10-0.19 units tall (10-20m)
+- House: 0.10 units tall (10m), 0.10×0.10 footprint
+- Lamp post: 0.08 units tall (8m)
+- Office building: 0.29-0.48 units tall (30-50m)
+- Skyscraper: 0.95-2.86 units tall (100-300m)
+- Road width: 0.10-0.29 units (10-30m)
+- Park: 1.0-2.0 units across (105-210m)
+- Stadium: 2.0-3.0 units across (210-315m)
+
+CRITICAL: All objects MUST be proportional to this scale. A tree should NOT be the same height as a skyscraper.
+When building a city, spread objects across the full -10 to +10 range.
+When building a park or garden, use a reasonable area (1-3 units across = 105-315m).
 
 CRITICAL RULES FOR BUILDING:
 1. When the owner asks you to build ANYTHING, you MUST include the JSON tool call blocks in your response. Without them, NOTHING gets built.
