@@ -2470,6 +2470,25 @@ function InstancedParcels({
     currentHeights.current = next;
   }
 
+  // Force-hide park + developed parcels whenever indices change
+  useEffect(() => {
+    if (!meshRef.current) return;
+    const hiddenIndices = new Set<number>();
+    if (parkParcelIndices) parkParcelIndices.forEach(i => hiddenIndices.add(i));
+    if (developedSet) developedSet.forEach(i => hiddenIndices.add(i));
+    if (hiddenIndices.size === 0) return;
+    for (const i of hiddenIndices) {
+      if (i >= count) continue;
+      dummy.position.set(0, -100, 0);
+      dummy.scale.set(0, 0, 0);
+      dummy.updateMatrix();
+      meshRef.current.setMatrixAt(i, dummy.matrix);
+      meshRef.current.setColorAt(i, new THREE.Color(0, 0, 0));
+    }
+    meshRef.current.instanceMatrix.needsUpdate = true;
+    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
+  }, [parkParcelIndices, developedSet, count, dummy]);
+
   useFrame((state, delta) => {
     if (!meshRef.current) return;
     const t = state.clock.elapsedTime;
