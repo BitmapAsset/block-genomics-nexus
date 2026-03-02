@@ -949,10 +949,11 @@ const DimensionLabels = memo(function DimensionLabels() {
 });
 
 /* ─── Default Landscape — beautiful city template for empty blocks ─── */
-const DefaultLandscape = memo(function DefaultLandscape({ blockHeight, parcels, worldObjects }: {
+const DefaultLandscape = memo(function DefaultLandscape({ blockHeight, parcels, worldObjects, parkParcelIndices }: {
   blockHeight: number;
   parcels: ParcelData[];
   worldObjects?: WorldObject[];
+  parkParcelIndices?: Set<number>;
 }) {
   // ═══════════════════════════════════════════════════════════════
   // DEFAULT LANDSCAPE — places roads, trees, lamps ONLY in the
@@ -1228,6 +1229,285 @@ const DefaultLandscape = memo(function DefaultLandscape({ blockHeight, parcels, 
         <instancedMesh ref={centerLineRef} args={[undefined, undefined, centerLines.length]}>
           <planeGeometry args={[1, 1]} />
           <meshStandardMaterial color="#ddaa00" emissive="#ddaa00" emissiveIntensity={0.2} roughness={0.7} />
+        </instancedMesh>
+      )}
+      {/* ── Central Park ── */}
+      {parkParcelIndices && parkParcelIndices.size > 0 && (
+        <CentralPark blockHeight={blockHeight} parcels={parcels} parkIndices={parkParcelIndices} />
+      )}
+    </group>
+  );
+});
+
+/* ─── Central Park Component ─── */
+const CentralPark = memo(function CentralPark({ blockHeight, parcels, parkIndices }: {
+  blockHeight: number;
+  parcels: ParcelData[];
+  parkIndices: Set<number>;
+}) {
+  const parkData = useMemo(() => {
+    const parkParcels = [...parkIndices].map(i => parcels[i]).filter(Boolean);
+    if (parkParcels.length === 0) return null;
+
+    // Compute bounding box of park parcels
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const p of parkParcels) {
+      minX = Math.min(minX, p.x - p.width / 2);
+      maxX = Math.max(maxX, p.x + p.width / 2);
+      minZ = Math.min(minZ, p.z - p.depth / 2);
+      maxZ = Math.max(maxZ, p.z + p.depth / 2);
+    }
+    const cx = (minX + maxX) / 2;
+    const cz = (minZ + maxZ) / 2;
+    const w = maxX - minX;
+    const d = maxZ - minZ;
+
+    const rng = seededRandom(blockHeight * 5501);
+
+    // Trees — scattered, avoiding center (fountain) and paths
+    const parkTrees: { x: number; z: number }[] = [];
+    const treeCount = Math.min(40, Math.max(20, Math.floor(w * d * 8)));
+    for (let i = 0; i < treeCount * 3 && parkTrees.length < treeCount; i++) {
+      const tx = minX + rng() * w;
+      const tz = minZ + rng() * d;
+      const dx = tx - cx;
+      const dz = tz - cz;
+      // Skip if on paths (cross through center) or fountain area
+      if (Math.abs(dx) < 0.02 && Math.abs(dz) < d * 0.45) continue; // N-S path
+      if (Math.abs(dz) < 0.02 && Math.abs(dx) < w * 0.45) continue; // E-W path
+      if (Math.sqrt(dx * dx + dz * dz) < 0.12) continue; // fountain area
+      parkTrees.push({ x: tx, z: tz });
+    }
+
+    // Benches — along paths
+    const benches: { x: number; z: number; rotY: number }[] = [];
+    const benchSpacing = 0.3;
+    // Along N-S path (east side)
+    for (let z = cz - d * 0.4; z < cz + d * 0.4; z += benchSpacing) {
+      if (Math.abs(z - cz) < 0.15) continue; // skip near fountain
+      benches.push({ x: cx + 0.04, z, rotY: Math.PI / 2 });
+    }
+    // Along E-W path (south side)
+    for (let x = cx - w * 0.4; x < cx + w * 0.4; x += benchSpacing) {
+      if (Math.abs(x - cx) < 0.15) continue;
+      benches.push({ x, z: cz + 0.04, rotY: 0 });
+    }
+    const finalBenches = benches.slice(0, 12);
+
+    // Lamp posts along paths
+    const parkLamps: { x: number; z: number }[] = [];
+    const lampSpacing = 0.286; // ~30m
+    for (let z = cz - d * 0.45; z < cz + d * 0.45; z += lampSpacing) {
+      parkLamps.push({ x: cx - 0.04, z }); // west side of N-S path
+    }
+    for (let x = cx - w * 0.45; x < cx + w * 0.45; x += lampSpacing) {
+      parkLamps.push({ x, z: cz - 0.04 }); // north side of E-W path
+    }
+
+    // Flower beds — small colored dots near paths
+    const flowers: { x: number; z: number; color: string }[] = [];
+    const flowerColors = ['#ee4444', '#eecc22', '#aa44dd', '#ff88aa', '#ffaa00'];
+    for (let i = 0; i < 30; i++) {
+      const fx = cx + (rng() - 0.5) * w * 0.8;
+      const fz = cz + (rng() - 0.5) * d * 0.8;
+      const ddx = fx - cx, ddz = fz - cz;
+      // Place near paths but not on them
+      const nearPath = (Math.abs(ddx) < 0.06 && Math.abs(ddx) > 0.02) || (Math.abs(ddz) < 0.06 && Math.abs(ddz) > 0.02);
+      if (nearPath) flowers.push({ x: fx, z: fz, color: flowerColors[i % flowerColors.length] });
+    }
+
+    // Pond — offset from center
+    const pondX = cx + w * 0.25;
+    const pondZ = cz - d * 0.2;
+
+    return { cx, cz, w, d, minX, maxX, minZ, maxZ, parkTrees, finalBenches, parkLamps, flowers, pondX, pondZ };
+  }, [blockHeight, parcels, parkIndices]);
+
+  // Refs for instanced meshes
+  const treeCanopyRef = useRef<THREE.InstancedMesh>(null);
+  const treeTrunkRef = useRef<THREE.InstancedMesh>(null);
+  const benchRef = useRef<THREE.InstancedMesh>(null);
+  const lampRef = useRef<THREE.InstancedMesh>(null);
+  const flowerRef = useRef<THREE.InstancedMesh>(null);
+
+  useEffect(() => {
+    if (!parkData) return;
+    const mat = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const qFlat = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+
+    // Tree canopies
+    if (treeCanopyRef.current) {
+      for (let i = 0; i < parkData.parkTrees.length; i++) {
+        const t = parkData.parkTrees[i];
+        mat.compose(
+          new THREE.Vector3(t.x, 0.01 + 0.17 * 0.6, t.z),
+          q,
+          new THREE.Vector3(0.08, 0.17, 0.08)
+        );
+        treeCanopyRef.current.setMatrixAt(i, mat);
+      }
+      treeCanopyRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Tree trunks
+    if (treeTrunkRef.current) {
+      for (let i = 0; i < parkData.parkTrees.length; i++) {
+        const t = parkData.parkTrees[i];
+        mat.compose(
+          new THREE.Vector3(t.x, 0.01 + 0.04, t.z),
+          q,
+          new THREE.Vector3(0.008, 0.08, 0.008)
+        );
+        treeTrunkRef.current.setMatrixAt(i, mat);
+      }
+      treeTrunkRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Benches
+    if (benchRef.current) {
+      for (let i = 0; i < parkData.finalBenches.length; i++) {
+        const b = parkData.finalBenches[i];
+        const qb = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, b.rotY, 0));
+        mat.compose(
+          new THREE.Vector3(b.x, 0.01 + 0.0025, b.z),
+          qb,
+          new THREE.Vector3(0.01, 0.005, 0.005)
+        );
+        benchRef.current.setMatrixAt(i, mat);
+      }
+      benchRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Lamp posts
+    if (lampRef.current) {
+      for (let i = 0; i < parkData.parkLamps.length; i++) {
+        const l = parkData.parkLamps[i];
+        mat.compose(
+          new THREE.Vector3(l.x, 0.01 + 0.025, l.z),
+          q,
+          new THREE.Vector3(0.004, 0.05, 0.004)
+        );
+        lampRef.current.setMatrixAt(i, mat);
+      }
+      lampRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Flowers
+    if (flowerRef.current) {
+      const flowerColors = ['#ee4444', '#eecc22', '#aa44dd', '#ff88aa', '#ffaa00'];
+      for (let i = 0; i < parkData.flowers.length; i++) {
+        const f = parkData.flowers[i];
+        mat.compose(
+          new THREE.Vector3(f.x, 0.015, f.z),
+          q,
+          new THREE.Vector3(0.006, 0.006, 0.006)
+        );
+        flowerRef.current.setMatrixAt(i, mat);
+        const c = new THREE.Color(f.color);
+        flowerRef.current.setColorAt(i, c);
+      }
+      flowerRef.current.instanceMatrix.needsUpdate = true;
+      if (flowerRef.current.instanceColor) flowerRef.current.instanceColor.needsUpdate = true;
+    }
+  }, [parkData]);
+
+  if (!parkData) return null;
+
+  const { cx, cz, w, d, parkTrees, finalBenches, parkLamps, flowers, pondX, pondZ } = parkData;
+  const qFlat = new THREE.Euler(-Math.PI / 2, 0, 0);
+
+  return (
+    <group>
+      {/* Park grass ground */}
+      <mesh position={[cx, 0.011, cz]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[w, d]} />
+        <meshStandardMaterial color="#3a8a3a" emissive="#1a4a1a" emissiveIntensity={0.05} roughness={0.9} />
+      </mesh>
+
+      {/* N-S walking path */}
+      <mesh position={[cx, 0.012, cz]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[0.03, d * 0.9]} />
+        <meshStandardMaterial color="#c4a882" roughness={0.95} />
+      </mesh>
+      {/* E-W walking path */}
+      <mesh position={[cx, 0.012, cz]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[w * 0.9, 0.03]} />
+        <meshStandardMaterial color="#c4a882" roughness={0.95} />
+      </mesh>
+
+      {/* Diagonal paths (if park is large enough) */}
+      {w > 0.5 && d > 0.5 && (
+        <>
+          <mesh position={[cx, 0.012, cz]} rotation={[-Math.PI / 2, 0, Math.PI / 4]}>
+            <planeGeometry args={[0.02, Math.min(w, d) * 0.7]} />
+            <meshStandardMaterial color="#c4a882" roughness={0.95} />
+          </mesh>
+          <mesh position={[cx, 0.012, cz]} rotation={[-Math.PI / 2, 0, -Math.PI / 4]}>
+            <planeGeometry args={[0.02, Math.min(w, d) * 0.7]} />
+            <meshStandardMaterial color="#c4a882" roughness={0.95} />
+          </mesh>
+        </>
+      )}
+
+      {/* Fountain base */}
+      <mesh position={[cx, 0.01 + 0.01, cz]}>
+        <cylinderGeometry args={[0.08, 0.08, 0.02, 24]} />
+        <meshStandardMaterial color="#888888" roughness={0.6} metalness={0.3} />
+      </mesh>
+      {/* Fountain water pool */}
+      <mesh position={[cx, 0.01 + 0.025, cz]}>
+        <cylinderGeometry args={[0.065, 0.065, 0.008, 24]} />
+        <meshStandardMaterial color="#66ccdd" emissive="#44aacc" emissiveIntensity={0.15} transparent opacity={0.8} roughness={0.2} />
+      </mesh>
+      {/* Fountain spout */}
+      <mesh position={[cx, 0.01 + 0.055, cz]}>
+        <cylinderGeometry args={[0.004, 0.004, 0.05, 8]} />
+        <meshStandardMaterial color="#ffffff" emissive="#aaddff" emissiveIntensity={0.5} />
+      </mesh>
+
+      {/* Pond */}
+      <mesh position={[pondX, 0.012, pondZ]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.15, 24]} />
+        <meshStandardMaterial color="#448899" emissive="#224466" emissiveIntensity={0.1} transparent opacity={0.75} roughness={0.1} />
+      </mesh>
+
+      {/* Tree canopies (instanced) */}
+      {parkTrees.length > 0 && (
+        <instancedMesh ref={treeCanopyRef} args={[undefined, undefined, parkTrees.length]}>
+          <coneGeometry args={[0.5, 1, 6]} />
+          <meshStandardMaterial color="#2e9e4e" roughness={0.7} emissive="#1a5a2e" emissiveIntensity={0.1} />
+        </instancedMesh>
+      )}
+      {/* Tree trunks (instanced) */}
+      {parkTrees.length > 0 && (
+        <instancedMesh ref={treeTrunkRef} args={[undefined, undefined, parkTrees.length]}>
+          <cylinderGeometry args={[0.5, 0.5, 1, 6]} />
+          <meshStandardMaterial color="#6b4226" roughness={0.9} />
+        </instancedMesh>
+      )}
+
+      {/* Benches (instanced) */}
+      {finalBenches.length > 0 && (
+        <instancedMesh ref={benchRef} args={[undefined, undefined, finalBenches.length]}>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshStandardMaterial color="#8B5E3C" roughness={0.8} />
+        </instancedMesh>
+      )}
+
+      {/* Park lamp posts (instanced) */}
+      {parkLamps.length > 0 && (
+        <instancedMesh ref={lampRef} args={[undefined, undefined, parkLamps.length]}>
+          <cylinderGeometry args={[0.3, 0.4, 1, 6]} />
+          <meshStandardMaterial color="#777777" emissive="#ffcc66" emissiveIntensity={0.4} roughness={0.5} metalness={0.6} />
+        </instancedMesh>
+      )}
+
+      {/* Flower beds (instanced with per-instance color) */}
+      {flowers.length > 0 && (
+        <instancedMesh ref={flowerRef} args={[undefined, undefined, flowers.length]}>
+          <sphereGeometry args={[0.5, 6, 6]} />
+          <meshStandardMaterial roughness={0.6} emissiveIntensity={0.2} />
         </instancedMesh>
       )}
     </group>
@@ -2123,7 +2403,7 @@ function DNAHelixView({ blockHeight }: { blockHeight: number }) {
 
 /* ─── Instanced Parcels (treemap layout) ─── */
 function InstancedParcels({
-  parcels, viewMode, hoveredIndex, selectedIndex, onHover, onClick, onDoubleClick, customizations, worldObjects,
+  parcels, viewMode, hoveredIndex, selectedIndex, onHover, onClick, onDoubleClick, customizations, worldObjects, parkParcelIndices,
 }: {
   parcels: ParcelData[]; viewMode: ViewMode;
   hoveredIndex: number; selectedIndex: number;
@@ -2132,6 +2412,7 @@ function InstancedParcels({
   onDoubleClick: (p: ParcelData) => void;
   customizations?: Map<number, ParcelCustomization>;
   worldObjects?: WorldObject[];
+  parkParcelIndices?: Set<number>;
 }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const count = parcels.length;
@@ -2197,7 +2478,7 @@ function InstancedParcels({
       const p = parcels[i];
 
       // If this parcel is "developed" (user placed objects on it), hide it
-      if (developedSet.has(i)) {
+      if (developedSet.has(i) || parkParcelIndices?.has(i)) {
         dummy.position.set(p.x, -100, p.z); // move off-screen
         dummy.scale.set(0, 0, 0);
         dummy.updateMatrix();
@@ -5605,6 +5886,16 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     return generateParcels(blockHeight, realBlock);
   
   }, [blockHeight, realBlock, dataSource]);
+
+  // ── Central Park: select center parcels to replace with park ──
+  const parkParcelIndices = useMemo(() => {
+    if (parcels.length === 0) return new Set<number>();
+    const count = parcels.length < 500 ? 5 : parcels.length < 2000 ? 8 : 12;
+    const indexed = parcels.map((p, i) => ({ i, dist: Math.sqrt(p.x * p.x + p.z * p.z) }));
+    indexed.sort((a, b) => a.dist - b.dist);
+    return new Set(indexed.slice(0, count).map(p => p.i));
+  }, [parcels]);
+
   // Showcase city buildings for featured blocks
   const showcaseInput = useMemo(() =>
     parcels.map(p => ({ txIndex: p.txIndex, x: p.x, z: p.z, width: p.width, depth: p.depth, bytes: p.bytes, isCoinbase: p.isCoinbase })),
@@ -6197,7 +6488,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           <GridLines />
           <GroundGlow />
           <DimensionLabels />
-          <DefaultLandscape blockHeight={blockHeight} parcels={parcels} worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined} />
+          <DefaultLandscape blockHeight={blockHeight} parcels={parcels} worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined} parkParcelIndices={parkParcelIndices} />
 
           {viewMode !== 'dna' ? (
             <>
@@ -6209,6 +6500,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                 onClick={handleParcelClick}
                 onDoubleClick={handleParcelDoubleClick}
                 worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined}
+                parkParcelIndices={parkParcelIndices}
               />
               {parcelCustomizations.size > 0 && (
                 <ParcelTextureOverlay parcels={parcels} customizations={parcelCustomizations} viewMode={viewMode} />

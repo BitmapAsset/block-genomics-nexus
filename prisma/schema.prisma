@@ -34,6 +34,9 @@ model User {
   parcels             Parcel[]
   sessions            UserSession[]
   blockProfiles       BlockProfile[]
+  bitmapListingsSelling BitmapListing[]   @relation("BitmapListingSeller")
+  bitmapListingsBuying  BitmapListing[]   @relation("BitmapListingBuyer")
+  bitmapOffers          BitmapOffer[]
 }
 
 model Block {
@@ -698,4 +701,66 @@ model SystemState {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// ─── Bitmap Marketplace ───
+
+model BitmapListing {
+  id              String    @id @default(cuid())
+  blockHeight     Int
+  sellerAddress   String
+  price           BigInt
+  psbtBase64      String?
+  inscriptionId   String?
+  status          String    @default("active")
+  expiresAt       DateTime?
+  buyerAddress    String?
+  soldAt          DateTime?
+  txid            String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  seller          User      @relation("BitmapListingSeller", fields: [sellerAddress], references: [walletAddress])
+  buyer           User?     @relation("BitmapListingBuyer", fields: [buyerAddress], references: [walletAddress])
+
+  @@index([blockHeight])
+  @@index([sellerAddress])
+  @@index([status])
+  @@index([price])
+  @@index([createdAt])
+}
+
+model BitmapOffer {
+  id              String    @id @default(cuid())
+  blockHeight     Int
+  offererAddress  String
+  amount          BigInt
+  psbtBase64      String?
+  status          String    @default("pending")
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  offerer         User      @relation(fields: [offererAddress], references: [walletAddress])
+
+  @@index([blockHeight])
+  @@index([offererAddress])
+  @@index([status])
+}
+
+model BitmapSale {
+  id              String   @id @default(cuid())
+  blockHeight     Int
+  sellerAddress   String
+  buyerAddress    String
+  price           BigInt
+  txid            String?
+  listingId       String?
+  offerId         String?
+  createdAt       DateTime @default(now())
+
+  @@index([blockHeight])
+  @@index([sellerAddress])
+  @@index([buyerAddress])
+  @@index([createdAt])
 }

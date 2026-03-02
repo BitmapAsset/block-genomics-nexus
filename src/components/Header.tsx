@@ -8,6 +8,7 @@ import GlobalSearch from "@/components/GlobalSearch";
 
 const navLinks = [
   { href: "/nexus", label: "Nexus" },
+  { href: "/market", label: "Trade", isMarket: true },
   { href: "/directory", label: "Directory" },
   { href: "/live", label: "TimesSquare", isLive: true },
   { href: "/marketplace", label: "Marketplace" },
@@ -32,19 +33,32 @@ const brainStyle = {
   boxShadow: '0 0 12px rgba(167,139,250,0.15)',
 };
 
-function NavLink({ link }: { link: { href: string; label: string; isBrain?: boolean; isLive?: boolean } }) {
+const marketStyle: React.CSSProperties = {
+  color: '#f7931a',
+  background: 'rgba(247,147,26,0.08)',
+  border: '1px solid rgba(247,147,26,0.25)',
+  boxShadow: '0 0 12px rgba(247,147,26,0.15)',
+};
+
+function NavLink({ link }: { link: { href: string; label: string; isBrain?: boolean; isLive?: boolean; isMarket?: boolean } }) {
   const isNexus = link.href === '/nexus';
   const isBrain = !!(link as any).isBrain;
   const isLive = !!(link as any).isLive;
+  const isMarket = !!(link as any).isMarket;
   const liveStyle: React.CSSProperties = { color: '#ff6b6b', textShadow: '0 0 8px rgba(255,51,51,0.3)' };
   return (
     <Link
       href={link.href}
-      className={`px-3 py-2 text-sm rounded-lg transition-all ${isNexus ? 'font-bold' : isBrain ? 'font-semibold' : isLive ? 'font-semibold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
-      style={isNexus ? nexusStyle : isBrain ? brainStyle : isLive ? liveStyle : undefined}
+      className={`px-3 py-2 text-sm rounded-lg transition-all ${isNexus ? 'font-bold' : isBrain ? 'font-semibold' : isLive ? 'font-semibold' : isMarket ? 'font-semibold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
+      style={isNexus ? nexusStyle : isBrain ? brainStyle : isLive ? liveStyle : isMarket ? marketStyle : undefined}
     >
       {isNexus ? '⚡ ' : ''}
-      {isLive ? (
+      {isMarket ? (
+        <span className="inline-flex items-center gap-1.5">
+          ₿
+          <span>{link.label}</span>
+        </span>
+      ) : isLive ? (
         <span className="inline-flex items-center gap-1.5">
           📺
           <span>{link.label}</span>
