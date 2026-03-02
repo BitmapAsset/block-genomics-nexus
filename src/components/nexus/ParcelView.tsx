@@ -949,169 +949,287 @@ const DimensionLabels = memo(function DimensionLabels() {
 });
 
 /* ─── Default Landscape — beautiful city template for empty blocks ─── */
-const DefaultLandscape = memo(function DefaultLandscape() {
-  const half = BLOCK_SIZE / 2;
+const DefaultLandscape = memo(function DefaultLandscape({ blockHeight, parcels, worldObjects }: {
+  blockHeight: number;
+  parcels: ParcelData[];
+  worldObjects?: WorldObject[];
+}) {
+  // ═══════════════════════════════════════════════════════════════
+  // DEFAULT LANDSCAPE — places roads, trees, lamps ONLY in the
+  // gaps (streets) between parcels from the Mondrian treemap layout.
+  // NO buildings, NO objects on top of parcels.
+  // ═══════════════════════════════════════════════════════════════
 
-  // All geometry computed once
-  const { trees, buildings, lights: lampPositions, parkTrees } = useMemo(() => {
-    const trees: THREE.Matrix4[] = [];
-    const buildings: THREE.Matrix4[] = [];
-    const lampPositions: THREE.Matrix4[] = [];
-    const parkTrees: THREE.Matrix4[] = [];
+  // Scale: BLOCK_SIZE=20 units = 2100m, 1 unit = 105m
+  // Tree height: 0.143 units (15m), Lamp height: 0.076 units (8m)
+  // Lamp pole width: 0.005 units (~0.5m)
 
-    const mainInterval = BLOCK_SIZE / 4.2; // ~500m
-    const treeSpacing = 0.476; // ~50m = 0.476 world units
+  const { streetSegments, trees, lamps, centerLines } = useMemo(() => {
+    if (parcels.length === 0) return { streetSegments: [], trees: [], lamps: [], centerLines: [] };
 
-    // Trees along 4 main roads (both directions)
-    for (let roadIdx = 0; roadIdx < 5; roadIdx++) {
-      const roadPos = -half + roadIdx * mainInterval;
-      // Trees along horizontal road
-      for (let t = -half; t <= half; t += treeSpacing) {
-        if (trees.length >= 300) break;
-        const offset = 0.2; // beside road
-        trees.push(new THREE.Matrix4().compose(
-          new THREE.Vector3(t, 0.07, roadPos + offset),
-          new THREE.Quaternion(),
-          new THREE.Vector3(0.06, 0.143, 0.06)
-        ));
-      }
-      // Trees along vertical road
-      for (let t = -half; t <= half; t += treeSpacing) {
-        if (trees.length >= 300) break;
-        trees.push(new THREE.Matrix4().compose(
-          new THREE.Vector3(roadPos - 0.2, 0.07, t),
-          new THREE.Quaternion(),
-          new THREE.Vector3(0.06, 0.143, 0.06)
-        ));
+    const rng = seededRandom(blockHeight * 7717);
+
+    // ── Step 1: Extract gap (street) segments between parcels ──
+    // Strategy: for each pair of adjacent parcels, find the gap between them.
+    // Also find gaps between parcels and the block boundary.
+    // We'll sweep horizontally and vertically to find street corridors.
+
+    // Build a spatial index: sort parcels by position for efficient scanning
+    type Rect = { x: number; z: number; w: number; d: number; left: number; right: number; top: number; bottom: number };
+    const rects: Rect[] = parcels.map(p => ({
+      x: p.x, z: p.z, w: p.width, d: p.depth,
+      left: p.x - p.width / 2,
+      right: p.x + p.width / 2,
+      top: p.z - p.depth / 2,
+      bottom: p.z + p.depth / 2,
+    }));
+
+    // Find street segments by scanning gaps between parcels.
+    // A "street segment" is a rectangular area in the gap between parcels.
+    // We collect horizontal and vertical gap strips.
+
+    const streetSegs: { x: number; z: number; w: number; d: number }[] = [];
+
+    // Collect all unique horizontal edges (top/bottom of parcels) and vertical edges (left/right)
+    const hEdges = new Set<number>();
+    const vEdges = new Set<number>();
+    const half = BLOCK_SIZE / 2;
+
+    // Add block boundaries
+    hEdges.add(-half);
+    hEdges.add(half);
+    vEdges.add(-half);
+    vEdges.add(half);
+
+    for (const r of rects) {
+      hEdges.add(r.top);
+      hEdges.add(r.bottom);
+      vEdges.add(r.left);
+      vEdges.add(r.right);
+    }
+
+    const sortedH = [...hEdges].sort((a, b) => a - b);
+    const sortedV = [...vEdges].sort((a, b) => a - b);
+
+    // For each cell in the edge grid, check if it's a gap (not covered by any parcel)
+    const MIN_STREET_WIDTH = 0.01; // minimum gap to consider a street
+
+    for (let hi = 0; hi < sortedH.length - 1; hi++) {
+      for (let vi = 0; vi < sortedV.length - 1; vi++) {
+        const cellLeft = sortedV[vi];
+        const cellRight = sortedV[vi + 1];
+        const cellTop = sortedH[hi];
+        const cellBottom = sortedH[hi + 1];
+        const cellW = cellRight - cellLeft;
+        const cellD = cellBottom - cellTop;
+
+        if (cellW < MIN_STREET_WIDTH || cellD < MIN_STREET_WIDTH) continue;
+
+        // Check if this cell overlaps with any parcel
+        const cellCx = (cellLeft + cellRight) / 2;
+        const cellCz = (cellTop + cellBottom) / 2;
+        let isGap = true;
+        for (const r of rects) {
+          // Check overlap (with small epsilon for floating point)
+          const eps = 0.001;
+          if (cellLeft >= r.left - eps && cellRight <= r.right + eps &&
+              cellTop >= r.top - eps && cellBottom <= r.bottom + eps) {
+            isGap = false;
+            break;
+          }
+        }
+
+        if (isGap) {
+          streetSegs.push({ x: cellCx, z: cellCz, w: cellW, d: cellD });
+        }
       }
     }
 
-    // Buildings scattered in city blocks (between roads)
-    const rng = (seed: number) => {
-      let s = seed;
-      return () => { s = (s * 16807 + 0) % 2147483647; return s / 2147483647; };
-    };
-    const rand = rng(42);
-    for (let bx = 0; bx < 4; bx++) {
-      for (let bz = 0; bz < 4; bz++) {
-        const cx = -half + (bx + 0.5) * mainInterval;
-        const cz = -half + (bz + 0.5) * mainInterval;
-        // Skip central park area
-        if (Math.abs(cx) < 1.2 && Math.abs(cz) < 1.2) continue;
-        // Place 2-4 buildings per city block
-        const count = 2 + Math.floor(rand() * 3);
-        for (let i = 0; i < count; i++) {
-          if (buildings.length >= 80) break;
-          const ox = (rand() - 0.5) * mainInterval * 0.6;
-          const oz = (rand() - 0.5) * mainInterval * 0.6;
-          const h = 0.19 + rand() * 0.57; // 20-80m tall
-          const w = 0.1 + rand() * 0.15;
-          buildings.push(new THREE.Matrix4().compose(
-            new THREE.Vector3(cx + ox, h / 2, cz + oz),
+    // ── Step 2: Place trees along wider streets ──
+    const treeMatrices: THREE.Matrix4[] = [];
+    const TREE_H = 0.143;
+    const TREE_W = 0.06;
+    const TREE_SPACING = 0.476; // ~50m
+
+    for (const seg of streetSegs) {
+      // Only place trees in streets wider than ~15m (0.143 units)
+      const streetWidth = Math.min(seg.w, seg.d);
+      if (streetWidth < 0.1) continue;
+
+      if (seg.w >= seg.d) {
+        // Horizontal street — place trees along z edges
+        for (let tx = seg.x - seg.w / 2 + 0.05; tx < seg.x + seg.w / 2; tx += TREE_SPACING) {
+          if (treeMatrices.length >= 500) break;
+          const jitter = (rng() - 0.5) * 0.02;
+          // Tree on top edge of street
+          treeMatrices.push(new THREE.Matrix4().compose(
+            new THREE.Vector3(tx + jitter, TREE_H / 2, seg.z - seg.d / 2 + 0.03),
             new THREE.Quaternion(),
-            new THREE.Vector3(w, h, w)
+            new THREE.Vector3(TREE_W, TREE_H, TREE_W)
+          ));
+          // Tree on bottom edge
+          if (seg.d > 0.15) {
+            treeMatrices.push(new THREE.Matrix4().compose(
+              new THREE.Vector3(tx + jitter + 0.01, TREE_H / 2, seg.z + seg.d / 2 - 0.03),
+              new THREE.Quaternion(),
+              new THREE.Vector3(TREE_W, TREE_H, TREE_W)
+            ));
+          }
+        }
+      } else {
+        // Vertical street — place trees along x edges
+        for (let tz = seg.z - seg.d / 2 + 0.05; tz < seg.z + seg.d / 2; tz += TREE_SPACING) {
+          if (treeMatrices.length >= 500) break;
+          const jitter = (rng() - 0.5) * 0.02;
+          treeMatrices.push(new THREE.Matrix4().compose(
+            new THREE.Vector3(seg.x - seg.w / 2 + 0.03, TREE_H / 2, tz + jitter),
+            new THREE.Quaternion(),
+            new THREE.Vector3(TREE_W, TREE_H, TREE_W)
+          ));
+          if (seg.w > 0.15) {
+            treeMatrices.push(new THREE.Matrix4().compose(
+              new THREE.Vector3(seg.x + seg.w / 2 - 0.03, TREE_H / 2, tz + jitter + 0.01),
+              new THREE.Quaternion(),
+              new THREE.Vector3(TREE_W, TREE_H, TREE_W)
+            ));
+          }
+        }
+      }
+    }
+
+    // ── Step 3: Place lamps at street intersections & intervals ──
+    const lampMatrices: THREE.Matrix4[] = [];
+    const LAMP_H = 0.076;
+    const LAMP_W = 0.005;
+    const LAMP_SPACING = 0.952; // ~100m
+
+    for (const seg of streetSegs) {
+      const streetWidth = Math.min(seg.w, seg.d);
+      if (streetWidth < 0.05) continue; // skip very narrow gaps
+
+      if (seg.w >= seg.d) {
+        for (let lx = seg.x - seg.w / 2 + 0.1; lx < seg.x + seg.w / 2; lx += LAMP_SPACING) {
+          if (lampMatrices.length >= 200) break;
+          lampMatrices.push(new THREE.Matrix4().compose(
+            new THREE.Vector3(lx, LAMP_H / 2, seg.z + seg.d / 2 - 0.01),
+            new THREE.Quaternion(),
+            new THREE.Vector3(LAMP_W, LAMP_H, LAMP_W)
+          ));
+        }
+      } else {
+        for (let lz = seg.z - seg.d / 2 + 0.1; lz < seg.z + seg.d / 2; lz += LAMP_SPACING) {
+          if (lampMatrices.length >= 200) break;
+          lampMatrices.push(new THREE.Matrix4().compose(
+            new THREE.Vector3(seg.x + seg.w / 2 - 0.01, LAMP_H / 2, lz),
+            new THREE.Quaternion(),
+            new THREE.Vector3(LAMP_W, LAMP_H, LAMP_W)
           ));
         }
       }
     }
 
-    // Street lights along main roads
-    for (let roadIdx = 0; roadIdx < 5; roadIdx++) {
-      const roadPos = -half + roadIdx * mainInterval;
-      for (let t = -half; t <= half; t += 1.5) {
-        if (lampPositions.length >= 60) break;
-        lampPositions.push(new THREE.Matrix4().compose(
-          new THREE.Vector3(t, 0.038, roadPos + 0.25),
-          new THREE.Quaternion(),
-          new THREE.Vector3(0.015, 0.076, 0.015)
-        ));
+    // ── Step 4: Center lines on wider streets ──
+    const cLines: { x: number; z: number; w: number; d: number }[] = [];
+    for (const seg of streetSegs) {
+      const streetWidth = Math.min(seg.w, seg.d);
+      if (streetWidth < 0.12) continue; // only on wider streets (~12m+)
+
+      if (seg.w >= seg.d) {
+        // Horizontal street — yellow dashes along center
+        const dashLen = 0.05;
+        const dashGap = 0.03;
+        for (let dx = seg.x - seg.w / 2 + 0.02; dx < seg.x + seg.w / 2 - 0.02; dx += dashLen + dashGap) {
+          cLines.push({ x: dx + dashLen / 2, z: seg.z, w: dashLen, d: 0.005 });
+        }
+      } else {
+        // Vertical street
+        const dashLen = 0.05;
+        const dashGap = 0.03;
+        for (let dz = seg.z - seg.d / 2 + 0.02; dz < seg.z + seg.d / 2 - 0.02; dz += dashLen + dashGap) {
+          cLines.push({ x: seg.x, z: dz + dashLen / 2, w: 0.005, d: dashLen });
+        }
       }
     }
 
-    // Central park (~200m × 200m = ~1.9 × 1.9 world units)
-    for (let px = -0.9; px <= 0.9; px += 0.25) {
-      for (let pz = -0.9; pz <= 0.9; pz += 0.25) {
-        if (parkTrees.length >= 60) break;
-        const jx = (rand() - 0.5) * 0.15;
-        const jz = (rand() - 0.5) * 0.15;
-        parkTrees.push(new THREE.Matrix4().compose(
-          new THREE.Vector3(px + jx, 0.07, pz + jz),
-          new THREE.Quaternion(),
-          new THREE.Vector3(0.05 + rand() * 0.03, 0.1 + rand() * 0.08, 0.05 + rand() * 0.03)
-        ));
-      }
-    }
+    return {
+      streetSegments: streetSegs,
+      trees: treeMatrices,
+      lamps: lampMatrices,
+      centerLines: cLines,
+    };
+  }, [blockHeight, parcels]);
 
-    return { trees, buildings, lights: lampPositions, parkTrees };
-  }, [half]);
-
+  // ── Refs for instanced meshes ──
   const treeRef = useRef<THREE.InstancedMesh>(null);
-  const buildingRef = useRef<THREE.InstancedMesh>(null);
   const lampRef = useRef<THREE.InstancedMesh>(null);
-  const parkTreeRef = useRef<THREE.InstancedMesh>(null);
+  const centerLineRef = useRef<THREE.InstancedMesh>(null);
 
   useEffect(() => {
     if (treeRef.current) {
       for (let i = 0; i < trees.length; i++) treeRef.current.setMatrixAt(i, trees[i]);
       treeRef.current.instanceMatrix.needsUpdate = true;
     }
-    if (buildingRef.current) {
-      const color = new THREE.Color();
-      for (let i = 0; i < buildings.length; i++) {
-        buildingRef.current.setMatrixAt(i, buildings[i]);
-        const shade = 0.35 + (i % 5) * 0.08;
-        color.setRGB(shade, shade, shade + 0.05);
-        buildingRef.current.setColorAt(i, color);
-      }
-      buildingRef.current.instanceMatrix.needsUpdate = true;
-      if (buildingRef.current.instanceColor) buildingRef.current.instanceColor.needsUpdate = true;
-    }
     if (lampRef.current) {
-      for (let i = 0; i < lampPositions.length; i++) lampRef.current.setMatrixAt(i, lampPositions[i]);
+      for (let i = 0; i < lamps.length; i++) lampRef.current.setMatrixAt(i, lamps[i]);
       lampRef.current.instanceMatrix.needsUpdate = true;
     }
-    if (parkTreeRef.current) {
-      for (let i = 0; i < parkTrees.length; i++) parkTreeRef.current.setMatrixAt(i, parkTrees[i]);
-      parkTreeRef.current.instanceMatrix.needsUpdate = true;
+    if (centerLineRef.current) {
+      const mat = new THREE.Matrix4();
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+      for (let i = 0; i < centerLines.length; i++) {
+        const cl = centerLines[i];
+        mat.compose(new THREE.Vector3(cl.x, 0.002, cl.z), q, new THREE.Vector3(cl.w, cl.d, 1));
+        centerLineRef.current.setMatrixAt(i, mat);
+      }
+      centerLineRef.current.instanceMatrix.needsUpdate = true;
     }
-  }, [trees, buildings, lampPositions, parkTrees]);
+  }, [trees, lamps, centerLines]);
+
+  // ── Road surface meshes (instanced flat planes in gap areas) ──
+  const roadRef = useRef<THREE.InstancedMesh>(null);
+  useEffect(() => {
+    if (roadRef.current && streetSegments.length > 0) {
+      const mat = new THREE.Matrix4();
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+      for (let i = 0; i < streetSegments.length; i++) {
+        const seg = streetSegments[i];
+        mat.compose(new THREE.Vector3(seg.x, 0.005, seg.z), q, new THREE.Vector3(seg.w, seg.d, 1));
+        roadRef.current.setMatrixAt(i, mat);
+      }
+      roadRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [streetSegments]);
 
   return (
     <group>
-      {/* Central park ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]}>
-        <planeGeometry args={[1.9, 1.9]} />
-        <meshStandardMaterial color="#2d5a1e" roughness={0.95} />
-      </mesh>
-      {/* Park fountain */}
-      <mesh position={[0, 0.05, 0]}>
-        <cylinderGeometry args={[0.15, 0.18, 0.1, 16]} />
-        <meshStandardMaterial color="#6699bb" roughness={0.3} metalness={0.4} />
-      </mesh>
-      <mesh position={[0, 0.12, 0]}>
-        <cylinderGeometry args={[0.03, 0.05, 0.08, 8]} />
-        <meshStandardMaterial color="#88aacc" roughness={0.2} metalness={0.5} />
-      </mesh>
-      {/* Instanced trees along roads */}
-      <instancedMesh ref={treeRef} args={[undefined, undefined, trees.length]}>
-        <coneGeometry args={[0.5, 1, 6]} />
-        <meshStandardMaterial color="#2d8a4e" roughness={0.8} />
-      </instancedMesh>
-      {/* Park trees (denser, varied) */}
-      <instancedMesh ref={parkTreeRef} args={[undefined, undefined, parkTrees.length]}>
-        <coneGeometry args={[0.5, 1, 5]} />
-        <meshStandardMaterial color="#1e6b3a" roughness={0.85} />
-      </instancedMesh>
-      {/* Buildings */}
-      <instancedMesh ref={buildingRef} args={[undefined, undefined, buildings.length]}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial roughness={0.7} metalness={0.2} />
-      </instancedMesh>
+      {/* Road surfaces in gap areas — visible dark asphalt */}
+      {streetSegments.length > 0 && (
+        <instancedMesh ref={roadRef} args={[undefined, undefined, streetSegments.length]}>
+          <planeGeometry args={[1, 1]} />
+          <meshStandardMaterial color="#505560" roughness={0.85} emissive="#252830" emissiveIntensity={0.15} />
+        </instancedMesh>
+      )}
+      {/* Trees along streets */}
+      {trees.length > 0 && (
+        <instancedMesh ref={treeRef} args={[undefined, undefined, trees.length]}>
+          <coneGeometry args={[0.5, 1, 6]} />
+          <meshStandardMaterial color="#3aad5c" roughness={0.7} emissive="#1a5a2e" emissiveIntensity={0.1} />
+        </instancedMesh>
+      )}
       {/* Street lamps */}
-      <instancedMesh ref={lampRef} args={[undefined, undefined, lampPositions.length]}>
-        <cylinderGeometry args={[0.3, 0.3, 1, 4]} />
-        <meshStandardMaterial color="#888888" emissive="#ffdd88" emissiveIntensity={0.3} roughness={0.5} metalness={0.6} />
-      </instancedMesh>
+      {lamps.length > 0 && (
+        <instancedMesh ref={lampRef} args={[undefined, undefined, lamps.length]}>
+          <cylinderGeometry args={[0.3, 0.4, 1, 6]} />
+          <meshStandardMaterial color="#888888" emissive="#ffdd88" emissiveIntensity={0.3} roughness={0.5} metalness={0.6} />
+        </instancedMesh>
+      )}
+      {/* Yellow center line dashes */}
+      {centerLines.length > 0 && (
+        <instancedMesh ref={centerLineRef} args={[undefined, undefined, centerLines.length]}>
+          <planeGeometry args={[1, 1]} />
+          <meshStandardMaterial color="#ddaa00" emissive="#ddaa00" emissiveIntensity={0.2} roughness={0.7} />
+        </instancedMesh>
+      )}
     </group>
   );
 });
@@ -1483,25 +1601,28 @@ const RoadGrid = memo(function RoadGrid({ parcels }: { parcels: ParcelData[] }) 
     const dashGap = 0.1;
     const dashW = 0.015;
 
+    // Quaternion for lying flat on ground (rotate -90° around X axis)
+    const flatQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+
     for (let i = 0; i <= 4; i++) {
       const pos = -half + i * mainInterval;
       const numDashes = Math.floor(BLOCK_SIZE / (dashLen + dashGap));
       for (let d = 0; d < numDashes; d++) {
         const t = -half + (d + 0.5) * (dashLen + dashGap);
-        // Horizontal road center line
+        // Horizontal road center line (dash along X, narrow in Z)
         const mh = new THREE.Matrix4();
         mh.compose(
           new THREE.Vector3(t, 0.006, pos),
-          new THREE.Quaternion(),
-          new THREE.Vector3(dashLen, 1, dashW)
+          flatQ,
+          new THREE.Vector3(dashLen, dashW, 1)
         );
         markings.push(mh);
-        // Vertical road center line
+        // Vertical road center line (dash along Z, narrow in X)
         const mv = new THREE.Matrix4();
         mv.compose(
           new THREE.Vector3(pos, 0.006, t),
-          new THREE.Quaternion(),
-          new THREE.Vector3(dashW, 1, dashLen)
+          flatQ,
+          new THREE.Vector3(dashW, dashLen, 1)
         );
         markings.push(mv);
         if (markings.length >= 1200) break;
@@ -1596,25 +1717,27 @@ const StreetInfrastructure = memo(function StreetInfrastructure({ viewMode }: { 
       const numDashes = Math.floor(BLOCK_SIZE / (dashLen + dashGap));
       for (let d = 0; d < numDashes; d++) {
         const t = -half + (d + 0.5) * (dashLen + dashGap);
-        // Yellow center dash — horizontal
+        // Yellow center dash — horizontal (flat on ground)
+        const flatQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
         const mh = new THREE.Matrix4();
-        mh.compose(new THREE.Vector3(t, 0.005, pos), new THREE.Quaternion(), new THREE.Vector3(dashLen, 1, lineW));
+        mh.compose(new THREE.Vector3(t, 0.005, pos), flatQuat, new THREE.Vector3(dashLen, lineW, 1));
         yellowDashes.push(mh);
-        // Yellow center dash — vertical
+        // Yellow center dash — vertical (flat on ground)
         const mv = new THREE.Matrix4();
-        mv.compose(new THREE.Vector3(pos, 0.005, t), new THREE.Quaternion(), new THREE.Vector3(lineW, 1, dashLen));
+        mv.compose(new THREE.Vector3(pos, 0.005, t), flatQuat, new THREE.Vector3(lineW, dashLen, 1));
         yellowDashes.push(mv);
       }
 
-      // White edge lines (solid) — horizontal road
+      // White edge lines (solid, flat on ground) — horizontal road
+      const flatEdgeQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
       whiteEdges.push(
-        new THREE.Matrix4().compose(new THREE.Vector3(0, 0.005, pos - roadWidth / 2 + lineW / 2), new THREE.Quaternion(), new THREE.Vector3(BLOCK_SIZE + 1, 1, lineW)),
-        new THREE.Matrix4().compose(new THREE.Vector3(0, 0.005, pos + roadWidth / 2 - lineW / 2), new THREE.Quaternion(), new THREE.Vector3(BLOCK_SIZE + 1, 1, lineW)),
+        new THREE.Matrix4().compose(new THREE.Vector3(0, 0.005, pos - roadWidth / 2 + lineW / 2), flatEdgeQ, new THREE.Vector3(BLOCK_SIZE + 1, lineW, 1)),
+        new THREE.Matrix4().compose(new THREE.Vector3(0, 0.005, pos + roadWidth / 2 - lineW / 2), flatEdgeQ, new THREE.Vector3(BLOCK_SIZE + 1, lineW, 1)),
       );
       // White edge lines — vertical road
       whiteEdges.push(
-        new THREE.Matrix4().compose(new THREE.Vector3(pos - roadWidth / 2 + lineW / 2, 0.005, 0), new THREE.Quaternion(), new THREE.Vector3(lineW, 1, BLOCK_SIZE + 1)),
-        new THREE.Matrix4().compose(new THREE.Vector3(pos + roadWidth / 2 - lineW / 2, 0.005, 0), new THREE.Quaternion(), new THREE.Vector3(lineW, 1, BLOCK_SIZE + 1)),
+        new THREE.Matrix4().compose(new THREE.Vector3(pos - roadWidth / 2 + lineW / 2, 0.005, 0), flatEdgeQ, new THREE.Vector3(lineW, BLOCK_SIZE + 1, 1)),
+        new THREE.Matrix4().compose(new THREE.Vector3(pos + roadWidth / 2 - lineW / 2, 0.005, 0), flatEdgeQ, new THREE.Vector3(lineW, BLOCK_SIZE + 1, 1)),
       );
 
       // Street lights along horizontal road (on sidewalk, every 3 units)
@@ -1654,14 +1777,16 @@ const StreetInfrastructure = memo(function StreetInfrastructure({ viewMode }: { 
     if (!poleRef.current || !lampRef.current || lights.length === 0) return;
     for (let i = 0; i < lights.length; i++) {
       const { x, z } = lights[i];
+      // Pole: 8m tall = 0.076 units, scale accordingly
       const poleMat = new THREE.Matrix4().compose(
-        new THREE.Vector3(x, 0.75, z),
+        new THREE.Vector3(x, 0.038, z),
         new THREE.Quaternion(),
         new THREE.Vector3(1, 1, 1)
       );
       poleRef.current.setMatrixAt(i, poleMat);
+      // Lamp head sits on top of pole
       const lampMat = new THREE.Matrix4().compose(
-        new THREE.Vector3(x, 1.55, z),
+        new THREE.Vector3(x, 0.076, z),
         new THREE.Quaternion(),
         new THREE.Vector3(1, 1, 1)
       );
@@ -1707,16 +1832,16 @@ const StreetInfrastructure = memo(function StreetInfrastructure({ viewMode }: { 
       {lights.length > 0 && (
         <>
           <instancedMesh ref={poleRef} args={[undefined, undefined, lights.length]}>
-            <cylinderGeometry args={[0.02, 0.02, 1.5, 6]} />
+            <cylinderGeometry args={[0.003, 0.004, 0.076, 5]} />
             <meshStandardMaterial color="#2a2a2a" roughness={0.8} metalness={0.3} />
           </instancedMesh>
           <instancedMesh ref={lampRef} args={[undefined, undefined, lights.length]}>
-            <sphereGeometry args={[0.05, 6, 6]} />
+            <sphereGeometry args={[0.008, 6, 6]} />
             <meshStandardMaterial color="#ffcc66" emissive="#ffaa44" emissiveIntensity={2} />
           </instancedMesh>
-          {/* Point lights — cap at 50 */}
-          {lights.slice(0, 50).map((l, i) => (
-            <pointLight key={`sl-${i}`} position={[l.x, 1.6, l.z]} color="#ffaa44" intensity={0.5} distance={4} />
+          {/* Point lights — cap at 30 for performance */}
+          {lights.slice(0, 30).map((l, i) => (
+            <pointLight key={`sl-${i}`} position={[l.x, 0.08, l.z]} color="#ffaa44" intensity={0.3} distance={1} />
           ))}
         </>
       )}
@@ -1998,7 +2123,7 @@ function DNAHelixView({ blockHeight }: { blockHeight: number }) {
 
 /* ─── Instanced Parcels (treemap layout) ─── */
 function InstancedParcels({
-  parcels, viewMode, hoveredIndex, selectedIndex, onHover, onClick, onDoubleClick, customizations,
+  parcels, viewMode, hoveredIndex, selectedIndex, onHover, onClick, onDoubleClick, customizations, worldObjects,
 }: {
   parcels: ParcelData[]; viewMode: ViewMode;
   hoveredIndex: number; selectedIndex: number;
@@ -2006,6 +2131,7 @@ function InstancedParcels({
   onClick: (p: ParcelData) => void;
   onDoubleClick: (p: ParcelData) => void;
   customizations?: Map<number, ParcelCustomization>;
+  worldObjects?: WorldObject[];
 }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const count = parcels.length;
@@ -2021,6 +2147,26 @@ function InstancedParcels({
     }
     return arr;
   }, [parcels, count, customizations]);
+
+  // Determine which parcels are "developed" (have user-placed objects within their bounds)
+  const developedSet = useMemo(() => {
+    const set = new Set<number>();
+    if (!worldObjects || worldObjects.length === 0) return set;
+    for (let i = 0; i < parcels.length; i++) {
+      const p = parcels[i];
+      const pLeft = p.x - p.width / 2;
+      const pRight = p.x + p.width / 2;
+      const pTop = p.z - p.depth / 2;
+      const pBottom = p.z + p.depth / 2;
+      for (const obj of worldObjects) {
+        if (obj.posX >= pLeft && obj.posX <= pRight && obj.posZ >= pTop && obj.posZ <= pBottom) {
+          set.add(i);
+          break;
+        }
+      }
+    }
+    return set;
+  }, [parcels, worldObjects]);
 
   const targetHeights = useMemo(() => {
     // Street view: heights scaled to human proportions
@@ -2049,6 +2195,18 @@ function InstancedParcels({
 
     for (let i = 0; i < count; i++) {
       const p = parcels[i];
+
+      // If this parcel is "developed" (user placed objects on it), hide it
+      if (developedSet.has(i)) {
+        dummy.position.set(p.x, -100, p.z); // move off-screen
+        dummy.scale.set(0, 0, 0);
+        dummy.updateMatrix();
+        meshRef.current.setMatrixAt(i, dummy.matrix);
+        const col = new THREE.Color(0, 0, 0);
+        meshRef.current.setColorAt(i, col);
+        continue;
+      }
+
       currentHeights.current[i] += (targetHeights[i] - currentHeights.current[i]) * Math.min(delta * 4, 1);
       const h = currentHeights.current[i];
 
@@ -6039,7 +6197,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           <GridLines />
           <GroundGlow />
           <DimensionLabels />
-          {worldData.objects.length === 0 && <DefaultLandscape />}
+          <DefaultLandscape blockHeight={blockHeight} parcels={parcels} worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined} />
 
           {viewMode !== 'dna' ? (
             <>
@@ -6050,6 +6208,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                 onHover={setHoveredParcel}
                 onClick={handleParcelClick}
                 onDoubleClick={handleParcelDoubleClick}
+                worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined}
               />
               {parcelCustomizations.size > 0 && (
                 <ParcelTextureOverlay parcels={parcels} customizations={parcelCustomizations} viewMode={viewMode} />
