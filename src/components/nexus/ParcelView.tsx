@@ -6546,7 +6546,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                 </>
               )}
               {/* Showcase city buildings on featured blocks — skip on very large blocks */}
-              {showcaseBuildings && parcels.length <= 2000 && <ShowcaseCityRenderer buildings={showcaseBuildings} />}
+              {/* ShowcaseCity disabled — DefaultLandscape + CentralPark handle all default visuals */}
+              {/* {showcaseBuildings && parcels.length <= 2000 && <ShowcaseCityRenderer buildings={showcaseBuildings} />} */}
               <WorldObjects
                 blockHeight={blockHeight}
                 selectedObjectId={showWorldBuilder ? selectedWorldObjectId : null}
