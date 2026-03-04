@@ -2436,7 +2436,7 @@ function InstancedParcels({
     // 1 world unit = 105m, a 10-story building ≈ 30m = 0.286 world units
     // buildHeight range ~0.1-1.0 → map to ~0.03-0.5 world units (3m-52m real)
     return parcels.map(p =>
-      viewMode === 'flat' ? 0.12
+      viewMode === 'flat' ? 0.008  // TRUE 2D bitmap — nearly flat (matches bitmap.land/Bitfeed standard)
       : viewMode === 'heights' ? Math.max(0.3, p.buildHeight * 12)
       : viewMode === 'street' ? Math.max(0.03, p.buildHeight * 0.5)
       : Math.max(0.15, p.buildHeight * 4)
@@ -3138,7 +3138,7 @@ const ParcelTextureOverlay = memo(function ParcelTextureOverlay({
     if (!custom.imageUrl && !custom.pattern) return;
     if (custom.pattern === 'none' && !custom.imageUrl) return;
 
-    const h = viewMode === 'flat' ? 0.09
+    const h = viewMode === 'flat' ? 0.01  // TRUE 2D bitmap flat
       : viewMode === 'street' ? Math.max(0.04, parcel.buildHeight * 0.5) + 0.005
       : Math.max(0.16, parcel.buildHeight * (viewMode === 'heights' ? 6 : 4)) + 0.01;
 
@@ -3691,7 +3691,7 @@ function CameraManager({ viewMode }: { viewMode: ViewMode }) {
 
     const dist = BLOCK_SIZE * 0.7;
     switch (viewMode) {
-      case 'flat': targetPos.current.set(0, dist * 1.8, 0.01); break;
+      case 'flat': targetPos.current.set(0, dist * 2.2, 0); break; // True top-down view for bitmap standard
       case 'isometric': targetPos.current.set(dist * 0.8, dist * 0.9, dist * 0.8); break;
       case 'heights': targetPos.current.set(dist * 0.6, dist * 1.2, dist * 0.6); break;
       case 'dna': targetPos.current.set(8, 2, 8); break;
