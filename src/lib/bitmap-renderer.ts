@@ -6,7 +6,7 @@
  */
 
 import { createCanvas } from 'canvas';
-import { squarifiedTreemapWithGap, type TreemapInput } from './squarified-treemap';
+import { packSquares, type SquarePackInput } from './square-packing';
 
 export interface TxInput {
   vbytes: number; // virtual bytes (weight / 4)
@@ -30,34 +30,29 @@ export function renderBitmapThumbnail(txs: TxInput[], size = 256): Buffer {
 
   if (txs.length === 0) return canvas.toBuffer('image/png');
 
-  // Build treemap input
-  const items: TreemapInput[] = txs.map((tx, i) => ({
+  // Build square-packing input
+  const items: SquarePackInput[] = txs.map((tx, i) => ({
     index: i,
-    weight: Math.max(1, tx.vbytes),
+    vbytes: Math.max(1, tx.vbytes),
   }));
 
-  // Gap: thin lines between parcels (~3% of average cell, min 0.5px)
-  const avgCellSize = size / Math.sqrt(txs.length);
-  const gap = Math.max(0.5, avgCellSize * 0.03);
+  // Pack squares (Bitfeed-style)
+  const { squares, gridWidth, gridHeight } = packSquares(items);
+  const maxDim = Math.max(gridWidth, gridHeight, 1);
+  const cellSize = size / maxDim;
+  const gap = Math.max(0.5, cellSize * 0.04);
 
-  // Compute squarified treemap
-  const rects = squarifiedTreemapWithGap(
-    items,
-    { x: 0, y: 0, width: size, height: size },
-    gap
-  );
+  for (const sq of squares) {
+    const x = sq.x * cellSize;
+    const y = sq.y * cellSize;
+    const w = sq.size * cellSize - gap;
+    const h = sq.size * cellSize - gap;
+    if (w <= 0 || h <= 0) continue;
 
-  const baseHue = 28;
-  const baseSat = 90;
-
-  for (const rect of rects) {
-    if (rect.width <= 0 || rect.height <= 0) continue;
-
-    const tx = txs[rect.index];
-    // Uniform orange with slight brightness variation
+    const tx = txs[sq.index];
     const lightness = tx?.isCoinbase ? 65 : 45 + (tx.vbytes % 20);
-    ctx.fillStyle = `hsl(${baseHue}, ${baseSat}%, ${lightness}%)`;
-    ctx.fillRect(rect.x, rect.y, Math.max(0.5, rect.width), Math.max(0.5, rect.height));
+    ctx.fillStyle = `hsl(28, 90%, ${lightness}%)`;
+    ctx.fillRect(x, y, Math.max(0.5, w), Math.max(0.5, h));
   }
 
   return canvas.toBuffer('image/png');
