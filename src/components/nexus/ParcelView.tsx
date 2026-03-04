@@ -861,11 +861,12 @@ const DimensionLabels = memo(function DimensionLabels() {
 });
 
 /* ─── Default Landscape — beautiful city template for empty blocks ─── */
-const DefaultLandscape = memo(function DefaultLandscape({ blockHeight, parcels, worldObjects, parkParcelIndices }: {
+const DefaultLandscape = memo(function DefaultLandscape({ blockHeight, parcels, worldObjects, parkParcelIndices, removedParcels }: {
   blockHeight: number;
   parcels: ParcelData[];
   worldObjects?: WorldObject[];
   parkParcelIndices?: Set<number>;
+  removedParcels?: Set<number>;
 }) {
   // ═══════════════════════════════════════════════════════════════
   // DEFAULT LANDSCAPE — places roads, trees, lamps ONLY in the
@@ -1147,6 +1148,72 @@ const DefaultLandscape = memo(function DefaultLandscape({ blockHeight, parcels, 
       {parkParcelIndices && parkParcelIndices.size > 0 && (
         <CentralPark blockHeight={blockHeight} parcels={parcels} parkIndices={parkParcelIndices} />
       )}
+
+      {/* ── Cleared Land (removed parcels) ── */}
+      {removedParcels && removedParcels.size > 0 && (() => {
+        const clearedParcels = [...removedParcels]
+          .map(txIdx => parcels.find(p => p.txIndex === txIdx))
+          .filter(Boolean) as ParcelData[];
+
+        return (
+          <group>
+            {clearedParcels.map(p => (
+              <group key={`cleared-${p.txIndex}`}>
+                {/* Cleared ground — dirt/construction texture */}
+                <mesh
+                  position={[p.x, 0.006, p.z]}
+                  rotation={[-Math.PI / 2, 0, 0]}
+                >
+                  <planeGeometry args={[p.width, p.depth]} />
+                  <meshStandardMaterial
+                    color="#5a4a3a"
+                    roughness={0.95}
+                    emissive="#3a2a1a"
+                    emissiveIntensity={0.08}
+                  />
+                </mesh>
+                {/* Construction markers at corners */}
+                {[
+                  [p.x - p.width / 2 + 0.02, p.z - p.depth / 2 + 0.02],
+                  [p.x + p.width / 2 - 0.02, p.z - p.depth / 2 + 0.02],
+                  [p.x - p.width / 2 + 0.02, p.z + p.depth / 2 - 0.02],
+                  [p.x + p.width / 2 - 0.02, p.z + p.depth / 2 - 0.02],
+                ].map(([cx, cz], i) => (
+                  <mesh key={i} position={[cx, 0.02, cz]}>
+                    <cylinderGeometry args={[0.008, 0.008, 0.04, 6]} />
+                    <meshStandardMaterial
+                      color="#ffcc00"
+                      emissive="#ffaa00"
+                      emissiveIntensity={0.5}
+                    />
+                  </mesh>
+                ))}
+                {/* "CLEARED" label visible from top-down */}
+                <Html
+                  position={[p.x, 0.08, p.z]}
+                  center
+                  distanceFactor={6}
+                  style={{ pointerEvents: 'none' }}
+                >
+                  <div style={{
+                    background: 'rgba(90,74,58,0.7)',
+                    border: '1px solid rgba(255,204,0,0.3)',
+                    borderRadius: '4px',
+                    padding: '2px 6px',
+                    fontFamily: 'monospace',
+                    fontSize: '8px',
+                    color: '#ffcc00',
+                    textShadow: '0 0 4px rgba(255,204,0,0.5)',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    🏗️ CLEARED
+                  </div>
+                </Html>
+              </group>
+            ))}
+          </group>
+        );
+      })()}
     </group>
   );
 });
@@ -2315,7 +2382,7 @@ function DNAHelixView({ blockHeight }: { blockHeight: number }) {
 
 /* ─── Instanced Parcels (treemap layout) ─── */
 function InstancedParcels({
-  parcels, viewMode, hoveredIndex, selectedIndex, onHover, onClick, onDoubleClick, customizations, worldObjects, parkParcelIndices,
+  parcels, viewMode, hoveredIndex, selectedIndex, onHover, onClick, onDoubleClick, customizations, worldObjects, parkParcelIndices, removedParcels,
 }: {
   parcels: ParcelData[]; viewMode: ViewMode;
   hoveredIndex: number; selectedIndex: number;
@@ -2325,6 +2392,7 @@ function InstancedParcels({
   customizations?: Map<number, ParcelCustomization>;
   worldObjects?: WorldObject[];
   parkParcelIndices?: Set<number>;
+  removedParcels?: Set<number>;
 }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const count = parcels.length;
@@ -2382,12 +2450,16 @@ function InstancedParcels({
     currentHeights.current = next;
   }
 
-  // Force-hide park + developed parcels whenever indices change
+  // Force-hide park + developed + removed parcels whenever indices change
   useEffect(() => {
     if (!meshRef.current) return;
     const hiddenIndices = new Set<number>();
     if (parkParcelIndices) parkParcelIndices.forEach(i => hiddenIndices.add(i));
     if (developedSet) developedSet.forEach(i => hiddenIndices.add(i));
+    if (removedParcels) removedParcels.forEach(txIdx => {
+      const i = parcels.findIndex(p => p.txIndex === txIdx);
+      if (i >= 0) hiddenIndices.add(i);
+    });
     if (hiddenIndices.size === 0) return;
     for (const i of hiddenIndices) {
       if (i >= count) continue;
@@ -2399,7 +2471,7 @@ function InstancedParcels({
     }
     meshRef.current.instanceMatrix.needsUpdate = true;
     if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
-  }, [parkParcelIndices, developedSet, count, dummy]);
+  }, [parkParcelIndices, developedSet, removedParcels, count, dummy, parcels]);
 
   useFrame((state, delta) => {
     if (!meshRef.current) return;
@@ -2408,8 +2480,9 @@ function InstancedParcels({
     for (let i = 0; i < count; i++) {
       const p = parcels[i];
 
-      // If this parcel is "developed" (user placed objects on it), hide it
-      if (developedSet.has(i) || parkParcelIndices?.has(i)) {
+      // If this parcel is developed, parked, or removed — hide it
+      const isRemoved = removedParcels?.has(p.txIndex);
+      if (developedSet.has(i) || parkParcelIndices?.has(i) || isRemoved) {
         dummy.position.set(p.x, -100, p.z); // move off-screen
         dummy.scale.set(0, 0, 0);
         dummy.updateMatrix();
@@ -5434,6 +5507,28 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const worldData = useWorldObjects(blockHeight);
   const [guardianStatus, setGuardianStatus] = useState<'active' | 'paused' | 'none'>('none');
 
+  // ── Parcel Removal System ──
+  // Removed parcels become cleared land — ready for building
+  const [removedParcels, setRemovedParcels] = useState<Set<number>>(new Set());
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+
+  const handleRemoveParcel = useCallback((txIndex: number) => {
+    setRemovedParcels(prev => {
+      const next = new Set(prev);
+      next.add(txIndex);
+      return next;
+    });
+    setShowRemoveConfirm(false);
+  }, []);
+
+  const handleRestoreParcel = useCallback((txIndex: number) => {
+    setRemovedParcels(prev => {
+      const next = new Set(prev);
+      next.delete(txIndex);
+      return next;
+    });
+  }, []);
+
   // Game logic state
   const [gameElements, setGameElements] = useState<GameElement[]>([]);
   const [gameState, setGameState] = useState<{ score: number; xp: number; level: number; coins: number; collected?: string | null; questProgress?: string | null; achievements?: string | null; inventory?: string | null } | null>(null);
@@ -6419,7 +6514,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           <GridLines />
           <GroundGlow />
           <DimensionLabels />
-          <DefaultLandscape blockHeight={blockHeight} parcels={parcels} worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined} parkParcelIndices={parkParcelIndices} />
+          <DefaultLandscape blockHeight={blockHeight} parcels={parcels} worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined} parkParcelIndices={parkParcelIndices} removedParcels={removedParcels} />
 
           {viewMode !== 'dna' ? (
             <>
@@ -6432,6 +6527,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                 onDoubleClick={handleParcelDoubleClick}
                 worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined}
                 parkParcelIndices={parkParcelIndices}
+                removedParcels={removedParcels}
               />
               {parcelCustomizations.size > 0 && (
                 <ParcelTextureOverlay parcels={parcels} customizations={parcelCustomizations} viewMode={viewMode} />
@@ -7027,6 +7123,72 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                       </div>
                     )}
                   </div>
+
+                  {/* ── Remove / Restore Parcel ── */}
+                  {displayParcel && !displayParcel.isCoinbase && (
+                    <div className="relative">
+                      {removedParcels.has(displayParcel.txIndex) ? (
+                        <button
+                          onClick={() => handleOwnerAction(() => handleRestoreParcel(displayParcel.txIndex))}
+                          className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mb-3 transition-all hover:brightness-130 active:scale-[0.97]"
+                          style={{
+                            background: 'rgba(0,200,100,0.08)',
+                            border: '1.5px solid rgba(0,200,100,0.25)',
+                            color: '#00c864',
+                            boxShadow: '0 0 15px rgba(0,200,100,0.12)',
+                            opacity: ownerLock ? 0.6 : 1,
+                          }}
+                        >
+                          ↩️ Restore Parcel
+                        </button>
+                      ) : showRemoveConfirm ? (
+                        <div className="mb-3 rounded-xl p-3" style={{ background: 'rgba(255,68,68,0.08)', border: '1.5px solid rgba(255,68,68,0.3)' }}>
+                          <div className="text-[11px] font-mono mb-2" style={{ color: '#ff6666' }}>
+                            ⚠️ Remove parcel #{displayParcel.txIndex}?
+                          </div>
+                          <div className="text-[9px] mb-3" style={{ color: '#94a3b8' }}>
+                            Clears the land for building. Restore anytime.
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleRemoveParcel(displayParcel.txIndex)}
+                              className="flex-1 py-2 rounded-lg text-[11px] font-mono font-bold transition-all hover:brightness-130"
+                              style={{ background: 'rgba(255,68,68,0.2)', border: '1px solid rgba(255,68,68,0.4)', color: '#ff4444' }}
+                            >
+                              🗑️ Yes, Remove
+                            </button>
+                            <button
+                              onClick={() => setShowRemoveConfirm(false)}
+                              className="flex-1 py-2 rounded-lg text-[11px] font-mono font-bold transition-all hover:brightness-130"
+                              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleOwnerAction(() => setShowRemoveConfirm(true))}
+                          className="w-full py-3 rounded-xl text-[13px] font-mono font-bold mb-3 transition-all hover:brightness-130 active:scale-[0.97]"
+                          style={{
+                            background: 'rgba(255,68,68,0.08)',
+                            border: '1.5px solid rgba(255,68,68,0.25)',
+                            color: '#ff4444',
+                            boxShadow: '0 0 15px rgba(255,68,68,0.12)',
+                            opacity: ownerLock ? 0.6 : 1,
+                          }}
+                        >
+                          🗑️ Remove Parcel
+                        </button>
+                      )}
+                      {ownerLock && !showRemoveConfirm && (
+                        <div className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.6)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.15)' }}>
+                          🔐 Locked
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="relative">
                     <button
                       onClick={() => handleOwnerAction(() => setShowLivestreamModal(true))}
