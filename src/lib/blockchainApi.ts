@@ -46,21 +46,25 @@ function generateEstimatedTxs(
     return (seed - 1) / 2147483646;
   };
 
-  // Generate raw weights using realistic distribution
+  // Generate raw weights using realistic Bitcoin tx size distribution
+  // Real blocks have dramatic size variation: many tiny txs + a few enormous ones
+  // This creates the distinctive Mondrian/bitmap look
   const rawWeights: number[] = [];
   for (let i = 0; i < count; i++) {
     const u = rng();
     let w: number;
-    if (u < 0.60) {
-      w = (140 + rng() * 116) * 4; // small tx: 140-256 vbytes
+    if (u < 0.45) {
+      w = (140 + rng() * 120) * 4;    // ~45% small: 140-260 vbytes
+    } else if (u < 0.70) {
+      w = (260 + rng() * 400) * 4;    // ~25% medium-small: 260-660
     } else if (u < 0.85) {
-      w = (257 + rng() * 543) * 4; // medium: 257-800
-    } else if (u < 0.95) {
-      w = (801 + rng() * 2199) * 4; // large: 801-3000
-    } else if (u < 0.99) {
-      w = (3001 + rng() * 12000) * 4; // very large
+      w = (660 + rng() * 1500) * 4;   // ~15% medium: 660-2160
+    } else if (u < 0.93) {
+      w = (2160 + rng() * 8000) * 4;  // ~8% large: 2160-10160
+    } else if (u < 0.98) {
+      w = (10000 + rng() * 30000) * 4; // ~5% very large: 10K-40K
     } else {
-      w = (15001 + rng() * 50000) * 4; // rare huge
+      w = (40000 + rng() * 80000) * 4; // ~2% enormous: 40K-120K (creates the big rectangles)
     }
     rawWeights.push(w);
   }
@@ -236,19 +240,30 @@ async function fetchFromBlockchainInfo(height: number): Promise<RealBlockData | 
 /**
  * Fetch real block data (mempool.space primary, blockchain.info fallback)
  * Returns null if fetch fails (caller should fall back to mock)
+ *
+ * For blocks with ≤ 5000 txs, fetches ALL real tx sizes (canonical bitmap look).
+ * For larger blocks, fetches first page + estimates rest.
  */
 export async function fetchRealBlock(height: number): Promise<RealBlockData | null> {
   // Check cache first
   const cached = blockCache.get(height);
-  if (cached) return cached;
+  if (cached && !cached.estimated) return cached;
 
   try {
-    // Try mempool.space first (same API Bitfeed uses)
-    let result = await fetchFromMempool(height);
+    // First try a full fetch (all real tx data) for proper bitmap rendering
+    // This gives the distinctive Bitfeed/bitmap.land look with varied rectangle sizes
+    let result = await fetchFullFromMempool(height);
+
+    // If full fetch fails or is too slow, fall back to quick mode (first page + estimates)
     if (!result) {
-      // Fallback to blockchain.info
+      result = await fetchFromMempool(height);
+    }
+
+    if (!result) {
+      // Last resort: blockchain.info
       result = await fetchFromBlockchainInfo(height);
     }
+
     if (result) {
       blockCache.set(height, result);
     }
