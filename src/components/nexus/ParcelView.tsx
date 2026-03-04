@@ -3693,6 +3693,7 @@ function CameraManager({ viewMode }: { viewMode: ViewMode }) {
       case 'isometric': targetPos.current.set(dist * 0.8, dist * 0.9, dist * 0.8); break;
       case 'heights': targetPos.current.set(dist * 0.6, dist * 1.2, dist * 0.6); break;
       case 'dna': targetPos.current.set(8, 2, 8); break;
+      case 'standard': targetPos.current.set(dist * 0.5, dist * 0.7, dist * 0.5); break;
       case 'street': break; // StreetWalker handles positioning
       case 'flyover': break; // FlyoverController handles positioning
     }
@@ -6377,22 +6378,46 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         ))}
       </div>
 
-      {/* Street View controls HUD */}
+      {/* Street View controls HUD + Compass */}
       {viewMode === 'street' && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-5 py-3 rounded-2xl"
-          style={{ background: 'rgba(10,10,15,0.85)', border: '1px solid rgba(247,147,26,0.2)', backdropFilter: 'blur(12px)' }}>
-          <span className="text-[11px] font-mono text-slate-400">
-            <span className="text-amber-400">WASD</span> / <span className="text-amber-400">↑↓←→</span> Walk
-          </span>
-          <span className="text-slate-600">|</span>
-          <span className="text-[11px] font-mono text-slate-400">
-            <span className="text-amber-400">Shift</span> Run
-          </span>
-          <span className="text-slate-600">|</span>
-          <span className="text-[11px] font-mono text-slate-400">
-            <span className="text-amber-400">Click + Drag</span> Look
-          </span>
-        </div>
+        <>
+          {/* Compass indicator — top center */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-2 rounded-xl"
+            style={{ background: 'rgba(10,10,15,0.85)', border: '1px solid rgba(247,147,26,0.15)', backdropFilter: 'blur(12px)' }}>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono" style={{ color: '#f7931a' }}>🧭</span>
+              <span className="text-[11px] font-mono font-bold" style={{ color: '#e2e8f0' }}>STREET VIEW</span>
+            </div>
+            <span className="text-slate-600">|</span>
+            <span className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>
+              Block {blockHeight.toLocaleString()}
+            </span>
+            <span className="text-slate-600">|</span>
+            <span className="text-[10px] font-mono" style={{ color: '#64748b' }}>
+              {parcels.length.toLocaleString()} parcels
+            </span>
+          </div>
+
+          {/* Controls HUD — bottom center */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-5 py-3 rounded-2xl"
+            style={{ background: 'rgba(10,10,15,0.85)', border: '1px solid rgba(247,147,26,0.2)', backdropFilter: 'blur(12px)' }}>
+            <span className="text-[11px] font-mono text-slate-400">
+              <span className="text-amber-400">WASD</span> / <span className="text-amber-400">↑↓←→</span> Walk
+            </span>
+            <span className="text-slate-600">|</span>
+            <span className="text-[11px] font-mono text-slate-400">
+              <span className="text-amber-400">Shift</span> Sprint
+            </span>
+            <span className="text-slate-600">|</span>
+            <span className="text-[11px] font-mono text-slate-400">
+              <span className="text-amber-400">Click + Drag</span> Look
+            </span>
+            <span className="text-slate-600">|</span>
+            <span className="text-[11px] font-mono text-slate-400">
+              <span className="text-amber-400">Click Parcel</span> Teleport
+            </span>
+          </div>
+        </>
       )}
 
       {/* Flyover HUD */}
