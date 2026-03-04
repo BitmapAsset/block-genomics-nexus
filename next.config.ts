@@ -63,6 +63,9 @@ const nextConfig: NextConfig = {
   // ── Performance optimizations ──
   compress: true,
   
+  // Use Turbopack (Next.js 16 default)
+  turbopack: {},
+  
   // Aggressive code splitting
   experimental: {
     optimizePackageImports: [
