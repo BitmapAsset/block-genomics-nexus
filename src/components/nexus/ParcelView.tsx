@@ -6941,7 +6941,40 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                 <button onClick={onBack} className="text-[#64748b] hover:text-[#f7931a] transition-colors text-sm">‹</button>
                 <span className="text-xs font-bold tracking-wider" style={{ color: '#94a3b8' }}>Block</span>
               </div>
-              <span className="font-mono text-base font-bold" style={{ color: '#f7931a' }}>{blockHeight.toLocaleString()}</span>
+              <div className="flex items-center gap-1.5">
+                {/* Cross-block navigation */}
+                <a href={`/nexus/parcel/${Math.max(0, blockHeight - 1)}`}
+                  className="w-6 h-6 rounded flex items-center justify-center text-[11px] transition-all hover:brightness-150 active:scale-90"
+                  style={{ background: 'rgba(255,255,255,0.05)', color: '#64748b', border: '1px solid rgba(255,255,255,0.08)' }}
+                  title={`Block ${(blockHeight - 1).toLocaleString()}`}
+                >◀</a>
+                <span className="font-mono text-base font-bold" style={{ color: '#f7931a' }}>{blockHeight.toLocaleString()}</span>
+                <a href={`/nexus/parcel/${blockHeight + 1}`}
+                  className="w-6 h-6 rounded flex items-center justify-center text-[11px] transition-all hover:brightness-150 active:scale-90"
+                  style={{ background: 'rgba(255,255,255,0.05)', color: '#64748b', border: '1px solid rgba(255,255,255,0.08)' }}
+                  title={`Block ${(blockHeight + 1).toLocaleString()}`}
+                >▶</a>
+              </div>
+            </div>
+
+            {/* Jump to block */}
+            <div className="px-4 py-2 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <span className="text-[9px] font-mono" style={{ color: '#64748b' }}>Jump to:</span>
+              <input
+                type="number"
+                min={0}
+                placeholder="Block #"
+                className="flex-1 text-[11px] px-2 py-1 rounded font-mono"
+                style={{ background: 'rgba(255,255,255,0.05)', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.1)' }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const val = parseInt((e.target as HTMLInputElement).value);
+                    if (!isNaN(val) && val >= 0) {
+                      window.location.href = `/nexus/parcel/${val}`;
+                    }
+                  }
+                }}
+              />
             </div>
 
             <div className="px-4 py-2 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
