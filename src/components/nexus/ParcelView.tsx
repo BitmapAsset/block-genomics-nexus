@@ -14,7 +14,7 @@ import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { getStoredAddress, getStoredType } from '@/lib/wallet-utils';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
-import { treemapToWorldSpace, type TreemapInput } from '@/lib/squarified-treemap';
+import { packSquaresToWorldSpace, type SquarePackInput } from '@/lib/square-packing';
 import dynamic from 'next/dynamic';
 const GuardianConfigPanel = dynamic(() => import('../GuardianConfigPanel'), { ssr: false });
 const GuardianChatWidget = dynamic(() => import('../GuardianChatWidget'), { ssr: false });
@@ -327,13 +327,14 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
 
   const maxValue = Math.max(...rawParcels.map(p => p.value));
 
-  // Squarified treemap layout — proper bitmap standard algorithm
-  // Each tx gets a rectangle with area proportional to its vbytes
-  const treemapItems: TreemapInput[] = rawParcels.map(p => ({
+  // Bitfeed-style SQUARE PACKING — the canonical bitmap standard
+  // Each tx gets a SQUARE with side = ceil(sqrt(vbytes / 256))
+  // Sorted largest-first, packed left-to-right top-to-bottom
+  const packItems: SquarePackInput[] = rawParcels.map(p => ({
     index: p.txIndex,
-    weight: Math.max(1, p.bytes),
+    vbytes: Math.max(1, p.bytes),
   }));
-  const worldRects = treemapToWorldSpace(treemapItems, BLOCK_SIZE, TREEMAP_GAP);
+  const worldRects = packSquaresToWorldSpace(packItems, BLOCK_SIZE, TREEMAP_GAP);
 
   // Build lookup from txIndex to rect
   const rectMap = new Map<number, { x: number; z: number; width: number; depth: number }>();

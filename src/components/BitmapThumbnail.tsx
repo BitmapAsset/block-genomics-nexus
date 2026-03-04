@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { squarifiedTreemapWithGap, type TreemapInput, type TreemapRect } from "@/lib/squarified-treemap";
+import { packSquares, txToSquareSize, type SquarePackInput } from "@/lib/square-packing";
 
 // ── Module-level cache ──
 const blockCache = new Map<number, BlockData>();
@@ -83,30 +83,30 @@ function drawThumbnail(
 
   if (data.txs.length === 0) return;
 
-  // Build treemap input from transaction vbytes
-  const items: TreemapInput[] = data.txs.map((tx, i) => ({
+  // Build square-packing input from transaction vbytes
+  const items: SquarePackInput[] = data.txs.map((tx, i) => ({
     index: i,
-    weight: Math.max(1, tx.vbytes),
+    vbytes: Math.max(1, tx.vbytes),
   }));
 
-  // Gap scales with canvas size — ~1px at device level
-  const gap = Math.max(0.5, px * 0.004);
-
-  // Compute squarified treemap layout
-  const rects = squarifiedTreemapWithGap(
-    items,
-    { x: 0, y: 0, width: px, height: px },
-    gap
-  );
+  // Pack squares using Bitfeed-style algorithm
+  const { squares, gridWidth, gridHeight } = packSquares(items);
+  const maxDim = Math.max(gridWidth, gridHeight, 1);
+  const cellSize = px / maxDim;
+  const gap = Math.max(0.5, cellSize * 0.06);
 
   // Build index→coinbase lookup
   const coinbaseSet = new Set<number>();
   data.txs.forEach((tx, i) => { if (tx.isCoinbase) coinbaseSet.add(i); });
 
-  for (const r of rects) {
-    if (r.width <= 0 || r.height <= 0) continue;
-    ctx.fillStyle = coinbaseSet.has(r.index) ? "#f7931a" : "#ff9500";
-    ctx.fillRect(r.x, r.y, r.width, r.height);
+  for (const sq of squares) {
+    const x = sq.x * cellSize;
+    const y = sq.y * cellSize;
+    const w = sq.size * cellSize - gap;
+    const h = sq.size * cellSize - gap;
+    if (w <= 0 || h <= 0) continue;
+    ctx.fillStyle = coinbaseSet.has(sq.index) ? "#f7931a" : "#ff9500";
+    ctx.fillRect(x, y, w, h);
   }
 }
 
