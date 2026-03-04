@@ -59,7 +59,7 @@ export interface TerrainSettings {
 }
 
 type ToolMode = 'select' | 'move' | 'rotate' | 'scale';
-type Tab = 'objects' | 'terrain' | 'gaming';
+type Tab = 'presets' | 'objects' | 'terrain' | 'gaming';
 
 interface ObjectTemplate {
   label: string;
@@ -136,6 +136,111 @@ const OBJECT_LIBRARY: { category: string; icon: string; items: ObjectTemplate[] 
   },
 ];
 
+/* ─── Building Presets (one-click structures for cleared parcels) ─── */
+export const BUILDING_PRESETS: {
+  id: string;
+  label: string;
+  icon: string;
+  description: string;
+  category: 'residential' | 'commercial' | 'cultural' | 'entertainment' | 'infrastructure';
+  color: string;
+  objects: Partial<WorldObject>[];
+}[] = [
+  {
+    id: 'apartment', label: 'Apartment', icon: '🏢', category: 'residential',
+    description: 'A modern apartment building',
+    color: '#667788',
+    objects: [
+      { objectType: 'primitive', geometry: 'box', color: '#667788', posY: 2, scaleX: 2, scaleY: 4, scaleZ: 2, roughness: 0.3, metalness: 0.6 },
+      { objectType: 'primitive', geometry: 'box', color: '#88ccff', posY: 1.5, posZ: 1.01, scaleX: 0.4, scaleY: 0.6, scaleZ: 0.02, opacity: 0.7, transparent: true },
+      { objectType: 'primitive', geometry: 'box', color: '#88ccff', posY: 2.5, posZ: 1.01, scaleX: 0.4, scaleY: 0.6, scaleZ: 0.02, opacity: 0.7, transparent: true },
+      { objectType: 'primitive', geometry: 'box', color: '#88ccff', posY: 3.5, posZ: 1.01, scaleX: 0.4, scaleY: 0.6, scaleZ: 0.02, opacity: 0.7, transparent: true },
+    ],
+  },
+  {
+    id: 'museum', label: 'Museum', icon: '🏛️', category: 'cultural',
+    description: 'A grand museum with columns',
+    color: '#ddccaa',
+    objects: [
+      { objectType: 'primitive', geometry: 'box', color: '#ddccaa', posY: 1.5, scaleX: 3, scaleY: 3, scaleZ: 2.5, roughness: 0.6, metalness: 0.1 },
+      { objectType: 'primitive', geometry: 'box', color: '#ccbb99', posY: 3.1, scaleX: 3.4, scaleY: 0.3, scaleZ: 2.9, roughness: 0.6 },
+      { objectType: 'primitive', geometry: 'cylinder', color: '#eeddbb', posX: -1.2, posZ: 1.3, posY: 1.5, scaleX: 0.2, scaleZ: 0.2, scaleY: 3 },
+      { objectType: 'primitive', geometry: 'cylinder', color: '#eeddbb', posX: 1.2, posZ: 1.3, posY: 1.5, scaleX: 0.2, scaleZ: 0.2, scaleY: 3 },
+      { objectType: 'primitive', geometry: 'cylinder', color: '#eeddbb', posX: 0, posZ: 1.3, posY: 1.5, scaleX: 0.2, scaleZ: 0.2, scaleY: 3 },
+      { objectType: 'text3d', text3d: 'MUSEUM', posY: 3.5, posZ: 1.35, fontSize: 0.3, color: '#886644' },
+    ],
+  },
+  {
+    id: 'gaming-arena', label: 'Gaming Arena', icon: '🎮', category: 'entertainment',
+    description: 'Neon-lit gaming zone',
+    color: '#8800ff',
+    objects: [
+      { objectType: 'primitive', geometry: 'box', color: '#1a1a2e', posY: 1, scaleX: 3, scaleY: 2, scaleZ: 3, roughness: 0.2, metalness: 0.8 },
+      { objectType: 'primitive', geometry: 'box', color: '#8800ff', posY: 2.1, scaleX: 3.2, scaleY: 0.1, scaleZ: 3.2, emissive: '#8800ff', emissiveIntensity: 0.8 },
+      { objectType: 'light', lightType: 'point', posY: 1.8, lightColor: '#ff00ff', lightIntensity: 2, lightDistance: 10 },
+      { objectType: 'text3d', text3d: 'ARENA', posY: 2.5, posZ: 1.55, fontSize: 0.4, color: '#00ffff' },
+      { objectType: 'effect', effectType: 'particles', posY: 2.5, color: '#ff00ff' },
+    ],
+  },
+  {
+    id: 'shop', label: 'Shop', icon: '🏪', category: 'commercial',
+    description: 'A storefront building',
+    color: '#e8a040',
+    objects: [
+      { objectType: 'primitive', geometry: 'box', color: '#e8a040', posY: 1, scaleX: 2, scaleY: 2, scaleZ: 1.5, roughness: 0.5 },
+      { objectType: 'primitive', geometry: 'box', color: '#ffcc44', posY: 2.1, scaleX: 2.2, scaleY: 0.15, scaleZ: 0.3, emissive: '#ffcc44', emissiveIntensity: 0.5 },
+      { objectType: 'primitive', geometry: 'box', color: '#88ccff', posY: 0.8, posZ: 0.76, scaleX: 1.2, scaleY: 1.2, scaleZ: 0.02, opacity: 0.6, transparent: true },
+      { objectType: 'text3d', text3d: 'SHOP', posY: 1.6, posZ: 0.78, fontSize: 0.25, color: '#ffffff' },
+    ],
+  },
+  {
+    id: 'park', label: 'Park', icon: '🌳', category: 'infrastructure',
+    description: 'Green space with trees',
+    color: '#3a7d2a',
+    objects: [
+      { objectType: 'primitive', geometry: 'plane', color: '#3a7d2a', posY: 0.01, scaleX: 4, scaleZ: 4 },
+      { objectType: 'primitive', geometry: 'cylinder', color: '#5a3d1a', posX: -1, posZ: -1, posY: 1, scaleX: 0.15, scaleZ: 0.15, scaleY: 2 },
+      { objectType: 'primitive', geometry: 'sphere', color: '#2d7a27', posX: -1, posZ: -1, posY: 2.2, scaleX: 0.8, scaleY: 0.8, scaleZ: 0.8 },
+      { objectType: 'primitive', geometry: 'cylinder', color: '#5a3d1a', posX: 1, posZ: 1, posY: 1.2, scaleX: 0.12, scaleZ: 0.12, scaleY: 2.4 },
+      { objectType: 'primitive', geometry: 'sphere', color: '#35882f', posX: 1, posZ: 1, posY: 2.6, scaleX: 1, scaleY: 1, scaleZ: 1 },
+      { objectType: 'primitive', geometry: 'torus', color: '#888888', posX: 0, posZ: 0, posY: 0.05, scaleX: 0.8, scaleZ: 0.8, scaleY: 0.02 },
+    ],
+  },
+  {
+    id: 'office', label: 'Office Tower', icon: '🏬', category: 'commercial',
+    description: 'Glass and steel skyscraper',
+    color: '#4488aa',
+    objects: [
+      { objectType: 'primitive', geometry: 'box', color: '#334455', posY: 3, scaleX: 1.5, scaleY: 6, scaleZ: 1.5, roughness: 0.1, metalness: 0.9 },
+      { objectType: 'primitive', geometry: 'box', color: '#88ccff', posY: 3, posZ: 0.76, scaleX: 1.3, scaleY: 5.5, scaleZ: 0.02, opacity: 0.4, transparent: true },
+      { objectType: 'primitive', geometry: 'box', color: '#88ccff', posY: 3, posX: 0.76, scaleX: 0.02, scaleY: 5.5, scaleZ: 1.3, opacity: 0.4, transparent: true },
+      { objectType: 'light', lightType: 'point', posY: 6.5, lightColor: '#ff3300', lightIntensity: 0.5, lightDistance: 5 },
+    ],
+  },
+  {
+    id: 'house', label: 'House', icon: '🏠', category: 'residential',
+    description: 'A cozy home',
+    color: '#cc8844',
+    objects: [
+      { objectType: 'primitive', geometry: 'box', color: '#cc8844', posY: 0.75, scaleX: 1.5, scaleY: 1.5, scaleZ: 1.2 },
+      { objectType: 'primitive', geometry: 'cone', color: '#883322', posY: 1.9, scaleX: 2, scaleY: 1, scaleZ: 1.6 },
+      { objectType: 'primitive', geometry: 'box', color: '#88ccff', posY: 0.6, posZ: 0.61, scaleX: 0.35, scaleY: 0.45, scaleZ: 0.02, opacity: 0.6, transparent: true },
+      { objectType: 'primitive', geometry: 'box', color: '#664422', posY: 0.5, posX: 0.45, posZ: 0.61, scaleX: 0.25, scaleY: 0.7, scaleZ: 0.02 },
+    ],
+  },
+  {
+    id: 'monument', label: 'Monument', icon: '🗽', category: 'cultural',
+    description: 'A landmark monument',
+    color: '#aabbcc',
+    objects: [
+      { objectType: 'primitive', geometry: 'box', color: '#999999', posY: 0.5, scaleX: 1.5, scaleY: 1, scaleZ: 1.5 },
+      { objectType: 'primitive', geometry: 'cylinder', color: '#aabbcc', posY: 2.5, scaleX: 0.3, scaleZ: 0.3, scaleY: 3, metalness: 0.7 },
+      { objectType: 'primitive', geometry: 'sphere', color: '#ffdd00', posY: 4.2, scaleX: 0.5, scaleY: 0.5, scaleZ: 0.5, emissive: '#ffaa00', emissiveIntensity: 0.6 },
+      { objectType: 'light', lightType: 'point', posY: 4.5, lightColor: '#ffdd88', lightIntensity: 1.5, lightDistance: 8 },
+    ],
+  },
+];
+
 const WEATHER_OPTIONS = ['none', 'rain', 'snow', 'storm', 'aurora', 'fireflies'];
 
 /* ─── Slider Component ─── */
@@ -182,7 +287,7 @@ export default function WorldBuilderPanel({
   toolMode: ToolMode;
   onToolModeChange: (m: ToolMode) => void;
 }) {
-  const [tab, setTab] = useState<Tab>('objects');
+  const [tab, setTab] = useState<Tab>('presets');
   const [expandedCategory, setExpandedCategory] = useState<string | null>('Primitives');
   const [saving, setSaving] = useState(false);
   const [undoStack, setUndoStack] = useState<WorldObject[][]>([]);
@@ -234,6 +339,38 @@ export default function WorldBuilderPanel({
       }
     } catch (err) {
       console.error('[WorldBuilder] Place failed:', err);
+    }
+  }, [blockHeight, ownerAddress, objects, onObjectsChange, onSelectObject, pushUndo]);
+
+  const handlePlacePreset = useCallback(async (preset: typeof BUILDING_PRESETS[0]) => {
+    pushUndo();
+    const placed: WorldObject[] = [];
+    for (const obj of preset.objects) {
+      const newObj: Partial<WorldObject> = {
+        blockHeight, ownerAddress,
+        name: `${preset.label} — ${obj.objectType}`,
+        posX: obj.posX ?? 0, posY: obj.posY ?? 0.5, posZ: obj.posZ ?? 0,
+        rotX: obj.rotX ?? 0, rotY: obj.rotY ?? 0, rotZ: obj.rotZ ?? 0,
+        scaleX: obj.scaleX ?? 1, scaleY: obj.scaleY ?? 1, scaleZ: obj.scaleZ ?? 1,
+        metalness: obj.metalness ?? 0.5, roughness: obj.roughness ?? 0.5,
+        opacity: obj.opacity ?? 1,
+        ...obj,
+      };
+      try {
+        const res = await fetch('/api/v1/world', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newObj),
+        });
+        const data = await res.json();
+        if (data.object) placed.push(data.object);
+      } catch (err) {
+        console.error('[WorldBuilder] Preset place failed:', err);
+      }
+    }
+    if (placed.length > 0) {
+      onObjectsChange([...objects, ...placed]);
+      onSelectObject(placed[0].id);
     }
   }, [blockHeight, ownerAddress, objects, onObjectsChange, onSelectObject, pushUndo]);
 
@@ -350,21 +487,60 @@ export default function WorldBuilderPanel({
 
       {/* Tabs */}
       <div className="flex" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        {(['objects', 'terrain', 'gaming'] as Tab[]).map(t => (
+        {(['presets', 'objects', 'terrain', 'gaming'] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className="flex-1 py-2 text-[11px] font-mono uppercase tracking-wider transition-all"
             style={{
               color: tab === t ? '#f7931a' : '#64748b',
               borderBottom: tab === t ? '2px solid #f7931a' : '2px solid transparent',
             }}>
-            {t === 'objects' ? '📦 Objects' : t === 'terrain' ? '🌍 Terrain' : '🎮 Gaming'}
+            {t === 'presets' ? '🏗️ Build' : t === 'objects' ? '📦 Objects' : t === 'terrain' ? '🌍 Terrain' : '🎮 Gaming'}
           </button>
         ))}
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-        {tab === 'objects' ? (
+        {tab === 'presets' ? (
+          <div className="p-3 space-y-3">
+            <div className="text-[11px] font-mono uppercase tracking-wider mb-2" style={{ color: '#f7931a' }}>
+              🏗️ Quick Build — Place a structure
+            </div>
+            <div className="text-[9px] mb-3" style={{ color: '#94a3b8' }}>
+              One-click buildings. Remove a parcel first to clear land, then place a building.
+            </div>
+            {(['residential', 'commercial', 'cultural', 'entertainment', 'infrastructure'] as const).map(cat => {
+              const presets = BUILDING_PRESETS.filter(p => p.category === cat);
+              if (presets.length === 0) return null;
+              return (
+                <div key={cat}>
+                  <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: '#475569' }}>
+                    {cat === 'residential' ? '🏠 Residential' : cat === 'commercial' ? '🏪 Commercial' : cat === 'cultural' ? '🏛️ Cultural' : cat === 'entertainment' ? '🎮 Entertainment' : '🌳 Infrastructure'}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {presets.map(preset => (
+                      <button
+                        key={preset.id}
+                        onClick={() => handlePlacePreset(preset)}
+                        className="flex items-center gap-2 p-2 rounded-lg text-left transition-all hover:brightness-130 active:scale-[0.97]"
+                        style={{
+                          background: `${preset.color}15`,
+                          border: `1px solid ${preset.color}33`,
+                        }}
+                      >
+                        <span className="text-lg">{preset.icon}</span>
+                        <div>
+                          <div className="text-[10px] font-mono font-bold" style={{ color: '#e2e8f0' }}>{preset.label}</div>
+                          <div className="text-[8px]" style={{ color: '#64748b' }}>{preset.description}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : tab === 'objects' ? (
           <div className="flex flex-col">
             {/* Object Library */}
             <div className="p-2">
