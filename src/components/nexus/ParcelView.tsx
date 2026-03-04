@@ -14,6 +14,7 @@ import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { getStoredAddress, getStoredType } from '@/lib/wallet-utils';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
+import { treemapToWorldSpace, type TreemapInput } from '@/lib/squarified-treemap';
 import dynamic from 'next/dynamic';
 const GuardianConfigPanel = dynamic(() => import('../GuardianConfigPanel'), { ssr: false });
 const GuardianChatWidget = dynamic(() => import('../GuardianChatWidget'), { ssr: false });
@@ -127,8 +128,12 @@ function seededRandom(seed: number): () => number {
 
 /* ═══════════════════════════════════════════
    SQUARIFIED TREEMAP ALGORITHM
+   Now uses the proper squarified treemap from
+   src/lib/squarified-treemap.ts — matching the
+   Bitfeed / bitmap.land / bitmap standard.
    ═══════════════════════════════════════════ */
 
+// Legacy type aliases for compatibility within this file
 interface TreemapItem {
   index: number;
   weight: number;
@@ -140,102 +145,6 @@ interface TreemapRect {
   z: number;
   width: number;
   depth: number;
-}
-
-/**
- * Bitfeed-standard Mondrian square packing layout.
- * Each tx becomes a SQUARE with side = ceil(sqrt(vbytes / 256)).
- * Squares are packed into a grid using slot-based bin packing.
- * This produces the distinctive bitmap look seen on Bitfeed.live and Bitmap.Community.
- */
-function txSquareSize(vbytes: number): number {
-  return Math.max(1, Math.ceil(Math.sqrt(vbytes / 256)));
-}
-
-function mondrianLayout(
-  items: TreemapItem[],
-  originX: number,
-  originZ: number,
-  blockSize: number,
-  gap: number
-): TreemapRect[] {
-  // Calculate grid sizes for each tx
-  const squares = items.map(it => ({
-    index: it.index,
-    gridSize: txSquareSize(it.weight),
-  }));
-
-  // Natural transaction order (as they appear in the block) — matches Bitfeed/Magic Eden standard
-  // Bitfeed places txs in arrival order, NOT sorted by size
-
-  // Calculate total grid area to determine grid dimensions
-  const totalGridArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
-  const gridWidth = Math.ceil(Math.sqrt(totalGridArea));
-
-  // Scale factor: map grid units to world units
-  const scale = blockSize / gridWidth;
-
-  // Standard bitmap images use thin gaps (~2-3% of cell)
-  // Bitfeed's 50% padding is only for the animated live view, not the standard bitmap
-  const cellGap = Math.max(scale * 0.06, blockSize * 0.002);
-
-  // 2D occupancy grid for packing
-  const gridH = gridWidth + 50; // extra rows for overflow
-  const occupied: boolean[][] = [];
-  for (let r = 0; r < gridH; r++) {
-    occupied.push(new Array(gridWidth).fill(false));
-  }
-
-  const results: TreemapRect[] = [];
-
-  for (const sq of squares) {
-    const size = sq.gridSize;
-    let placed = false;
-
-    // Scan grid for first available position (top-left to bottom-right)
-    for (let row = 0; row < gridH - size + 1 && !placed; row++) {
-      for (let col = 0; col <= gridWidth - size && !placed; col++) {
-        // Check if this area is free
-        let fits = true;
-        for (let dr = 0; dr < size && fits; dr++) {
-          for (let dc = 0; dc < size && fits; dc++) {
-            if (occupied[row + dr][col + dc]) fits = false;
-          }
-        }
-        if (fits) {
-          // Mark occupied
-          for (let dr = 0; dr < size; dr++) {
-            for (let dc = 0; dc < size; dc++) {
-              occupied[row + dr][col + dc] = true;
-            }
-          }
-          // Convert grid coords to world coords with proportional gaps
-          const halfGap = cellGap / 2;
-          results.push({
-            index: sq.index,
-            x: originX + col * scale + halfGap,
-            z: originZ + row * scale + halfGap,
-            width: Math.max(0.01, size * scale - cellGap),
-            depth: Math.max(0.01, size * scale - cellGap),
-          });
-          placed = true;
-        }
-      }
-    }
-
-    // Failsafe: if somehow not placed, put at end
-    if (!placed) {
-      results.push({
-        index: sq.index,
-        x: originX + cellGap / 2,
-        z: originZ + (gridH - size) * scale + cellGap / 2,
-        width: Math.max(0.01, size * scale - cellGap),
-        depth: Math.max(0.01, size * scale - cellGap),
-      });
-    }
-  }
-
-  return results;
 }
 
 /* ═══════════════════════════════════════════
@@ -416,14 +325,17 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
 
   const maxValue = Math.max(...rawParcels.map(p => p.value));
 
-  // Bitfeed-standard Mondrian square packing layout
-  const halfSize = BLOCK_SIZE / 2;
-  const treemapItems: TreemapItem[] = rawParcels.map(p => ({ index: p.txIndex, weight: p.bytes }));
-  const rects = mondrianLayout(treemapItems, -halfSize, -halfSize, BLOCK_SIZE, TREEMAP_GAP);
+  // Squarified treemap layout — proper bitmap standard algorithm
+  // Each tx gets a rectangle with area proportional to its vbytes
+  const treemapItems: TreemapInput[] = rawParcels.map(p => ({
+    index: p.txIndex,
+    weight: Math.max(1, p.bytes),
+  }));
+  const worldRects = treemapToWorldSpace(treemapItems, BLOCK_SIZE, TREEMAP_GAP);
 
   // Build lookup from txIndex to rect
-  const rectMap = new Map<number, TreemapRect>();
-  for (const r of rects) rectMap.set(r.index, r);
+  const rectMap = new Map<number, { x: number; z: number; width: number; depth: number }>();
+  for (const r of worldRects) rectMap.set(r.index, r);
 
   const parcels: ParcelData[] = rawParcels.map(raw => {
     const rect = rectMap.get(raw.txIndex);

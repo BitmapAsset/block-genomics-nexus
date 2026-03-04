@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { squarifiedTreemapWithGap, type TreemapInput, type TreemapRect } from "@/lib/squarified-treemap";
 
 // ── Module-level cache ──
 const blockCache = new Map<number, BlockData>();
@@ -58,82 +59,7 @@ async function fetchBlockData(blockHeight: number): Promise<BlockData> {
   return promise;
 }
 
-// ── Bitfeed-style square packing ──
-
-interface PackedRect {
-  x: number;
-  y: number;
-  size: number;
-  isCoinbase: boolean;
-}
-
-interface Slot {
-  x: number;
-  y: number;
-  size: number;
-}
-
-function packSquares(txs: TxInfo[]): { rects: PackedRect[]; gridSize: number } {
-  if (txs.length === 0) return { rects: [], gridSize: 1 };
-
-  // Compute square side per tx
-  const squares = txs.map((tx) => ({
-    side: Math.max(1, Math.ceil(Math.sqrt(tx.vbytes / 256))),
-    isCoinbase: tx.isCoinbase,
-  }));
-
-  // Sort by size descending for packing
-  const indices = squares.map((_, i) => i);
-  indices.sort((a, b) => squares[b].side - squares[a].side);
-
-  const totalArea = squares.reduce((s, sq) => s + sq.side * sq.side, 0);
-  const gridSize = Math.max(1, Math.ceil(Math.sqrt(totalArea)));
-
-  // Greedy slot-based packing
-  const slots: Slot[] = [{ x: 0, y: 0, size: gridSize }];
-  const rects: PackedRect[] = [];
-
-  for (const idx of indices) {
-    const side = squares[idx].side;
-    
-    // Find first slot that fits
-    let bestSlotIdx = -1;
-    for (let si = 0; si < slots.length; si++) {
-      if (slots[si].size >= side) {
-        bestSlotIdx = si;
-        break;
-      }
-    }
-
-    if (bestSlotIdx === -1) {
-      // Doesn't fit — skip (shouldn't happen with correct grid sizing)
-      continue;
-    }
-
-    const slot = slots[bestSlotIdx];
-    slots.splice(bestSlotIdx, 1);
-
-    rects.push({
-      x: slot.x,
-      y: slot.y,
-      size: side,
-      isCoinbase: squares[idx].isCoinbase,
-    });
-
-    const remainder = slot.size - side;
-    if (remainder > 0) {
-      // Right strip
-      slots.push({ x: slot.x + side, y: slot.y, size: remainder });
-      // Bottom strip (full width of original slot)
-      slots.push({ x: slot.x, y: slot.y + side, size: remainder });
-    }
-
-    // Sort slots: prefer top-left, then smaller slots first for tighter packing
-    slots.sort((a, b) => a.y - b.y || a.x - b.x || a.size - b.size);
-  }
-
-  return { rects, gridSize };
-}
+// ── Squarified Treemap rendering (matches Bitfeed / bitmap standard) ──
 
 function drawThumbnail(
   canvas: HTMLCanvasElement,
@@ -157,20 +83,30 @@ function drawThumbnail(
 
   if (data.txs.length === 0) return;
 
-  const { rects, gridSize } = packSquares(data.txs);
-  const cellSize = px / gridSize;
-  // Gap = ~1px at device level, scaled
-  const gap = Math.max(0.5, cellSize * 0.06);
+  // Build treemap input from transaction vbytes
+  const items: TreemapInput[] = data.txs.map((tx, i) => ({
+    index: i,
+    weight: Math.max(1, tx.vbytes),
+  }));
+
+  // Gap scales with canvas size — ~1px at device level
+  const gap = Math.max(0.5, px * 0.004);
+
+  // Compute squarified treemap layout
+  const rects = squarifiedTreemapWithGap(
+    items,
+    { x: 0, y: 0, width: px, height: px },
+    gap
+  );
+
+  // Build index→coinbase lookup
+  const coinbaseSet = new Set<number>();
+  data.txs.forEach((tx, i) => { if (tx.isCoinbase) coinbaseSet.add(i); });
 
   for (const r of rects) {
-    const x = r.x * cellSize;
-    const y = r.y * cellSize;
-    const w = r.size * cellSize - gap;
-    const h = r.size * cellSize - gap;
-    if (w <= 0 || h <= 0) continue;
-
-    ctx.fillStyle = r.isCoinbase ? "#f7931a" : "#ff9500";
-    ctx.fillRect(x, y, w, h);
+    if (r.width <= 0 || r.height <= 0) continue;
+    ctx.fillStyle = coinbaseSet.has(r.index) ? "#f7931a" : "#ff9500";
+    ctx.fillRect(r.x, r.y, r.width, r.height);
   }
 }
 
