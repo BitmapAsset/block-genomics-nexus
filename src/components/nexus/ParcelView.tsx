@@ -2479,19 +2479,27 @@ function InstancedParcels({
     if (!meshRef.current) return;
     const t = state.clock.elapsedTime;
 
+    // FLAT VIEW: Pure bitmap standard — show ALL parcels as flat orange rectangles
+    const isFlatView = viewMode === 'flat';
+    const bitmapOrange = new THREE.Color('#f7931a');
+    const coinbaseGold = new THREE.Color('#ffaa00');
+
     for (let i = 0; i < count; i++) {
       const p = parcels[i];
 
-      // If this parcel is developed, parked, or removed — hide it
-      const isRemoved = removedParcels?.has(p.txIndex);
-      if (developedSet.has(i) || parkParcelIndices?.has(i) || isRemoved) {
-        dummy.position.set(p.x, -100, p.z); // move off-screen
-        dummy.scale.set(0, 0, 0);
-        dummy.updateMatrix();
-        meshRef.current.setMatrixAt(i, dummy.matrix);
-        const col = new THREE.Color(0, 0, 0);
-        meshRef.current.setColorAt(i, col);
-        continue;
+      // In flat view, show ALL parcels (no hiding for park/removed)
+      // In other views, hide developed/parked/removed parcels
+      if (!isFlatView) {
+        const isRemoved = removedParcels?.has(p.txIndex);
+        if (developedSet.has(i) || parkParcelIndices?.has(i) || isRemoved) {
+          dummy.position.set(p.x, -100, p.z); // move off-screen
+          dummy.scale.set(0, 0, 0);
+          dummy.updateMatrix();
+          meshRef.current.setMatrixAt(i, dummy.matrix);
+          const col = new THREE.Color(0, 0, 0);
+          meshRef.current.setColorAt(i, col);
+          continue;
+        }
       }
 
       currentHeights.current[i] += (targetHeights[i] - currentHeights.current[i]) * Math.min(delta * 4, 1);
@@ -2503,7 +2511,10 @@ function InstancedParcels({
       meshRef.current.setMatrixAt(i, dummy.matrix);
 
       const col = new THREE.Color();
-      if (i === hoveredIndex) {
+      if (isFlatView) {
+        // FLAT VIEW: Pure bitmap colors — orange for normal, slightly brighter for coinbase
+        col.copy(p.isCoinbase ? coinbaseGold : bitmapOrange);
+      } else if (i === hoveredIndex) {
         col.setRGB(1, 1, 1);
       } else if (i === selectedIndex) {
         col.set('#00ff88');
@@ -6532,29 +6543,40 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
           {/* Performance mode: disable heavy effects for large blocks (>1000 txs) */}
           {(() => { const isHeavy = parcels.length > 1000; return null; })()}
-          <GroundPlane parcels={parcels} viewMode={viewMode} />
-          {parcels.length <= 2000 && <RoadGrid parcels={parcels} />}
-          {parcels.length <= 1500 && <StreetSigns parcels={parcels} viewMode={viewMode} />}
-          <DirectionIndicators parcels={parcels} viewMode={viewMode} />
-          <StreetInfrastructure viewMode={viewMode} />
-          <MiniMap parcels={parcels} viewMode={viewMode} />
-          <GridLines />
-          <GroundGlow />
-          <DimensionLabels />
-          <DefaultLandscape blockHeight={blockHeight} parcels={parcels} worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined} parkParcelIndices={parkParcelIndices} removedParcels={removedParcels} />
+
+          {/* FLAT VIEW: Pure bitmap standard — just flat parcels on black, NO extras */}
+          {viewMode === 'flat' ? (
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.001, 0]}>
+              <planeGeometry args={[BLOCK_SIZE * 1.1, BLOCK_SIZE * 1.1]} />
+              <meshBasicMaterial color="#000000" />
+            </mesh>
+          ) : (
+            <>
+              <GroundPlane parcels={parcels} viewMode={viewMode} />
+              {parcels.length <= 2000 && <RoadGrid parcels={parcels} />}
+              {parcels.length <= 1500 && <StreetSigns parcels={parcels} viewMode={viewMode} />}
+              <DirectionIndicators parcels={parcels} viewMode={viewMode} />
+              <StreetInfrastructure viewMode={viewMode} />
+              <MiniMap parcels={parcels} viewMode={viewMode} />
+              <GridLines />
+              <GroundGlow />
+              <DimensionLabels />
+              <DefaultLandscape blockHeight={blockHeight} parcels={parcels} worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined} parkParcelIndices={parkParcelIndices} removedParcels={removedParcels} />
+            </>
+          )}
 
           {viewMode !== 'dna' ? (
             <>
               <InstancedParcels key={`${blockHeight}-${dataSource}-${parcels.length}`} customizations={parcelCustomizations}
                 parcels={parcels} viewMode={viewMode}
-                hoveredIndex={hoveredParcel?.txIndex ?? -1}
-                selectedIndex={selectedParcel?.txIndex ?? -1}
+                hoveredIndex={viewMode === 'flat' ? -1 : (hoveredParcel?.txIndex ?? -1)}
+                selectedIndex={viewMode === 'flat' ? -1 : (selectedParcel?.txIndex ?? -1)}
                 onHover={setHoveredParcel}
                 onClick={handleParcelClick}
                 onDoubleClick={handleParcelDoubleClick}
-                worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined}
-                parkParcelIndices={parkParcelIndices}
-                removedParcels={removedParcels}
+                worldObjects={viewMode === 'flat' ? undefined : (worldData.objects.length > 0 ? worldData.objects : undefined)}
+                parkParcelIndices={viewMode === 'flat' ? undefined : parkParcelIndices}
+                removedParcels={viewMode === 'flat' ? undefined : removedParcels}
               />
               {parcelCustomizations.size > 0 && (
                 <ParcelTextureOverlay parcels={parcels} customizations={parcelCustomizations} viewMode={viewMode} />
