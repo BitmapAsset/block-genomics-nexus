@@ -298,19 +298,21 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
       if (isCoinbase) {
         bytes = 200 + Math.floor(rng() * 400);
       } else {
-        // Realistic Bitcoin tx size distribution matching real blocks
-        // ~60% small (140-256 vbytes), ~25% medium (257-800), ~10% large (801-3000), ~5% very large (3000-65000)
+        // Realistic Bitcoin tx size distribution — dramatic variation for proper bitmap look
+        // Real blocks have many small txs + a few huge ones creating the distinctive treemap pattern
         const u = rng();
-        if (u < 0.60) {
-          bytes = 140 + Math.floor(rng() * 116); // 140-256
+        if (u < 0.45) {
+          bytes = 140 + Math.floor(rng() * 120);   // ~45% small: 140-260 vB
+        } else if (u < 0.70) {
+          bytes = 260 + Math.floor(rng() * 400);   // ~25% med-small: 260-660 vB
         } else if (u < 0.85) {
-          bytes = 257 + Math.floor(rng() * 543); // 257-800
-        } else if (u < 0.95) {
-          bytes = 801 + Math.floor(rng() * 2199); // 801-3000
-        } else if (u < 0.99) {
-          bytes = 3001 + Math.floor(rng() * 12000); // 3001-15000
+          bytes = 660 + Math.floor(rng() * 1500);  // ~15% medium: 660-2160 vB
+        } else if (u < 0.93) {
+          bytes = 2160 + Math.floor(rng() * 8000); // ~8% large: 2160-10160 vB
+        } else if (u < 0.98) {
+          bytes = 10000 + Math.floor(rng() * 30000); // ~5% very large: 10K-40K vB
         } else {
-          bytes = 15001 + Math.floor(rng() * 50000); // 15001-65000 (rare large txs)
+          bytes = 40000 + Math.floor(rng() * 80000); // ~2% enormous: 40K-120K vB
         }
       }
       const value = isCoinbase
@@ -6998,32 +7000,15 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               <PropRow label="WEIGHT" value={blockStats.weight.toLocaleString()} />
               <PropRow label="EPOCH" value={`${block.epoch}`} />
               <PropRow label="DATA" value={
-                dataSource === 'real' 
-                  ? (realBlock?.estimated ? '🟡 Estimated' : '🟢 Live') 
-                  : dataSource === 'loading' ? '⏳ Loading...' : '🟡 Mock'
+                dataSource === 'loading' ? '⏳ Loading blockchain data...'
+                  : dataSource === 'real' ? '🟢 Live' 
+                  : '🟡 Mock'
               } />
-              {realBlock?.estimated && (
+              {dataSource === 'loading' && (
                 <div style={{ padding: '4px 8px' }}>
-                  <button
-                    onClick={() => {
-                      setDataSource('loading');
-                      fetchFullBlock(blockHeight).then(data => {
-                        if (data) {
-                          setRealBlock(data);
-                          setDataSource('real');
-                        } else {
-                          setDataSource('real');
-                        }
-                      });
-                    }}
-                    style={{
-                      width: '100%', padding: '6px 10px', fontSize: '11px',
-                      background: '#f7931a', color: '#000', border: 'none', borderRadius: '4px',
-                      cursor: 'pointer', fontWeight: 600,
-                    }}
-                  >
-                    ⬇ Load Real TX Data
-                  </button>
+                  <div className="text-[9px] font-mono" style={{ color: '#64748b' }}>
+                    Fetching real transaction data from mempool.space...
+                  </div>
                 </div>
               )}
               <PropRow label="LAYOUT" value="Treemap (proportional)" />
