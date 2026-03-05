@@ -1,7 +1,7 @@
 /**
  * Bitfeed-style Square Packing Algorithm
  * 
- * The CANONICAL bitmap standard used by Bitfeed, bitmap.land, Magic Eden, etc.
+ * The CANONICAL bitmap standard used by Bitfeed, bitmap.land, Bitfeed, etc.
  * Each transaction becomes a SQUARE with side = ceil(sqrt(vbytes / scaleFactor)).
  * Squares are packed into a grid using greedy bin-packing (largest first).
  * 

@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 
-const MAGIC_EDEN_BITMAP = 'https://magiceden.io/ordinals/marketplace/bitmap';
+const BITMAP_MARKETPLACE = 'https://unisat.io/market/brc20?tick=bitmap';
 
 interface UpgradeModalProps {
   onClose: () => void;
@@ -108,7 +108,7 @@ export default function UpgradeModal({ onClose, currentTier }: UpgradeModalProps
                   ))}
                 </div>
                 <a
-                  href={MAGIC_EDEN_BITMAP}
+                  href={BITMAP_MARKETPLACE}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block w-full py-3 rounded-xl text-sm font-bold text-center transition-all hover:brightness-125"
@@ -118,7 +118,7 @@ export default function UpgradeModal({ onClose, currentTier }: UpgradeModalProps
                     color: '#f7931a',
                   }}
                 >
-                  🟧 Browse Bitmaps on Magic Eden →
+                  🟧 Browse Bitmaps on Unisat →
                 </a>
                 <p className="text-[10px] text-center mt-2" style={{ color: '#475569' }}>
                   Buy a .bitmap inscription → come back → verify → full sovereignty

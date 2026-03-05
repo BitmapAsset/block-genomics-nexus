@@ -98,7 +98,7 @@ export default function TransferPrepModal({ onClose, blockHeight, guardianCount,
             <p className="text-sm mb-4" style={{ color: '#94a3b8' }}>{result?.message}</p>
             <div className="rounded-xl p-4 mb-4" style={{ background: 'rgba(247,147,26,0.06)', border: '1px solid rgba(247,147,26,0.15)' }}>
               <p className="text-xs" style={{ color: '#94a3b8' }}>
-                You can now transfer your .bitmap inscription via your wallet or list it on Magic Eden.
+                You can now transfer your .bitmap inscription via your wallet or list it on a marketplace.
                 When the new owner claims this block, they&apos;ll find:
               </p>
               <div className="mt-2 space-y-1 text-[11px]" style={{ color: '#64748b' }}>

@@ -24,7 +24,7 @@ export function renderBitmapThumbnail(txs: TxInput[], size = 256): Buffer {
   const canvas = createCanvas(size, size);
   const ctx = canvas.getContext('2d');
 
-  // White background (Magic Eden standard)
+  // White background (Bitfeed standard)
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, size, size);
 
