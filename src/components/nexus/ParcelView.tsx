@@ -5386,18 +5386,15 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
     // Grid dimensions from total area
     const totalArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
     const gridW = Math.ceil(Math.sqrt(totalArea));
-    const pxPerGrid = SIZE / gridW;
-
-    // Razor-thin gaps — just enough to see grid lines (1px or less)
-    const padding = Math.min(pxPerGrid * 0.008, 0.8);
 
     // Occupancy grid — extra rows for overflow
     const gridH = gridW + 100;
     const occupied: boolean[][] = [];
     for (let r = 0; r < gridH; r++) occupied.push(new Array(gridW).fill(false));
 
-    // Standard bitmap orange — #F7931A (Bitcoin orange)
-    const BITCOIN_ORANGE = '#F7931A';
+    // Two-pass: first pack to find actual height, then render scaled
+    let maxRowUsed = 0;
+    const placements: { col: number; row: number; size: number; vbytes: number; isCoinbase: boolean }[] = [];
 
     for (const sq of squares) {
       const size = sq.gridSize;
@@ -5417,22 +5414,32 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
                 if (occupied[row + dr]) occupied[row + dr][col + dc] = true;
               }
             }
-
-            // Draw the parcel square
-            const x = col * pxPerGrid + padding;
-            const y = row * pxPerGrid + padding;
-            const w = size * pxPerGrid - padding * 2;
-            const h = size * pxPerGrid - padding * 2;
-
-            // Nearly uniform Bitcoin orange — very subtle variation (±3% lightness only)
-            const lightness = sq.isCoinbase ? 55 : 50 + (sq.vbytes % 6);
-            ctx.fillStyle = `hsl(28, 95%, ${lightness}%)`;
-            ctx.fillRect(x, y, Math.max(0.5, w), Math.max(0.5, h));
-
+            placements.push({ col, row, size, vbytes: sq.vbytes, isCoinbase: sq.isCoinbase });
+            maxRowUsed = Math.max(maxRowUsed, row + size);
             placed = true;
           }
         }
       }
+    }
+
+    // Use the LARGER of width/height to make a tight square canvas
+    const gridDim = Math.max(gridW, maxRowUsed);
+    const pxPerGrid = SIZE / gridDim;
+
+    // Razor-thin gaps — just enough to see grid lines
+    const padding = Math.min(pxPerGrid * 0.008, 0.8);
+
+    // Render all placements
+    for (const p of placements) {
+      const x = p.col * pxPerGrid + padding;
+      const y = p.row * pxPerGrid + padding;
+      const w = p.size * pxPerGrid - padding * 2;
+      const h = p.size * pxPerGrid - padding * 2;
+
+      // Nearly uniform Bitcoin orange — very subtle variation (±3% lightness only)
+      const lightness = p.isCoinbase ? 55 : 50 + (p.vbytes % 6);
+      ctx.fillStyle = `hsl(28, 95%, ${lightness}%)`;
+      ctx.fillRect(x, y, Math.max(0.5, w), Math.max(0.5, h));
     }
   }, [parcels, blockHeight]);
 
