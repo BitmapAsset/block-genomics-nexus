@@ -350,7 +350,7 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
     if (raw.isCoinbase) {
       color = '#f7931a'; // coinbase = slightly brighter Bitcoin orange
     } else {
-      // Standard bitmap uniform orange — matches bitmap.land / Magic Eden / Bitfeed
+      // Standard bitmap uniform orange — matches bitmap.land / Bitfeed / Bitfeed
       color = '#ff9500';
     }
 
@@ -5344,113 +5344,70 @@ function EmojiReactionBar({ onReact }: { onReact: (emoji: string) => void }) {
 
 function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; parcels: ParcelData[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [magicEdenUrl, setMagicEdenUrl] = useState<string | null>(null);
-  const [showME, setShowME] = useState(false);
-
-  // Try to fetch Magic Eden image for comparison
-  useEffect(() => {
-    fetch(`/api/v1/bitmap-image/${blockHeight}`)
-      .then(r => r.json())
-      .then(json => {
-        if (json.success && json.data?.imageUrl) setMagicEdenUrl(json.data.imageUrl);
-      })
-      .catch(() => {});
-  }, [blockHeight]);
 
   // Render bitmap on canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || parcels.length === 0) return;
 
-    const SIZE = 800; // High-res rendering for bitmap standard view
+    const SIZE = 800;
     canvas.width = SIZE;
     canvas.height = SIZE;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Black background (matches Bitfeed / bitmap.land standard)
+    // Black background
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, SIZE, SIZE);
 
-    // Use canonical Bitfeed-style packer (same as thumbnails + server render)
-    const items: SquarePackInput[] = parcels.map((p, i) => ({
-      index: i,
-      vbytes: p.bytes,
-    }));
+    // Use canonical Bitfeed-style packer
+    const items: SquarePackInput[] = parcels.map((p, i) => ({ index: i, vbytes: p.bytes }));
     const { squares: packed, gridWidth, gridHeight } = packSquares(items, 256);
 
-    // Square canvas: scale by the larger dimension
-    const gridDim = Math.max(gridWidth, gridHeight);
-    const pxPerGrid = SIZE / gridDim;
+    if (packed.length === 0) return;
 
-    // Razor-thin gaps — just enough to see grid lines
-    const padding = Math.min(pxPerGrid * 0.008, 0.8);
+    // Render to an offscreen canvas at native grid resolution, then
+    // draw-image-stretch it onto the visible canvas so it fills edge-to-edge.
+    const offW = gridWidth;
+    const offH = gridHeight;
+    const off = document.createElement('canvas');
+    off.width = offW;
+    off.height = offH;
+    const oc = off.getContext('2d');
+    if (!oc) return;
 
-    // Render packed squares
+    // Black background on offscreen
+    oc.fillStyle = '#000000';
+    oc.fillRect(0, 0, offW, offH);
+
+    // Draw each packed square (1 grid cell = 1 pixel on offscreen)
     for (const sq of packed) {
       const p = parcels[sq.index];
-      const x = sq.x * pxPerGrid + padding;
-      const y = sq.y * pxPerGrid + padding;
-      const w = sq.size * pxPerGrid - padding * 2;
-      const h = sq.size * pxPerGrid - padding * 2;
-
-      // Nearly uniform Bitcoin orange — very subtle variation (±3% lightness only)
       const lightness = p?.isCoinbase ? 55 : 50 + (p?.bytes ?? 0) % 6;
-      ctx.fillStyle = `hsl(28, 95%, ${lightness}%)`;
-      ctx.fillRect(x, y, Math.max(0.5, w), Math.max(0.5, h));
+      oc.fillStyle = `hsl(28, 95%, ${lightness}%)`;
+      oc.fillRect(sq.x, sq.y, sq.size, sq.size);
     }
+
+    // Stretch offscreen onto visible canvas — fills the entire square
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(off, 0, 0, SIZE, SIZE);
   }, [parcels, blockHeight]);
 
   return (
     <div className="relative flex flex-col items-center gap-4">
-      <div className="relative">
-        {/* Our rendering */}
-        <canvas
-          ref={canvasRef}
-          className="rounded-lg shadow-2xl"
-          style={{
-            border: '2px solid rgba(247,147,26,0.4)',
-            borderRadius: '8px',
-            imageRendering: 'pixelated',
-            width: 'min(75vh, 800px)',
-            height: 'min(75vh, 800px)',
-            display: showME ? 'none' : 'block',
-          }}
-        />
-        {/* Magic Eden image (when available and toggled) */}
-        {showME && magicEdenUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={magicEdenUrl}
-            alt={`${blockHeight}.bitmap`}
-            className="rounded-lg shadow-2xl"
-            style={{
-              border: '2px solid rgba(0,245,212,0.3)',
-              imageRendering: 'pixelated',
-              width: 'min(75vh, 800px)',
-              height: 'min(75vh, 800px)',
-            }}
-          />
-        )}
-      </div>
-
-      <div className="flex items-center gap-3">
-        <div className="text-[10px] font-mono" style={{ color: '#64748b' }}>
-          {showME ? '🟦 Magic Eden Official' : '🟧 Block Genomics Render'} · {blockHeight.toLocaleString()}.bitmap · {parcels.length} transactions
-        </div>
-        {magicEdenUrl && (
-          <button
-            onClick={() => setShowME(!showME)}
-            className="px-3 py-1 rounded-md text-[10px] font-mono transition-all hover:brightness-125"
-            style={{
-              background: showME ? 'rgba(0,245,212,0.15)' : 'rgba(247,147,26,0.15)',
-              border: `1px solid ${showME ? 'rgba(0,245,212,0.3)' : 'rgba(247,147,26,0.3)'}`,
-              color: showME ? '#00f5d4' : '#f7931a',
-            }}
-          >
-            {showME ? '← Our Render' : 'Compare Magic Eden →'}
-          </button>
-        )}
+      <canvas
+        ref={canvasRef}
+        className="rounded-lg shadow-2xl"
+        style={{
+          border: '2px solid rgba(247,147,26,0.4)',
+          borderRadius: '8px',
+          imageRendering: 'pixelated',
+          width: 'min(75vh, 800px)',
+          height: 'min(75vh, 800px)',
+        }}
+      />
+      <div className="text-[10px] font-mono" style={{ color: '#64748b' }}>
+        🟧 Block Genomics Render · {blockHeight.toLocaleString()}.bitmap · {parcels.length} transactions
       </div>
     </div>
   );
