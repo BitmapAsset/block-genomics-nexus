@@ -14,7 +14,7 @@ import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { getStoredAddress, getStoredType } from '@/lib/wallet-utils';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
-import { packSquaresToWorldSpace, type SquarePackInput } from '@/lib/square-packing';
+import { packSquares, packSquaresToWorldSpace, type SquarePackInput } from '@/lib/square-packing';
 import dynamic from 'next/dynamic';
 const GuardianConfigPanel = dynamic(() => import('../GuardianConfigPanel'), { ssr: false });
 const GuardianChatWidget = dynamic(() => import('../GuardianChatWidget'), { ssr: false });
@@ -5372,77 +5372,30 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, SIZE, SIZE);
 
-    // Calculate grid sizes (Bitfeed formula)
-    const squares = parcels.map((p, i) => ({
+    // Use canonical Bitfeed-style packer (same as thumbnails + server render)
+    const items: SquarePackInput[] = parcels.map((p, i) => ({
       index: i,
-      gridSize: Math.max(1, Math.ceil(Math.sqrt(p.bytes / 256))),
       vbytes: p.bytes,
-      isCoinbase: p.isCoinbase,
     }));
+    const { squares: packed, gridWidth, gridHeight } = packSquares(items, 256);
 
-    // Sort largest-first for tightest packing (Bitfeed standard)
-    squares.sort((a, b) => b.gridSize - a.gridSize);
-
-    // Grid dimensions — use floor for tighter packing, allow overflow
-    const totalArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
-    // Use floor + small buffer to get tighter vertical packing
-    const targetDim = Math.floor(Math.sqrt(totalArea));
-    const gridW = targetDim + 2; // Small buffer for edge cases
-
-    // Occupancy grid — generous overflow for both dimensions
-    const gridH = gridW + 150;
-    const maxGridW = gridW + 50; // Allow horizontal overflow too
-    const occupied: boolean[][] = [];
-    for (let r = 0; r < gridH; r++) occupied.push(new Array(maxGridW).fill(false));
-
-    // Two-pass: first pack to find actual bounding box, then render scaled
-    let maxRowUsed = 0;
-    let maxColUsed = 0;
-    const placements: { col: number; row: number; size: number; vbytes: number; isCoinbase: boolean }[] = [];
-
-    for (const sq of squares) {
-      const size = sq.gridSize;
-      let placed = false;
-
-      for (let row = 0; row < gridH - size + 1 && !placed; row++) {
-        for (let col = 0; col <= maxGridW - size && !placed; col++) {
-          let fits = true;
-          for (let dr = 0; dr < size && fits; dr++) {
-            for (let dc = 0; dc < size && fits; dc++) {
-              if (occupied[row + dr]?.[col + dc]) fits = false;
-            }
-          }
-          if (fits) {
-            for (let dr = 0; dr < size; dr++) {
-              for (let dc = 0; dc < size; dc++) {
-                if (occupied[row + dr]) occupied[row + dr][col + dc] = true;
-              }
-            }
-            placements.push({ col, row, size, vbytes: sq.vbytes, isCoinbase: sq.isCoinbase });
-            maxRowUsed = Math.max(maxRowUsed, row + size);
-            maxColUsed = Math.max(maxColUsed, col + size);
-            placed = true;
-          }
-        }
-      }
-    }
-
-    // Scale to actual bounding box so content fills the entire square canvas
-    const actualDim = Math.max(maxColUsed, maxRowUsed);
-    const pxPerGrid = SIZE / actualDim;
+    // Square canvas: scale by the larger dimension
+    const gridDim = Math.max(gridWidth, gridHeight);
+    const pxPerGrid = SIZE / gridDim;
 
     // Razor-thin gaps — just enough to see grid lines
     const padding = Math.min(pxPerGrid * 0.008, 0.8);
 
-    // Render all placements
-    for (const p of placements) {
-      const x = p.col * pxPerGrid + padding;
-      const y = p.row * pxPerGrid + padding;
-      const w = p.size * pxPerGrid - padding * 2;
-      const h = p.size * pxPerGrid - padding * 2;
+    // Render packed squares
+    for (const sq of packed) {
+      const p = parcels[sq.index];
+      const x = sq.x * pxPerGrid + padding;
+      const y = sq.y * pxPerGrid + padding;
+      const w = sq.size * pxPerGrid - padding * 2;
+      const h = sq.size * pxPerGrid - padding * 2;
 
       // Nearly uniform Bitcoin orange — very subtle variation (±3% lightness only)
-      const lightness = p.isCoinbase ? 55 : 50 + (p.vbytes % 6);
+      const lightness = p?.isCoinbase ? 55 : 50 + (p?.bytes ?? 0) % 6;
       ctx.fillStyle = `hsl(28, 95%, ${lightness}%)`;
       ctx.fillRect(x, y, Math.max(0.5, w), Math.max(0.5, h));
     }
