@@ -5383,14 +5383,17 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
     // Sort largest-first for tightest packing (Bitfeed standard)
     squares.sort((a, b) => b.gridSize - a.gridSize);
 
-    // Grid dimensions from total area
+    // Grid dimensions — use floor for tighter packing, allow overflow
     const totalArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
-    const gridW = Math.ceil(Math.sqrt(totalArea));
+    // Use floor + small buffer to get tighter vertical packing
+    const targetDim = Math.floor(Math.sqrt(totalArea));
+    const gridW = targetDim + 2; // Small buffer for edge cases
 
-    // Occupancy grid — extra rows for overflow
-    const gridH = gridW + 100;
+    // Occupancy grid — generous overflow for both dimensions
+    const gridH = gridW + 150;
+    const maxGridW = gridW + 50; // Allow horizontal overflow too
     const occupied: boolean[][] = [];
-    for (let r = 0; r < gridH; r++) occupied.push(new Array(gridW).fill(false));
+    for (let r = 0; r < gridH; r++) occupied.push(new Array(maxGridW).fill(false));
 
     // Two-pass: first pack to find actual bounding box, then render scaled
     let maxRowUsed = 0;
@@ -5402,7 +5405,7 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
       let placed = false;
 
       for (let row = 0; row < gridH - size + 1 && !placed; row++) {
-        for (let col = 0; col <= gridW - size && !placed; col++) {
+        for (let col = 0; col <= maxGridW - size && !placed; col++) {
           let fits = true;
           for (let dr = 0; dr < size && fits; dr++) {
             for (let dc = 0; dc < size && fits; dc++) {
