@@ -5392,8 +5392,9 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
     const occupied: boolean[][] = [];
     for (let r = 0; r < gridH; r++) occupied.push(new Array(gridW).fill(false));
 
-    // Two-pass: first pack to find actual height, then render scaled
+    // Two-pass: first pack to find actual bounding box, then render scaled
     let maxRowUsed = 0;
+    let maxColUsed = 0;
     const placements: { col: number; row: number; size: number; vbytes: number; isCoinbase: boolean }[] = [];
 
     for (const sq of squares) {
@@ -5416,15 +5417,16 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
             }
             placements.push({ col, row, size, vbytes: sq.vbytes, isCoinbase: sq.isCoinbase });
             maxRowUsed = Math.max(maxRowUsed, row + size);
+            maxColUsed = Math.max(maxColUsed, col + size);
             placed = true;
           }
         }
       }
     }
 
-    // Use the LARGER of width/height to make a tight square canvas
-    const gridDim = Math.max(gridW, maxRowUsed);
-    const pxPerGrid = SIZE / gridDim;
+    // Scale to actual bounding box so content fills the entire square canvas
+    const actualDim = Math.max(maxColUsed, maxRowUsed);
+    const pxPerGrid = SIZE / actualDim;
 
     // Razor-thin gaps — just enough to see grid lines
     const padding = Math.min(pxPerGrid * 0.008, 0.8);
