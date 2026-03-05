@@ -3715,10 +3715,21 @@ function CameraManager({ viewMode }: { viewMode: ViewMode }) {
 
   useFrame((_, delta) => {
     if (!animating.current) return;
+
+    // FLAT VIEW: Snap immediately to true top-down position
+    if (viewMode === 'flat') {
+      const dist = BLOCK_SIZE * 0.7;
+      camera.position.set(0, dist * 2.2, 0.001); // tiny z-offset to avoid gimbal lock
+      camera.lookAt(0, 0, 0);
+      camera.up.set(0, 0, -1); // ensure consistent orientation looking down
+      animating.current = false;
+      return;
+    }
+
     camera.position.lerp(targetPos.current, delta * 3);
     frameCount.current++;
-    const dist = camera.position.distanceTo(targetPos.current);
-    if (dist < 0.1 || frameCount.current > 120) {
+    const d = camera.position.distanceTo(targetPos.current);
+    if (d < 0.1 || frameCount.current > 120) {
       animating.current = false;
     }
   });
@@ -6532,9 +6543,12 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               minDistance={0.3}
               maxDistance={500}
               zoomSpeed={1.2}
-              rotateSpeed={0.8}
+              rotateSpeed={viewMode === 'flat' ? 0 : 0.8}
               panSpeed={0.8}
               enablePan
+              enableRotate={viewMode !== 'flat'}
+              maxPolarAngle={viewMode === 'flat' ? 0.01 : Math.PI}
+              minPolarAngle={viewMode === 'flat' ? 0 : 0}
             />
           )}
           <CameraManager viewMode={viewMode} />
