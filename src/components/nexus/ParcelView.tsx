@@ -5380,22 +5380,24 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
       isCoinbase: p.isCoinbase,
     }));
 
+    // Sort largest-first for tightest packing (Bitfeed standard)
+    squares.sort((a, b) => b.gridSize - a.gridSize);
+
     // Grid dimensions from total area
     const totalArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
     const gridW = Math.ceil(Math.sqrt(totalArea));
     const pxPerGrid = SIZE / gridW;
 
-    // Thin gaps (~1-2px) matching Magic Eden standard bitmap images
-    const padding = Math.max(pxPerGrid * 0.03, 0.5);
+    // Razor-thin gaps — just enough to see grid lines (1px or less)
+    const padding = Math.min(pxPerGrid * 0.008, 0.8);
 
-    // Occupancy grid
-    const gridH = gridW + 50;
+    // Occupancy grid — extra rows for overflow
+    const gridH = gridW + 100;
     const occupied: boolean[][] = [];
     for (let r = 0; r < gridH; r++) occupied.push(new Array(gridW).fill(false));
 
-    // Uniform orange with slight brightness variation (standard bitmap color)
-    const baseHue = 28;
-    const baseSat = 90;
+    // Standard bitmap orange — #F7931A (Bitcoin orange)
+    const BITCOIN_ORANGE = '#F7931A';
 
     for (const sq of squares) {
       const size = sq.gridSize;
@@ -5422,9 +5424,9 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
             const w = size * pxPerGrid - padding * 2;
             const h = size * pxPerGrid - padding * 2;
 
-            // Color: uniform orange with slight brightness variation
-            const lightness = sq.isCoinbase ? 65 : 45 + (sq.vbytes % 20);
-            ctx.fillStyle = `hsl(${baseHue}, ${baseSat}%, ${lightness}%)`;
+            // Nearly uniform Bitcoin orange — very subtle variation (±3% lightness only)
+            const lightness = sq.isCoinbase ? 55 : 50 + (sq.vbytes % 6);
+            ctx.fillStyle = `hsl(28, 95%, ${lightness}%)`;
             ctx.fillRect(x, y, Math.max(0.5, w), Math.max(0.5, h));
 
             placed = true;
