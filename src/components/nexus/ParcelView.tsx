@@ -5366,31 +5366,26 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
 
     if (packed.length === 0) return;
 
-    // Render to an offscreen canvas at native grid resolution, then
-    // draw-image-stretch it onto the visible canvas so it fills edge-to-edge.
-    const offW = gridWidth;
-    const offH = gridHeight;
-    const off = document.createElement('canvas');
-    off.width = offW;
-    off.height = offH;
-    const oc = off.getContext('2d');
-    if (!oc) return;
+    // Scale grid to fill the canvas. Use max dimension so it stays square.
+    const gridDim = Math.max(gridWidth, gridHeight);
+    const pxPerGrid = SIZE / gridDim;
 
-    // Black background on offscreen
-    oc.fillStyle = '#000000';
-    oc.fillRect(0, 0, offW, offH);
+    // Thin gap between squares (1px at final resolution = visible grid lines)
+    const gap = Math.max(1, Math.floor(pxPerGrid * 0.04));
 
-    // Draw each packed square (1 grid cell = 1 pixel on offscreen)
+    // Render each packed square directly at high resolution
     for (const sq of packed) {
       const p = parcels[sq.index];
-      const lightness = p?.isCoinbase ? 55 : 50 + (p?.bytes ?? 0) % 6;
-      oc.fillStyle = `hsl(28, 95%, ${lightness}%)`;
-      oc.fillRect(sq.x, sq.y, sq.size, sq.size);
-    }
+      const x = sq.x * pxPerGrid + gap;
+      const y = sq.y * pxPerGrid + gap;
+      const w = sq.size * pxPerGrid - gap * 2;
+      const h = sq.size * pxPerGrid - gap * 2;
 
-    // Stretch offscreen onto visible canvas — fills the entire square
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(off, 0, 0, SIZE, SIZE);
+      // Nearly uniform Bitcoin orange — very subtle variation
+      const lightness = p?.isCoinbase ? 55 : 50 + (p?.bytes ?? 0) % 6;
+      ctx.fillStyle = `hsl(28, 95%, ${lightness}%)`;
+      ctx.fillRect(x, y, Math.max(1, w), Math.max(1, h));
+    }
   }, [parcels, blockHeight]);
 
   return (
