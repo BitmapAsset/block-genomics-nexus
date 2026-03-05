@@ -5362,14 +5362,14 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
     const canvas = canvasRef.current;
     if (!canvas || parcels.length === 0) return;
 
-    const SIZE = 576; // Match Magic Eden's 576×576
+    const SIZE = 800; // High-res rendering for bitmap standard view
     canvas.width = SIZE;
     canvas.height = SIZE;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // White background (matches Magic Eden / Bitmap.Community standard)
-    ctx.fillStyle = '#ffffff';
+    // Black background (matches Bitfeed / bitmap.land standard)
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, SIZE, SIZE);
 
     // Calculate grid sizes (Bitfeed formula)
@@ -5445,8 +5445,8 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
             border: '2px solid rgba(247,147,26,0.4)',
             borderRadius: '8px',
             imageRendering: 'pixelated',
-            width: 'min(70vh, 576px)',
-            height: 'min(70vh, 576px)',
+            width: 'min(75vh, 800px)',
+            height: 'min(75vh, 800px)',
             display: showME ? 'none' : 'block',
           }}
         />
@@ -5460,8 +5460,8 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
             style={{
               border: '2px solid rgba(0,245,212,0.3)',
               imageRendering: 'pixelated',
-              width: 'min(70vh, 576px)',
-              height: 'min(70vh, 576px)',
+              width: 'min(75vh, 800px)',
+              height: 'min(75vh, 800px)',
             }}
           />
         )}
@@ -6494,15 +6494,15 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         </>
       )}
 
-      {/* Standard Bitmap View (2D Bitfeed-style canvas rendering) */}
-      {viewMode === 'standard' && (
-        <div className="flex-1 relative flex items-center justify-center" style={{ background: '#0a0a0f' }}>
+      {/* Pure 2D Bitmap View — Grid View + Standard both use this */}
+      {(viewMode === 'flat' || viewMode === 'standard') && (
+        <div className="flex-1 relative flex items-center justify-center" style={{ background: '#000000' }}>
           <StandardBitmapCanvas blockHeight={blockHeight} parcels={parcels} />
         </div>
       )}
 
-      {/* 3D Canvas */}
-      {viewMode !== 'standard' && <div className="flex-1 relative">
+      {/* 3D Canvas — hidden when in flat/standard 2D views */}
+      {viewMode !== 'standard' && viewMode !== 'flat' && <div className="flex-1 relative">
         <Canvas
           shadows
           camera={{ position: [15, 12, 15], fov: 50, near: 0.01, far: 2000 }}
@@ -6543,12 +6543,12 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               minDistance={0.3}
               maxDistance={500}
               zoomSpeed={1.2}
-              rotateSpeed={viewMode === 'flat' ? 0 : 0.8}
+              rotateSpeed={0.8}
               panSpeed={0.8}
               enablePan
-              enableRotate={viewMode !== 'flat'}
-              maxPolarAngle={viewMode === 'flat' ? 0.01 : Math.PI}
-              minPolarAngle={viewMode === 'flat' ? 0 : 0}
+              enableRotate
+              maxPolarAngle={Math.PI}
+              minPolarAngle={0}
             />
           )}
           <CameraManager viewMode={viewMode} />
@@ -6559,39 +6559,30 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           {/* Performance mode: disable heavy effects for large blocks (>1000 txs) */}
           {(() => { const isHeavy = parcels.length > 1000; return null; })()}
 
-          {/* FLAT VIEW: Pure bitmap standard — just flat parcels on black, NO extras */}
-          {viewMode === 'flat' ? (
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.001, 0]}>
-              <planeGeometry args={[BLOCK_SIZE * 1.1, BLOCK_SIZE * 1.1]} />
-              <meshBasicMaterial color="#000000" />
-            </mesh>
-          ) : (
-            <>
-              <GroundPlane parcels={parcels} viewMode={viewMode} />
-              {parcels.length <= 2000 && <RoadGrid parcels={parcels} />}
-              {parcels.length <= 1500 && <StreetSigns parcels={parcels} viewMode={viewMode} />}
-              <DirectionIndicators parcels={parcels} viewMode={viewMode} />
-              <StreetInfrastructure viewMode={viewMode} />
-              <MiniMap parcels={parcels} viewMode={viewMode} />
-              <GridLines />
-              <GroundGlow />
-              <DimensionLabels />
-              <DefaultLandscape blockHeight={blockHeight} parcels={parcels} worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined} parkParcelIndices={parkParcelIndices} removedParcels={removedParcels} />
-            </>
-          )}
+          {/* 3D world elements (only shown in 3D views, NOT flat) */}
+          <GroundPlane parcels={parcels} viewMode={viewMode} />
+          {parcels.length <= 2000 && <RoadGrid parcels={parcels} />}
+          {parcels.length <= 1500 && <StreetSigns parcels={parcels} viewMode={viewMode} />}
+          <DirectionIndicators parcels={parcels} viewMode={viewMode} />
+          <StreetInfrastructure viewMode={viewMode} />
+          <MiniMap parcels={parcels} viewMode={viewMode} />
+          <GridLines />
+          <GroundGlow />
+          <DimensionLabels />
+          <DefaultLandscape blockHeight={blockHeight} parcels={parcels} worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined} parkParcelIndices={parkParcelIndices} removedParcels={removedParcels} />
 
           {viewMode !== 'dna' ? (
             <>
               <InstancedParcels key={`${blockHeight}-${dataSource}-${parcels.length}`} customizations={parcelCustomizations}
                 parcels={parcels} viewMode={viewMode}
-                hoveredIndex={viewMode === 'flat' ? -1 : (hoveredParcel?.txIndex ?? -1)}
-                selectedIndex={viewMode === 'flat' ? -1 : (selectedParcel?.txIndex ?? -1)}
+                hoveredIndex={hoveredParcel?.txIndex ?? -1}
+                selectedIndex={selectedParcel?.txIndex ?? -1}
                 onHover={setHoveredParcel}
                 onClick={handleParcelClick}
                 onDoubleClick={handleParcelDoubleClick}
-                worldObjects={viewMode === 'flat' ? undefined : (worldData.objects.length > 0 ? worldData.objects : undefined)}
-                parkParcelIndices={viewMode === 'flat' ? undefined : parkParcelIndices}
-                removedParcels={viewMode === 'flat' ? undefined : removedParcels}
+                worldObjects={worldData.objects.length > 0 ? worldData.objects : undefined}
+                parkParcelIndices={parkParcelIndices}
+                removedParcels={removedParcels}
               />
               {parcelCustomizations.size > 0 && (
                 <ParcelTextureOverlay parcels={parcels} customizations={parcelCustomizations} viewMode={viewMode} />
