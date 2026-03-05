@@ -44,7 +44,7 @@ export function txToSquareSize(vbytes: number, scaleFactor = 256): number {
  * 
  * This matches the Bitfeed/bitmap standard layout.
  */
-export function packSquares(items: SquarePackInput[], scaleFactor = 256): PackResult {
+export function packSquares(items: SquarePackInput[], scaleFactor = 256, preserveOrder = false): PackResult {
   if (items.length === 0) return { squares: [], gridWidth: 0, gridHeight: 0 };
 
   // Calculate square sizes
@@ -53,14 +53,15 @@ export function packSquares(items: SquarePackInput[], scaleFactor = 256): PackRe
     size: txToSquareSize(item.vbytes, scaleFactor),
   }));
 
-  // Sort by size descending (largest squares placed first for best packing)
-  const sorted = [...squares].sort((a, b) => b.size - a.size);
+  // Sort by size descending for optimal packing, or preserve natural tx order
+  const sorted = preserveOrder ? squares : [...squares].sort((a, b) => b.size - a.size);
 
   // Calculate grid dimensions
   const totalArea = sorted.reduce((s, sq) => s + sq.size * sq.size, 0);
+  const maxSquareSize = Math.max(...sorted.map(s => s.size));
   const gridWidth = Math.max(
-    sorted[0]?.size || 1,
-    Math.ceil(Math.sqrt(totalArea * 1.05)) // 5% extra for packing inefficiency
+    maxSquareSize,
+    Math.ceil(Math.sqrt(totalArea * (preserveOrder ? 1.15 : 1.05))) // More buffer for natural order
   );
 
   // 2D occupancy grid

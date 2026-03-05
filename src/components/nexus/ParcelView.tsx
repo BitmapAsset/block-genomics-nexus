@@ -5360,9 +5360,11 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, SIZE, SIZE);
 
-    // Use canonical Bitfeed-style packer
+    // Use canonical Bitfeed-style packer with NATURAL tx order (not sorted by size)
+    // The bitmap standard renders transactions in their natural block order,
+    // which mixes large and small squares throughout — matching Bitfeed/bitmap.land
     const items: SquarePackInput[] = parcels.map((p, i) => ({ index: i, vbytes: p.bytes }));
-    const { squares: packed, gridWidth, gridHeight } = packSquares(items, 256);
+    const { squares: packed, gridWidth, gridHeight } = packSquares(items, 256, true);
 
     if (packed.length === 0) return;
 
