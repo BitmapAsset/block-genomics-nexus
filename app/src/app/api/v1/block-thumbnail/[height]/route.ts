@@ -28,7 +28,6 @@ async function fetchBlockTxs(height: number): Promise<TxInput[]> {
 
   const realTxs: TxInput[] = txsData.map((tx: any, i: number) => ({
     vbytes: tx.weight ? Math.ceil(tx.weight / 4) : tx.size || 250,
-    isCoinbase: i === 0,
   }));
 
   const totalTx = block.tx_count;
@@ -45,7 +44,7 @@ async function fetchBlockTxs(height: number): Promise<TxInput[]> {
       seed = (seed * 1103515245 + 12345) & 0x7fffffff;
       const variation = 0.5 + (seed % 1000) / 1000; // 0.5–1.5x
       const w = Math.max(400, Math.round(avgWeight * variation));
-      realTxs.push({ vbytes: Math.ceil(w / 4), isCoinbase: false });
+      realTxs.push({ vbytes: Math.ceil(w / 4) });
     }
   }
 

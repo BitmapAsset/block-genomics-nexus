@@ -10,7 +10,6 @@ const MAX_TXS = 5000;
 
 interface TxInfo {
   vbytes: number;
-  isCoinbase: boolean;
 }
 
 interface BlockData {
@@ -23,7 +22,9 @@ async function fetchBlockData(blockHeight: number): Promise<BlockData> {
   if (inflightRequests.has(blockHeight)) return inflightRequests.get(blockHeight)!;
 
   const promise = (async (): Promise<BlockData> => {
-    const hashRes = await fetch(`https://mempool.space/api/block-height/${blockHeight}`);
+    const hashRes = await fetch(
+      `https://mempool.space/api/block-height/${blockHeight}`
+    );
     if (!hashRes.ok) throw new Error("hash fetch failed");
     const hash = await hashRes.text();
 
@@ -37,13 +38,14 @@ async function fetchBlockData(blockHeight: number): Promise<BlockData> {
     const txs: TxInfo[] = [];
 
     for (let i = 0; i < pages; i++) {
-      const txRes = await fetch(`https://mempool.space/api/block/${hash}/txs/${i * 25}`);
+      const txRes = await fetch(
+        `https://mempool.space/api/block/${hash}/txs/${i * 25}`
+      );
       if (!txRes.ok) break;
       const batch: { weight: number }[] = await txRes.json();
       for (let j = 0; j < batch.length && txs.length < fetchCount; j++) {
         txs.push({
           vbytes: Math.ceil((batch[j].weight || 400) / 4),
-          isCoinbase: txs.length === 0,
         });
       }
     }
@@ -58,82 +60,230 @@ async function fetchBlockData(blockHeight: number): Promise<BlockData> {
   return promise;
 }
 
-// ── Bitfeed-style square packing ──
-
-interface PackedRect {
-  x: number;
-  y: number;
-  size: number;
-  isCoinbase: boolean;
+// ── Bitfeed byteTxSize (exact match) ──
+function byteTxSize(vbytes: number): number {
+  if (!vbytes) vbytes = 1;
+  return Math.max(1, Math.ceil(Math.sqrt(vbytes / 256)));
 }
 
-interface Slot {
+// ── Mondrian Layout (faithful port of bitfeed's TxMondrianPoolScene) ──
+
+interface MSlot {
   x: number;
   y: number;
-  size: number;
+  r: number; // max square size that fits
 }
 
-function packSquares(txs: TxInfo[]): { rects: PackedRect[]; gridSize: number } {
-  if (txs.length === 0) return { rects: [], gridSize: 1 };
+interface MRow {
+  y: number;
+  slots: MSlot[];
+  map: Record<number, MSlot>;
+}
 
-  // Compute square side per tx
-  const squares = txs.map((tx) => ({
-    side: Math.max(1, Math.ceil(Math.sqrt(tx.vbytes / 256))),
-    isCoinbase: tx.isCoinbase,
-  }));
+class MondrianLayout {
+  width: number;
+  rowOffset: number;
+  rows: MRow[];
 
-  // Sort by size descending for packing
-  const indices = squares.map((_, i) => i);
-  indices.sort((a, b) => squares[b].side - squares[a].side);
+  constructor(width: number) {
+    this.width = width;
+    this.rowOffset = 0;
+    this.rows = [];
+  }
 
-  const totalArea = squares.reduce((s, sq) => s + sq.side * sq.side, 0);
-  const gridSize = Math.max(1, Math.ceil(Math.sqrt(totalArea)));
+  addRow(): MRow {
+    const newRow: MRow = {
+      y: this.rows.length + this.rowOffset,
+      slots: [],
+      map: {},
+    };
+    this.rows.push(newRow);
+    return newRow;
+  }
 
-  // Greedy slot-based packing
-  const slots: Slot[] = [{ x: 0, y: 0, size: gridSize }];
-  const rects: PackedRect[] = [];
+  getRow(y: number): MRow | undefined {
+    return this.rows[y - this.rowOffset];
+  }
 
-  for (const idx of indices) {
-    const side = squares[idx].side;
-    
-    // Find first slot that fits
-    let bestSlotIdx = -1;
-    for (let si = 0; si < slots.length; si++) {
-      if (slots[si].size >= side) {
-        bestSlotIdx = si;
-        break;
+  getSlot(x: number, y: number): MSlot | undefined {
+    const row = this.getRow(y);
+    return row ? row.map[x] : undefined;
+  }
+
+  addSlot(slot: MSlot): MSlot | undefined {
+    if (slot.r <= 0) return undefined;
+
+    const existing = this.getSlot(slot.x, slot.y);
+    if (existing) {
+      if (slot.r > existing.r) existing.r = slot.r;
+      return existing;
+    }
+
+    const row = this.getRow(slot.y);
+    if (!row) return undefined;
+
+    let insertAt: number | null = null;
+    for (let i = 0; i < row.slots.length && insertAt == null; i++) {
+      if (row.slots[i].x > slot.x) insertAt = i;
+    }
+    if (insertAt == null) row.slots.push(slot);
+    else row.slots.splice(insertAt, 0, slot);
+    row.map[slot.x] = slot;
+    return slot;
+  }
+
+  removeSlot(slot: MSlot): void {
+    const row = this.getRow(slot.y);
+    if (row) {
+      delete row.map[slot.x];
+      const idx = row.slots.indexOf(slot);
+      if (idx >= 0) row.slots.splice(idx, 1);
+    }
+  }
+
+  fillSlot(
+    slot: MSlot,
+    squareWidth: number
+  ): { x: number; y: number; r: number } {
+    const square = {
+      left: slot.x,
+      right: slot.x + squareWidth,
+      bottom: slot.y,
+      top: slot.y + squareWidth,
+    };
+
+    this.removeSlot(slot);
+
+    // Handle rows within the filled square
+    for (let rowIndex = slot.y; rowIndex < square.top; rowIndex++) {
+      const row = this.getRow(rowIndex);
+      if (row) {
+        const collisions: MSlot[] = [];
+        let maxExcess = 0;
+        for (let i = 0; i < row.slots.length; i++) {
+          const testSlot = row.slots[i];
+          if (
+            !(
+              testSlot.x + testSlot.r < square.left ||
+              testSlot.x >= square.right
+            )
+          ) {
+            collisions.push(testSlot);
+            const excess = Math.max(
+              0,
+              testSlot.x + testSlot.r - (slot.x + slot.r)
+            );
+            maxExcess = Math.max(maxExcess, excess);
+          }
+        }
+        if (square.right < this.width && !row.map[square.right]) {
+          this.addSlot({
+            x: square.right,
+            y: rowIndex,
+            r: slot.r - squareWidth + maxExcess,
+          });
+        }
+        for (const c of collisions) {
+          c.r = slot.x - c.x;
+          if (c.r <= 0) this.removeSlot(c);
+        }
+      } else {
+        this.addRow();
+        if (slot.x > 0)
+          this.addSlot({ x: 0, y: rowIndex, r: slot.x });
+        if (square.right < this.width)
+          this.addSlot({
+            x: square.right,
+            y: rowIndex,
+            r: this.width - square.right,
+          });
       }
     }
 
-    if (bestSlotIdx === -1) {
-      // Doesn't fit — skip (shouldn't happen with correct grid sizing)
-      continue;
+    // Handle rows below the filled square (collision cleanup)
+    for (
+      let rowIndex = Math.max(0, slot.y - squareWidth);
+      rowIndex < slot.y;
+      rowIndex++
+    ) {
+      const row = this.getRow(rowIndex);
+      if (row) {
+        for (let i = 0; i < row.slots.length; i++) {
+          const testSlot = row.slots[i];
+          if (
+            testSlot.x < slot.x + squareWidth &&
+            testSlot.x + testSlot.r > slot.x &&
+            testSlot.y + testSlot.r >= slot.y
+          ) {
+            const oldSlotWidth = testSlot.r;
+            testSlot.r = slot.y - testSlot.y;
+            if (testSlot.r <= 0) this.removeSlot(testSlot);
+
+            const remaining = {
+              x: testSlot.x + testSlot.r,
+              y: testSlot.y,
+              w: oldSlotWidth - testSlot.r,
+              h: testSlot.r,
+            };
+            while (remaining.w > 0 && remaining.h > 0) {
+              if (remaining.w <= remaining.h) {
+                this.addSlot({
+                  x: remaining.x,
+                  y: remaining.y,
+                  r: remaining.w,
+                });
+                remaining.y += remaining.w;
+                remaining.h -= remaining.w;
+              } else {
+                this.addSlot({
+                  x: remaining.x,
+                  y: remaining.y,
+                  r: remaining.h,
+                });
+                remaining.x += remaining.h;
+                remaining.w -= remaining.h;
+              }
+            }
+          }
+        }
+      }
     }
 
-    const slot = slots[bestSlotIdx];
-    slots.splice(bestSlotIdx, 1);
-
-    rects.push({
-      x: slot.x,
-      y: slot.y,
-      size: side,
-      isCoinbase: squares[idx].isCoinbase,
-    });
-
-    const remainder = slot.size - side;
-    if (remainder > 0) {
-      // Right strip
-      slots.push({ x: slot.x + side, y: slot.y, size: remainder });
-      // Bottom strip (full width of original slot)
-      slots.push({ x: slot.x, y: slot.y + side, size: remainder });
-    }
-
-    // Sort slots: prefer top-left, then smaller slots first for tighter packing
-    slots.sort((a, b) => a.y - b.y || a.x - b.x || a.size - b.size);
+    return { x: slot.x, y: slot.y, r: squareWidth };
   }
 
-  return { rects, gridSize };
+  place(size: number): { x: number; y: number; r: number } {
+    let found = false;
+    let rowIndex = 0;
+    let slotIndex = 0;
+    let square: { x: number; y: number; r: number } | null = null;
+
+    while (!found && rowIndex < this.rows.length) {
+      const row = this.rows[rowIndex];
+      while (!found && slotIndex < row.slots.length) {
+        const testSlot = row.slots[slotIndex];
+        if (testSlot.r >= size) {
+          found = true;
+          square = this.fillSlot(testSlot, size);
+        }
+        slotIndex++;
+      }
+      slotIndex = 0;
+      rowIndex++;
+    }
+    if (!found) {
+      const row = this.addRow();
+      const slot = this.addSlot({ x: 0, y: row.y, r: this.width })!;
+      square = this.fillSlot(slot, size);
+    }
+
+    return square!;
+  }
 }
+
+// ── Bitfeed-accurate orange via HCL ──
+// Bitfeed: orange = { h: 0.181, l: 0.472 } → HCL(65.16°, 78.225, 70.8) → rgb(253,147,30)
+const BITFEED_ORANGE = "#fd931e";
 
 function drawThumbnail(
   canvas: HTMLCanvasElement,
@@ -141,7 +291,8 @@ function drawThumbnail(
   data: BlockData,
   variant: "dark" | "light"
 ) {
-  const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  const dpr =
+    typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
   const px = size * dpr;
   canvas.width = px;
   canvas.height = px;
@@ -151,26 +302,33 @@ function drawThumbnail(
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  // Background
-  ctx.fillStyle = variant === "light" ? "#ffffff" : "#000000";
+  // Background — bitfeed uses #1d1f31 (dark navy), fallback to white for light variant
+  ctx.fillStyle = variant === "light" ? "#ffffff" : "#1d1f31";
   ctx.fillRect(0, 0, px, px);
 
   if (data.txs.length === 0) return;
 
-  const { rects, gridSize } = packSquares(data.txs);
-  const cellSize = px / gridSize;
-  // Gap = ~1px at device level, scaled
-  const gap = Math.max(0.5, cellSize * 0.06);
+  // Compute grid sizes for each tx (natural order — no sorting!)
+  const txSizes = data.txs.map((tx) => byteTxSize(tx.vbytes));
 
-  for (const r of rects) {
-    const x = r.x * cellSize;
-    const y = r.y * cellSize;
-    const w = r.size * cellSize - gap;
-    const h = r.size * cellSize - gap;
-    if (w <= 0 || h <= 0) continue;
+  const totalArea = txSizes.reduce((s, sz) => s + sz * sz, 0);
+  const gridW = Math.ceil(Math.sqrt(totalArea));
+  const pxPerGrid = px / gridW;
+  // Bitfeed padding: gridSize / 4 per side (25% each side)
+  const unitPadding = pxPerGrid / 4;
 
-    ctx.fillStyle = r.isCoinbase ? "#f7931a" : "#ff9500";
-    ctx.fillRect(x, y, w, h);
+  const layout = new MondrianLayout(gridW);
+
+  for (let i = 0; i < txSizes.length; i++) {
+    const pos = layout.place(txSizes[i]);
+    const x = pos.x * pxPerGrid + unitPadding;
+    const y = pos.y * pxPerGrid + unitPadding;
+    const w = pos.r * pxPerGrid - unitPadding * 2;
+    const h = pos.r * pxPerGrid - unitPadding * 2;
+    if (w > 0 && h > 0) {
+      ctx.fillStyle = BITFEED_ORANGE;
+      ctx.fillRect(x, y, w, h);
+    }
   }
 }
 
@@ -187,7 +345,9 @@ export default function BitmapThumbnail({
   variant?: "dark" | "light";
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [state, setState] = useState<"loading" | "ready" | "error">(
+    "loading"
+  );
   const [data, setData] = useState<BlockData | null>(null);
 
   useEffect(() => {
@@ -240,7 +400,7 @@ export default function BitmapThumbnail({
           width: size,
           height: size,
           borderRadius: 4,
-          background: "#ff9500",
+          background: BITFEED_ORANGE,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
