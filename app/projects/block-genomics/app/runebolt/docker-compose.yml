@@ -1,0 +1,115 @@
+version: "3.8"
+
+services:
+  bitcoind:
+    image: lncm/bitcoind:v27.0
+    container_name: runebolt-bitcoind
+    restart: unless-stopped
+    volumes:
+      - bitcoin-data:/data/.bitcoin
+    ports:
+      - "8332:8332"
+      - "8333:8333"
+    environment:
+      BITCOIN_DATA: /data/.bitcoin
+    command:
+      - -server=1
+      - -txindex=1
+      - -rpcallowip=0.0.0.0/0
+      - -rpcbind=0.0.0.0
+      - -rpcuser=${BITCOIN_RPC_USER:-bitcoin}
+      - -rpcpassword=${BITCOIN_RPC_PASS:-bitcoin}
+      - -zmqpubrawblock=tcp://0.0.0.0:28332
+      - -zmqpubrawtx=tcp://0.0.0.0:28333
+    healthcheck:
+      test: ["CMD", "bitcoin-cli", "-rpcuser=${BITCOIN_RPC_USER:-bitcoin}", "-rpcpassword=${BITCOIN_RPC_PASS:-bitcoin}", "getblockchaininfo"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - runebolt
+
+  lnd:
+    image: lightninglabs/lnd:v0.18.0-beta
+    container_name: runebolt-lnd
+    restart: unless-stopped
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+    volumes:
+      - lnd-data:/root/.lnd
+    ports:
+      - "9735:9735"
+      - "10009:10009"
+      - "8080:8080"
+    command:
+      - --bitcoin.active
+      - --bitcoin.mainnet
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoind:8332
+      - --bitcoind.rpcuser=${BITCOIN_RPC_USER:-bitcoin}
+      - --bitcoind.rpcpass=${BITCOIN_RPC_PASS:-bitcoin}
+      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --tlsextradomain=lnd
+      - --tlsextraip=0.0.0.0
+      - --noseedbackup
+      - --accept-keysend
+      - --protocol.wumbo-channels
+    healthcheck:
+      test: ["CMD", "lncli", "getinfo"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - runebolt
+
+  runebolt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: runebolt-api
+    restart: unless-stopped
+    depends_on:
+      lnd:
+        condition: service_healthy
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
+    volumes:
+      - lnd-data:/root/.lnd:ro
+    environment:
+      - BITCOIN_NETWORK=${BITCOIN_NETWORK:-mainnet}
+      - BITCOIN_RPC_URL=http://bitcoind:8332
+      - BITCOIN_RPC_USER=${BITCOIN_RPC_USER:-bitcoin}
+      - BITCOIN_RPC_PASS=${BITCOIN_RPC_PASS:-bitcoin}
+      - LND_HOST=lnd
+      - LND_PORT=10009
+      - LND_TLS_CERT=/root/.lnd/tls.cert
+      - LND_MACAROON=/root/.lnd/data/chain/bitcoin/${BITCOIN_NETWORK:-mainnet}/admin.macaroon
+      - ORD_API_URL=${ORD_API_URL:-http://localhost:80}
+      - UNISAT_API_URL=${UNISAT_API_URL:-https://open-api.unisat.io}
+      - UNISAT_API_KEY=${UNISAT_API_KEY:-}
+      - HTLC_TIMEOUT_BLOCKS=${HTLC_TIMEOUT_BLOCKS:-144}
+      - FEE_RATE_BPS=${FEE_RATE_BPS:-50}
+      - MIN_SWAP_AMOUNT=${MIN_SWAP_AMOUNT:-1000}
+      - MAX_SWAP_AMOUNT=${MAX_SWAP_AMOUNT:-100000000}
+      - BRIDGE_ADDRESS=${BRIDGE_ADDRESS:-}
+      - BRIDGE_PRIVKEY_PATH=${BRIDGE_PRIVKEY_PATH:-}
+      - SERVER_PORT=3000
+      - SERVER_HOST=0.0.0.0
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - NODE_ENV=production
+    networks:
+      - runebolt
+
+volumes:
+  bitcoin-data:
+  lnd-data:
+
+networks:
+  runebolt:
+    driver: bridge
