@@ -1,0 +1,65 @@
+version: "3.8"
+
+# Development overrides — uses regtest for local development
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+services:
+  bitcoind:
+    command:
+      - -regtest=1
+      - -server=1
+      - -txindex=1
+      - -rpcallowip=0.0.0.0/0
+      - -rpcbind=0.0.0.0
+      - -rpcuser=bitcoin
+      - -rpcpassword=bitcoin
+      - -rpcport=18443
+      - -zmqpubrawblock=tcp://0.0.0.0:28332
+      - -zmqpubrawtx=tcp://0.0.0.0:28333
+      - -fallbackfee=0.0002
+      - -mintxfee=0.00001
+    ports:
+      - "18443:18443"
+      - "28332:28332"
+      - "28333:28333"
+    healthcheck:
+      test: ["CMD", "bitcoin-cli", "-regtest", "-rpcuser=bitcoin", "-rpcpassword=bitcoin", "-rpcport=18443", "getblockchaininfo"]
+
+  lnd:
+    command:
+      - --bitcoin.active
+      - --bitcoin.regtest
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoind:18443
+      - --bitcoind.rpcuser=bitcoin
+      - --bitcoind.rpcpass=bitcoin
+      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --tlsextradomain=lnd
+      - --tlsextraip=0.0.0.0
+      - --noseedbackup
+      - --accept-keysend
+      - --debuglevel=info
+
+  runebolt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ./src:/app/src:ro
+      - lnd-data:/root/.lnd:ro
+    environment:
+      - BITCOIN_NETWORK=regtest
+      - BITCOIN_RPC_URL=http://bitcoind:18443
+      - BITCOIN_RPC_USER=bitcoin
+      - BITCOIN_RPC_PASS=bitcoin
+      - LND_HOST=lnd
+      - LND_PORT=10009
+      - LND_TLS_CERT=/root/.lnd/tls.cert
+      - LND_MACAROON=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon
+      - LOG_LEVEL=debug
+      - NODE_ENV=development
+    command: ["npm", "run", "dev"]
