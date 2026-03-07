@@ -1,0 +1,6 @@
+# Large binary files
+projects/command-center/electron-app/node_modules/
+projects/command-center/electron-app/dist/
+node_modules/
+*.framework
+
