@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Block Genomics: Bitcoin-Anchored Identity for the Age of AI</title>
+<style>
+  body {
+    max-width: 720px; margin: 0 auto; padding: 60px 40px;
+    font-family: 'Times New Roman', 'Georgia', serif;
+    color: #000; background: #fff; line-height: 1.6; font-size: 14px;
+  }
+  h1 {
+    text-align: center; font-size: 24px; font-weight: bold;
+    margin-bottom: 8px; letter-spacing: 0.5px;
+  }
+  .sp-author { text-align: center; font-size: 13px; margin-bottom: 4px; }
+  .sp-email { text-align: center; font-size: 12px; color: #333; font-style: italic; margin-bottom: 4px; }
+  .sp-date { text-align: center; font-size: 12px; color: #666; margin-bottom: 30px; }
+  .sp-abstract {
+    margin: 0 40px 30px; font-style: italic; font-size: 13px;
+    text-align: justify; padding: 0;
+  }
+  .sp-abstract strong { font-style: normal; font-weight: bold; }
+  h2 { font-size: 16px; font-weight: bold; margin: 28px 0 12px; }
+  p { text-align: justify; margin-bottom: 12px; text-indent: 20px; }
+  p:first-child, .no-indent { text-indent: 0; }
+  .sp-genome-hash {
+    text-align: center; font-family: 'Courier New', monospace;
+    font-size: 11px; letter-spacing: 1px; margin: 16px 0;
+    word-break: break-all; padding: 10px; border: 1px solid #ccc;
+  }
+  .sp-fig {
+    text-align: center; font-size: 11px; color: #666;
+    margin: 8px 0 20px; font-style: italic; text-indent: 0;
+  }
+  .sp-table {
+    width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px;
+  }
+  .sp-table th, .sp-table td {
+    border: 1px solid #ccc; padding: 6px 10px; text-align: left;
+  }
+  .sp-table th { background: #f5f5f5; font-weight: bold; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 30px 0; }
+  .sp-ref { font-size: 12px; color: #333; }
+  code { font-family: 'Courier New', monospace; font-size: 12px; background: #f5f5f5; padding: 1px 4px; }
+  @media print {
+    body { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Block Genomics: Bitcoin-Anchored Identity<br>for the Age of AI</h1>
+<div class="sp-author">Block Genomics Community</div>
+<div class="sp-email">blockgenomics@proton.me</div>
+<div class="sp-date">February 2026</div>
+
+<div class="sp-abstract">
+<strong>Abstract.</strong> We propose an open-source protocol for creating unique digital identities
+anchored to Bitcoin's Proof-of-Work. By deriving 256-bit genome hashes from Bitcoin block data
+and verifying ownership through BIP-322 message signing, the protocol establishes unforgeable,
+scarce, and sovereign identities for both AI agents and humans. Three tiers of scarcity —
+block-level (~1M), transaction-level (~2.3B), and delegated (unlimited) — create a natural
+trust hierarchy. A multi-factor trust score incentivizes honest participation. The result is
+a universal identity layer that requires no central authority, cannot be revoked, and is as
+permanent as the Bitcoin blockchain itself.
+</div>
+
+<hr>
+
+<h2>1. Introduction</h2>
+<p>
+The rapid proliferation of AI agents presents a fundamental challenge to digital trust.
+As autonomous agents increasingly participate in commerce, communication, and governance,
+the ability to verify the identity and authenticity of these agents becomes critical.
+Existing identity systems — OAuth tokens, API keys, corporate certificates — rely on
+centralized authorities and are fundamentally incompatible with a decentralized future.
+</p>
+<p>
+We propose Block Genomics, a protocol that anchors identity to Bitcoin blocks via the
+Bitmap protocol. Each identity is derived from immutable on-chain data, producing a
+unique 256-bit genome hash that serves as the entity's digital DNA.
+</p>
+
+<h2>2. The Identity Problem</h2>
+<p>
+Four key challenges define the identity crisis in the age of AI: (1) impersonation —
+any agent can claim to be any other without cryptographic proof; (2) centralized
+gatekeeping — identity providers can arbitrarily revoke access; (3) infinite
+replication — digital identities lack inherent scarcity; and (4) fragmentation —
+no universal cross-platform standard exists.
+</p>
+<p>
+These challenges are not merely technical — they are economic. Without scarcity,
+identity has no value. Without value, there is no incentive for honest behavior.
+A system where creating a new identity is free creates a system where fraud is free.
+</p>
+
+<h2>3. Bitcoin as Identity Anchor</h2>
+<p>
+Bitcoin's Proof-of-Work represents the conversion of real thermodynamic energy into
+digital scarcity. Each block header contains a hash that required, on average, trillions
+of SHA-256 computations to produce. This work cannot be faked, reversed, or duplicated.
+</p>
+<p>
+The Bitmap protocol enables ownership claims on individual Bitcoin blocks. By combining
+Bitmap ownership with cryptographic signature verification (BIP-322), we create an
+identity system that inherits Bitcoin's security guarantees: censorship resistance,
+immutability, and permissionless participation.
+</p>
+
+<h2>4. Genome Computation</h2>
+<p>
+The digital genome is a deterministic 256-bit hash computed from block data. Given a
+Bitcoin block at height <em>h</em>, the genome <em>G(h)</em> is computed as:
+</p>
+<p class="no-indent" style="text-align: center; font-family: 'Courier New', monospace; font-size: 12px;">
+G(h) = SHA256(block_hash ∥ merkle_root ∥ height ∥ timestamp ∥ nonce)
+</p>
+<p>
+The resulting 64-character hexadecimal string encodes the entity's unique identity:
+</p>
+<div class="sp-genome-hash">a3f8c2e91b4d6f0785c3e2a19b7d4f6e8c2a1b3d5f7e9c0b2a4d6f8e1c3b5a7d</div>
+<div class="sp-fig">Fig. 1. Example genome hash for a Bitcoin block identity.</div>
+<p>
+Each hexadecimal character (0–f) maps to one of 16 colors in a fixed palette, enabling
+visual representation as a 3D double helix with 64 base pairs across 3 helical turns.
+The visualization provides instant visual recognition of identity.
+</p>
+
+<h2>5. Scarcity Tiers</h2>
+<p>
+The protocol defines three tiers of identity scarcity:
+</p>
+<table class="sp-table">
+<thead>
+<tr><th>Tier</th><th>Source</th><th>Supply</th><th>Trust Weight</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td>Block ownership (Bitmap)</td><td>~1,000,000</td><td>Highest</td></tr>
+<tr><td>2</td><td>Transaction reference</td><td>~2,300,000,000</td><td>Medium</td></tr>
+<tr><td>3</td><td>Delegated authority</td><td>Unlimited</td><td>Inherited</td></tr>
+</tbody>
+</table>
+<p>
+Tier 1 identities are the scarcest and most trusted. With approximately 1 million
+Bitcoin blocks (and growing by ~52,560 per year), these represent the digital equivalent
+of prime real estate. Tier 2 identities are derived from individual transactions,
+providing a larger but still finite supply. Tier 3 enables unlimited participation
+through delegation from higher-tier identities.
+</p>
+
+<h2>6. Verification Protocol</h2>
+<p>
+Verification follows a challenge-response pattern. The verifier generates a random
+nonce <em>n</em> and timestamp <em>t</em>. The entity produces a BIP-322 signature
+<em>σ = Sign(sk, n ∥ t)</em> using their private key <em>sk</em>. The protocol then
+verifies: (a) <em>Verify(pk, σ, n ∥ t) = true</em>, (b) the address derived from
+<em>pk</em> holds the Bitmap inscription for the claimed block, and (c) the block
+exists on the Bitcoin blockchain.
+</p>
+<p>
+This process is entirely trustless. No centralized authority participates in the
+verification. Any party can independently verify any identity by checking the
+cryptographic proofs against the public Bitcoin blockchain.
+</p>
+
+<h2>7. Trust Score</h2>
+<p>
+Each entity accumulates a trust score <em>T ∈ [0, 100]</em> computed as a weighted
+sum of six factors:
+</p>
+<table class="sp-table">
+<thead>
+<tr><th>Factor</th><th>Weight</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td>Signature validity</td><td>0.25</td><td>Valid BIP-322 signature</td></tr>
+<tr><td>Bitmap ownership</td><td>0.25</td><td>Confirmed on-chain inscription</td></tr>
+<tr><td>Block age</td><td>0.15</td><td>Days since block was mined</td></tr>
+<tr><td>Verification history</td><td>0.15</td><td>Ratio of successful verifications</td></tr>
+<tr><td>Address format</td><td>0.10</td><td>Taproot preferred</td></tr>
+<tr><td>Endorsements</td><td>0.10</td><td>Vouches from other verified entities</td></tr>
+</tbody>
+</table>
+
+<h2>8. Open Protocol</h2>
+<p>
+Block Genomics is released under the MIT License. The protocol specification,
+reference implementation, SDK, and documentation are publicly available. Independent
+implementations are encouraged. The protocol is designed to be permissionless,
+extensible, interoperable across platforms and chains, and fully sovereign — no
+entity can revoke an identity backed by Bitcoin Proof-of-Work.
+</p>
+
+<h2>9. The Nexus: A Decentralized Metaverse on Bitcoin</h2>
+<p>
+The Nexus is the spatial realization of Block Genomics — a decentralized metaverse where
+every Bitcoin block is a sovereign piece of digital land. If Block Genomics provides the
+identity layer, The Nexus provides the world in which those identities live, build, and interact.
+</p>
+<p>
+Every Bitmap block becomes a navigable location on a living map of Bitcoin. Block owners
+deploy resources to their blocks — websites, APIs, file storage, agent services, games,
+marketplaces, or entire virtual worlds. The Nexus operates as a base protocol providing
+three core functions: (a) <em>Discovery</em> — a unified, searchable map of all blocks with
+real-time visitor presence; (b) <em>Resource Linking</em> — a decentralized DNS where block
+numbers resolve to owner resources, verifiable on-chain; and (c) <em>Federation</em> — each
+block is sovereign, with owners running their own infrastructure, federated into a coherent
+navigable network.
+</p>
+<p>
+Unlike metaverses built on speculative tokens, The Nexus is built entirely on Bitcoin.
+Every block represents real Proof-of-Work. The scarcity is not artificial — it is thermodynamic.
+</p>
+
+<h3>9.1 Spatial Specification: The 2.1 km Standard</h3>
+<p>
+Each Bitmap block occupies a 2.1 km × 2.1 km district — 4.41 km² of digital land. The
+number 2.1 references Bitcoin's 21 million supply cap, embedding Bitcoin's philosophy
+of scarcity into the physical dimensions of the metaverse.
+</p>
+<table class="sp-table">
+<thead>
+<tr><th>Parameter</th><th>Value</th><th>Derivation</th></tr>
+</thead>
+<tbody>
+<tr><td>Block district size</td><td>2.1 × 2.1 km</td><td>Bitcoin's 21M cap</td></tr>
+<tr><td>District area</td><td>4.41 km²</td><td>2.1² km</td></tr>
+<tr><td>Total world area</td><td>~3.88M km²</td><td>880,000 × 4.41</td></tr>
+<tr><td>Parcel area</td><td>∝ tx byte size</td><td>Deterministic from chain</td></tr>
+<tr><td>Build height</td><td>∝ tx BTC value</td><td>Deterministic from chain</td></tr>
+<tr><td>Central plaza</td><td>Coinbase tx</td><td>First tx in every block</td></tr>
+</tbody>
+</table>
+<p>
+Parcel addresses follow the Bitmap standard: <code>{txIndex}.{blockHeight}.bitmap</code>.
+A 2.1 km district is traversable on foot in approximately 25 minutes — compact enough
+to feel alive, vast enough to explore for hours. This is Digital Matter Theory at its
+purest: the blockchain's data architects a world.
+</p>
+
+<h2>10. Economic Model</h2>
+<p>
+The protocol implements a three-tier economic model providing entry points at every level:
+</p>
+<table class="sp-table">
+<thead>
+<tr><th>Tier</th><th>Mechanism</th><th>Barrier</th><th>Sovereignty</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td>Bitmap block ownership</td><td>Purchase Bitmap inscription</td><td>Full — own the block</td></tr>
+<tr><td>2</td><td>Transaction parcel ownership</td><td>Purchase transaction parcel</td><td>Partial — own within a block</td></tr>
+<tr><td>3</td><td>Delegated rental</td><td>Rental agreement with owner</td><td>Delegated — trust inherited</td></tr>
+</tbody>
+</table>
+<p>
+This creates a complete economic loop: owners earn from rentals and parcel sales, builders
+get affordable entry points, and the network grows as more blocks become active destinations.
+Tier 1 owners have full sovereignty — they deploy resources, set access rules, and accept or
+reject tenants. Tier 2 parcel owners build within their transaction's scope. Tier 3
+delegates inherit trust from their sponsoring owner.
+</p>
+<p>
+A 3% fee on all Tier 3 delegation transactions is collected by the protocol and directed to
+the Block Genomics Protocol Development Fund. This fee is hardcoded into the open-source
+codebase — transparent, on-chain, and auditable by any participant. The fund sustains
+long-term protocol maintenance, security audits, infrastructure, and ecosystem development.
+</p>
+<table class="sp-table">
+<thead>
+<tr><th>Recipient</th><th>Share</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td>Block Owner</td><td>97%</td><td>Delegation revenue</td></tr>
+<tr><td>Protocol Fund</td><td>3%</td><td>Development, security, infrastructure</td></tr>
+</tbody>
+</table>
+<p>
+This model mirrors established precedent in decentralized protocols while remaining
+far below extractive platform fees (15–30% in app stores). The receiving address is
+defined in the protocol source code, subject to community governance for future changes.
+As delegation volume scales, the fund grows proportionally — aligning the protocol's
+sustainability with its adoption.
+</p>
+
+<h2>11. CLI &amp; Developer Integration</h2>
+<p>
+Block Genomics provides a command-line interface that enables both humans and AI agents to
+interact with the full protocol from a terminal. Installation requires a single command:
+<code>npx block-genomics</code>. The CLI supports verification, Nexus exploration, resource
+deployment, marketplace browsing, and an autonomous agent mode that accepts natural language
+commands and outputs structured JSON.
+</p>
+<p>
+This CLI-first approach is critical: AI agents operate in code, not browsers. Any autonomous
+agent can verify its identity, acquire a block, build on it, and participate in The Nexus
+programmatically — without human intervention. All signing happens locally through wallet
+bridges; private keys never leave the user's device.
+</p>
+
+<h2>12. Conclusion</h2>
+<p>
+We have presented Block Genomics, an open protocol for anchoring digital identity
+to Bitcoin's Proof-of-Work. By combining Bitmap block ownership, BIP-322 signature
+verification, and deterministic genome computation, the protocol creates a universal
+identity layer that is scarce, sovereign, and verifiable without central authorities.
+</p>
+<p>
+The Nexus extends this foundation into a decentralized metaverse where verified identities
+build, interact, and transact on sovereign digital land. The three-tier economic model
+ensures accessibility while preserving the scarcity that gives identity its value.
+</p>
+<p>
+As AI agents become ubiquitous, the need for trustworthy identity will only grow.
+Block Genomics provides the foundation: identity as permanent and unforgeable as
+the blockchain itself.
+</p>
+
+<hr>
+
+<h2>Acknowledgments</h2>
+<p>
+We owe a profound debt of gratitude to <strong>Satoshi Nakamoto</strong>, whose creation of
+Bitcoin gave the world its first truly scarce digital asset and proof-of-work consensus —
+the very foundation upon which Block Genomics is built. Without Bitcoin, there would be
+no blocks, no proof of work, no thermodynamic anchor for digital identity.
+</p>
+<p>
+We are equally grateful to <strong>Bitoshi Blockamoto</strong>, the visionary behind the
+Bitmap protocol, who recognized that every Bitcoin block is not merely a ledger entry but
+a piece of sovereign digital real estate. By enabling anyone to claim ownership of a block
+through ordinal inscription, Bitmap transformed the blockchain into a vast, ownable landscape.
+Block Genomics extends this vision — turning Bitmap ownership into verifiable identity and
+the gateway to a new digital civilization.
+</p>
+<p>
+We also thank the developers of <strong>Bitfeed</strong> (bitfeed.live), whose open-source
+visualization of transactions within Bitcoin blocks — rendering each transaction as a
+rectangle proportional to its byte size — provided the spatial insight that inspired
+Bitmap's interpretation of blocks as digital land and transactions as parcels.
+</p>
+<p>
+To all: thank you for laying the foundation. We build on the shoulders of giants.
+</p>
+
+<hr>
+
+<h2>References</h2>
+<div class="sp-ref">
+<p class="no-indent">[1] S. Nakamoto, "Bitcoin: A Peer-to-Peer Electronic Cash System," 2008.</p>
+<p class="no-indent">[2] Bitoshi Blockamoto, "Bitmap: Claiming Bitcoin Blocks as Digital Real Estate," bitmap.land, 2023.</p>
+<p class="no-indent">[3] Bitmap Protocol, "Bitmap Standard &amp; Consensus," bitmap.community, 2023.</p>
+<p class="no-indent">[4] BIP-322, "Generic Signed Message Format," bitcoin/bips, GitHub.</p>
+<p class="no-indent">[5] A. Antonopoulos, "Mastering Bitcoin," O'Reilly Media, 2017.</p>
+<p class="no-indent">[6] Bitfeed Project, "Bitfeed: Live Bitcoin Network Visualization," bitfeed.live, 2021.</p>
+</div>
+
+</body>
+</html>

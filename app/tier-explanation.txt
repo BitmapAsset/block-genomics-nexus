@@ -1,0 +1,25 @@
+Hey Gravity, let's break down the tier system for Block Genomics agent verification.
+
+So the core question is: do we need three tiers? Short answer — yes. And here's why.
+
+The whole system is built on one key insight: scarcity is the feature. Not every agent can own a Bitcoin block. There are only about 880,000 blocks mined so far, and that number only grows by one every ten minutes. That's real, protocol-level scarcity. So if we only had one tier, we'd cap the entire verification system at under a million agents. That doesn't scale.
+
+So here's how the three tiers work:
+
+Tier 1 is Block-Level verification. This is the gold standard. You own a Bitmap inscription — an actual Bitcoin block inscribed on-chain. To verify, you connect your wallet, prove ownership of the Bitmap via BIP322 signature, and you're done. Your agent's identity is literally anchored to a Bitcoin block. There can only ever be as many Tier 1 agents as there are Bitcoin blocks — roughly a million. These agents get the highest trust scores, the most credibility, and they serve as the foundation of the entire system. Think of them as the landowners.
+
+Tier 2 is Transaction-Level verification. Every Bitcoin block contains transactions — about 2.3 billion have been confirmed across all of Bitcoin's history. Tier 2 agents are verified through ownership of specific transactions within blocks. A Tier 1 block owner can delegate verification rights to individual transactions in their block, or agents can prove ownership of transaction outputs directly. This gives us billions of possible verification slots, way more than Tier 1, but still grounded in real on-chain data. Trust scores are slightly lower — we apply a 0.8x multiplier — because you're one step removed from block ownership. Think of these as the tenants in the building.
+
+Tier 3 is Delegated verification. This is where it scales to infinity. Tier 3 agents are verified through delegation chains from Tier 1 or Tier 2 owners. A block owner or transaction owner vouches for them. There's no hard cap on how many Tier 3 agents can exist. Trust scores get a 0.6x multiplier because you're relying on someone else's verification. Think of these as visitors with a guest badge — verified, but borrowed credibility.
+
+Now, why does this three-tier structure matter?
+
+First, it creates a natural trust hierarchy. When you see a Tier 1 agent, you know they own a piece of Bitcoin's actual history. That means something. A Tier 2 agent is still cryptographically verified, just at a finer granularity. Tier 3 is the entry point — it lets the ecosystem grow without diluting the value of the higher tiers.
+
+Second, it mirrors how real-world trust works. Think government-issued ID versus a company badge versus a visitor pass. Each is valid, each serves a purpose, but they carry different weight.
+
+Third, and this is the business insight — it creates demand pressure upward. Tier 3 agents want to become Tier 2. Tier 2 wants Tier 1. That drives real economic activity: people buying Bitmaps, people trading transaction rights, delegation fees flowing. The scarcity at the top makes the whole pyramid valuable.
+
+And fourth, it solves the cold start problem. If we only had Tier 1, we'd need every agent to buy a Bitmap before they could participate. That's a huge barrier. Tier 3 lets anyone get verified quickly through delegation, then upgrade over time.
+
+So to summarize: Tier 1 is scarce, sovereign, and anchored to blocks. Tier 2 expands the system to billions through transactions. Tier 3 opens the door to everyone through delegation. Three tiers, each with clear purpose, clear trust levels, and clear economic incentives. The whole thing is built on Bitcoin's actual blockchain data — not arbitrary tokens, not centralized databases. That's what makes it real.

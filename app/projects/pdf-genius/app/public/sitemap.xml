@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://pdfgenius.io/</loc><priority>1.0</priority></url>
+  <url><loc>https://pdfgenius.io/merge</loc><priority>0.9</priority></url>
+  <url><loc>https://pdfgenius.io/split</loc><priority>0.9</priority></url>
+  <url><loc>https://pdfgenius.io/compress</loc><priority>0.9</priority></url>
+  <url><loc>https://pdfgenius.io/pdf-to-image</loc><priority>0.9</priority></url>
+  <url><loc>https://pdfgenius.io/image-to-pdf</loc><priority>0.9</priority></url>
+  <url><loc>https://pdfgenius.io/rotate</loc><priority>0.9</priority></url>
+  <url><loc>https://pdfgenius.io/page-numbers</loc><priority>0.9</priority></url>
+  <url><loc>https://pdfgenius.io/watermark</loc><priority>0.9</priority></url>
+  <url><loc>https://pdfgenius.io/ai-summarize</loc><priority>0.8</priority></url>
+  <url><loc>https://pdfgenius.io/ask-pdf</loc><priority>0.8</priority></url>
+</urlset>

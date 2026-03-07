@@ -1,0 +1,8 @@
+yeah you're right we should go with the 10 agent limit for bitmap and 3 user
+limit for our tier 2 which is parcels and delegation I don't know I'm still
+thinking about delegations you said blocks times transactions times
+delegation and delegation is like unlimited creation right so what do you
+think about delegations will it fit like like validity and delegations should
+only be able to have one user name will that make sense and anyways if
+delegations are like unlimited will it affect having one user name per
+delegated verifier verified user

@@ -1,0 +1,8 @@
+also is there a possibility of adding a flyover experience so that the viewer can
+fly over bitmap let's say maybe 100 meters height above the bitmap and at
+the speed of 100 kilometers per hour 100 meter from above the surface of
+block and 100 kilometers per hour speed of flying as per the scale which we
+used so it will be easy for everyone to experience like flying over block of
+a city or district they can see all the buildings from above so they don't
+have to spend a lot of time walking on the roads what do you think of this idea
+is it easy to implement?

@@ -1,0 +1,611 @@
+/* Block Genomics DNA Visualizer - Dark Theme */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0f0f1a 100%);
+  min-height: 100vh;
+  overflow: hidden;
+  color: #e0e0e0;
+}
+
+#app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+#dna-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* Control Panel */
+.control-panel {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 15px;
+  z-index: 100;
+  background: rgba(10, 10, 20, 0.8);
+  backdrop-filter: blur(20px);
+  padding: 15px 25px;
+  border-radius: 50px;
+  border: 1px solid rgba(100, 200, 255, 0.2);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5),
+              0 0 30px rgba(100, 200, 255, 0.1);
+}
+
+.control-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 25px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.control-btn.idle {
+  background: linear-gradient(135deg, #2a2a4a, #1a1a3a);
+  color: #8888aa;
+  border: 1px solid rgba(100, 100, 150, 0.3);
+}
+
+.control-btn.idle:hover {
+  background: linear-gradient(135deg, #3a3a5a, #2a2a4a);
+  color: #aaaacc;
+  box-shadow: 0 0 20px rgba(100, 100, 200, 0.3);
+}
+
+.control-btn.verify {
+  background: linear-gradient(135deg, #0066cc, #0044aa);
+  color: white;
+  border: 1px solid rgba(100, 180, 255, 0.5);
+}
+
+.control-btn.verify:hover {
+  background: linear-gradient(135deg, #0088ee, #0066cc);
+  box-shadow: 0 0 30px rgba(0, 150, 255, 0.5);
+  transform: scale(1.05);
+}
+
+.control-btn.success {
+  background: linear-gradient(135deg, #00aa66, #008855);
+  color: white;
+  border: 1px solid rgba(100, 255, 180, 0.5);
+}
+
+.control-btn.success:hover {
+  background: linear-gradient(135deg, #00cc88, #00aa66);
+  box-shadow: 0 0 30px rgba(0, 255, 150, 0.5);
+  transform: scale(1.05);
+}
+
+/* Genome Hash Display */
+.genome-display {
+  position: fixed;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  text-align: center;
+}
+
+.genome-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: rgba(100, 200, 255, 0.6);
+  margin-bottom: 10px;
+}
+
+.genome-hash {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 14px;
+  color: #66ccff;
+  background: rgba(10, 10, 20, 0.8);
+  backdrop-filter: blur(20px);
+  padding: 15px 30px;
+  border-radius: 10px;
+  border: 1px solid rgba(100, 200, 255, 0.2);
+  letter-spacing: 2px;
+  word-break: break-all;
+  max-width: 90vw;
+  box-shadow: 0 5px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* Sequence Ticker */
+.sequence-ticker {
+  position: fixed;
+  bottom: 100px;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  height: 40px;
+  z-index: 50;
+  background: linear-gradient(90deg, 
+    rgba(10, 10, 20, 1) 0%,
+    rgba(10, 10, 20, 0) 10%,
+    rgba(10, 10, 20, 0) 90%,
+    rgba(10, 10, 20, 1) 100%
+  );
+}
+
+.sequence-scroll {
+  display: flex;
+  animation: scroll-sequence 30s linear infinite;
+  white-space: nowrap;
+}
+
+.sequence-scroll span {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 24px;
+  padding: 0 4px;
+  text-shadow: 0 0 10px currentColor;
+}
+
+@keyframes scroll-sequence {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* Status Indicator */
+.status-indicator {
+  position: fixed;
+  top: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: rgba(10, 10, 20, 0.8);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.status-indicator.visible {
+  opacity: 1;
+}
+
+.status-indicator.verifying {
+  border: 1px solid rgba(100, 180, 255, 0.5);
+  color: #66ccff;
+}
+
+.status-indicator.verified {
+  border: 1px solid rgba(100, 255, 180, 0.5);
+  color: #66ffaa;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.status-indicator.verifying .status-dot {
+  background: #66ccff;
+}
+
+.status-indicator.verified .status-dot {
+  background: #66ffaa;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* Info Panel */
+.info-panel {
+  position: fixed;
+  right: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  background: rgba(10, 10, 20, 0.8);
+  backdrop-filter: blur(20px);
+  padding: 20px;
+  border-radius: 15px;
+  border: 1px solid rgba(100, 200, 255, 0.2);
+  max-width: 250px;
+}
+
+.info-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: rgba(100, 200, 255, 0.6);
+  margin-bottom: 15px;
+}
+
+.info-stat {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.info-stat label {
+  color: #888;
+}
+
+.info-stat value {
+  color: #66ccff;
+  font-family: 'SF Mono', monospace;
+}
+
+/* Color Legend */
+.color-legend {
+  position: fixed;
+  left: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  background: rgba(10, 10, 20, 0.8);
+  backdrop-filter: blur(20px);
+  padding: 15px;
+  border-radius: 15px;
+  border: 1px solid rgba(100, 200, 255, 0.2);
+}
+
+.legend-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: rgba(100, 200, 255, 0.6);
+  margin-bottom: 12px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-family: 'SF Mono', monospace;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* Loading Screen */
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #0a0a0f;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  transition: opacity 0.5s ease;
+}
+
+.loading-screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-helix {
+  width: 60px;
+  height: 60px;
+  border: 3px solid transparent;
+  border-top-color: #66ccff;
+  border-bottom-color: #ff66aa;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  margin-top: 20px;
+  font-size: 14px;
+  color: #666;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+/* ============================================
+   WOW FACTOR - Holographic & Glitch Effects
+   ============================================ */
+
+/* Holographic Scanlines Overlay */
+.holographic-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 10;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(100, 200, 255, 0.015) 2px,
+    rgba(100, 200, 255, 0.015) 4px
+  );
+  animation: scanline-drift 8s linear infinite;
+}
+
+.holographic-overlay::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 0%,
+    rgba(0, 0, 0, 0.3) 100%
+  );
+}
+
+@keyframes scanline-drift {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 100px; }
+}
+
+/* Chromatic Aberration on Hover */
+#dna-canvas:hover ~ .chromatic-layer {
+  opacity: 1;
+}
+
+.chromatic-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  mix-blend-mode: screen;
+  background: 
+    radial-gradient(ellipse at 30% 50%, rgba(255, 0, 100, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 50%, rgba(0, 200, 255, 0.03) 0%, transparent 50%);
+}
+
+/* Glitch Effect Class - Applied via JS */
+.glitch-active {
+  animation: glitch 0.3s ease-in-out;
+}
+
+@keyframes glitch {
+  0%, 100% { 
+    transform: translate(0);
+    filter: none;
+  }
+  10% { 
+    transform: translate(-2px, 1px);
+    filter: hue-rotate(90deg);
+  }
+  20% { 
+    transform: translate(2px, -1px);
+    filter: hue-rotate(-90deg);
+  }
+  30% { 
+    transform: translate(-1px, 2px);
+    filter: hue-rotate(45deg);
+  }
+  40% { 
+    transform: translate(1px, -2px);
+  }
+  50% { 
+    transform: translate(-2px, -1px);
+    filter: hue-rotate(-45deg);
+  }
+  60% { 
+    transform: translate(2px, 1px);
+  }
+  70% { 
+    transform: translate(0);
+  }
+}
+
+/* Verification Glitch Burst */
+.glitch-burst {
+  animation: glitch-burst 0.5s ease-out;
+}
+
+@keyframes glitch-burst {
+  0% { 
+    filter: brightness(1) contrast(1);
+  }
+  25% { 
+    filter: brightness(2) contrast(1.5) hue-rotate(30deg);
+    transform: scale(1.02);
+  }
+  50% { 
+    filter: brightness(1.5) contrast(1.2) hue-rotate(-20deg);
+    transform: scale(0.99);
+  }
+  75% { 
+    filter: brightness(1.2) contrast(1.1);
+    transform: scale(1.01);
+  }
+  100% { 
+    filter: brightness(1) contrast(1);
+    transform: scale(1);
+  }
+}
+
+/* Base Pair Tooltip */
+.bp-tooltip {
+  position: fixed;
+  z-index: 200;
+  background: rgba(5, 5, 15, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(100, 200, 255, 0.4);
+  border-radius: 12px;
+  padding: 15px 20px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.2s ease;
+  min-width: 220px;
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(100, 200, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.bp-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bp-tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(100, 200, 255, 0.2);
+}
+
+.bp-tooltip-color {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  box-shadow: 0 0 15px currentColor;
+}
+
+.bp-tooltip-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  font-family: 'SF Mono', monospace;
+}
+
+.bp-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.bp-tooltip-label {
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 10px;
+}
+
+.bp-tooltip-value {
+  color: #66ccff;
+  font-family: 'SF Mono', monospace;
+}
+
+.bp-tooltip-value.highlight {
+  color: #ffaa00;
+  text-shadow: 0 0 10px rgba(255, 170, 0, 0.5);
+}
+
+/* Ambient Glow Pulse */
+#app::after {
+  content: '';
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 600px;
+  height: 600px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle,
+    rgba(100, 200, 255, 0.08) 0%,
+    rgba(255, 100, 200, 0.04) 30%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+  animation: ambient-pulse 4s ease-in-out infinite;
+}
+
+@keyframes ambient-pulse {
+  0%, 100% { 
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% { 
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+}
+
+/* Verification Success Flash */
+.success-flash {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, rgba(0, 255, 150, 0.3), transparent 70%);
+  pointer-events: none;
+  z-index: 15;
+  opacity: 0;
+  animation: success-flash 0.6s ease-out forwards;
+}
+
+@keyframes success-flash {
+  0% { opacity: 0; transform: scale(0.8); }
+  30% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .color-legend,
+  .info-panel {
+    display: none;
+  }
+  
+  .genome-hash {
+    font-size: 10px;
+    padding: 10px 15px;
+  }
+  
+  .control-panel {
+    padding: 10px 15px;
+    gap: 10px;
+  }
+  
+  .control-btn {
+    padding: 10px 16px;
+    font-size: 12px;
+  }
+}

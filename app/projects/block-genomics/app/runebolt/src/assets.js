@@ -16,10 +16,28 @@ const ASSETS = {
     ticker: 'DOG',
     decimals: 5,
     fungible: true,
-    transferMethod: 'runestone', // OP_RETURN Runestone encoding
-    estimatedTxSize: 250, // vbytes
+    transferMethod: 'runestone',
+    estimatedTxSize: 250,
     minTransferAmount: 1,
     icon: '🐕',
+    logo: '/assets/dog-logo.png',
+    website: 'https://doggotothemoon.io',
+    runeNumber: 3,
+  },
+  BILLY: {
+    id: 'BILLY',
+    type: 'rune',
+    name: '$BILLY (BILLION•DOLLAR•CAT)',
+    ticker: 'BILLY',
+    decimals: 2,
+    fungible: true,
+    transferMethod: 'runestone',
+    estimatedTxSize: 250,
+    minTransferAmount: 1,
+    icon: '🐱',
+    logo: '/assets/billy-logo.png',
+    website: 'https://billiondollarcat.com',
+    runeNumber: 845764,
   },
   BITMAP: {
     id: 'BITMAP',
@@ -27,11 +45,13 @@ const ASSETS = {
     name: 'Bitmap Block',
     ticker: 'BITMAP',
     decimals: 0,
-    fungible: false, // Each block is unique
-    transferMethod: 'ordinal_transfer', // Ordinal inscription transfer
-    estimatedTxSize: 200, // vbytes
+    fungible: false,
+    transferMethod: 'ordinal_transfer',
+    estimatedTxSize: 200,
     minTransferAmount: 1,
     icon: '🗺️',
+    logo: '/assets/bitmap-logo.png',
+    website: 'https://bitmap.community',
   },
 };
 

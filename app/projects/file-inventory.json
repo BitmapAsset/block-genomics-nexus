@@ -1,0 +1,222 @@
+{
+  "scannedAt": "2026-02-04T13:14:00.819Z",
+  "trees": [
+    {
+      "name": "Root Files",
+      "children": [
+        {
+          "name": "DASHBOARD.md",
+          "type": "file",
+          "size": 1555,
+          "modified": "2026-02-02T11:11:56.175Z"
+        },
+        {
+          "name": "PROJECT-LOG.md",
+          "type": "file",
+          "size": 10599,
+          "modified": "2026-02-04T10:28:51.413Z"
+        },
+        {
+          "name": "dashboard-data.json",
+          "type": "file",
+          "size": 5922,
+          "modified": "2026-02-04T10:27:35.129Z"
+        },
+        {
+          "name": "dashboard.html",
+          "type": "file",
+          "size": 10870,
+          "modified": "2026-02-03T06:09:28.255Z"
+        },
+        {
+          "name": "dev-toolkit-audit.md",
+          "type": "file",
+          "size": 3582,
+          "modified": "2026-02-03T07:35:48.669Z"
+        }
+      ]
+    },
+    {
+      "name": "bitmap-nat",
+      "children": [
+        {
+          "name": "docs",
+          "type": "directory",
+          "children": []
+        },
+        {
+          "name": "logs",
+          "type": "directory",
+          "children": []
+        },
+        {
+          "name": "ai-agent-verification-analysis.md",
+          "type": "file",
+          "size": 7844,
+          "modified": "2026-02-03T08:50:29.980Z"
+        },
+        {
+          "name": "README.md",
+          "type": "file",
+          "size": 10308,
+          "modified": "2026-02-03T08:30:10.186Z"
+        },
+        {
+          "name": "scalability-model.md",
+          "type": "file",
+          "size": 4155,
+          "modified": "2026-02-03T09:12:38.501Z"
+        }
+      ]
+    },
+    {
+      "name": "block-genomics",
+      "children": [
+        {
+          "name": "data",
+          "type": "directory",
+          "children": []
+        },
+        {
+          "name": "docs",
+          "type": "directory",
+          "children": [
+            {
+              "name": "PRODUCT-VISION.md",
+              "type": "file",
+              "size": 39244,
+              "modified": "2026-02-04T03:39:52.669Z"
+            },
+            {
+              "name": "ROADMAP.md",
+              "type": "file",
+              "size": 7795,
+              "modified": "2026-02-03T09:37:53.092Z"
+            },
+            {
+              "name": "VERIFICATION-PROTOCOL.md",
+              "type": "file",
+              "size": 5206,
+              "modified": "2026-02-03T09:38:52.353Z"
+            },
+            {
+              "name": "WALLET-INTEGRATION.md",
+              "type": "file",
+              "size": 4321,
+              "modified": "2026-02-03T09:38:17.721Z"
+            }
+          ]
+        },
+        {
+          "name": "logs",
+          "type": "directory",
+          "children": [
+            {
+              "name": "2026-02-03.md",
+              "type": "file",
+              "size": 3598,
+              "modified": "2026-02-03T10:13:51.470Z"
+            }
+          ]
+        },
+        {
+          "name": "src",
+          "type": "directory",
+          "children": []
+        },
+        {
+          "name": "verify",
+          "type": "directory",
+          "children": [
+            {
+              "name": "app.js",
+              "type": "file",
+              "size": 20704,
+              "modified": "2026-02-03T10:09:35.879Z"
+            },
+            {
+              "name": "index.html",
+              "type": "file",
+              "size": 50181,
+              "modified": "2026-02-03T10:13:17.645Z"
+            }
+          ]
+        },
+        {
+          "name": "GOLDEN-LINES.md",
+          "type": "file",
+          "size": 6020,
+          "modified": "2026-02-04T11:26:00.735Z"
+        },
+        {
+          "name": "index.html",
+          "type": "file",
+          "size": 26936,
+          "modified": "2026-02-03T08:44:10.633Z"
+        },
+        {
+          "name": "README.md",
+          "type": "file",
+          "size": 1886,
+          "modified": "2026-02-03T09:37:04.977Z"
+        }
+      ]
+    },
+    {
+      "name": "command-center",
+      "children": [
+        {
+          "name": "electron-app",
+          "type": "directory",
+          "children": [
+            {
+              "name": "main.js",
+              "type": "file",
+              "size": 3837,
+              "modified": "2026-02-04T13:13:57.946Z"
+            },
+            {
+              "name": "package.json",
+              "type": "file",
+              "size": 821,
+              "modified": "2026-02-04T13:13:42.953Z"
+            }
+          ]
+        },
+        {
+          "name": "index.html",
+          "type": "file",
+          "size": 44480,
+          "modified": "2026-02-04T13:13:16.654Z"
+        },
+        {
+          "name": "scan-files.js",
+          "type": "file",
+          "size": 2355,
+          "modified": "2026-02-04T13:13:28.630Z"
+        },
+        {
+          "name": "server.js",
+          "type": "file",
+          "size": 1953,
+          "modified": "2026-02-04T13:13:37.889Z"
+        }
+      ]
+    },
+    {
+      "name": "pepe-wallet",
+      "children": [
+        {
+          "name": "docs",
+          "type": "directory",
+          "children": []
+        },
+        {
+          "name": "logs",
+          "type": "directory",
+          "children": []
+        }
+      ]
+    }
+  ]
+}

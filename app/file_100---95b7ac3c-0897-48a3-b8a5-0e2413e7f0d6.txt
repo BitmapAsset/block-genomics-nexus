@@ -1,0 +1,4 @@
+So our product which all the businesses will be downloading do you think they
+will have a separate open-claw agent running for their business when they
+download our app and they can start interacting and integrating everything in
+their business to be automated. Will it be that easy?

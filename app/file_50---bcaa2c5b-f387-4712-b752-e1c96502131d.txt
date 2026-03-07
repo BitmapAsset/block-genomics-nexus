@@ -1,0 +1,6 @@
+So, in video AI, it generated the edited version where I wanted to change the name from
+bloggenomics.com to bloggenomics.io in the end, but it also changed the voice. Voice narration
+to multiple people, but I liked what the voice narration was in the first version.
+Can you tell me, how can I get just the audio edited in the latest version in video, because
+it is not letting me, it is not changing it on its own, and I want that audio on the new
+video.

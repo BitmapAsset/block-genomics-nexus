@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>A2 Crown Shield — Polished</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a14; color: #fff; font-family: -apple-system, sans-serif; padding: 30px; }
+  h1 { text-align: center; font-size: 22px; color: #f7931a; margin-bottom: 6px; }
+  .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 40px; }
+  .section { text-align: center; margin-bottom: 40px; }
+  .section h2 { font-size: 15px; color: #999; margin-bottom: 20px; }
+  .row { display: flex; gap: 50px; justify-content: center; flex-wrap: wrap; }
+  .item { text-align: center; }
+  .label { font-size: 12px; font-weight: 700; margin-top: 8px; }
+  .sublabel { font-size: 10px; color: #555; }
+  hr { border: none; border-top: 1px solid #1a1a2e; margin: 15px auto 35px; width: 60%; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; background: #0d0d1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 10px 18px; margin: 5px; }
+  .chip .n { font-weight: 700; font-size: 14px; }
+  .chip .h { color: #666; font-size: 11px; }
+  .sizes { display: flex; gap: 25px; align-items: flex-end; justify-content: center; margin-bottom: 18px; }
+  .sizes .si { text-align: center; }
+  .sizes .si span { display: block; color: #555; font-size: 9px; margin-top: 3px; }
+  .card { background: #0d0d1a; border: 1px solid #1a1a2e; border-radius: 14px; padding: 18px 22px; min-width: 200px; max-width: 260px; text-align: left; }
+  .card .hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .card .bio { color: #888; font-size: 11px; line-height: 1.5; }
+  .card .meta { color: #444; font-size: 9px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<h1>👑 A2 Crown Shield — Polished</h1>
+<p class="sub">Same design you loved, just sharper rendering</p>
+
+<div class="section">
+<h2>Full Size — 3 Tiers</h2>
+<div class="row" id="hero"></div>
+</div>
+<hr>
+<div class="section">
+<h2>Scale Test</h2>
+<div id="scales"></div>
+</div>
+<hr>
+<div class="section">
+<h2>Next to Handles</h2>
+<div id="handles"></div>
+</div>
+<hr>
+<div class="section">
+<h2>Profile Cards</h2>
+<div class="row" id="cards"></div>
+</div>
+
+<script>
+const T = {
+  1: { c: '#f7931a', a: '#ffd27d', g: 'rgba(247,147,26,', l: 'GOLD', f: 'Tier 1 — Block Owner' },
+  2: { c: '#66ccff', a: '#a8e0ff', g: 'rgba(102,204,255,', l: 'CYAN', f: 'Tier 2 — Parcel Owner' },
+  3: { c: '#a855f7', a: '#d4a8ff', g: 'rgba(168,85,247,', l: 'PURPLE', f: 'Tier 3 — Delegated' },
+};
+
+function draw(ctx, size, tier) {
+  const t = T[tier];
+  const cx = size/2, cy = size/2, s = size/100;
+  
+  // Use 2x resolution for crispness
+  
+  // ── Outer glow ──
+  const glow = ctx.createRadialGradient(cx, cy, size*0.15, cx, cy, size*0.5);
+  glow.addColorStop(0, t.g + '0.3)');
+  glow.addColorStop(0.6, t.g + '0.08)');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(cx, cy, size*0.5, 0, Math.PI*2); ctx.fill();
+  
+  // ── Shield path — original A2 rounded shape ──
+  function shield() {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 32*s);
+    ctx.bezierCurveTo(cx + 16*s, cy - 32*s, cx + 30*s, cy - 28*s, cx + 32*s, cy - 20*s);
+    ctx.lineTo(cx + 32*s, cy + 4*s);
+    ctx.bezierCurveTo(cx + 30*s, cy + 18*s, cx + 19*s, cy + 30*s, cx, cy + 38*s);
+    ctx.bezierCurveTo(cx - 19*s, cy + 30*s, cx - 30*s, cy + 18*s, cx - 32*s, cy + 4*s);
+    ctx.lineTo(cx - 32*s, cy - 20*s);
+    ctx.bezierCurveTo(cx - 30*s, cy - 28*s, cx - 16*s, cy - 32*s, cx, cy - 32*s);
+    ctx.closePath();
+  }
+  
+  // ── Shield fill ──
+  shield();
+  const fill = ctx.createLinearGradient(cx, cy - 32*s, cx, cy + 38*s);
+  fill.addColorStop(0, '#1a1a30');
+  fill.addColorStop(0.5, '#111122');
+  fill.addColorStop(1, '#08081a');
+  ctx.fillStyle = fill;
+  ctx.fill();
+  
+  // ── Shield border — gradient ──
+  shield();
+  const border = ctx.createLinearGradient(cx - 32*s, cy, cx + 32*s, cy);
+  border.addColorStop(0, t.c);
+  border.addColorStop(0.3, t.a);
+  border.addColorStop(0.7, t.a);
+  border.addColorStop(1, t.c);
+  ctx.strokeStyle = border;
+  ctx.lineWidth = Math.max(2.5*s, 1.5);
+  ctx.stroke();
+  
+  // ── Crown — original A2 style (3 points) ──
+  const crY = cy - 24*s;
+  ctx.beginPath();
+  ctx.moveTo(cx - 15*s, crY);
+  ctx.lineTo(cx - 11*s, crY - 10*s);
+  ctx.lineTo(cx - 3.5*s, crY - 3*s);
+  ctx.lineTo(cx, crY - 13*s);
+  ctx.lineTo(cx + 3.5*s, crY - 3*s);
+  ctx.lineTo(cx + 11*s, crY - 10*s);
+  ctx.lineTo(cx + 15*s, crY);
+  ctx.closePath();
+  
+  const crownGrad = ctx.createLinearGradient(cx, crY - 13*s, cx, crY);
+  crownGrad.addColorStop(0, t.a);
+  crownGrad.addColorStop(0.5, t.c);
+  crownGrad.addColorStop(1, t.c + 'bb');
+  ctx.fillStyle = crownGrad;
+  ctx.fill();
+  
+  // Crown outline (subtle)
+  ctx.strokeStyle = t.a + '55';
+  ctx.lineWidth = Math.max(0.6*s, 0.4);
+  ctx.stroke();
+  
+  // Crown jewels — 3 small dots on tips
+  [[cx - 11*s, crY - 10*s], [cx, crY - 13*s], [cx + 11*s, crY - 10*s]].forEach(([jx, jy]) => {
+    ctx.beginPath();
+    ctx.arc(jx, jy + 1*s, Math.max(1.3*s, 0.8), 0, Math.PI*2);
+    ctx.fillStyle = '#ffffffaa';
+    ctx.fill();
+  });
+  
+  // Crown base band
+  ctx.fillStyle = t.c + 'cc';
+  ctx.fillRect(cx - 15*s, crY, 30*s, Math.max(2.5*s, 1.5));
+  
+  // ── ₿ symbol — big, centered, glowing ──
+  const btcY = cy + 4*s;
+  
+  // Glow behind ₿
+  const btcGlow = ctx.createRadialGradient(cx, btcY, 0, cx, btcY, 18*s);
+  btcGlow.addColorStop(0, t.g + '0.18)');
+  btcGlow.addColorStop(1, 'transparent');
+  ctx.fillStyle = btcGlow;
+  ctx.beginPath(); ctx.arc(cx, btcY, 18*s, 0, Math.PI*2); ctx.fill();
+  
+  // ₿ text
+  const fontSize = Math.max(30*s, 9);
+  ctx.font = `bold ${fontSize}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  
+  const btcGrad = ctx.createLinearGradient(cx, btcY - 15*s, cx, btcY + 15*s);
+  btcGrad.addColorStop(0, t.a);
+  btcGrad.addColorStop(0.4, '#ffffff');
+  btcGrad.addColorStop(1, t.c);
+  ctx.fillStyle = btcGrad;
+  ctx.fillText('₿', cx, btcY);
+  
+  // ₿ subtle stroke for extra crispness
+  ctx.strokeStyle = t.c + '33';
+  ctx.lineWidth = Math.max(0.4*s, 0.3);
+  ctx.strokeText('₿', cx, btcY);
+  
+  // ── Verified check at bottom ──
+  const ckY = cy + 28*s;
+  const ckS = Math.max(5.5*s, 3);
+  
+  // Check background circle
+  ctx.beginPath();
+  ctx.arc(cx, ckY, ckS + 2*s, 0, Math.PI*2);
+  ctx.fillStyle = '#22ff8815';
+  ctx.fill();
+  
+  // Green check mark
+  ctx.beginPath();
+  ctx.moveTo(cx - ckS*0.65, ckY + ckS*0.05);
+  ctx.lineTo(cx - ckS*0.1, ckY + ckS*0.5);
+  ctx.lineTo(cx + ckS*0.75, ckY - ckS*0.4);
+  ctx.strokeStyle = '#22ff88';
+  ctx.lineWidth = Math.max(2.2*s, 1.3);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+
+function makeCanvas(size, tier) {
+  const dpr = 2;
+  const c = document.createElement('canvas');
+  c.width = size * dpr;
+  c.height = size * dpr;
+  c.style.width = size + 'px';
+  c.style.height = size + 'px';
+  const ctx = c.getContext('2d');
+  ctx.scale(dpr, dpr);
+  draw(ctx, size, tier);
+  return c;
+}
+
+// Hero
+const hero = document.getElementById('hero');
+[1,2,3].forEach(t => {
+  const d = document.createElement('div');
+  d.className = 'item';
+  d.appendChild(makeCanvas(180, t));
+  d.innerHTML += `<div class="label" style="color:${T[t].c}">${T[t].l}</div><div class="sublabel">${T[t].f}</div>`;
+  hero.appendChild(d);
+});
+
+// Scale test
+const scales = document.getElementById('scales');
+[1,2,3].forEach(t => {
+  const row = document.createElement('div');
+  row.className = 'sizes';
+  [16,24,32,48,64,96,140].forEach(sz => {
+    const si = document.createElement('div');
+    si.className = 'si';
+    si.appendChild(makeCanvas(sz, t));
+    si.innerHTML += `<span>${sz}px</span>`;
+    row.appendChild(si);
+  });
+  scales.appendChild(row);
+});
+
+// Handles
+const handles = document.getElementById('handles');
+[
+  { n: 'Gravity', h: '@gravity', t: 1 },
+  { n: 'Pepe', h: '@pepe', t: 1 },
+  { n: 'Builder42', h: '@builder42', t: 2 },
+  { n: 'NewUser', h: '@newuser', t: 3 },
+].forEach(u => {
+  const chip = document.createElement('div');
+  chip.className = 'chip';
+  chip.appendChild(makeCanvas(26, u.t));
+  chip.innerHTML += `<span class="n">${u.n}</span><span class="h">${u.h}</span>`;
+  handles.appendChild(chip);
+});
+
+// Cards
+const cards = document.getElementById('cards');
+[
+  { n: 'Gravity', h: '@gravity', t: 1, bio: 'Polymath. Builder. Bitmap pioneer.', meta: 'Trust: 94 · Block #500000' },
+  { n: 'Agent Alpha', h: '@agent_alpha', t: 2, bio: 'Autonomous trading agent.', meta: 'Trust: 72 · Parcel #210000:tx42' },
+  { n: 'Explorer', h: '@explorer', t: 3, bio: 'Learning the ropes.', meta: 'Trust: 45 · Delegated via @gravity' },
+].forEach(p => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const hdr = document.createElement('div');
+  hdr.className = 'hdr';
+  hdr.appendChild(makeCanvas(30, p.t));
+  hdr.innerHTML += `<span style="font-weight:700;font-size:13px">${p.n}</span><span style="color:#666;font-size:10px">${p.h}</span>`;
+  card.appendChild(hdr);
+  card.innerHTML += `<div class="bio">${p.bio}</div><div class="meta">${p.meta}</div>`;
+  cards.appendChild(card);
+});
+</script>
+</body>
+</html>

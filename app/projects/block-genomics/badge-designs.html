@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Block Genomics — Shield Badge Designs</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a14; color: #fff; font-family: -apple-system, 'Helvetica Neue', sans-serif; padding: 40px; }
+  h1 { text-align: center; font-size: 28px; margin-bottom: 10px; color: #66ccff; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 50px; font-size: 14px; }
+  
+  .design-row { display: flex; justify-content: center; gap: 60px; margin-bottom: 60px; flex-wrap: wrap; }
+  .design-group { text-align: center; }
+  .design-title { font-size: 20px; font-weight: 700; margin-bottom: 5px; color: #fff; }
+  .design-desc { color: #777; font-size: 12px; margin-bottom: 25px; max-width: 350px; }
+  
+  .tier-row { display: flex; gap: 30px; justify-content: center; margin-bottom: 15px; }
+  .tier-item { text-align: center; }
+  .tier-label { font-size: 11px; color: #666; margin-top: 8px; }
+  .tier-name { font-size: 10px; color: #555; }
+  
+  /* Handle previews */
+  .handle-preview { 
+    display: inline-flex; align-items: center; gap: 8px; 
+    background: #111; border: 1px solid #222; border-radius: 12px; 
+    padding: 8px 16px; margin-top: 15px; font-size: 14px;
+  }
+  .handle-preview .name { font-weight: 600; }
+  .handle-preview .at { color: #888; }
+  
+  canvas { display: block; margin: 0 auto; }
+  
+  .section-divider { 
+    border: none; border-top: 1px solid #1a1a2e; 
+    margin: 20px auto 50px; width: 80%; 
+  }
+  
+  .comparison { text-align: center; margin-top: 40px; }
+  .comparison h2 { color: #a855f7; margin-bottom: 20px; }
+  .inline-badges { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+  .inline-example { 
+    background: #0d0d1a; border: 1px solid #1a1a2e; border-radius: 16px; 
+    padding: 20px 30px; display: flex; align-items: center; gap: 12px;
+  }
+  .inline-example .username { font-size: 16px; font-weight: 600; }
+  .inline-example .handle { color: #888; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>🛡️ Block Genomics — Verification Badge Designs</h1>
+<p class="subtitle">4 design options × 3 tiers each. Select your favorite.</p>
+
+<div id="badges"></div>
+
+<script>
+// Color schemes per tier
+const TIERS = {
+  1: { name: 'Tier 1 — Block Owner', color: '#f7931a', accent: '#ffd27d', glow: 'rgba(247,147,26,', label: 'GOLD' },
+  2: { name: 'Tier 2 — Parcel Owner', color: '#66ccff', accent: '#a8e0ff', glow: 'rgba(102,204,255,', label: 'CYAN' },
+  3: { name: 'Tier 3 — Delegated', color: '#a855f7', accent: '#d4a8ff', glow: 'rgba(168,85,247,', label: 'PURPLE' },
+};
+
+function drawDesign1(ctx, size, tier) {
+  // DESIGN 1: Classic Shield — clean heraldic shield with ₿ and DNA accent
+  const cx = size/2, cy = size/2, s = size/100;
+  
+  // Outer glow
+  const glow = ctx.createRadialGradient(cx, cy, size*0.2, cx, cy, size*0.48);
+  glow.addColorStop(0, tier.glow + '0.3)');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, size*0.48, 0, Math.PI*2);
+  ctx.fill();
+  
+  // Shield shape
+  function shieldPath() {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 38*s);
+    ctx.bezierCurveTo(cx + 12*s, cy - 38*s, cx + 34*s, cy - 34*s, cx + 35*s, cy - 28*s);
+    ctx.lineTo(cx + 35*s, cy - 2*s);
+    ctx.bezierCurveTo(cx + 34*s, cy + 16*s, cx + 24*s, cy + 28*s, cx, cy + 42*s);
+    ctx.bezierCurveTo(cx - 24*s, cy + 28*s, cx - 34*s, cy + 16*s, cx - 35*s, cy - 2*s);
+    ctx.lineTo(cx - 35*s, cy - 28*s);
+    ctx.bezierCurveTo(cx - 34*s, cy - 34*s, cx - 12*s, cy - 38*s, cx, cy - 38*s);
+    ctx.closePath();
+  }
+  
+  // Shield fill
+  shieldPath();
+  const fill = ctx.createLinearGradient(cx, cy - 38*s, cx, cy + 42*s);
+  fill.addColorStop(0, '#1a1a2e');
+  fill.addColorStop(1, '#0a0a14');
+  ctx.fillStyle = fill;
+  ctx.fill();
+  
+  // Shield border
+  shieldPath();
+  const border = ctx.createLinearGradient(cx - 35*s, cy, cx + 35*s, cy);
+  border.addColorStop(0, tier.color);
+  border.addColorStop(0.5, tier.accent);
+  border.addColorStop(1, tier.color);
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 2.5*s;
+  ctx.stroke();
+  
+  // ₿ symbol
+  ctx.font = `bold ${28*s}px -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const btcGrad = ctx.createLinearGradient(cx, cy - 14*s, cx, cy + 14*s);
+  btcGrad.addColorStop(0, tier.accent);
+  btcGrad.addColorStop(0.5, '#ffffff');
+  btcGrad.addColorStop(1, tier.color);
+  ctx.fillStyle = btcGrad;
+  ctx.fillText('₿', cx, cy - 2*s);
+  
+  // Small check at bottom
+  ctx.beginPath();
+  ctx.moveTo(cx - 6*s, cy + 26*s);
+  ctx.lineTo(cx - 1*s, cy + 31*s);
+  ctx.lineTo(cx + 8*s, cy + 22*s);
+  ctx.strokeStyle = '#22ff88';
+  ctx.lineWidth = 2*s;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+}
+
+function drawDesign2(ctx, size, tier) {
+  // DESIGN 2: Circular Badge — modern circle with shield cutout + ₿
+  const cx = size/2, cy = size/2, s = size/100;
+  const r = 38*s;
+  
+  // Outer glow
+  const glow = ctx.createRadialGradient(cx, cy, r*0.5, cx, cy, r*1.4);
+  glow.addColorStop(0, tier.glow + '0.25)');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r*1.4, 0, Math.PI*2);
+  ctx.fill();
+  
+  // Outer ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  const ringGrad = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+  ringGrad.addColorStop(0, tier.color);
+  ringGrad.addColorStop(1, tier.accent);
+  ctx.strokeStyle = ringGrad;
+  ctx.lineWidth = 3*s;
+  ctx.stroke();
+  
+  // Inner fill
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 2*s, 0, Math.PI*2);
+  const fill = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  fill.addColorStop(0, '#1a1a30');
+  fill.addColorStop(1, '#0a0a18');
+  ctx.fillStyle = fill;
+  ctx.fill();
+  
+  // Inner accent ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, r*0.7, 0, Math.PI*2);
+  ctx.strokeStyle = tier.color + '33';
+  ctx.lineWidth = 1*s;
+  ctx.stroke();
+  
+  // ₿ symbol — larger, centered
+  ctx.font = `bold ${32*s}px -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const btcGrad = ctx.createLinearGradient(cx, cy - 16*s, cx, cy + 16*s);
+  btcGrad.addColorStop(0, tier.accent);
+  btcGrad.addColorStop(1, tier.color);
+  ctx.fillStyle = btcGrad;
+  ctx.fillText('₿', cx, cy);
+  
+  // Mini shield icon at bottom
+  ctx.save();
+  ctx.translate(cx + 22*s, cy + 22*s);
+  ctx.scale(0.35, 0.35);
+  ctx.beginPath();
+  ctx.moveTo(0, -20*s);
+  ctx.bezierCurveTo(8*s, -20*s, 16*s, -18*s, 16*s, -14*s);
+  ctx.lineTo(16*s, 2*s);
+  ctx.bezierCurveTo(15*s, 10*s, 8*s, 16*s, 0, 20*s);
+  ctx.bezierCurveTo(-8*s, 16*s, -15*s, 10*s, -16*s, 2*s);
+  ctx.lineTo(-16*s, -14*s);
+  ctx.bezierCurveTo(-16*s, -18*s, -8*s, -20*s, 0, -20*s);
+  ctx.closePath();
+  ctx.fillStyle = tier.color;
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${18*s}px sans-serif`;
+  ctx.fillText('✓', 0, 2*s);
+  ctx.restore();
+}
+
+function drawDesign3(ctx, size, tier) {
+  // DESIGN 3: Hexagonal — crypto-native hex badge with ₿ and DNA strand
+  const cx = size/2, cy = size/2, s = size/100;
+  const r = 36*s;
+  
+  // Outer glow
+  const glow = ctx.createRadialGradient(cx, cy, r*0.3, cx, cy, r*1.5);
+  glow.addColorStop(0, tier.glow + '0.2)');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r*1.5, 0, Math.PI*2);
+  ctx.fill();
+  
+  function hexPath(radius) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.PI/6 + (Math.PI*2/6)*i;
+      const x = cx + Math.cos(angle)*radius;
+      const y = cy + Math.sin(angle)*radius;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+  
+  // Outer hex border
+  hexPath(r);
+  ctx.strokeStyle = tier.color;
+  ctx.lineWidth = 2.5*s;
+  ctx.stroke();
+  
+  // Inner hex fill
+  hexPath(r - 2*s);
+  const fill = ctx.createLinearGradient(cx, cy - r, cx, cy + r);
+  fill.addColorStop(0, '#151528');
+  fill.addColorStop(1, '#0a0a18');
+  ctx.fillStyle = fill;
+  ctx.fill();
+  
+  // Inner hex accent
+  hexPath(r*0.75);
+  ctx.strokeStyle = tier.color + '22';
+  ctx.lineWidth = 1*s;
+  ctx.stroke();
+  
+  // DNA mini strand (left side accent)
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  for (let i = 0; i < 8; i++) {
+    const t = i/7;
+    const y = cy - 20*s + t*40*s;
+    const x1 = cx - 20*s + Math.sin(t*Math.PI*2)*6*s;
+    const x2 = cx - 20*s + Math.sin(t*Math.PI*2 + Math.PI)*6*s;
+    ctx.beginPath();
+    ctx.arc(x1, y, 1.5*s, 0, Math.PI*2);
+    ctx.fillStyle = tier.color;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x2, y, 1.5*s, 0, Math.PI*2);
+    ctx.fillStyle = tier.accent;
+    ctx.fill();
+    if (i % 2 === 0) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y);
+      ctx.lineTo(x2, y);
+      ctx.strokeStyle = '#ffffff33';
+      ctx.lineWidth = 0.5*s;
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  
+  // ₿ symbol (offset right slightly)
+  ctx.font = `bold ${26*s}px -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const btcGrad = ctx.createLinearGradient(cx, cy - 13*s, cx, cy + 13*s);
+  btcGrad.addColorStop(0, '#ffffff');
+  btcGrad.addColorStop(1, tier.color);
+  ctx.fillStyle = btcGrad;
+  ctx.fillText('₿', cx + 5*s, cy);
+}
+
+function drawDesign4(ctx, size, tier) {
+  // DESIGN 4: Diamond Shield — rotated square (diamond) with embedded shield + ₿
+  const cx = size/2, cy = size/2, s = size/100;
+  const r = 32*s;
+  
+  // Outer glow
+  const glow = ctx.createRadialGradient(cx, cy, r*0.3, cx, cy, r*1.6);
+  glow.addColorStop(0, tier.glow + '0.25)');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r*1.6, 0, Math.PI*2);
+  ctx.fill();
+  
+  // Diamond (rotated square with rounded corners feel)
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.PI/4);
+  
+  // Outer diamond
+  const dr = r * 1.05;
+  ctx.beginPath();
+  ctx.roundRect(-dr, -dr, dr*2, dr*2, 6*s);
+  ctx.strokeStyle = tier.color;
+  ctx.lineWidth = 2.5*s;
+  ctx.stroke();
+  
+  // Fill
+  ctx.beginPath();
+  ctx.roundRect(-dr + 2*s, -dr + 2*s, (dr-2*s)*2, (dr-2*s)*2, 5*s);
+  const fill = ctx.createLinearGradient(-dr, -dr, dr, dr);
+  fill.addColorStop(0, '#181830');
+  fill.addColorStop(1, '#0a0a18');
+  ctx.fillStyle = fill;
+  ctx.fill();
+  
+  // Inner diamond accent
+  ctx.beginPath();
+  ctx.roundRect(-dr*0.6, -dr*0.6, dr*1.2, dr*1.2, 4*s);
+  ctx.strokeStyle = tier.color + '22';
+  ctx.lineWidth = 1*s;
+  ctx.stroke();
+  
+  ctx.restore();
+  
+  // ₿ on top (not rotated)
+  ctx.font = `bold ${28*s}px -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const btcGrad = ctx.createLinearGradient(cx, cy - 14*s, cx, cy + 14*s);
+  btcGrad.addColorStop(0, tier.accent);
+  btcGrad.addColorStop(0.5, '#ffffff');
+  btcGrad.addColorStop(1, tier.color);
+  ctx.fillStyle = btcGrad;
+  ctx.fillText('₿', cx, cy - 2*s);
+  
+  // Verified check at bottom tip
+  ctx.beginPath();
+  ctx.moveTo(cx - 5*s, cy + 18*s);
+  ctx.lineTo(cx - 1*s, cy + 22*s);
+  ctx.lineTo(cx + 7*s, cy + 14*s);
+  ctx.strokeStyle = '#22ff88';
+  ctx.lineWidth = 2*s;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+}
+
+const designs = [
+  { name: 'Design A: Classic Shield', desc: 'Heraldic shield with ₿ center and verified check. Timeless, authoritative.', fn: drawDesign1 },
+  { name: 'Design B: Circular Badge', desc: 'Modern circle with ₿ and mini shield. Clean, works at any size. X/Twitter style.', fn: drawDesign2 },
+  { name: 'Design C: Hexagonal', desc: 'Crypto-native hexagon with ₿ and DNA strand accent. Technical, unique.', fn: drawDesign3 },
+  { name: 'Design D: Diamond Shield', desc: 'Rotated square (diamond) with ₿ and check. Bold, distinctive, premium feel.', fn: drawDesign4 },
+];
+
+const container = document.getElementById('badges');
+
+designs.forEach((design, di) => {
+  const group = document.createElement('div');
+  group.className = 'design-group';
+  group.style.marginBottom = '60px';
+  
+  const title = document.createElement('div');
+  title.className = 'design-title';
+  title.textContent = design.name;
+  group.appendChild(title);
+  
+  const desc = document.createElement('div');
+  desc.className = 'design-desc';
+  desc.textContent = design.desc;
+  desc.style.margin = '5px auto 25px';
+  group.appendChild(desc);
+  
+  const tierRow = document.createElement('div');
+  tierRow.className = 'tier-row';
+  
+  [1, 2, 3].forEach(t => {
+    const item = document.createElement('div');
+    item.className = 'tier-item';
+    
+    const canvas = document.createElement('canvas');
+    const sz = 140;
+    canvas.width = sz;
+    canvas.height = sz;
+    canvas.style.width = sz + 'px';
+    canvas.style.height = sz + 'px';
+    
+    const ctx = canvas.getContext('2d');
+    design.fn(ctx, sz, TIERS[t]);
+    
+    item.appendChild(canvas);
+    
+    const label = document.createElement('div');
+    label.className = 'tier-label';
+    label.innerHTML = `<strong style="color:${TIERS[t].color}">${TIERS[t].label}</strong>`;
+    item.appendChild(label);
+    
+    const name = document.createElement('div');
+    name.className = 'tier-name';
+    name.textContent = TIERS[t].name;
+    item.appendChild(name);
+    
+    tierRow.appendChild(item);
+  });
+  
+  group.appendChild(tierRow);
+  
+  // Handle preview
+  const preview = document.createElement('div');
+  preview.style.marginTop = '20px';
+  preview.innerHTML = `<div style="color:#555;font-size:11px;margin-bottom:8px;">How it looks next to a handle:</div>`;
+  
+  [1, 2, 3].forEach(t => {
+    const row = document.createElement('div');
+    row.style.display = 'inline-flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '6px';
+    row.style.margin = '4px 15px';
+    row.style.padding = '6px 14px';
+    row.style.background = '#111';
+    row.style.borderRadius = '10px';
+    row.style.border = '1px solid #222';
+    
+    const miniCanvas = document.createElement('canvas');
+    const ms = 28;
+    miniCanvas.width = ms;
+    miniCanvas.height = ms;
+    miniCanvas.style.width = ms + 'px';
+    miniCanvas.style.height = ms + 'px';
+    const mctx = miniCanvas.getContext('2d');
+    design.fn(mctx, ms, TIERS[t]);
+    
+    row.appendChild(miniCanvas);
+    row.innerHTML += `<span style="font-weight:600;font-size:14px;">Gravity</span> <span style="color:#888;font-size:12px;">@gravity</span>`;
+    preview.appendChild(row);
+  });
+  
+  group.appendChild(preview);
+  container.appendChild(group);
+  
+  if (di < designs.length - 1) {
+    const hr = document.createElement('hr');
+    hr.className = 'section-divider';
+    container.appendChild(hr);
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+{
+  "name": "pepe-command-center",
+  "version": "2.0.0",
+  "description": "🐸 Pepe Command Center v2 — Mission Control for Gravity",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac",
+    "pack": "electron-builder --mac --dir"
+  },
+  "author": "Pepe 🐸",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^34.5.8",
+    "electron-builder": "^26.7.0"
+  },
+  "build": {
+    "appId": "com.pepe.command-center",
+    "productName": "Pepe Command Center",
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.icns",
+      "icon.png"
+    ]
+  }
+}
