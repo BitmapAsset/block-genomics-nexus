@@ -1,9 +1,6 @@
 /**
  * Bitfeed Mondrian Layout Algorithm — CANONICAL bitmap standard.
  * Ported from https://github.com/bitfeed-project/bitfeed
- * 
- * This produces THE standard Bitcoin block visualization used by Bitfeed,
- * bitmap platforms, and Block Genomics.
  */
 
 export interface SquarePackInput {
@@ -24,207 +21,113 @@ export interface PackResult {
   gridHeight: number;
 }
 
-/**
- * Convert vbytes to grid square size (matches Bitfeed's byteTxSize exactly).
- */
 export function txToSquareSize(vbytes: number, scaleFactor = 256): number {
   return Math.max(1, Math.ceil(Math.sqrt(Math.max(1, vbytes) / scaleFactor)));
 }
 
-interface Slot {
-  x: number;
-  y: number;
-  r: number; // size (width = height = r)
-}
+interface Slot { x: number; y: number; r: number; }
+interface Row { y: number; slots: Slot[]; map: Record<number, Slot>; }
 
-interface Row {
-  y: number;
-  slots: Slot[];
-  map: Record<number, Slot>;
-}
-
-/**
- * Mondrian Layout — exact port of Bitfeed's TxMondrianPoolScene layout algorithm.
- */
 class MondrianLayout {
   width: number;
-  rowOffset: number;
-  rows: Row[];
+  rowOffset = 0;
+  rows: Row[] = [];
 
-  constructor(width: number) {
-    this.width = width;
-    this.rowOffset = 0;
-    this.rows = [];
-  }
+  constructor(width: number) { this.width = width; }
 
   addRow(): Row {
-    const row: Row = {
-      y: this.rows.length + this.rowOffset,
-      slots: [],
-      map: {},
-    };
-    this.rows.push(row);
-    return row;
+    const r: Row = { y: this.rows.length + this.rowOffset, slots: [], map: {} };
+    this.rows.push(r);
+    return r;
   }
 
-  getRow(y: number): Row | undefined {
-    return this.rows[y - this.rowOffset];
-  }
-
-  getSlot(x: number, y: number): Slot | undefined {
-    const row = this.getRow(y);
-    return row ? row.map[x] : undefined;
-  }
+  getRow(y: number): Row | undefined { return this.rows[y - this.rowOffset]; }
+  getSlot(x: number, y: number): Slot | undefined { const r = this.getRow(y); return r ? r.map[x] : undefined; }
 
   addSlot(s: Slot): Slot | undefined {
     if (s.r <= 0) return undefined;
-    const existing = this.getSlot(s.x, s.y);
-    if (existing) {
-      if (s.r > existing.r) existing.r = s.r;
-      return existing;
-    }
+    const e = this.getSlot(s.x, s.y);
+    if (e) { if (s.r > e.r) e.r = s.r; return e; }
     const row = this.getRow(s.y);
     if (!row) return undefined;
-
-    let insertAt: number | null = null;
-    for (let i = 0; i < row.slots.length && insertAt === null; i++) {
-      if (row.slots[i].x > s.x) insertAt = i;
-    }
-    if (insertAt === null) row.slots.push(s);
-    else row.slots.splice(insertAt, 0, s);
+    let at: number | null = null;
+    for (let i = 0; i < row.slots.length && at === null; i++) if (row.slots[i].x > s.x) at = i;
+    if (at === null) row.slots.push(s); else row.slots.splice(at, 0, s);
     row.map[s.x] = s;
     return s;
   }
 
   removeSlot(s: Slot): void {
     const row = this.getRow(s.y);
-    if (row) {
-      delete row.map[s.x];
-      const idx = row.slots.indexOf(s);
-      if (idx >= 0) row.slots.splice(idx, 1);
-    }
+    if (row) { delete row.map[s.x]; const i = row.slots.indexOf(s); if (i >= 0) row.slots.splice(i, 1); }
   }
 
-  fillSlot(slot: Slot, squareWidth: number) {
-    const square = {
-      left: slot.x,
-      right: slot.x + squareWidth,
-      top: slot.y + squareWidth,
-    };
-
+  fillSlot(slot: Slot, sw: number) {
+    const sq = { left: slot.x, right: slot.x + sw, top: slot.y + sw };
     this.removeSlot(slot);
-
-    // Process rows covered by this square
-    for (let ri = slot.y; ri < square.top; ri++) {
+    for (let ri = slot.y; ri < sq.top; ri++) {
       const row = this.getRow(ri);
       if (row) {
-        // Find colliding slots
-        const collisions: Slot[] = [];
-        let maxExtend = 0;
+        const cols: Slot[] = [];
+        let maxE = 0;
         for (let i = 0; i < row.slots.length; i++) {
           const ts = row.slots[i];
-          if (!((ts.x + ts.r < square.left) || (ts.x >= square.right))) {
-            collisions.push(ts);
-            maxExtend = Math.max(maxExtend, Math.max(0, (ts.x + ts.r) - (slot.x + slot.r)));
+          if (!((ts.x + ts.r < sq.left) || (ts.x >= sq.right))) {
+            cols.push(ts);
+            maxE = Math.max(maxE, Math.max(0, (ts.x + ts.r) - (slot.x + slot.r)));
           }
         }
-
-        // Add right remainder slot
-        if (square.right < this.width && !row.map[square.right]) {
-          this.addSlot({ x: square.right, y: ri, r: slot.r - squareWidth + maxExtend });
+        if (sq.right < this.width && !row.map[sq.right]) {
+          this.addSlot({ x: sq.right, y: ri, r: slot.r - sw + maxE });
         }
-
-        // Shrink/remove colliding slots
-        for (let i = 0; i < collisions.length; i++) {
-          collisions[i].r = slot.x - collisions[i].x;
-          if (collisions[i].r > 0) { /* keep */ }
-          else this.removeSlot(collisions[i]);
-        }
+        for (const c of cols) { c.r = slot.x - c.x; if (c.r <= 0) this.removeSlot(c); }
       } else {
-        // New row
         this.addRow();
         if (slot.x > 0) this.addSlot({ x: 0, y: ri, r: slot.x });
-        if (square.right < this.width) {
-          this.addSlot({ x: square.right, y: ri, r: this.width - square.right });
-        }
+        if (sq.right < this.width) this.addSlot({ x: sq.right, y: ri, r: this.width - sq.right });
       }
     }
-
-    // Handle below-square collisions (matching Bitfeed's exact for-loop behavior)
-    for (let ri = Math.max(0, slot.y - squareWidth); ri < slot.y; ri++) {
+    for (let ri = Math.max(0, slot.y - sw); ri < slot.y; ri++) {
       const row = this.getRow(ri);
       if (row) {
         for (let i = 0; i < row.slots.length; i++) {
-          const testSlot = row.slots[i];
-          if (
-            testSlot.x < slot.x + squareWidth &&
-            testSlot.x + testSlot.r > slot.x &&
-            testSlot.y + testSlot.r >= slot.y
-          ) {
-            const oldR = testSlot.r;
-            testSlot.r = slot.y - testSlot.y;
-            if (testSlot.r > 0) { /* keep */ }
-            else this.removeSlot(testSlot);
-
-            // Decompose remainder into sub-squares
-            let rem = {
-              x: testSlot.x + testSlot.r,
-              y: testSlot.y,
-              w: oldR - testSlot.r,
-              h: testSlot.r,
-            };
+          const ts = row.slots[i];
+          if (ts.x < slot.x + sw && ts.x + ts.r > slot.x && ts.y + ts.r >= slot.y) {
+            const old = ts.r;
+            ts.r = slot.y - ts.y;
+            if (ts.r <= 0) this.removeSlot(ts);
+            let rem = { x: ts.x + ts.r, y: ts.y, w: old - ts.r, h: ts.r };
             while (rem.w > 0 && rem.h > 0) {
-              if (rem.w <= rem.h) {
-                this.addSlot({ x: rem.x, y: rem.y, r: rem.w });
-                rem.y += rem.w;
-                rem.h -= rem.w;
-              } else {
-                this.addSlot({ x: rem.x, y: rem.y, r: rem.h });
-                rem.x += rem.h;
-                rem.w -= rem.h;
-              }
+              if (rem.w <= rem.h) { this.addSlot({ x: rem.x, y: rem.y, r: rem.w }); rem.y += rem.w; rem.h -= rem.w; }
+              else { this.addSlot({ x: rem.x, y: rem.y, r: rem.h }); rem.x += rem.h; rem.w -= rem.h; }
             }
           }
         }
       }
     }
-
-    return { x: slot.x, y: slot.y, r: squareWidth };
+    return { x: slot.x, y: slot.y, r: sw };
   }
 
   place(size: number) {
-    let found = false;
-    let rowIndex = 0;
-    let slotIndex = 0;
-    let square = null;
-
-    while (!found && rowIndex < this.rows.length) {
-      const row = this.rows[rowIndex];
-      while (!found && slotIndex < row.slots.length) {
-        if (row.slots[slotIndex].r >= size) {
-          found = true;
-          square = this.fillSlot(row.slots[slotIndex], size);
-        }
-        slotIndex++;
+    let found = false, ri = 0, si = 0, sq = null;
+    while (!found && ri < this.rows.length) {
+      const row = this.rows[ri];
+      while (!found && si < row.slots.length) {
+        if (row.slots[si].r >= size) { found = true; sq = this.fillSlot(row.slots[si], size); }
+        si++;
       }
-      slotIndex = 0;
-      rowIndex++;
+      si = 0;
+      ri++;
     }
-
     if (!found) {
       const row = this.addRow();
       const slot = this.addSlot({ x: 0, y: row.y, r: this.width })!;
-      square = this.fillSlot(slot, size);
+      sq = this.fillSlot(slot, size);
     }
-
-    return square!;
+    return sq!;
   }
 }
 
-/**
- * Pack squares using Bitfeed's Mondrian layout algorithm.
- * Processes transactions in NATURAL ORDER (not sorted by size).
- */
 export function packSquares(items: SquarePackInput[], scaleFactor = 256): PackResult {
   if (items.length === 0) return { squares: [], gridWidth: 0, gridHeight: 0 };
 
@@ -238,21 +141,13 @@ export function packSquares(items: SquarePackInput[], scaleFactor = 256): PackRe
 
   for (let i = 0; i < items.length; i++) {
     const pos = layout.place(txSizes[i]);
-    result.push({
-      index: items[i].index,
-      x: pos.x,
-      y: pos.y,
-      size: pos.r,
-    });
+    result.push({ index: items[i].index, x: pos.x, y: pos.y, size: pos.r });
     maxY = Math.max(maxY, pos.y + pos.r);
   }
 
   return { squares: result, gridWidth, gridHeight: maxY };
 }
 
-/**
- * Pack squares and convert to world-space coordinates for 3D rendering.
- */
 export function packSquaresToWorldSpace(
   items: SquarePackInput[],
   blockSize: number,
@@ -264,17 +159,11 @@ export function packSquaresToWorldSpace(
   const cellSize = blockSize / dim;
   const halfBlock = blockSize / 2;
 
-  return squares.map(sq => {
-    const worldX = sq.x * cellSize - halfBlock;
-    const worldZ = sq.y * cellSize - halfBlock;
-    const worldSize = sq.size * cellSize;
-
-    return {
-      index: sq.index,
-      x: worldX + worldSize / 2,
-      z: worldZ + worldSize / 2,
-      width: Math.max(0.001, worldSize - gap),
-      depth: Math.max(0.001, worldSize - gap),
-    };
-  });
+  return squares.map(sq => ({
+    index: sq.index,
+    x: sq.x * cellSize - halfBlock + sq.size * cellSize / 2,
+    z: sq.y * cellSize - halfBlock + sq.size * cellSize / 2,
+    width: Math.max(0.001, sq.size * cellSize - gap),
+    depth: Math.max(0.001, sq.size * cellSize - gap),
+  }));
 }
