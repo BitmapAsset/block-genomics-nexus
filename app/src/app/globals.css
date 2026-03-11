@@ -241,14 +241,14 @@ body {
 
 /* ─── RuneBolt Styles ─────────────────────────────── */
 
-@utility bitcoin-gradient {
+.bitcoin-gradient {
   background: linear-gradient(135deg, #F7931A, #FFD700);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-@utility btn-primary {
+.btn-primary {
   background: linear-gradient(135deg, #F7931A, #E8850A);
   color: black;
   font-weight: 600;
@@ -257,12 +257,12 @@ body {
   transition: all 0.2s;
 }
 
-@utility btn-primary:hover {
+.btn-primary:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 30px rgba(247, 147, 26, 0.3);
 }
 
-@utility btn-secondary {
+.btn-secondary {
   background: rgba(255, 255, 255, 0.05);
   color: white;
   font-weight: 500;
@@ -272,12 +272,12 @@ body {
   transition: all 0.2s;
 }
 
-@utility btn-secondary:hover {
+.btn-secondary:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
-@utility card {
+.card {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 1rem;
@@ -285,12 +285,12 @@ body {
   transition: all 0.2s;
 }
 
-@utility card:hover {
+.card:hover {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.12);
 }
 
-@utility glass {
+.glass {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(12px);
 }
