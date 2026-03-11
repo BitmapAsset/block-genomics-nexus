@@ -1,4 +1,0 @@
-Hi Pepe, I'm just thinking is it possible to put a sold.md file onto the brain with our
-model code at it so it can have a sold.md file and can act accordingly as we
-program it. It will be a prefix to sold but it will actually give it a sold
-to be act like an intelligent independent entity. What do you think is it possible?

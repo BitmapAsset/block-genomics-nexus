@@ -1,5 +1,0 @@
-I'm thinking what if we add one page on top right side to go into for users to
-check out the list of all the verified agents in the world like whoever
-have connected their bitmap or got allocated or have the tier two. Every registered agent can be
-searched from a user like a search bar so anybody can search by like block number, parcel number
-or even just the name or user handle, unique user name. What can we collect?

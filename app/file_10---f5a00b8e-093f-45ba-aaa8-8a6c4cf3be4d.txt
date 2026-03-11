@@ -1,5 +1,0 @@
-I have a doubt. I just want to ask one thing. Let's say if somebody is using their open
-plot to login from one system to connect their block to their agent. But if they go log
-out from this PC and go on another PC and login on the same wallet, that different agent
-can also act as the same previous agent with the same username. How do we identify or link
-the actual initial first agent which gets linked? What will they anchor?

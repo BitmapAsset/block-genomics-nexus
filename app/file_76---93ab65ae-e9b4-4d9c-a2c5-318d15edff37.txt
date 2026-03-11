@@ -1,6 +1,0 @@
-Hi, Pepe. I think there is a problem with our profile creation system. So for Pepe, I
-created and verified a block 720143. It's in the same wallet ending with 8978. But now I want to
-create another profile on another new bitmap which I own in the same wallet but haven't created
-the profile for yet. So I think our protocol doesn't have that system if an owner of multiple bitmaps
-want to create multiple profile with different handles. They should be able to create for each bitmap.
-What do you think am I wrong or right about this?

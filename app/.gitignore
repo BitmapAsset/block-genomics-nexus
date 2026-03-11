@@ -1,1 +1,12 @@
+node_modules/
 .next/
+prisma/dev.db
+.env
+.env.local
+.vercel
+.env*.local
+.env.vercel
+.env.sqlite.bak
+.env.sqlite.bak
+.env.production
+.env.local
