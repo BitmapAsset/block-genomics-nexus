@@ -1,0 +1,48 @@
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "RuneBolt — Instant Bitcoin Assets",
+  description: "Transfer Runes, Ordinals, and Bitmap instantly over Lightning Network. The first non-custodial deed protocol for Bitcoin assets.",
+  keywords: ["Bitcoin", "Lightning", "Runes", "Ordinals", "Bitmap", "Instant Transfer", "Deed Protocol"],
+  authors: [{ name: "Block Genomics" }],
+  openGraph: {
+    title: "RuneBolt — Lightning Deed Protocol",
+    description: "Instant Bitcoin asset transfers via Lightning Network",
+    type: "website",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#F7931A",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en" className="dark">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white min-h-screen`}
+      >
+        {children}
+      </body>
+    </html>
+  );
+}
