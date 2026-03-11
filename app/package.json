@@ -20,11 +20,16 @@
     "@vercel/analytics": "^1.6.1",
     "bip322-js": "^3.0.0",
     "canvas": "^3.2.1",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.4.0",
+    "lucide-react": "^0.475.0",
     "next": "^15.3.3",
     "postprocessing": "^6.38.2",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "sats-connect": "^4.2.1",
+    "tailwind-merge": "^3.0.0",
     "three": "^0.182.0"
   },
   "prisma": {
