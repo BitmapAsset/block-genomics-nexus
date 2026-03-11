@@ -71,12 +71,12 @@ function NavLink({ link }: { link: { href: string; label: string; isBrain?: bool
         </span>
       ) : isRuneBolt ? (
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-5 h-5 rounded bg-gradient-to-br from-[#F7931A] to-[#FFD700] flex items-center justify-center">
-            <svg className="w-3.5 h-3.5 text-black" fill="currentColor" viewBox="0 0 24 24">
+          <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#F7931A] to-[#FFD700] flex items-center justify-center">
+            <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 24 24">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
             </svg>
           </span>
-          <span>{link.label}</span>
+          <span className="font-bold" style={{ background: 'linear-gradient(135deg, #F7931A, #FFD700)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{link.label}</span>
         </span>
       ) : link.label}
     </Link>
@@ -174,12 +174,12 @@ export default function Header() {
                 </span>
               ) : (link as any).isRuneBolt ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded bg-gradient-to-br from-[#F7931A] to-[#FFD700] flex items-center justify-center">
-                    <svg className="w-3.5 h-3.5 text-black" fill="currentColor" viewBox="0 0 24 24">
+                  <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#F7931A] to-[#FFD700] flex items-center justify-center">
+                    <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                     </svg>
                   </span>
-                  <span>{link.label}</span>
+                  <span className="font-bold" style={{ background: 'linear-gradient(135deg, #F7931A, #FFD700)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{link.label}</span>
                 </span>
               ) : link.label}
             </Link>
