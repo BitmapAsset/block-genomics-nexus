@@ -71,7 +71,11 @@ function NavLink({ link }: { link: { href: string; label: string; isBrain?: bool
         </span>
       ) : isRuneBolt ? (
         <span className="inline-flex items-center gap-1.5">
-          <span>⚡</span>
+          <span className="w-5 h-5 rounded bg-gradient-to-br from-[#F7931A] to-[#FFD700] flex items-center justify-center">
+            <svg className="w-3.5 h-3.5 text-black" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+          </span>
           <span>{link.label}</span>
         </span>
       ) : link.label}
@@ -170,7 +174,11 @@ export default function Header() {
                 </span>
               ) : (link as any).isRuneBolt ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <span>⚡</span>
+                  <span className="w-5 h-5 rounded bg-gradient-to-br from-[#F7931A] to-[#FFD700] flex items-center justify-center">
+                    <svg className="w-3.5 h-3.5 text-black" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                  </span>
                   <span>{link.label}</span>
                 </span>
               ) : link.label}
