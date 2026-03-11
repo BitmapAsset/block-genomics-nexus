@@ -11,6 +11,7 @@ const navLinks = [
   { href: "/directory", label: "Directory" },
   { href: "/live", label: "TimesSquare", isLive: true },
   { href: "/marketplace", label: "Marketplace" },
+  { href: "/runebolt", label: "RuneBolt", isRuneBolt: true },
   { href: "/verify", label: "Verify" },
   { href: "/whitepaper", label: "White Paper" },
   { href: "/brain", label: "Brain", isBrain: true },
@@ -32,16 +33,26 @@ const brainStyle = {
   boxShadow: '0 0 12px rgba(167,139,250,0.15)',
 };
 
-function NavLink({ link }: { link: { href: string; label: string; isBrain?: boolean; isLive?: boolean } }) {
+const runeBoltStyle = {
+  color: '#F7931A',
+  background: 'linear-gradient(135deg, rgba(247,147,26,0.15) 0%, rgba(255,215,0,0.08) 100%)',
+  border: '1px solid rgba(247,147,26,0.35)',
+  boxShadow: '0 0 15px rgba(247,147,26,0.25), inset 0 0 10px rgba(247,147,26,0.05)',
+  textShadow: '0 0 8px rgba(247,147,26,0.5)',
+  fontWeight: 700,
+};
+
+function NavLink({ link }: { link: { href: string; label: string; isBrain?: boolean; isLive?: boolean; isRuneBolt?: boolean } }) {
   const isNexus = link.href === '/nexus';
   const isBrain = !!(link as any).isBrain;
   const isLive = !!(link as any).isLive;
+  const isRuneBolt = !!(link as any).isRuneBolt;
   const liveStyle: React.CSSProperties = { color: '#ff6b6b', textShadow: '0 0 8px rgba(255,51,51,0.3)' };
   return (
     <Link
       href={link.href}
-      className={`px-3 py-2 text-sm rounded-lg transition-all ${isNexus ? 'font-bold' : isBrain ? 'font-semibold' : isLive ? 'font-semibold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
-      style={isNexus ? nexusStyle : isBrain ? brainStyle : isLive ? liveStyle : undefined}
+      className={`px-3 py-2 text-sm rounded-lg transition-all ${isNexus ? 'font-bold' : isBrain ? 'font-semibold' : isLive ? 'font-semibold' : isRuneBolt ? 'font-bold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
+      style={isNexus ? nexusStyle : isBrain ? brainStyle : isLive ? liveStyle : isRuneBolt ? runeBoltStyle : undefined}
     >
       {isNexus ? '⚡ ' : ''}
       {isLive ? (
@@ -57,6 +68,11 @@ function NavLink({ link }: { link: { href: string; label: string; isBrain?: bool
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
+        </span>
+      ) : isRuneBolt ? (
+        <span className="inline-flex items-center gap-1.5">
+          <span>⚡</span>
+          <span>{link.label}</span>
         </span>
       ) : link.label}
     </Link>
@@ -139,8 +155,8 @@ export default function Header() {
               key={link.href}
               href={link.href}
               onClick={() => setMenuOpen(false)}
-              className={`px-4 py-3 text-sm rounded-lg transition-all ${link.href === '/nexus' ? 'font-bold' : (link as any).isBrain ? 'font-semibold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
-              style={link.href === '/nexus' ? nexusStyle : (link as any).isBrain ? brainStyle : undefined}
+              className={`px-4 py-3 text-sm rounded-lg transition-all ${link.href === '/nexus' ? 'font-bold' : (link as any).isBrain ? 'font-semibold' : (link as any).isRuneBolt ? 'font-bold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
+              style={link.href === '/nexus' ? nexusStyle : (link as any).isBrain ? brainStyle : (link as any).isRuneBolt ? runeBoltStyle : undefined}
             >
               {link.href === '/nexus' ? '⚡ ' : ''}
               {(link as any).isBrain ? (
@@ -151,6 +167,11 @@ export default function Header() {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                   </span>
+                </span>
+              ) : (link as any).isRuneBolt ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span>⚡</span>
+                  <span>{link.label}</span>
                 </span>
               ) : link.label}
             </Link>
