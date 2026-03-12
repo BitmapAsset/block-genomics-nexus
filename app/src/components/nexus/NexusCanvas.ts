@@ -323,7 +323,7 @@ export class NexusCanvasEngine {
       for (let col = visibleBlocks.minCol - prefetchRadius; col <= visibleBlocks.maxCol + prefetchRadius; col++) {
         if (row >= 0 && col >= 0 && col < COLS) {
           const h = gridToHeight(col, row);
-          if (h >= 0 && h < TOTAL_BLOCKS && !this.realThumbnailBlocks.has(h) && !this.loadingThumbnails.has(h)) {
+          if (h !== null && h >= 0 && h < TOTAL_BLOCKS && !this.realThumbnailBlocks.has(h) && !this.loadingThumbnails.has(h)) {
             this.prefetchSet.add(h);
           }
         }
