@@ -150,9 +150,28 @@ export class NexusCanvasEngine {
     return null;
   }
 
-  /** Synchronously generate one parcel texture and cache it */
+  // Track which blocks are using real thumbnails vs procedural
+  private realThumbnailBlocks = new Set<number>();
+  private thumbnailLoadQueue: number[] = [];
+  private loadingThumbnails = new Set<number>();
+  private prefetchSet = new Set<number>();
+
+  /** Generate instant procedural fallback, then load real thumbnail async */
   private generateParcelTexture(height: number): void {
     if (this.parcelCache.has(height)) return;
+    
+    // INSTANT: Create procedural fallback immediately (no lag)
+    this.generateProceduralTexture(height);
+    
+    // ASYNC: Queue real thumbnail load (will swap when ready)
+    if (!this.loadingThumbnails.has(height) && !this.realThumbnailBlocks.has(height)) {
+      this.thumbnailLoadQueue.push(height);
+      this.loadingThumbnails.add(height);
+    }
+  }
+
+  /** Fast procedural texture for instant display (fallback) */
+  private generateProceduralTexture(height: number): void {
     const size = NexusCanvasEngine.PARCEL_TEX_SIZE;
     const tex = typeof OffscreenCanvas !== 'undefined'
       ? new OffscreenCanvas(size, size)
@@ -161,120 +180,224 @@ export class NexusCanvasEngine {
     if (!tctx) return;
 
     const block = generateBlock(height);
-    const txCount = block.txCount;
-    const rng = (seed: number) => seededRand(seed);
-
-    // Generate tx bytes with realistic power-law distribution (matching ParcelView)
-    const txBytes: number[] = [];
+    const txCount = Math.min(block.txCount, 500); // Limit for speed
+    
+    // Fast deterministic RNG
     let rngState = height * 7919;
-    const nextR = () => { rngState = (rngState * 1664525 + 1013904223) & 0xffffffff; return (rngState >>> 0) / 0xffffffff; };
+    const nextR = () => { 
+      rngState = (rngState * 1664525 + 1013904223) & 0xffffffff; 
+      return (rngState >>> 0) / 0xffffffff; 
+    };
+
+    // Estimate tx sizes quickly
+    const txBytes: number[] = [];
     for (let i = 0; i < txCount; i++) {
-      if (i === 0) {
-        txBytes.push(200 + Math.floor(nextR() * 400));
-      } else {
-        // Power-law distribution matching ParcelView
-        const u = nextR();
-        const exp = Math.pow(u, 3);
-        txBytes.push(Math.floor(150 + exp * 500000));
-      }
+      txBytes.push(i === 0 ? 300 : Math.floor(150 + Math.pow(nextR(), 3) * 10000));
     }
 
-    const totalBytes = txBytes.reduce((s, b) => s + b, 0);
-    // Proportional gap calculated after gridW is known (see below)
-    let cellGap = 1.5;
-
-    // White background — standard bitmap style
+    // White background
     tctx.fillStyle = '#ffffff';
     tctx.fillRect(0, 0, size, size);
 
-
-    // Bitfeed-standard Mondrian square packing (each tx = square, side = ceil(sqrt(vbytes/256)))
-    interface TexRect { index: number; x: number; y: number; w: number; h: number; }
-    const rects: TexRect[] = [];
-
-    const squares = txBytes.map((b, i) => ({ idx: i, gridSize: Math.max(1, Math.ceil(Math.sqrt(b / 256))) }));
-    // Natural tx order — matches Bitfeed/Magic Eden standard (no sort by size)
-
+    // Simplified Mondrian packing (faster)
+    const squares = txBytes.map((b, i) => ({ 
+      idx: i, 
+      gridSize: Math.max(1, Math.ceil(Math.sqrt(b / 256)))
+    }));
+    
     const totalGridArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
     const gridW = Math.ceil(Math.sqrt(totalGridArea));
     const pxPerGrid = size / gridW;
-    cellGap = Math.max(pxPerGrid * 0.06, 0.8); // Thin gaps matching standard bitmap images
+    const cellGap = Math.max(pxPerGrid * 0.06, 0.8);
 
     // Occupancy grid
-    const gridH = gridW + 20;
-    const occ: boolean[][] = [];
-    for (let r = 0; r < gridH; r++) occ.push(new Array(gridW).fill(false));
-
+    const occ = new Set<string>();
+    
     for (const sq of squares) {
       const gs = sq.gridSize;
       let placed = false;
-      for (let row = 0; row < gridH - gs + 1 && !placed; row++) {
+      
+      for (let row = 0; row < gridW - gs + 1 && !placed; row++) {
         for (let col = 0; col <= gridW - gs && !placed; col++) {
           let fits = true;
-          for (let dr = 0; dr < gs && fits; dr++)
-            for (let dc = 0; dc < gs && fits; dc++)
-              if (occ[row + dr][col + dc]) fits = false;
+          for (let dr = 0; dr < gs && fits; dr++) {
+            for (let dc = 0; dc < gs && fits; dc++) {
+              if (occ.has(`${row + dr},${col + dc}`)) fits = false;
+            }
+          }
           if (fits) {
-            for (let dr = 0; dr < gs; dr++)
-              for (let dc = 0; dc < gs; dc++)
-                occ[row + dr][col + dc] = true;
-            rects.push({
-              index: sq.idx,
-              x: col * pxPerGrid + cellGap / 2,
-              y: row * pxPerGrid + cellGap / 2,
-              w: Math.max(0.5, gs * pxPerGrid - cellGap),
-              h: Math.max(0.5, gs * pxPerGrid - cellGap),
-            });
+            for (let dr = 0; dr < gs; dr++) {
+              for (let dc = 0; dc < gs; dc++) {
+                occ.add(`${row + dr},${col + dc}`);
+              }
+            }
+            // Draw instantly
+            tctx.fillStyle = sq.idx === 0 ? '#f7931a' : '#ff9500';
+            tctx.fillRect(
+              col * pxPerGrid + cellGap / 2,
+              row * pxPerGrid + cellGap / 2,
+              Math.max(0.5, gs * pxPerGrid - cellGap),
+              Math.max(0.5, gs * pxPerGrid - cellGap)
+            );
             placed = true;
           }
         }
       }
     }
 
+    this.cacheTexture(height, tex);
+  }
 
-    // Draw parcels
-    for (const rect of rects) {
-      if (rect.index === 0) {
-        tctx.fillStyle = '#f7931a'; // coinbase = slightly brighter Bitcoin orange
-      } else {
-        // Standard bitmap uniform orange
-        tctx.fillStyle = '#ff9500';
-      }
-      tctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  /** Load real thumbnail from API with clever prefetching */
+  private async loadRealThumbnail(height: number): Promise<void> {
+    if (this.realThumbnailBlocks.has(height) || !this.loadingThumbnails.has(height)) return;
+
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      // Create promise that resolves when image loads
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load'));
+        img.src = `/api/v1/block-thumbnail/${height}.png`;
+      });
+
+      // Create texture from loaded image
+      const size = NexusCanvasEngine.PARCEL_TEX_SIZE;
+      const tex = typeof OffscreenCanvas !== 'undefined'
+        ? new OffscreenCanvas(size, size)
+        : (() => { const c = document.createElement('canvas'); c.width = size; c.height = size; return c; })();
+      const tctx = tex.getContext('2d');
+      if (!tctx) return;
+
+      // Draw thumbnail (scaled to fit)
+      tctx.drawImage(img, 0, 0, size, size);
+
+      // Swap procedural with real thumbnail
+      this.parcelCache.set(height, tex);
+      this.realThumbnailBlocks.add(height);
+      this.loadingThumbnails.delete(height);
+      
+      // Trigger redraw
+      this.invalidateBlock(height);
+      
+    } catch (err) {
+      // Keep procedural fallback on error
+      this.loadingThumbnails.delete(height);
     }
+  }
 
-    // LRU eviction
+  /** Cache texture with LRU eviction */
+  private cacheTexture(height: number, tex: HTMLCanvasElement | OffscreenCanvas): void {
+    if (this.parcelCache.has(height)) return;
+    
     if (this.parcelCacheOrder.length >= NexusCanvasEngine.PARCEL_CACHE_MAX) {
       const evict = this.parcelCacheOrder.shift()!;
       this.parcelCache.delete(evict);
+      this.realThumbnailBlocks.delete(evict);
     }
+    
     this.parcelCache.set(height, tex);
     this.parcelCacheOrder.push(height);
   }
 
-  /** Process queued texture generation (called once per frame, budget-limited) */
-  private processTextureQueue(): void {
-    if (this.texGenQueue.length === 0) return;
+  /** Mark block for redraw when thumbnail loads */
+  private invalidateBlock(height: number): void {
+    // Just mark dirty - next frame will redraw
+    this.texGenSet.delete(height);
+  }
 
-    // Sort queue by distance to camera center (prioritize visible center blocks)
-    const camCol = Math.round(this.camera.x / UNIT);
-    const camRow = Math.round(this.camera.y / UNIT);
-    this.texGenQueue.sort((a, b) => {
-      const aCol = a % COLS, aRow = Math.floor(a / COLS);
-      const bCol = b % COLS, bRow = Math.floor(b / COLS);
-      const aDist = (aCol - camCol) ** 2 + (aRow - camRow) ** 2;
-      const bDist = (bCol - camCol) ** 2 + (bRow - camRow) ** 2;
-      return aDist - bDist;
+  /** Prefetch thumbnails for blocks likely to be viewed soon */
+  private prefetchThumbnails(): void {
+    const visibleBlocks = this.getVisibleBlockRange();
+    const zoom = getZoomLevel(this.camera.zoom);
+    
+    // Only prefetch at region/block zoom levels
+    if (zoom === 'galaxy') return;
+    
+    // Prefetch blocks around visible area ( lookahead )
+    const prefetchRadius = zoom === 'block' ? 2 : 5;
+    
+    for (let row = visibleBlocks.minRow - prefetchRadius; row <= visibleBlocks.maxRow + prefetchRadius; row++) {
+      for (let col = visibleBlocks.minCol - prefetchRadius; col <= visibleBlocks.maxCol + prefetchRadius; col++) {
+        if (row >= 0 && col >= 0 && col < COLS) {
+          const h = gridToHeight(col, row);
+          if (h >= 0 && h < TOTAL_BLOCKS && !this.realThumbnailBlocks.has(h) && !this.loadingThumbnails.has(h)) {
+            this.prefetchSet.add(h);
+          }
+        }
+      }
+    }
+  }
+
+  /** Get visible block range for prefetching */
+  private getVisibleBlockRange(): { minCol: number; maxCol: number; minRow: number; maxRow: number } {
+    const canvasW = this.canvas.width;
+    const canvasH = this.canvas.height;
+    
+    // Transform screen corners to world coordinates
+    const toWorld = (sx: number, sy: number) => ({
+      x: (sx - canvasW / 2) / this.camera.zoom + this.camera.x,
+      y: (sy - canvasH / 2) / this.camera.zoom + this.camera.y,
     });
+    
+    const tl = toWorld(0, 0);
+    const br = toWorld(canvasW, canvasH);
+    
+    const minCol = Math.max(0, Math.floor(tl.x / UNIT) - 1);
+    const maxCol = Math.min(COLS - 1, Math.ceil(br.x / UNIT) + 1);
+    const minRow = Math.max(0, Math.floor(tl.y / UNIT) - 1);
+    const maxRow = Math.min(Math.ceil(TOTAL_BLOCKS / COLS), Math.ceil(br.y / UNIT) + 1);
+    
+    return { minCol, maxCol, minRow, maxRow };
+  }
 
-    let generated = 0;
-    while (generated < NexusCanvasEngine.TEX_BUDGET_PER_FRAME && this.texGenQueue.length > 0) {
-      const h = this.texGenQueue.shift()!;
-      this.texGenSet.delete(h);
-      // Only generate if still not cached (may have been generated in a previous pass)
-      if (!this.parcelCache.has(h)) {
-        this.generateParcelTexture(h);
-        generated++;
+  /** Process texture queues - procedural instant + async real thumbnails */
+  private processTextureQueue(): void {
+    // 1. Process procedural generation queue (instant fallback)
+    if (this.texGenQueue.length > 0) {
+      const camCol = Math.round(this.camera.x / UNIT);
+      const camRow = Math.round(this.camera.y / UNIT);
+      
+      // Sort by distance to camera center (prioritize visible)
+      this.texGenQueue.sort((a, b) => {
+        const aCol = a % COLS, aRow = Math.floor(a / COLS);
+        const bCol = b % COLS, bRow = Math.floor(b / COLS);
+        const aDist = (aCol - camCol) ** 2 + (aRow - camRow) ** 2;
+        const bDist = (bCol - camCol) ** 2 + (bRow - camRow) ** 2;
+        return aDist - bDist;
+      });
+
+      let generated = 0;
+      while (generated < NexusCanvasEngine.TEX_BUDGET_PER_FRAME && this.texGenQueue.length > 0) {
+        const h = this.texGenQueue.shift()!;
+        this.texGenSet.delete(h);
+        if (!this.parcelCache.has(h)) {
+          this.generateParcelTexture(h); // Instant procedural + queue real thumbnail
+          generated++;
+        }
+      }
+    }
+
+    // 2. Process async real thumbnail loads (1 per frame to avoid jank)
+    if (this.thumbnailLoadQueue.length > 0) {
+      const h = this.thumbnailLoadQueue.shift()!;
+      // Fire and forget - async load won't block rendering
+      this.loadRealThumbnail(h);
+    }
+
+    // 3. Prefetch thumbnails for blocks coming into view
+    this.prefetchThumbnails();
+    
+    // 4. Load prefetched thumbnails (low priority, 1 per frame)
+    if (this.prefetchSet.size > 0) {
+      const iter = this.prefetchSet.values();
+      const h = iter.next().value;
+      this.prefetchSet.delete(h);
+      if (!this.realThumbnailBlocks.has(h) && !this.loadingThumbnails.has(h)) {
+        this.loadingThumbnails.add(h);
+        this.loadRealThumbnail(h);
       }
     }
   }
