@@ -60,20 +60,6 @@ const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(__dirname),
 
-  // Serve RuneBolt static files
-  async rewrites() {
-    return [
-      {
-        source: '/runebolt',
-        destination: '/runebolt/index.html',
-      },
-      {
-        source: '/runebolt/:path*',
-        destination: '/runebolt/:path*',
-      },
-    ];
-  },
-
   // ── Performance optimizations ──
   compress: true,
   
