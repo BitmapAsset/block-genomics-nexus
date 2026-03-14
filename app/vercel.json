@@ -1,7 +1,4 @@
 {
-  "rewrites": [
-    { "source": "/runebolt/:path*", "destination": "https://frontend-8dbmmnmg8-gary-cs-projects.vercel.app/:path*" }
-  ],
   "crons": [
     {
       "path": "/api/v1/brain/cron",
