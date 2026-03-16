@@ -3,33 +3,64 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
-import { EffectComposer, Bloom, ChromaticAberration, Vignette } from '@react-three/postprocessing';
-import { BlendFunction } from 'postprocessing';
-import * as THREE from 'three';
+import { EffectComposer, Bloom } from '@react-three/postprocessing';
+import {
+  AdditiveBlending,
+  BufferGeometry,
+  CatmullRomCurve3,
+  Color,
+  DoubleSide,
+  Line,
+  LineBasicMaterial,
+  Object3D,
+  QuadraticBezierCurve3,
+  Quaternion,
+  Vector2,
+  Vector3,
+} from 'three';
+import type {
+  Group,
+  InstancedMesh,
+  Mesh,
+  MeshBasicMaterial,
+  Points,
+  PointsMaterial,
+  ShaderMaterial,
+} from 'three';
 
 /* ══════════════════════════════════════════════════════════
    IMMERSIVE LANDING BACKGROUND v2 — "AAA Studio Grade"
-   
+
    Multi-layered cinematic scene: infinite grid, rising block
    towers with holographic data, DNA helixes, volumetric light
    shafts, aurora bands, data streams, particle nebula,
    energy connections, mouse parallax + camera breathing.
+
+   Performance: Mobile-aware — reduced complexity on low-end devices.
    ══════════════════════════════════════════════════════════ */
+
+/* ── Device capability detection ─────────────────────────── */
+const isMobile = typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+const isLowEnd = typeof navigator !== 'undefined' && (
+  (navigator.hardwareConcurrency ?? 8) <= 4 ||
+  ((navigator as unknown as { deviceMemory?: number }).deviceMemory ?? 8) <= 4
+);
+const isReduced = isMobile || isLowEnd;
 
 const GRID_SIZE = 100;
 const GRID_DIVISIONS = 100;
-const BLOCK_COUNT = 180;
-const DNA_COUNT = 7;
-const PARTICLE_COUNT = 900;
-const CONNECTION_COUNT = 60;
-const DATA_STREAM_COUNT = 25;
+const BLOCK_COUNT = isReduced ? 60 : 180;
+const DNA_COUNT = isReduced ? 3 : 7;
+const PARTICLE_COUNT = isReduced ? 300 : 900;
+const CONNECTION_COUNT = isReduced ? 20 : 60;
+const DATA_STREAM_COUNT = isReduced ? 8 : 25;
 
-const CYAN = new THREE.Color('#66ccff');
-const PURPLE = new THREE.Color('#a855f7');
-const GOLD = new THREE.Color('#f7931a');
-const EMERALD = new THREE.Color('#22ff88');
-const PINK = new THREE.Color('#ff6699');
-const WHITE = new THREE.Color('#ffffff');
+const CYAN = new Color('#66ccff');
+const PURPLE = new Color('#a855f7');
+const GOLD = new Color('#f7931a');
+const EMERALD = new Color('#22ff88');
+const PINK = new Color('#ff6699');
+const WHITE = new Color('#ffffff');
 
 /* ── Mouse Parallax Tracker ─────────────────────────────── */
 const mousePos = { x: 0, y: 0, smoothX: 0, smoothY: 0 };
@@ -85,7 +116,7 @@ const gridFragmentShader = `
 
 /* ── Infinite Grid with Shader ──────────────────────────── */
 const InfiniteGrid: React.FC = () => {
-  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const matRef = useRef<ShaderMaterial>(null);
 
   const uniforms = useMemo(() => ({
     uTime: { value: 0 },
@@ -110,8 +141,8 @@ const InfiniteGrid: React.FC = () => {
           uniforms={uniforms}
           transparent
           depthWrite={false}
-          side={THREE.DoubleSide}
-          blending={THREE.AdditiveBlending}
+          side={DoubleSide}
+          blending={AdditiveBlending}
         />
       </mesh>
       
@@ -123,13 +154,13 @@ const InfiniteGrid: React.FC = () => {
           fragmentShader={gridFragmentShader.replace('0.5)', '2.0)').replace('0.12', '0.04')}
           uniforms={{
             uTime: uniforms.uTime,
-            uCyan: { value: new THREE.Color('#88ddff') },
+            uCyan: { value: new Color('#88ddff') },
             uPurple: { value: PURPLE },
           }}
           transparent
           depthWrite={false}
-          side={THREE.DoubleSide}
-          blending={THREE.AdditiveBlending}
+          side={DoubleSide}
+          blending={AdditiveBlending}
         />
       </mesh>
     </group>
@@ -141,8 +172,8 @@ interface BlockData {
   x: number;
   z: number;
   height: number;
-  color: THREE.Color;
-  emissiveColor: THREE.Color;
+  color: Color;
+  emissiveColor: Color;
   speed: number;
   phase: number;
   isSpecial: boolean;
@@ -151,9 +182,9 @@ interface BlockData {
 
 /* ── Block Towers with Emissive Tops + Holographic Rings ── */
 const BlockTowers: React.FC = () => {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const topRef = useRef<THREE.InstancedMesh>(null);
-  const ringRef = useRef<THREE.InstancedMesh>(null);
+  const meshRef = useRef<InstancedMesh>(null);
+  const topRef = useRef<InstancedMesh>(null);
+  const ringRef = useRef<InstancedMesh>(null);
   
   const blocks = useMemo<BlockData[]>(() => {
     const arr: BlockData[] = [];
@@ -182,8 +213,8 @@ const BlockTowers: React.FC = () => {
     return arr;
   }, []);
 
-  const dummy = useMemo(() => new THREE.Object3D(), []);
-  const tempColor = useMemo(() => new THREE.Color(), []);
+  const dummy = useMemo(() => new Object3D(), []);
+  const tempColor = useMemo(() => new Color(), []);
 
   useEffect(() => {
     if (!meshRef.current || !topRef.current || !ringRef.current) return;
@@ -254,13 +285,13 @@ const BlockTowers: React.FC = () => {
       {/* Emissive top caps */}
       <instancedMesh ref={topRef} args={[undefined, undefined, BLOCK_COUNT]}>
         <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial transparent opacity={0.9} blending={THREE.AdditiveBlending} />
+        <meshBasicMaterial transparent opacity={0.9} blending={AdditiveBlending} />
       </instancedMesh>
       
       {/* Holographic rings */}
       <instancedMesh ref={ringRef} args={[undefined, undefined, BLOCK_COUNT]}>
         <ringGeometry args={[0.8, 1.0, 24]} />
-        <meshBasicMaterial transparent opacity={0.12} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+        <meshBasicMaterial transparent opacity={0.12} blending={AdditiveBlending} side={DoubleSide} />
       </instancedMesh>
     </>
   );
@@ -271,20 +302,20 @@ const DNAHelix: React.FC<{
   position: [number, number, number];
   scale: number;
   speed: number;
-  color1: THREE.Color;
-  color2: THREE.Color;
+  color1: Color;
+  color2: Color;
   pairs: number;
 }> = ({ position, scale: s, speed, color1, color2, pairs }) => {
-  const groupRef = useRef<THREE.Group>(null);
+  const groupRef = useRef<Group>(null);
   const RADIUS = 0.8;
   const HEIGHT = 6;
   const TURNS = 2.5;
 
   const { strand1, strand2, rungs, spheres } = useMemo(() => {
-    const s1Points: THREE.Vector3[] = [];
-    const s2Points: THREE.Vector3[] = [];
-    const rungData: { p1: THREE.Vector3; p2: THREE.Vector3; color: THREE.Color }[] = [];
-    const sphereData: { pos: THREE.Vector3; color: THREE.Color }[] = [];
+    const s1Points: Vector3[] = [];
+    const s2Points: Vector3[] = [];
+    const rungData: { p1: Vector3; p2: Vector3; color: Color }[] = [];
+    const sphereData: { pos: Vector3; color: Color }[] = [];
     
     for (let i = 0; i <= pairs; i++) {
       const t = i / pairs;
@@ -296,27 +327,27 @@ const DNAHelix: React.FC<{
       const x2 = Math.cos(angle + Math.PI) * RADIUS;
       const z2 = Math.sin(angle + Math.PI) * RADIUS;
       
-      s1Points.push(new THREE.Vector3(x1, y, z1));
-      s2Points.push(new THREE.Vector3(x2, y, z2));
+      s1Points.push(new Vector3(x1, y, z1));
+      s2Points.push(new Vector3(x2, y, z2));
       
       if (i % 2 === 0) {
         rungData.push({
-          p1: new THREE.Vector3(x1, y, z1),
-          p2: new THREE.Vector3(x2, y, z2),
+          p1: new Vector3(x1, y, z1),
+          p2: new Vector3(x2, y, z2),
           color: i % 4 === 0 ? color1 : color2,
         });
       }
       
       // Glow spheres at each node
       if (i % 3 === 0) {
-        sphereData.push({ pos: new THREE.Vector3(x1, y, z1), color: color1 });
-        sphereData.push({ pos: new THREE.Vector3(x2, y, z2), color: color2 });
+        sphereData.push({ pos: new Vector3(x1, y, z1), color: color1 });
+        sphereData.push({ pos: new Vector3(x2, y, z2), color: color2 });
       }
     }
     
     return {
-      strand1: new THREE.CatmullRomCurve3(s1Points),
-      strand2: new THREE.CatmullRomCurve3(s2Points),
+      strand1: new CatmullRomCurve3(s1Points),
+      strand2: new CatmullRomCurve3(s2Points),
       rungs: rungData,
       spheres: sphereData,
     };
@@ -334,12 +365,12 @@ const DNAHelix: React.FC<{
       {/* Strand 1 — thicker backbone */}
       <mesh>
         <tubeGeometry args={[strand1, 64, 0.07, 8, false]} />
-        <meshBasicMaterial color={color1} transparent opacity={0.5} blending={THREE.AdditiveBlending} />
+        <meshBasicMaterial color={color1} transparent opacity={0.5} blending={AdditiveBlending} />
       </mesh>
       {/* Strand 2 */}
       <mesh>
         <tubeGeometry args={[strand2, 64, 0.07, 8, false]} />
-        <meshBasicMaterial color={color2} transparent opacity={0.5} blending={THREE.AdditiveBlending} />
+        <meshBasicMaterial color={color2} transparent opacity={0.5} blending={AdditiveBlending} />
       </mesh>
       {/* Rungs with color variation */}
       {rungs.map((rung, i) => {
@@ -347,9 +378,9 @@ const DNAHelix: React.FC<{
         const dir = rung.p2.clone().sub(rung.p1);
         const len = dir.length();
         return (
-          <mesh key={i} position={mid.toArray()} quaternion={new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize())}>
+          <mesh key={i} position={mid.toArray()} quaternion={new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), dir.normalize())}>
             <cylinderGeometry args={[0.025, 0.025, len, 4]} />
-            <meshBasicMaterial color={rung.color} transparent opacity={0.2} blending={THREE.AdditiveBlending} />
+            <meshBasicMaterial color={rung.color} transparent opacity={0.2} blending={AdditiveBlending} />
           </mesh>
         );
       })}
@@ -357,28 +388,30 @@ const DNAHelix: React.FC<{
       {spheres.map((sp, i) => (
         <mesh key={`sp-${i}`} position={sp.pos.toArray()}>
           <sphereGeometry args={[0.08, 8, 8]} />
-          <meshBasicMaterial color={sp.color} transparent opacity={0.6} blending={THREE.AdditiveBlending} />
+          <meshBasicMaterial color={sp.color} transparent opacity={0.6} blending={AdditiveBlending} />
         </mesh>
       ))}
       {/* Central axis glow */}
       <mesh>
         <cylinderGeometry args={[0.02, 0.02, HEIGHT * 1.1, 8]} />
-        <meshBasicMaterial color={WHITE} transparent opacity={0.03} blending={THREE.AdditiveBlending} />
+        <meshBasicMaterial color={WHITE} transparent opacity={0.03} blending={AdditiveBlending} />
       </mesh>
     </group>
   );
 };
 
+const ALL_HELIXES = [
+  { pos: [-16, 3, -22] as [number, number, number], scale: 1.8, speed: 0.35, c1: CYAN, c2: PURPLE, pairs: 32 },
+  { pos: [20, -1, -28] as [number, number, number], scale: 1.4, speed: 0.5, c1: GOLD, c2: CYAN, pairs: 28 },
+  { pos: [-10, 5, -38] as [number, number, number], scale: 2.2, speed: 0.25, c1: PURPLE, c2: EMERALD, pairs: 36 },
+  { pos: [28, 1, -18] as [number, number, number], scale: 1.0, speed: 0.6, c1: CYAN, c2: GOLD, pairs: 24 },
+  { pos: [0, -2, -45] as [number, number, number], scale: 2.0, speed: 0.3, c1: EMERALD, c2: PURPLE, pairs: 30 },
+  { pos: [-25, -1, -30] as [number, number, number], scale: 0.9, speed: 0.7, c1: PINK, c2: CYAN, pairs: 20 },
+  { pos: [12, 6, -35] as [number, number, number], scale: 1.6, speed: 0.4, c1: GOLD, c2: EMERALD, pairs: 28 },
+];
+
 const FloatingDNA: React.FC = () => {
-  const helixes = useMemo(() => [
-    { pos: [-16, 3, -22] as [number, number, number], scale: 1.8, speed: 0.35, c1: CYAN, c2: PURPLE, pairs: 32 },
-    { pos: [20, -1, -28] as [number, number, number], scale: 1.4, speed: 0.5, c1: GOLD, c2: CYAN, pairs: 28 },
-    { pos: [-10, 5, -38] as [number, number, number], scale: 2.2, speed: 0.25, c1: PURPLE, c2: EMERALD, pairs: 36 },
-    { pos: [28, 1, -18] as [number, number, number], scale: 1.0, speed: 0.6, c1: CYAN, c2: GOLD, pairs: 24 },
-    { pos: [0, -2, -45] as [number, number, number], scale: 2.0, speed: 0.3, c1: EMERALD, c2: PURPLE, pairs: 30 },
-    { pos: [-25, -1, -30] as [number, number, number], scale: 0.9, speed: 0.7, c1: PINK, c2: CYAN, pairs: 20 },
-    { pos: [12, 6, -35] as [number, number, number], scale: 1.6, speed: 0.4, c1: GOLD, c2: EMERALD, pairs: 28 },
-  ], []);
+  const helixes = useMemo(() => ALL_HELIXES.slice(0, DNA_COUNT), []);
 
   return (
     <>
@@ -391,9 +424,9 @@ const FloatingDNA: React.FC = () => {
 
 /* ── Multi-Layer Particle Nebula ────────────────────────── */
 const ParticleNebula: React.FC = () => {
-  const nearRef = useRef<THREE.Points>(null);
-  const farRef = useRef<THREE.Points>(null);
-  const dustRef = useRef<THREE.Points>(null);
+  const nearRef = useRef<Points>(null);
+  const farRef = useRef<Points>(null);
+  const dustRef = useRef<Points>(null);
   const palette = useMemo(() => [CYAN, PURPLE, GOLD, EMERALD, PINK, WHITE], []);
 
   const nearCount = 300;
@@ -470,7 +503,7 @@ const ParticleNebula: React.FC = () => {
     // Dust motes — twinkle
     if (dustRef.current) {
       dustRef.current.rotation.y -= 0.0001;
-      const mat = dustRef.current.material as THREE.PointsMaterial;
+      const mat = dustRef.current.material as PointsMaterial;
       mat.opacity = 0.15 + Math.sin(t * 0.8) * 0.05;
     }
   });
@@ -483,7 +516,7 @@ const ParticleNebula: React.FC = () => {
           <bufferAttribute attach="attributes-position" args={[nearData.pos, 3]} />
           <bufferAttribute attach="attributes-color" args={[nearData.col, 3]} />
         </bufferGeometry>
-        <pointsMaterial size={0.12} vertexColors transparent opacity={0.7} blending={THREE.AdditiveBlending} sizeAttenuation depthWrite={false} />
+        <pointsMaterial size={0.12} vertexColors transparent opacity={0.7} blending={AdditiveBlending} sizeAttenuation depthWrite={false} />
       </points>
       
       {/* Far — smaller dimmer particles */}
@@ -492,7 +525,7 @@ const ParticleNebula: React.FC = () => {
           <bufferAttribute attach="attributes-position" args={[farData.pos, 3]} />
           <bufferAttribute attach="attributes-color" args={[farData.col, 3]} />
         </bufferGeometry>
-        <pointsMaterial size={0.06} vertexColors transparent opacity={0.4} blending={THREE.AdditiveBlending} sizeAttenuation depthWrite={false} />
+        <pointsMaterial size={0.06} vertexColors transparent opacity={0.4} blending={AdditiveBlending} sizeAttenuation depthWrite={false} />
       </points>
       
       {/* Dust motes — tiny white sparkles */}
@@ -501,7 +534,7 @@ const ParticleNebula: React.FC = () => {
           <bufferAttribute attach="attributes-position" args={[dustData.pos, 3]} />
           <bufferAttribute attach="attributes-color" args={[dustData.col, 3]} />
         </bufferGeometry>
-        <pointsMaterial size={0.03} vertexColors transparent opacity={0.2} blending={THREE.AdditiveBlending} sizeAttenuation depthWrite={false} />
+        <pointsMaterial size={0.03} vertexColors transparent opacity={0.2} blending={AdditiveBlending} sizeAttenuation depthWrite={false} />
       </points>
     </>
   );
@@ -509,14 +542,14 @@ const ParticleNebula: React.FC = () => {
 
 /* ── Data Streams (shooting beams of light) ─────────────── */
 const DataStreams: React.FC = () => {
-  const groupRef = useRef<THREE.Group>(null);
+  const groupRef = useRef<Group>(null);
   
   interface StreamData {
-    startPos: THREE.Vector3;
-    direction: THREE.Vector3;
+    startPos: Vector3;
+    direction: Vector3;
     speed: number;
     length: number;
-    color: THREE.Color;
+    color: Color;
     delay: number;
     lifetime: number;
   }
@@ -527,12 +560,12 @@ const DataStreams: React.FC = () => {
       const angle = Math.random() * Math.PI * 2;
       const elevation = (Math.random() - 0.3) * 0.5;
       arr.push({
-        startPos: new THREE.Vector3(
+        startPos: new Vector3(
           (Math.random() - 0.5) * 60,
           -5 + Math.random() * 15,
           -10 + Math.random() * -30
         ),
-        direction: new THREE.Vector3(Math.cos(angle), elevation, Math.sin(angle)).normalize(),
+        direction: new Vector3(Math.cos(angle), elevation, Math.sin(angle)).normalize(),
         speed: 15 + Math.random() * 25,
         length: 2 + Math.random() * 5,
         color: [CYAN, PURPLE, GOLD, EMERALD][Math.floor(Math.random() * 4)],
@@ -543,7 +576,7 @@ const DataStreams: React.FC = () => {
     return arr;
   }, []);
 
-  const meshRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const meshRefs = useRef<(Mesh | null)[]>([]);
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
@@ -568,7 +601,7 @@ const DataStreams: React.FC = () => {
       const alpha = fadeIn * (progress > 0.7 ? fadeOut : 1);
       
       mesh.scale.set(0.03, 0.03, s.length);
-      const mat = mesh.material as THREE.MeshBasicMaterial;
+      const mat = mesh.material as MeshBasicMaterial;
       mat.opacity = alpha * 0.4;
     });
   });
@@ -581,7 +614,7 @@ const DataStreams: React.FC = () => {
           ref={(el) => { meshRefs.current[i] = el; }}
         >
           <cylinderGeometry args={[1, 0.3, 1, 4]} />
-          <meshBasicMaterial color={s.color} transparent opacity={0} blending={THREE.AdditiveBlending} />
+          <meshBasicMaterial color={s.color} transparent opacity={0} blending={AdditiveBlending} />
         </mesh>
       ))}
     </group>
@@ -590,16 +623,16 @@ const DataStreams: React.FC = () => {
 
 /* ── Aurora Bands ───────────────────────────────────────── */
 const AuroraBands: React.FC = () => {
-  const band1Ref = useRef<THREE.Mesh>(null);
-  const band2Ref = useRef<THREE.Mesh>(null);
-  const band3Ref = useRef<THREE.Mesh>(null);
+  const band1Ref = useRef<Mesh>(null);
+  const band2Ref = useRef<Mesh>(null);
+  const band3Ref = useRef<Mesh>(null);
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     
     [band1Ref, band2Ref, band3Ref].forEach((ref, i) => {
       if (!ref.current) return;
-      const mat = ref.current.material as THREE.MeshBasicMaterial;
+      const mat = ref.current.material as MeshBasicMaterial;
       mat.opacity = 0.015 + Math.sin(t * (0.3 + i * 0.15) + i * 2) * 0.008;
       ref.current.position.y = 8 + i * 3 + Math.sin(t * 0.2 + i) * 2;
       ref.current.rotation.z = Math.sin(t * 0.1 + i * 1.5) * 0.1;
@@ -611,15 +644,15 @@ const AuroraBands: React.FC = () => {
     <>
       <mesh ref={band1Ref} position={[0, 10, -35]}>
         <planeGeometry args={[120, 8]} />
-        <meshBasicMaterial color={CYAN} transparent opacity={0.02} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={CYAN} transparent opacity={0.02} blending={AdditiveBlending} side={DoubleSide} />
       </mesh>
       <mesh ref={band2Ref} position={[5, 13, -40]}>
         <planeGeometry args={[100, 6]} />
-        <meshBasicMaterial color={PURPLE} transparent opacity={0.015} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={PURPLE} transparent opacity={0.015} blending={AdditiveBlending} side={DoubleSide} />
       </mesh>
       <mesh ref={band3Ref} position={[-5, 16, -45]}>
         <planeGeometry args={[80, 5]} />
-        <meshBasicMaterial color={EMERALD} transparent opacity={0.01} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={EMERALD} transparent opacity={0.01} blending={AdditiveBlending} side={DoubleSide} />
       </mesh>
     </>
   );
@@ -627,7 +660,7 @@ const AuroraBands: React.FC = () => {
 
 /* ── Volumetric Light Shafts ────────────────────────────── */
 const LightShafts: React.FC = () => {
-  const shafts = useRef<(THREE.Mesh | null)[]>([]);
+  const shafts = useRef<(Mesh | null)[]>([]);
   
   const shaftData = useMemo(() => [
     { x: -15, z: -25, color: CYAN, width: 3, height: 30 },
@@ -641,7 +674,7 @@ const LightShafts: React.FC = () => {
     const t = clock.elapsedTime;
     shafts.current.forEach((mesh, i) => {
       if (!mesh) return;
-      const mat = mesh.material as THREE.MeshBasicMaterial;
+      const mat = mesh.material as MeshBasicMaterial;
       mat.opacity = 0.008 + Math.sin(t * 0.4 + i * 1.3) * 0.004;
       mesh.rotation.z = Math.sin(t * 0.05 + i) * 0.05;
     });
@@ -656,7 +689,7 @@ const LightShafts: React.FC = () => {
           position={[s.x, s.height / 2 - 8, s.z]}
         >
           <planeGeometry args={[s.width, s.height]} />
-          <meshBasicMaterial color={s.color} transparent opacity={0.01} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+          <meshBasicMaterial color={s.color} transparent opacity={0.01} blending={AdditiveBlending} side={DoubleSide} />
         </mesh>
       ))}
     </>
@@ -665,10 +698,10 @@ const LightShafts: React.FC = () => {
 
 /* ── Energy Connections (curved beams between towers) ───── */
 const EnergyConnections: React.FC = () => {
-  const groupRef = useRef<THREE.Group>(null);
+  const groupRef = useRef<Group>(null);
   
   const { lines, speeds } = useMemo(() => {
-    const lineObjs: THREE.Line[] = [];
+    const lineObjs: Line[] = [];
     const spds: number[] = [];
     
     for (let i = 0; i < CONNECTION_COUNT; i++) {
@@ -677,23 +710,23 @@ const EnergyConnections: React.FC = () => {
       const a2 = a1 + (Math.random() - 0.5) * 1.8;
       const d2 = 6 + Math.random() * 30;
       
-      const start = new THREE.Vector3(Math.cos(a1) * d1, -8 + Math.random() * 5, Math.sin(a1) * d1 - 12);
-      const end = new THREE.Vector3(Math.cos(a2) * d2, -8 + Math.random() * 5, Math.sin(a2) * d2 - 12);
+      const start = new Vector3(Math.cos(a1) * d1, -8 + Math.random() * 5, Math.sin(a1) * d1 - 12);
+      const end = new Vector3(Math.cos(a2) * d2, -8 + Math.random() * 5, Math.sin(a2) * d2 - 12);
       const mid = start.clone().lerp(end, 0.5);
       mid.y += 1.5 + Math.random() * 4;
       
-      const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+      const curve = new QuadraticBezierCurve3(start, mid, end);
       const points = curve.getPoints(24);
-      const geo = new THREE.BufferGeometry().setFromPoints(points);
+      const geo = new BufferGeometry().setFromPoints(points);
       const color = [CYAN, PURPLE, GOLD, EMERALD][Math.floor(Math.random() * 4)];
-      const mat = new THREE.LineBasicMaterial({
+      const mat = new LineBasicMaterial({
         color,
         transparent: true,
         opacity: 0.05,
-        blending: THREE.AdditiveBlending,
+        blending: AdditiveBlending,
       });
       
-      lineObjs.push(new THREE.Line(geo, mat));
+      lineObjs.push(new Line(geo, mat));
       spds.push(0.3 + Math.random() * 1.5);
     }
     
@@ -706,14 +739,14 @@ const EnergyConnections: React.FC = () => {
     return () => {
       lines.forEach(l => {
         l.geometry.dispose();
-        (l.material as THREE.LineBasicMaterial).dispose();
+        (l.material as LineBasicMaterial).dispose();
       });
     };
   }, [lines]);
 
   useFrame(({ clock }) => {
     lines.forEach((l, i) => {
-      const mat = l.material as THREE.LineBasicMaterial;
+      const mat = l.material as LineBasicMaterial;
       mat.opacity = 0.03 + Math.sin(clock.elapsedTime * speeds[i] + i) * 0.025;
     });
   });
@@ -723,11 +756,11 @@ const EnergyConnections: React.FC = () => {
 
 /* ── Horizon Glow (enhanced) ────────────────────────────── */
 const HorizonGlow: React.FC = () => {
-  const glowRef = useRef<THREE.Mesh>(null);
+  const glowRef = useRef<Mesh>(null);
   
   useFrame(({ clock }) => {
     if (!glowRef.current) return;
-    const mat = glowRef.current.material as THREE.MeshBasicMaterial;
+    const mat = glowRef.current.material as MeshBasicMaterial;
     mat.opacity = 0.08 + Math.sin(clock.elapsedTime * 0.3) * 0.03;
   });
 
@@ -736,17 +769,17 @@ const HorizonGlow: React.FC = () => {
       {/* Primary horizon glow */}
       <mesh ref={glowRef} position={[0, -6, -45]} rotation={[0.1, 0, 0]}>
         <planeGeometry args={[140, 20]} />
-        <meshBasicMaterial color={CYAN} transparent opacity={0.08} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={CYAN} transparent opacity={0.08} blending={AdditiveBlending} side={DoubleSide} />
       </mesh>
       {/* Purple accent */}
       <mesh position={[0, -4, -50]} rotation={[0.05, 0, 0]}>
         <planeGeometry args={[120, 12]} />
-        <meshBasicMaterial color={PURPLE} transparent opacity={0.04} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={PURPLE} transparent opacity={0.04} blending={AdditiveBlending} side={DoubleSide} />
       </mesh>
       {/* Gold warmth from below */}
       <mesh position={[0, -9, -30]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[15, 32]} />
-        <meshBasicMaterial color={GOLD} transparent opacity={0.015} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={GOLD} transparent opacity={0.015} blending={AdditiveBlending} side={DoubleSide} />
       </mesh>
     </>
   );
@@ -754,10 +787,10 @@ const HorizonGlow: React.FC = () => {
 
 /* ── Central Nexus Core (focal point) ───────────────────── */
 const NexusCore: React.FC = () => {
-  const coreRef = useRef<THREE.Group>(null);
-  const outerRingRef = useRef<THREE.Mesh>(null);
-  const innerRingRef = useRef<THREE.Mesh>(null);
-  const sphereRef = useRef<THREE.Mesh>(null);
+  const coreRef = useRef<Group>(null);
+  const outerRingRef = useRef<Mesh>(null);
+  const innerRingRef = useRef<Mesh>(null);
+  const sphereRef = useRef<Mesh>(null);
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
@@ -767,19 +800,19 @@ const NexusCore: React.FC = () => {
     if (outerRingRef.current) {
       outerRingRef.current.rotation.z += 0.003;
       outerRingRef.current.rotation.x = Math.sin(t * 0.5) * 0.3;
-      const mat = outerRingRef.current.material as THREE.MeshBasicMaterial;
+      const mat = outerRingRef.current.material as MeshBasicMaterial;
       mat.opacity = 0.08 + Math.sin(t * 2) * 0.03;
     }
     if (innerRingRef.current) {
       innerRingRef.current.rotation.z -= 0.005;
       innerRingRef.current.rotation.y = Math.cos(t * 0.4) * 0.4;
-      const mat = innerRingRef.current.material as THREE.MeshBasicMaterial;
+      const mat = innerRingRef.current.material as MeshBasicMaterial;
       mat.opacity = 0.1 + Math.sin(t * 3) * 0.04;
     }
     if (sphereRef.current) {
       const s = 0.5 + Math.sin(t * 1.5) * 0.05;
       sphereRef.current.scale.setScalar(s);
-      const mat = sphereRef.current.material as THREE.MeshBasicMaterial;
+      const mat = sphereRef.current.material as MeshBasicMaterial;
       mat.opacity = 0.15 + Math.sin(t * 2.5) * 0.05;
     }
   });
@@ -789,24 +822,24 @@ const NexusCore: React.FC = () => {
       {/* Central energy sphere */}
       <mesh ref={sphereRef}>
         <sphereGeometry args={[0.5, 32, 32]} />
-        <meshBasicMaterial color={WHITE} transparent opacity={0.15} blending={THREE.AdditiveBlending} />
+        <meshBasicMaterial color={WHITE} transparent opacity={0.15} blending={AdditiveBlending} />
       </mesh>
       
       {/* Inner ring */}
       <mesh ref={innerRingRef}>
         <torusGeometry args={[1.5, 0.02, 16, 64]} />
-        <meshBasicMaterial color={CYAN} transparent opacity={0.1} blending={THREE.AdditiveBlending} />
+        <meshBasicMaterial color={CYAN} transparent opacity={0.1} blending={AdditiveBlending} />
       </mesh>
       
       {/* Outer ring */}
       <mesh ref={outerRingRef}>
         <torusGeometry args={[2.5, 0.015, 16, 64]} />
-        <meshBasicMaterial color={PURPLE} transparent opacity={0.08} blending={THREE.AdditiveBlending} />
+        <meshBasicMaterial color={PURPLE} transparent opacity={0.08} blending={AdditiveBlending} />
       </mesh>
       
       {/* Glow halo */}
       <sprite>
-        <spriteMaterial color={CYAN} transparent opacity={0.04} blending={THREE.AdditiveBlending} />
+        <spriteMaterial color={CYAN} transparent opacity={0.04} blending={AdditiveBlending} />
       </sprite>
     </group>
   );
@@ -815,7 +848,7 @@ const NexusCore: React.FC = () => {
 /* ── Camera Controller (parallax + cinematic breathing) ─── */
 const CameraController: React.FC = () => {
   const { camera } = useThree();
-  const targetPos = useRef(new THREE.Vector3(0, 2, 20));
+  const targetPos = useRef(new Vector3(0, 2, 20));
   const breathOffset = useRef(0);
 
   useFrame(({ clock }) => {
@@ -866,43 +899,43 @@ const LandingBackground: React.FC = () => {
   return (
     <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 0 }}>
       <Canvas
-        dpr={[1, 1.5]}
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+        dpr={isReduced ? [1, 1] : [1, 1.5]}
+        gl={{ antialias: !isReduced, alpha: true, powerPreference: 'high-performance' }}
       >
         <color attach="background" args={['#030308']} />
         <fog attach="fog" args={['#030308', 15, 65]} />
         <PerspectiveCamera makeDefault fov={60} position={[0, 2, 20]} />
 
-        {/* Cinematic lighting rig */}
+        {/* Cinematic lighting rig — fewer lights on mobile */}
         <ambientLight color="#0a0a2f" intensity={0.2} />
         <pointLight color="#66ccff" intensity={3} distance={60} position={[12, 10, -15]} />
         <pointLight color="#a855f7" intensity={2} distance={55} position={[-12, 8, -25]} />
         <pointLight color="#f7931a" intensity={2} distance={45} position={[0, -6, -5]} />
-        <pointLight color="#22ff88" intensity={1} distance={35} position={[20, 2, -35]} />
-        <pointLight color="#ff6699" intensity={0.8} distance={30} position={[-18, -3, -15]} />
-        {/* Rim light from behind */}
-        <directionalLight color="#66ccff" intensity={0.15} position={[0, 5, -50]} />
+        {!isReduced && <pointLight color="#22ff88" intensity={1} distance={35} position={[20, 2, -35]} />}
+        {!isReduced && <pointLight color="#ff6699" intensity={0.8} distance={30} position={[-18, -3, -15]} />}
+        {!isReduced && <directionalLight color="#66ccff" intensity={0.15} position={[0, 5, -50]} />}
 
         <NexusScene />
 
+        {/* Post-processing: Bloom only (removed ChromaticAberration + Vignette for perf) */}
         <EffectComposer>
           <Bloom
-            intensity={2.0}
+            intensity={isReduced ? 1.2 : 2.0}
             luminanceThreshold={0.5}
             luminanceSmoothing={0.3}
-            mipmapBlur
-          />
-          <ChromaticAberration
-            blendFunction={BlendFunction.NORMAL}
-            offset={new THREE.Vector2(0.0005, 0.0005)}
-          />
-          <Vignette
-            offset={0.3}
-            darkness={0.7}
-            blendFunction={BlendFunction.NORMAL}
+            mipmapBlur={!isReduced}
           />
         </EffectComposer>
       </Canvas>
+      {/* CSS vignette — zero GPU cost, replaces post-processing Vignette */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          boxShadow: 'inset 0 0 150px 60px rgba(3,3,8,0.7)',
+        }}
+      />
     </div>
   );
 };

@@ -4,7 +4,27 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
-import * as THREE from 'three';
+import {
+  AdditiveBlending,
+  BackSide,
+  BoxGeometry,
+  CanvasTexture,
+  Color,
+  DoubleSide,
+  EdgesGeometry,
+  MathUtils as THREEMathUtils,
+  NormalBlending,
+  Vector3,
+} from 'three';
+import type {
+  Group,
+  LineBasicMaterial,
+  Mesh,
+  MeshBasicMaterial,
+  Points,
+  Sprite,
+  SpriteMaterial,
+} from 'three';
 
 /* ── TUNING ─────────────────────────────────────────────── */
 const REVEAL_TIME = 3.43;
@@ -18,7 +38,7 @@ const PARTICLE_COUNT = 300;
 const AMBIENT_SPEED = 0.0015;
 
 /* ── TEXTURE HELPERS ────────────────────────────────────── */
-function makeEmojiTexture(emoji: string, glowColor: string, size = 256): THREE.CanvasTexture {
+function makeEmojiTexture(emoji: string, glowColor: string, size = 256): CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -44,7 +64,7 @@ function makeEmojiTexture(emoji: string, glowColor: string, size = 256): THREE.C
   ctx.textBaseline = 'middle';
   ctx.fillText(emoji, size / 2, size / 2 + size * 0.02);
 
-  const tex = new THREE.CanvasTexture(canvas);
+  const tex = new CanvasTexture(canvas);
   tex.needsUpdate = true;
   return tex;
 }
@@ -59,7 +79,7 @@ function makeEmojiTexture(emoji: string, glowColor: string, size = 256): THREE.C
  * - Green ✓ checkmark (verified)
  * - Tiers: Gold (Tier 1), Cyan (Tier 2), Purple (Tier 3)
  */
-function makeShieldTexture(size = 512): THREE.CanvasTexture {
+function makeShieldTexture(size = 512): CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -258,14 +278,14 @@ function makeShieldTexture(size = 512): THREE.CanvasTexture {
   });
   ctx.restore();
 
-  const tex = new THREE.CanvasTexture(canvas);
+  const tex = new CanvasTexture(canvas);
   tex.needsUpdate = true;
   return tex;
 }
 
 /* ── DATA TYPES ─────────────────────────────────────────── */
 interface BubbleData {
-  origin: THREE.Vector3;
+  origin: Vector3;
   type: 'bot' | 'boy' | 'girl';
   delay: number;
   speed: number;
@@ -273,7 +293,7 @@ interface BubbleData {
 }
 
 interface BurstData {
-  dir: THREE.Vector3;
+  dir: Vector3;
   speed: number;
   rotSpeed: number;
 }
@@ -285,7 +305,7 @@ function generateBubbles(): BubbleData[] {
     const phi = Math.acos(2 * Math.random() - 1);
     const r = 12 + Math.random() * 6;
     bubbles.push({
-      origin: new THREE.Vector3(
+      origin: new Vector3(
         r * Math.sin(phi) * Math.cos(theta),
         r * Math.cos(phi) * 0.6,
         r * Math.sin(phi) * Math.sin(theta),
@@ -308,7 +328,7 @@ function generateBursts(): BurstData[] {
     const radius = Math.sqrt(1 - y * y);
     const theta = golden * i;
     bursts.push({
-      dir: new THREE.Vector3(Math.cos(theta) * radius, y * 0.7, Math.sin(theta) * radius).normalize(),
+      dir: new Vector3(Math.cos(theta) * radius, y * 0.7, Math.sin(theta) * radius).normalize(),
       speed: 8 + Math.random() * 6,
       rotSpeed: (Math.random() - 0.5) * 4,
     });
@@ -320,7 +340,7 @@ function generateBursts(): BurstData[] {
 const palette = ['#f7931a', '#ffb347', '#ffd27d', '#59c3ff', '#7bc8ff', '#a855f7', '#22ff88'];
 
 const AmbientParticles: React.FC = () => {
-  const pointsRef = useRef<THREE.Points>(null);
+  const pointsRef = useRef<Points>(null);
 
   const { positions, colors, speeds } = useMemo(() => {
     const pos = new Float32Array(PARTICLE_COUNT * 3);
@@ -333,7 +353,7 @@ const AmbientParticles: React.FC = () => {
       pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       pos[i * 3 + 1] = (Math.random() - 0.5) * 30;
       pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-      const c = new THREE.Color(palette[Math.floor(Math.random() * palette.length)]);
+      const c = new Color(palette[Math.floor(Math.random() * palette.length)]);
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
       spd[i] = 0.5 + Math.random() * 1.5;
     }
@@ -357,20 +377,20 @@ const AmbientParticles: React.FC = () => {
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         <bufferAttribute attach="attributes-color" args={[colors, 3]} />
       </bufferGeometry>
-      <pointsMaterial size={0.06} vertexColors transparent opacity={0.5} blending={THREE.AdditiveBlending} sizeAttenuation depthWrite={false} />
+      <pointsMaterial size={0.06} vertexColors transparent opacity={0.5} blending={AdditiveBlending} sizeAttenuation depthWrite={false} />
     </points>
   );
 };
 
 /* ── MAIN SCENE ─────────────────────────────────────────── */
 const LandingScene: React.FC = () => {
-  const groupRef = useRef<THREE.Group>(null);
-  const coreRef = useRef<THREE.Group>(null);
-  const coreMeshRef = useRef<THREE.Mesh>(null);
-  const coreGlowRef = useRef<THREE.Mesh>(null);
-  const bubbleSpriteRefs = useRef<THREE.Sprite[]>([]);
-  const bubbleBadgeRefs = useRef<THREE.Sprite[]>([]);
-  const burstSpriteRefs = useRef<THREE.Sprite[]>([]);
+  const groupRef = useRef<Group>(null);
+  const coreRef = useRef<Group>(null);
+  const coreMeshRef = useRef<Mesh>(null);
+  const coreGlowRef = useRef<Mesh>(null);
+  const bubbleSpriteRefs = useRef<Sprite[]>([]);
+  const bubbleBadgeRefs = useRef<Sprite[]>([]);
+  const burstSpriteRefs = useRef<Sprite[]>([]);
   const startTime = useRef<number | null>(null);
 
   const { viewport } = useThree();
@@ -386,14 +406,14 @@ const LandingScene: React.FC = () => {
   }), []);
 
   const coreEdgesGeo = useMemo(() => {
-    const box = new THREE.BoxGeometry(2.4, 2.4, 2.4);
-    return new THREE.EdgesGeometry(box);
+    const box = new BoxGeometry(2.4, 2.4, 2.4);
+    return new EdgesGeometry(box);
   }, []);
 
   // Inner wireframe (smaller, rotated 45°)
   const innerEdgesGeo = useMemo(() => {
-    const box = new THREE.BoxGeometry(1.6, 1.6, 1.6);
-    return new THREE.EdgesGeometry(box);
+    const box = new BoxGeometry(1.6, 1.6, 1.6);
+    return new EdgesGeometry(box);
   }, []);
 
   // ₿ symbol texture for core billboard
@@ -432,16 +452,16 @@ const LandingScene: React.FC = () => {
     ctx.arc(sz / 2, sz / 2, sz * 0.35, 0, Math.PI * 2);
     ctx.stroke();
 
-    const tex = new THREE.CanvasTexture(canvas);
+    const tex = new CanvasTexture(canvas);
     tex.needsUpdate = true;
     return tex;
   }, []);
 
   // Refs for inner cube + ₿ sprite + energy rings
-  const innerCubeRef = useRef<THREE.Mesh>(null);
-  const btcSpriteRef = useRef<THREE.Sprite>(null);
-  const ring1Ref = useRef<THREE.Mesh>(null);
-  const ring2Ref = useRef<THREE.Mesh>(null);
+  const innerCubeRef = useRef<Mesh>(null);
+  const btcSpriteRef = useRef<Sprite>(null);
+  const ring1Ref = useRef<Mesh>(null);
+  const ring2Ref = useRef<Mesh>(null);
 
   useFrame(({ clock }) => {
     if (startTime.current === null) startTime.current = clock.elapsedTime;
@@ -464,13 +484,13 @@ const LandingScene: React.FC = () => {
     if (innerCubeRef.current) {
       innerCubeRef.current.rotation.y -= 0.005;
       innerCubeRef.current.rotation.z += 0.002;
-      const iMat = innerCubeRef.current.material as THREE.LineBasicMaterial;
+      const iMat = innerCubeRef.current.material as LineBasicMaterial;
       iMat.opacity = (0.15 + Math.sin(clock.elapsedTime * 3) * 0.1) * coreFade;
     }
 
     // ₿ always faces camera, pulses gently — stays PERMANENT (never fades)
     if (btcSpriteRef.current) {
-      const btcMat = btcSpriteRef.current.material as THREE.SpriteMaterial;
+      const btcMat = btcSpriteRef.current.material as SpriteMaterial;
       const btcScale = 2.2 + Math.sin(clock.elapsedTime * 2) * 0.15;
       btcSpriteRef.current.scale.setScalar(btcScale);
       if (t >= PHASE_CONVERGE_END && t < PHASE_BURST_END) {
@@ -484,7 +504,7 @@ const LandingScene: React.FC = () => {
     if (ring1Ref.current) {
       const rScale = 2.5 + Math.sin(clock.elapsedTime * 1.2) * 0.5;
       ring1Ref.current.scale.setScalar(rScale);
-      const rMat = ring1Ref.current.material as THREE.MeshBasicMaterial;
+      const rMat = ring1Ref.current.material as MeshBasicMaterial;
       rMat.opacity = (0.06 + Math.sin(clock.elapsedTime * 1.2) * 0.04) * coreFade;
     }
     if (ring2Ref.current) {
@@ -492,26 +512,26 @@ const LandingScene: React.FC = () => {
       ring2Ref.current.scale.setScalar(rScale);
       ring2Ref.current.rotation.x = Math.PI / 2;
       ring2Ref.current.rotation.z += 0.001;
-      const rMat = ring2Ref.current.material as THREE.MeshBasicMaterial;
+      const rMat = ring2Ref.current.material as MeshBasicMaterial;
       rMat.opacity = (0.04 + Math.cos(clock.elapsedTime * 0.9) * 0.03) * coreFade;
     }
 
     if (coreMeshRef.current) {
-      const mat = coreMeshRef.current.material as THREE.LineBasicMaterial;
+      const mat = coreMeshRef.current.material as LineBasicMaterial;
       if (t < PHASE_CONVERGE_END) {
         mat.opacity = (0.3 + t / PHASE_CONVERGE_END * 0.4) * coreFade;
       } else if (t < PHASE_VERIFY_END) {
         const vt = (t - PHASE_CONVERGE_END) / (PHASE_VERIFY_END - PHASE_CONVERGE_END);
         mat.opacity = (0.7 + Math.sin(vt * Math.PI * 4) * 0.3) * coreFade;
-        mat.color.lerp(new THREE.Color('#22ff88'), 0.03);
+        mat.color.lerp(new Color('#22ff88'), 0.03);
       } else {
         mat.opacity = (0.5 + Math.sin(clock.elapsedTime * 2) * 0.15) * coreFade;
-        mat.color.lerp(new THREE.Color('#f7931a'), 0.005);
+        mat.color.lerp(new Color('#f7931a'), 0.005);
       }
     }
 
     if (coreGlowRef.current) {
-      const mat = coreGlowRef.current.material as THREE.MeshBasicMaterial;
+      const mat = coreGlowRef.current.material as MeshBasicMaterial;
       if (t >= PHASE_CONVERGE_END && t < PHASE_BURST_END) {
         const vt = (t - PHASE_CONVERGE_END) / (PHASE_BURST_END - PHASE_CONVERGE_END);
         mat.opacity = (0.15 + vt * 0.3) * coreFade;
@@ -532,20 +552,20 @@ const LandingScene: React.FC = () => {
     bubbleSpriteRefs.current.forEach((sprite, i) => {
       if (!sprite) return;
       const b = bubbles[i];
-      const mat = sprite.material as THREE.SpriteMaterial;
+      const mat = sprite.material as SpriteMaterial;
       const badge = bubbleBadgeRefs.current[i];
       const localT = Math.max(0, t - b.delay);
 
       if (!isPostVerify) {
         // Pre-verify: converge toward core
-        const progress = THREE.MathUtils.clamp(localT * b.speed / PHASE_CONVERGE_END, 0, 1);
-        const eased = THREE.MathUtils.smoothstep(progress, 0, 1);
-        const target = new THREE.Vector3(0, 0, 0);
+        const progress = THREEMathUtils.clamp(localT * b.speed / PHASE_CONVERGE_END, 0, 1);
+        const eased = THREEMathUtils.smoothstep(progress, 0, 1);
+        const target = new Vector3(0, 0, 0);
         const pos = b.origin.clone().lerp(target, eased);
         pos.x += Math.sin(clock.elapsedTime * 2.5 + b.wobble) * (1 - eased) * 0.5;
         pos.y += Math.cos(clock.elapsedTime * 1.8 + b.wobble * 2) * (1 - eased) * 0.3;
         sprite.position.copy(pos);
-        const appear = THREE.MathUtils.smoothstep(localT, 0, 0.4);
+        const appear = THREEMathUtils.smoothstep(localT, 0, 0.4);
         const shrink = eased > 0.85 ? 1 - (eased - 0.85) / 0.15 : 1;
         const s = appear * shrink * 1.6;
         sprite.scale.setScalar(s);
@@ -570,7 +590,7 @@ const LandingScene: React.FC = () => {
 
         // Show shield badge at top-right corner of bubble
         if (badge) {
-          const fadeIn = THREE.MathUtils.smoothstep(t - (PHASE_BURST_END + 1), 0, 0.8);
+          const fadeIn = THREEMathUtils.smoothstep(t - (PHASE_BURST_END + 1), 0, 0.8);
           badge.visible = true;
           // Offset to top-right: +0.55 x, +0.55 y relative to bubble
           badge.position.set(
@@ -579,7 +599,7 @@ const LandingScene: React.FC = () => {
             sprite.position.z + 0.1,
           );
           badge.scale.setScalar(bubbleScale * 0.45);
-          const badgeMat = badge.material as THREE.SpriteMaterial;
+          const badgeMat = badge.material as SpriteMaterial;
           badgeMat.opacity = fadeIn * (0.85 + Math.sin(clock.elapsedTime * 2 + i) * 0.1);
         }
       }
@@ -589,7 +609,7 @@ const LandingScene: React.FC = () => {
     burstSpriteRefs.current.forEach((sprite, i) => {
       if (!sprite) return;
       const bd = bursts[i];
-      const mat = sprite.material as THREE.SpriteMaterial;
+      const mat = sprite.material as SpriteMaterial;
 
       if (t >= PHASE_VERIFY_END && t < PHASE_BURST_END + 8) {
         const bt = t - PHASE_VERIFY_END;
@@ -600,7 +620,7 @@ const LandingScene: React.FC = () => {
         sprite.visible = true;
 
         // Pop-in scale with slight rotation wobble
-        const popIn = THREE.MathUtils.smoothstep(bt, 0, 0.15);
+        const popIn = THREEMathUtils.smoothstep(bt, 0, 0.15);
         const breathe = 1 + Math.sin(bt * bd.rotSpeed * 0.5) * 0.08;
         sprite.scale.setScalar(popIn * 1.8 * breathe);
 
@@ -635,7 +655,7 @@ const LandingScene: React.FC = () => {
         {/* Outer glow sphere */}
         <mesh ref={coreGlowRef}>
           <sphereGeometry args={[1.2, 24, 24]} />
-          <meshBasicMaterial color="#f7931a" transparent opacity={0.08} side={THREE.BackSide} />
+          <meshBasicMaterial color="#f7931a" transparent opacity={0.08} side={BackSide} />
         </mesh>
 
         {/* Core center point */}
@@ -646,19 +666,19 @@ const LandingScene: React.FC = () => {
 
         {/* ₿ Bitcoin symbol — always facing camera */}
         <sprite ref={btcSpriteRef} scale={[2.2, 2.2, 2.2]}>
-          <spriteMaterial map={btcTexture} transparent opacity={0.5} depthWrite={false} blending={THREE.AdditiveBlending} />
+          <spriteMaterial map={btcTexture} transparent opacity={0.5} depthWrite={false} blending={AdditiveBlending} />
         </sprite>
 
         {/* Energy ring 1 — horizontal */}
         <mesh ref={ring1Ref} rotation={[Math.PI / 2, 0, 0]}>
           <ringGeometry args={[1.0, 1.05, 64]} />
-          <meshBasicMaterial color="#f7931a" transparent opacity={0.06} side={THREE.DoubleSide} />
+          <meshBasicMaterial color="#f7931a" transparent opacity={0.06} side={DoubleSide} />
         </mesh>
 
         {/* Energy ring 2 — vertical, slower */}
         <mesh ref={ring2Ref}>
           <ringGeometry args={[1.2, 1.25, 64]} />
-          <meshBasicMaterial color="#66ccff" transparent opacity={0.04} side={THREE.DoubleSide} />
+          <meshBasicMaterial color="#66ccff" transparent opacity={0.04} side={DoubleSide} />
         </mesh>
       </group>
 
@@ -672,7 +692,7 @@ const LandingScene: React.FC = () => {
           >
             <spriteMaterial
               map={b.type === 'bot' ? textures.bot : b.type === 'boy' ? textures.boy : textures.girl}
-              transparent opacity={0} depthWrite={false} blending={THREE.NormalBlending}
+              transparent opacity={0} depthWrite={false} blending={NormalBlending}
             />
           </sprite>
           {/* Mini shield badge — shown after verification */}
@@ -683,7 +703,7 @@ const LandingScene: React.FC = () => {
           >
             <spriteMaterial
               map={textures.miniBadge}
-              transparent opacity={0} depthWrite={false} blending={THREE.NormalBlending}
+              transparent opacity={0} depthWrite={false} blending={NormalBlending}
             />
           </sprite>
         </React.Fragment>
@@ -698,7 +718,7 @@ const LandingScene: React.FC = () => {
         >
           <spriteMaterial
             map={textures.check}
-            transparent opacity={0} depthWrite={false} blending={THREE.NormalBlending}
+            transparent opacity={0} depthWrite={false} blending={NormalBlending}
           />
         </sprite>
       ))}

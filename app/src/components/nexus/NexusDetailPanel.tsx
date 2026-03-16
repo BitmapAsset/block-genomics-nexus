@@ -73,7 +73,7 @@ export default function NexusDetailPanel({ height, onClose, visitorCount = 0, me
 
   return (
     <div
-      className="fixed top-0 right-0 h-full w-80 z-50 flex flex-col overflow-y-auto transition-transform duration-300"
+      className="fixed top-0 right-0 h-full w-full sm:w-80 z-50 flex flex-col overflow-y-auto transition-transform duration-300"
       style={{
         background: 'rgba(12,12,20,0.92)',
         backdropFilter: 'blur(20px)',

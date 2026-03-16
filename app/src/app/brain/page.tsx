@@ -318,8 +318,8 @@ export default function BrainPage() {
                 No actions yet — the Nexus Brain is watching 👁️
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className={`w-full text-sm ${mono}`}>
+              <div className="overflow-x-auto scrollbar-thin" tabIndex={0} role="region" aria-label="Transparency log table" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <table className={`w-full text-sm ${mono} min-w-[600px]`}>
                   <thead>
                     <tr className="border-b border-[#1e1e3a] text-left">
                       <th className={`px-4 py-3 ${dim} text-xs font-normal`}>Time</th>

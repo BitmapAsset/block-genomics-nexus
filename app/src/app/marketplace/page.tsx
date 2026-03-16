@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import CrownShield from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
@@ -173,6 +173,12 @@ function evaluatePurchaseGate(
 
 /* ── Gate Message Modal ── */
 function GateModal({ gate, listing, onClose }: { gate: GateResult; listing: Listing; onClose: () => void }) {
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
   const content = (() => {
     switch (gate.action) {
       case 'connect_wallet':
@@ -209,7 +215,7 @@ function GateModal({ gate, listing, onClose }: { gate: GateResult; listing: List
   })();
   if (!content) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={content.title} onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-[#1a1a2e] border border-orange-500/30 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
         <div className="text-center">
           <div className="text-5xl mb-4">{content.icon}</div>
@@ -343,6 +349,7 @@ export default function MarketplacePage() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search by block # or owner..."
+                aria-label="Search listings by block number or owner"
                 className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-orange-500/50 transition-all"
               />
             </div>
@@ -354,14 +361,16 @@ export default function MarketplacePage() {
                 value={minPrice}
                 onChange={e => setMinPrice(e.target.value)}
                 placeholder="Min sats"
+                aria-label="Minimum price in sats"
                 className="w-24 px-2 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-xs font-mono placeholder-gray-600 focus:outline-none focus:border-orange-500/50"
               />
-              <span className="text-gray-600 text-xs">–</span>
+              <span className="text-gray-600 text-xs" aria-hidden="true">–</span>
               <input
                 type="number"
                 value={maxPrice}
                 onChange={e => setMaxPrice(e.target.value)}
                 placeholder="Max sats"
+                aria-label="Maximum price in sats"
                 className="w-24 px-2 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-xs font-mono placeholder-gray-600 focus:outline-none focus:border-orange-500/50"
               />
             </div>

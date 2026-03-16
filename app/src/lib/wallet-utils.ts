@@ -8,6 +8,19 @@ import Wallet, { AddressPurpose, MessageSigningProtocols } from 'sats-connect';
 
 export type WalletType = 'unisat' | 'xverse' | 'leather';
 
+interface WalletAddress {
+  address: string;
+  purpose?: string;
+  type?: string;
+}
+
+interface ProviderResponse {
+  status?: string;
+  result?: { addresses?: WalletAddress[]; signature?: string } | WalletAddress[];
+  error?: { message: string };
+  addresses?: WalletAddress[];
+}
+
 /** Detect which wallets are installed */
 export function detectWallets(): Record<WalletType, boolean> {
   if (typeof window === 'undefined') return { unisat: false, xverse: false, leather: false };
@@ -34,10 +47,10 @@ function isXverseInAppBrowser(): boolean {
 }
 
 /** Helper: extract address from Xverse response */
-function extractXverseAddress(addrs: any[]): string | null {
+function extractXverseAddress(addrs: WalletAddress[]): string | null {
   if (!Array.isArray(addrs) || addrs.length === 0) return null;
-  const ordinals = addrs.find((a: any) => a.purpose === 'ordinals' || a.purpose === AddressPurpose.Ordinals);
-  const payment = addrs.find((a: any) => a.purpose === 'payment' || a.purpose === AddressPurpose.Payment);
+  const ordinals = addrs.find((a) => a.purpose === 'ordinals' || a.purpose === AddressPurpose.Ordinals);
+  const payment = addrs.find((a) => a.purpose === 'payment' || a.purpose === AddressPurpose.Payment);
   return ordinals?.address || payment?.address || addrs[0]?.address || null;
 }
 
@@ -49,24 +62,27 @@ export async function connectXverse(): Promise<string> {
   if (provider?.request) {
     console.log('[Xverse] Using direct BitcoinProvider.request');
     try {
-      const response: any = await provider.request('getAddresses', {
+      const response = await provider.request('getAddresses', {
         purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
         message: 'Block Genomics needs your Bitcoin address for verification.',
-      });
+      }) as ProviderResponse;
       if (response?.status === 'success') {
-        const addrs = response.result?.addresses || response.result || [];
+        const result = response.result;
+        const addrs: WalletAddress[] = Array.isArray(result) ? result : result?.addresses || [];
         const addr = extractXverseAddress(addrs);
         if (addr) return addr;
       }
       // Some versions return addresses directly without status wrapper
       if (response?.result) {
-        const addrs = Array.isArray(response.result) ? response.result : response.result.addresses || [];
+        const result = response.result;
+        const addrs: WalletAddress[] = Array.isArray(result) ? result : result.addresses || [];
         const addr = extractXverseAddress(addrs);
         if (addr) return addr;
       }
-    } catch (e: any) {
-      if (e?.message?.includes('reject') || e?.message?.includes('cancel')) throw e;
-      console.error('[Xverse provider.request getAddresses failed]', e?.message || e);
+    } catch (e: unknown) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      if (errMsg.includes('reject') || errMsg.includes('cancel')) throw e;
+      console.error('[Xverse provider.request getAddresses failed]', errMsg);
     }
   }
 
@@ -76,12 +92,13 @@ export async function connectXverse(): Promise<string> {
     try {
       const response = await provider.connect();
       if (response?.addresses?.length) {
-        const taproot = response.addresses.find((a: any) => a.address?.startsWith('bc1p'));
+        const taproot = response.addresses.find((a: WalletAddress) => a.address?.startsWith('bc1p'));
         return taproot?.address || response.addresses[0].address;
       }
-    } catch (e: any) {
-      if (e?.message?.includes('reject') || e?.message?.includes('cancel')) throw e;
-      console.error('[Xverse legacy connect failed]', e?.message || e);
+    } catch (e: unknown) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      if (errMsg.includes('reject') || errMsg.includes('cancel')) throw e;
+      console.error('[Xverse legacy connect failed]', errMsg);
     }
   }
 
@@ -122,20 +139,22 @@ export async function signWithWallet(walletType: WalletType, message: string, ad
     if (provider?.request) {
       console.log('[Xverse] Signing via direct BitcoinProvider.request');
       try {
-        const resp: any = await provider.request('signMessage', {
+        const resp = await provider.request('signMessage', {
           address,
           message,
           protocol: 'BIP322',
-        });
-        if (resp?.status === 'success' && resp.result?.signature) {
-          return resp.result.signature;
+        }) as ProviderResponse;
+        const result = resp?.result && !Array.isArray(resp.result) ? resp.result : null;
+        if (resp?.status === 'success' && result?.signature) {
+          return result.signature;
         }
-        if (resp?.result?.signature) return resp.result.signature;
+        if (result?.signature) return result.signature;
         throw new Error(resp?.error?.message || 'Xverse signing returned no signature');
-      } catch (e: any) {
-        if (e?.message?.includes('reject') || e?.message?.includes('cancel')) throw e;
-        console.error('[Xverse direct sign failed]', e?.message || e);
-        throw new Error(e?.message || 'Xverse signing failed');
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        if (errMsg.includes('reject') || errMsg.includes('cancel')) throw e;
+        console.error('[Xverse direct sign failed]', errMsg);
+        throw new Error(errMsg || 'Xverse signing failed');
       }
     }
 

@@ -169,6 +169,7 @@ export default function LivePage() {
                 <div className="relative aspect-video bg-black">
                   <iframe
                     src={stream.embedUrl}
+                    title={`Live stream from Block ${stream.blockHeight.toLocaleString()}${stream.ownerHandle ? ` by @${stream.ownerHandle}` : ''}`}
                     width="100%"
                     height="100%"
                     allow="autoplay; encrypted-media"

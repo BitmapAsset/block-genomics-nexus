@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useBlockHeight } from '@/hooks/useBlockHeight';
 
-interface Stats {
-  blockHeight: number | null;
+interface ApiStats {
   verifiedAgents: number | null;
   genomesMinted: number | null;
 }
@@ -15,8 +15,8 @@ function formatNum(n: number): string {
 }
 
 export default function LiveStats() {
-  const [stats, setStats] = useState<Stats>({
-    blockHeight: null,
+  const blockHeight = useBlockHeight(60_000);
+  const [stats, setStats] = useState<ApiStats>({
     verifiedAgents: null,
     genomesMinted: null,
   });
@@ -24,39 +24,28 @@ export default function LiveStats() {
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchAll() {
-      // Block height from mempool
-      try {
-        const res = await fetch('https://mempool.space/api/blocks/tip/height');
-        if (res.ok) {
-          const h = await res.json();
-          if (!cancelled) setStats(s => ({ ...s, blockHeight: h }));
-        }
-      } catch { /* silent */ }
-
-      // Verified agents + genomes from our API
+    async function fetchApiStats() {
       try {
         const res = await fetch('/api/v1/stats');
         if (res.ok) {
           const data = await res.json();
-          if (!cancelled) setStats(s => ({
-            ...s,
+          if (!cancelled) setStats({
             verifiedAgents: data.verifiedAgents ?? 0,
             genomesMinted: data.genomesMinted ?? 0,
-          }));
+          });
         }
       } catch { /* silent */ }
     }
 
-    fetchAll();
-    const iv = setInterval(fetchAll, 60000);
+    fetchApiStats();
+    const iv = setInterval(fetchApiStats, 60000);
     return () => { cancelled = true; clearInterval(iv); };
   }, []);
 
   const items = [
     {
       icon: '⛓️',
-      value: stats.blockHeight ? formatNum(stats.blockHeight) : '880K+',
+      value: blockHeight ? formatNum(blockHeight) : '880K+',
       label: 'Blocks with DNA',
     },
     {

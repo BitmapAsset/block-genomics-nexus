@@ -1,22 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useBlockHeight } from "@/hooks/useBlockHeight";
 
 export default function RotatingTagline() {
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<"in" | "hold" | "out">("in");
-  const [blockHeight, setBlockHeight] = useState<string>("930,000+");
-
-  // Fetch live block height
-  useEffect(() => {
-    fetch("https://mempool.space/api/blocks/tip/height")
-      .then((r) => r.text())
-      .then((h) => {
-        const n = parseInt(h, 10);
-        if (n > 0) setBlockHeight(n.toLocaleString());
-      })
-      .catch(() => {}); // keep fallback
-  }, []);
+  const height = useBlockHeight();
+  const blockHeight = height ? height.toLocaleString() : "930,000+";
 
   const taglines = [
     "Every Bitcoin block is a world.",
