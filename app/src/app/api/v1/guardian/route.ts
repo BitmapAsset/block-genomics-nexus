@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { encryptApiKey, maskApiKey } from '@/lib/key-encryption';
 import { generateGuardianBundle, GUARDIAN_PROTOCOL_VERSION } from '@/lib/guardian-templates';
+import { verifyWalletSignature } from '@/lib/api-helpers';
 
 const VALID_PROVIDERS = ['openai', 'anthropic', 'google', 'xai', 'custom'];
 
@@ -33,9 +34,12 @@ export async function POST(req: NextRequest) {
     const finalAgentMd = body.agentMd || bundle.agentMd;
     const finalSkillsMd = body.skillsMd || bundle.skillsMd;
 
-    // Verify wallet signature
+    // SECURITY: Actually verify the wallet signature (not just check presence)
     if (!signature || !signedMessage) {
       return NextResponse.json({ error: 'Wallet signature required' }, { status: 401 });
+    }
+    if (!verifyWalletSignature(ownerAddress, signedMessage, signature)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     // Validate provider

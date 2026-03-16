@@ -42,10 +42,10 @@ export async function GET(req: Request) {
         ? `⛏️ Block #${result.blockHeight} — ${result.guardiansChecked} guardians pulsed`
         : `No new block (still at #${result.blockHeight})`,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[Bitcoin Heartbeat]', err);
     return NextResponse.json(
-      { error: 'Heartbeat failed', detail: err?.message },
+      { error: 'Heartbeat failed', detail: err instanceof Error ? err.message : undefined },
       { status: 500 }
     );
   }

@@ -69,12 +69,6 @@ export function hexPairToColor(pair: string): string {
 }
 
 /**
- * Generate an array of 32 colors from a 64-char genome sequence.
- */
-/**
- * Map a DNA base letter to a display color.
- */
-/**
  * Return a Tailwind-compatible class for a DNA base color.
  */
 export function dnaBaseColor(base: string): string {
@@ -153,7 +147,7 @@ export function formatRelativeTime(timestamp: number): string {
  * Generate a deterministic genome from a block hash.
  * Same block hash always produces the same genome.
  */
-export function generateGenome(blockHash: string) {
+export function generateGenome(blockHash: string): { sequence: string; integrity: number; complexity: number; signature: string } {
   const sequence = createHash('sha256')
     .update(`block-genomics:${blockHash}`)
     .digest('hex');
@@ -170,7 +164,15 @@ export function generateGenome(blockHash: string) {
 /**
  * Generate visual data (DNA strand segments) from a genome sequence.
  */
-export function genomeToVisual(sequence: string) {
+interface GenomeSegment {
+  position: number;
+  nucleotide: 'A' | 'T' | 'C' | 'G';
+  color: string;
+  strength: number;
+  pair: 'A' | 'T' | 'C' | 'G';
+}
+
+export function genomeToVisual(sequence: string): GenomeSegment[] {
   const nucleotides = ['A', 'T', 'C', 'G'] as const;
   const segments = [];
 
@@ -192,7 +194,7 @@ export function genomeToVisual(sequence: string) {
 /**
  * Generate a verification challenge nonce + message.
  */
-export function createChallenge(blockHeight: number, blockHash: string) {
+export function createChallenge(blockHeight: number, blockHash: string): { nonce: string; timestamp: number; message: string } {
   const nonce = randomBytes(16).toString('hex');
   const timestamp = Date.now();
   const message = `Block Genomics Verification\nBlock: ${blockHeight}\nHash: ${blockHash}\nNonce: ${nonce}\nTimestamp: ${timestamp}`;

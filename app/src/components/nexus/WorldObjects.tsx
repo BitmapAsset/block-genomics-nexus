@@ -19,7 +19,8 @@ const MATERIAL_PRESETS: Record<string, { color?: string; metalness: number; roug
 /* ─── Primitive Geometry Component ─── */
 function PrimitiveObject({ obj, isSelected, onClick }: { obj: WorldObject; isSelected: boolean; onClick: () => void }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const preset = (obj as any).material ? MATERIAL_PRESETS[(obj as any).material] : undefined;
+  const materialKey = (obj as WorldObject & { material?: string }).material;
+  const preset = materialKey ? MATERIAL_PRESETS[materialKey] : undefined;
   const color = preset?.color || obj.color || '#f7931a';
   const emissive = preset?.emissive || obj.emissive || '#000000';
 

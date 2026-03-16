@@ -2,25 +2,42 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import dynamic from "next/dynamic";
 import {
   Zap,
   Wallet,
-  ArrowRightLeft,
-  History,
   Shield,
   Clock,
   Bitcoin,
   ChevronRight,
-  Copy,
-  Check,
   ExternalLink,
 } from "lucide-react";
-import { cn, formatSats, truncateAddress, wallets, type Asset, type Transaction } from "@/lib/runebolt-utils";
-import { AssetDashboard } from "./components/AssetDashboard";
+import { cn, truncateAddress, wallets } from "@/lib/runebolt-utils";
 
-const fadeIn = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } };
-const staggerContainer = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } } };
+// Dynamic import isolates framer-motion (~52KB gzip) to this route's chunk
+const MotionSection = dynamic(
+  () => import("./components/RuneBoltMotion"),
+  { ssr: false, loading: () => <RuneBoltFallback /> }
+);
+
+const AssetDashboard = dynamic(
+  () => import("./components/AssetDashboard").then(m => ({ default: m.AssetDashboard })),
+  { loading: () => <div className="card text-center py-16 animate-pulse">Loading assets...</div> }
+);
+
+function RuneBoltFallback() {
+  return (
+    <div className="relative z-10 max-w-5xl mx-auto px-4 text-center">
+      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#F7931A]/10 border border-[#F7931A]/20 mb-8">
+        <Zap className="w-4 h-4 text-[#F7931A]" />
+        <span className="text-sm text-[#F7931A] font-medium">Lightning Deed Protocol v0.1</span>
+      </div>
+      <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
+        <span className="bitcoin-gradient">Instant</span> Bitcoin<br />Asset Transfers
+      </h1>
+    </div>
+  );
+}
 
 function Navbar({ connected, address, onConnect }: { connected: boolean; address?: string; onConnect: () => void }) {
   return (
@@ -66,32 +83,7 @@ export default function RuneBoltPage() {
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#F7931A]/20 rounded-full blur-[120px]" />
           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#FFD700]/10 rounded-full blur-[120px]" />
         </div>
-        <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="relative z-10 max-w-5xl mx-auto px-4 text-center">
-          <motion.div variants={fadeIn} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#F7931A]/10 border border-[#F7931A]/20 mb-8">
-            <Zap className="w-4 h-4 text-[#F7931A]" />
-            <span className="text-sm text-[#F7931A] font-medium">Lightning Deed Protocol v0.1</span>
-          </motion.div>
-          <motion.h1 variants={fadeIn} className="text-5xl sm:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
-            <span className="bitcoin-gradient">Instant</span> Bitcoin<br />Asset Transfers
-          </motion.h1>
-          <motion.p variants={fadeIn} className="text-xl text-gray-400 mb-8 max-w-2xl mx-auto">
-            Transfer Runes, Ordinals, and Bitmap instantly over Lightning Network. No custodial risk. Pure Bitcoin script magic.
-          </motion.p>
-          <motion.div variants={fadeIn} className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-            <button onClick={handleConnect} className="btn-primary flex items-center justify-center gap-2 text-lg px-8 py-4">
-              <Wallet className="w-5 h-5" /> Connect Wallet <ChevronRight className="w-5 h-5" />
-            </button>
-          </motion.div>
-          <motion.div variants={fadeIn} className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl mx-auto">
-            {[{ icon: Clock, label: "Transfer Time", value: "< 1 second" }, { icon: Shield, label: "Security", value: "Non-custodial" }, { icon: Bitcoin, label: "Assets", value: "Runes, Ordinals, Bitmap" }].map((stat) => (
-              <div key={stat.label} className="card text-center">
-                <stat.icon className="w-6 h-6 text-[#F7931A] mx-auto mb-2" />
-                <div className="text-2xl font-bold mb-1">{stat.value}</div>
-                <div className="text-sm text-gray-500">{stat.label}</div>
-              </div>
-            ))}
-          </motion.div>
-        </motion.div>
+        <MotionSection onConnect={handleConnect} />
       </section>
       <section id="transfer" className="py-24">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -102,30 +94,28 @@ export default function RuneBoltPage() {
           <AssetDashboard connected={connected} address={address} onConnect={handleConnect} />
         </div>
       </section>
-      <AnimatePresence>
-        {walletModalOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setWalletModalOpen(false)}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="card w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold">Connect Wallet</h2>
-                <button onClick={() => setWalletModalOpen(false)} className="text-gray-400 hover:text-white">✕</button>
-              </div>
-              <div className="space-y-3">
-                {wallets.map((wallet) => (
-                  <button key={wallet.id} onClick={() => handleWalletSelect(wallet.id)} className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-[#F7931A]/30 transition-all">
-                    <span className="text-2xl">{wallet.icon}</span>
-                    <div className="flex-1 text-left">
-                      <div className="font-medium">{wallet.name}</div>
-                      <div className="text-sm text-gray-500">{wallet.description}</div>
-                    </div>
-                    {wallet.installed ? <span className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400">Installed</span> : <ExternalLink className="w-4 h-4 text-gray-500" />}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {walletModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setWalletModalOpen(false)}>
+          <div className="card w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold">Connect Wallet</h2>
+              <button onClick={() => setWalletModalOpen(false)} className="text-gray-400 hover:text-white">{'\u2715'}</button>
+            </div>
+            <div className="space-y-3">
+              {wallets.map((wallet) => (
+                <button key={wallet.id} onClick={() => handleWalletSelect(wallet.id)} className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-[#F7931A]/30 transition-all">
+                  <span className="text-2xl">{wallet.icon}</span>
+                  <div className="flex-1 text-left">
+                    <div className="font-medium">{wallet.name}</div>
+                    <div className="text-sm text-gray-500">{wallet.description}</div>
+                  </div>
+                  {wallet.installed ? <span className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400">Installed</span> : <ExternalLink className="w-4 h-4 text-gray-500" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

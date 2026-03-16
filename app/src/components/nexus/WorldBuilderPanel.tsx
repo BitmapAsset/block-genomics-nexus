@@ -274,7 +274,7 @@ export default function WorldBuilderPanel({
     pushUndo();
     const copy = { ...selectedObject, posX: selectedObject.posX + 2 };
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id, createdAt, updatedAt, ...data } = copy as any;
+    const { id, createdAt, updatedAt, ...data } = copy as WorldObject & { createdAt?: string; updatedAt?: string };
 
     try {
       const res = await fetch('/api/v1/world', {

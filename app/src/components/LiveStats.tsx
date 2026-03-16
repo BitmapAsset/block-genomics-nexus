@@ -1,12 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useBlockHeight } from '@/hooks/useBlockHeight';
-
-interface ApiStats {
-  verifiedAgents: number | null;
-  genomesMinted: number | null;
-}
+import { useStats } from '@/hooks/useStats';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -16,46 +11,22 @@ function formatNum(n: number): string {
 
 export default function LiveStats() {
   const blockHeight = useBlockHeight(60_000);
-  const [stats, setStats] = useState<ApiStats>({
-    verifiedAgents: null,
-    genomesMinted: null,
-  });
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchApiStats() {
-      try {
-        const res = await fetch('/api/v1/stats');
-        if (res.ok) {
-          const data = await res.json();
-          if (!cancelled) setStats({
-            verifiedAgents: data.verifiedAgents ?? 0,
-            genomesMinted: data.genomesMinted ?? 0,
-          });
-        }
-      } catch { /* silent */ }
-    }
-
-    fetchApiStats();
-    const iv = setInterval(fetchApiStats, 60000);
-    return () => { cancelled = true; clearInterval(iv); };
-  }, []);
+  const stats = useStats();
 
   const items = [
     {
-      icon: '⛓️',
+      icon: '\u26D3\uFE0F',
       value: blockHeight ? formatNum(blockHeight) : '880K+',
       label: 'Blocks with DNA',
     },
     {
-      icon: '🤖',
-      value: stats.verifiedAgents !== null ? (stats.verifiedAgents > 0 ? formatNum(stats.verifiedAgents) : '0') : '—',
+      icon: '\u{1F916}',
+      value: stats ? (stats.verifiedAgents > 0 ? formatNum(stats.verifiedAgents) : '0') : '\u2014',
       label: 'Verified Agents',
     },
     {
-      icon: '🧬',
-      value: stats.genomesMinted !== null ? (stats.genomesMinted > 0 ? formatNum(stats.genomesMinted) : '0') : '—',
+      icon: '\u{1F9EC}',
+      value: stats ? (stats.genomesMinted > 0 ? formatNum(stats.genomesMinted) : '0') : '\u2014',
       label: 'Genomes Minted',
     },
   ];

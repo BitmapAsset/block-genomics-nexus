@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       status: guardian.status,
       message: `Successfully paired to Guardian "${guardian.name}" on block ${guardian.blockHeight}`,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Pair error:', e);
     return error('Pairing failed', 500);
   }

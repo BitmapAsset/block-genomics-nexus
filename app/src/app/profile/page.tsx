@@ -136,10 +136,10 @@ function InlineEdit({
   return (
     <div className="flex items-start gap-2">
       <Tag
-        ref={ref as any}
+        ref={ref as React.Ref<HTMLInputElement> & React.Ref<HTMLTextAreaElement>}
         value={draft}
-        onChange={(e: any) => setDraft(e.target.value)}
-        onKeyDown={(e: any) => { if (e.key === "Enter" && !multiline) save(); if (e.key === "Escape") { setDraft(value); setEditing(false); } }}
+        onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft(e.target.value)}
+        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => { if (e.key === "Enter" && !multiline) save(); if (e.key === "Escape") { setDraft(value); setEditing(false); } }}
         rows={multiline ? 3 : undefined}
         className={`flex-1 bg-white/[0.05] border border-white/[0.1] rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-orange-500/50 resize-none ${className || ""}`}
         placeholder={placeholder}
@@ -501,8 +501,8 @@ export default function ProfileHubPage() {
       }
 
       setOwnedBlocks(allBlocks);
-    } catch (err: any) {
-      const msg = err?.message || String(err) || "";
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       if (!/validating request|SIP10/i.test(msg)) {
         console.error("Failed to fetch profile data:", err);
       }

@@ -245,6 +245,7 @@ export default function MarketplacePage() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Purchase gate
   const [gateResult, setGateResult] = useState<GateResult | null>(null);
@@ -262,17 +263,18 @@ export default function MarketplacePage() {
 
   const fetchListings = useCallback(async (newOffset: number, append: boolean) => {
     append ? setLoadingMore(true) : setLoading(true);
+    setFetchError(null);
     try {
       const resp = await fetch(`/api/v1/delegations/listings?active=true&limit=${PAGE_SIZE}&offset=${newOffset}`);
-      if (!resp.ok) throw new Error('Failed to fetch');
+      if (!resp.ok) throw new Error('Failed to load listings');
       const json = await resp.json();
       const data = json?.data || json;
       const items: Listing[] = data.listings || [];
       setTotal(data.total || 0);
       setOffset(newOffset);
       setListings(prev => append ? [...prev, ...items] : items);
-    } catch {
-      // silent fail
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to load listings');
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -410,9 +412,17 @@ export default function MarketplacePage() {
 
       {/* Content */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 relative">
+        {/* Error banner */}
+        {fetchError && (
+          <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-between">
+            <p className="text-sm text-red-400">{fetchError}</p>
+            <button onClick={() => fetchListings(0, false)} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors">Retry</button>
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-20">
-            <div className="text-4xl mb-3 animate-pulse">🟧</div>
+            <div className="mx-auto w-6 h-6 border-2 border-orange-500/30 border-t-orange-400 rounded-full animate-spin mb-3" />
             <p className="text-gray-500 text-sm">Loading listings...</p>
           </div>
         ) : filtered.length > 0 ? (
@@ -483,7 +493,9 @@ export default function MarketplacePage() {
           onPaid={(invoiceId) => {
             setShowPayModal(false);
             setPayListing(null);
-            // TODO: activate delegation in DB after payment confirmed
+            // Delegation activation deferred: the purchase API route (/api/v1/delegations/purchase)
+            // blocks until on-chain tx verification is implemented. Once that's live,
+            // this callback should call the purchase endpoint with the invoiceId.
           }}
           onClose={() => { setShowPayModal(false); setPayListing(null); }}
         />

@@ -138,13 +138,13 @@ async function checkGuardianLLM(guardian: {
         responseTimeMs: Date.now() - start,
         error: res.ok ? undefined : `HTTP ${res.status}`,
       };
-    } catch (e: any) {
+    } catch (e: unknown) {
       return {
         guardianId: guardian.id,
         name: guardian.name,
         status: 'offline',
         responseTimeMs: Date.now() - start,
-        error: e?.message || 'Endpoint unreachable',
+        error: e instanceof Error ? e.message : 'Endpoint unreachable',
       };
     }
   }
@@ -204,13 +204,13 @@ async function checkGuardianLLM(guardian: {
       responseTimeMs: elapsed,
       error: `LLM returned ${res.status}`,
     };
-  } catch (e: any) {
+  } catch (e: unknown) {
     return {
       guardianId: guardian.id,
       name: guardian.name,
       status: 'offline',
       responseTimeMs: Date.now() - start,
-      error: e?.message || 'LLM unreachable',
+      error: e instanceof Error ? e.message : 'LLM unreachable',
     };
   }
 }
@@ -234,7 +234,13 @@ function resolveLLMEndpoint(provider: string | null, customEndpoint: string | nu
 /**
  * Build a minimal test payload — uses cheapest possible call
  */
-function buildTestPayload(provider: string | null, model: string | null): any {
+interface LLMTestPayload {
+  model: string;
+  max_tokens: number;
+  messages: { role: string; content: string }[];
+}
+
+function buildTestPayload(provider: string | null, model: string | null): LLMTestPayload {
   const p = provider?.toLowerCase();
 
   if (p === 'anthropic') {

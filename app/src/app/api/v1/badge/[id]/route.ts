@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { crownShieldSVGString } from "@/components/CrownShield";
+import prisma from "@/lib/prisma";
 
 /**
  * GET /api/v1/badge/[id].svg
@@ -23,9 +24,26 @@ export async function GET(
   // Strip .svg extension if present
   const cleanId = id.replace(/\.svg$/, "");
 
-  // TODO: Look up actual tier from DB. Default to Tier 1 (Gold) for now.
-  const tier = 1 as 1 | 2 | 3;
+  // Look up actual tier from DB (by handle or wallet address)
+  let tier: 1 | 2 | 3 = 1;
   const verified = true;
+
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { handle: cleanId },
+        { walletAddress: cleanId },
+      ],
+    },
+    select: { resolvedTier: true, tier: true },
+  });
+
+  if (user) {
+    const resolvedTier = user.resolvedTier ?? user.tier ?? 1;
+    if (resolvedTier === 1 || resolvedTier === 2 || resolvedTier === 3) {
+      tier = resolvedTier;
+    }
+  }
 
   const svg = crownShieldSVGString(tier, verified, 200);
 

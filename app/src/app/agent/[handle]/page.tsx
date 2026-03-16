@@ -9,6 +9,8 @@ import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 
+import WebGLErrorBoundary from '@/components/WebGLErrorBoundary';
+
 const LightningPayModal = dynamic(() => import('@/components/LightningPayModal'), { ssr: false });
 const DNAVisualizer = dynamic(() => import('@/components/DNAVisualizer'), { ssr: false });
 
@@ -741,7 +743,9 @@ export default function AgentProfilePage() {
             </div>
             {/* 3D Helix */}
             <div style={{ height: '420px' }}>
-              <DNAVisualizer genomeHash={agent.genomeHash} state="verified" height="420px" />
+              <WebGLErrorBoundary fallbackMessage="DNA visualization couldn't render. Try a browser with WebGL support.">
+                <DNAVisualizer genomeHash={agent.genomeHash} state="verified" height="420px" />
+              </WebGLErrorBoundary>
             </div>
             {/* Scrolling colored genome hash */}
             <div className="overflow-hidden relative" style={{ height: '32px', background: 'rgba(0,0,0,0.3)' }}>

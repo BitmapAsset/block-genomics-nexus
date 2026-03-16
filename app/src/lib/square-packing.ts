@@ -21,6 +21,7 @@ export interface PackResult {
   gridHeight: number;
 }
 
+/** Convert transaction vbytes to a square side length using sqrt scaling */
 export function txToSquareSize(vbytes: number, scaleFactor = 256): number {
   return Math.max(1, Math.ceil(Math.sqrt(Math.max(1, vbytes) / scaleFactor)));
 }
@@ -128,6 +129,7 @@ class MondrianLayout {
   }
 }
 
+/** Pack transaction squares into a Mondrian-style grid layout (Bitfeed algorithm) */
 export function packSquares(items: SquarePackInput[], scaleFactor = 256): PackResult {
   if (items.length === 0) return { squares: [], gridWidth: 0, gridHeight: 0 };
 
@@ -148,6 +150,7 @@ export function packSquares(items: SquarePackInput[], scaleFactor = 256): PackRe
   return { squares: result, gridWidth, gridHeight: maxY };
 }
 
+/** Pack squares and convert to 3D world-space coordinates centered on origin */
 export function packSquaresToWorldSpace(
   items: SquarePackInput[],
   blockSize: number,

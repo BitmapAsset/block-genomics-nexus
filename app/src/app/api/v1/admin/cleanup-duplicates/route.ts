@@ -12,7 +12,7 @@ import { success, error } from '@/lib/api-helpers';
 export async function POST(req: NextRequest) {
   try {
     const adminSecret = req.headers.get('x-admin-secret');
-    if (adminSecret !== process.env.ADMIN_SECRET && adminSecret !== 'cleanup-2026') {
+    if (adminSecret !== process.env.ADMIN_SECRET) {
       return error('Unauthorized', 401);
     }
 
@@ -39,7 +39,8 @@ export async function POST(req: NextRequest) {
       message: `Cleaned up ${deleted.length} duplicate handle(s)`,
       deleted,
     });
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

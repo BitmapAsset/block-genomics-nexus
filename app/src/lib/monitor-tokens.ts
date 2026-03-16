@@ -1,10 +1,12 @@
 import crypto from 'crypto';
 import prisma from '@/lib/prisma';
 
+/** SHA-256 hash a monitor token for storage comparison */
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+/** Generate a new monitor token for a guardian and store its hash in the DB */
 export async function generateMonitorToken(
   guardianId: string,
   ownerAddress: string
@@ -23,6 +25,7 @@ export async function generateMonitorToken(
   return token;
 }
 
+/** Validate a monitor token against the stored hash using timing-safe comparison */
 export async function validateMonitorToken(
   token: string,
   guardianId: string
@@ -41,6 +44,7 @@ export async function validateMonitorToken(
   );
 }
 
+/** Revoke a guardian's monitor token by clearing the stored hash */
 export async function revokeMonitorToken(guardianId: string): Promise<void> {
   await prisma.guardianAgent.update({
     where: { id: guardianId },

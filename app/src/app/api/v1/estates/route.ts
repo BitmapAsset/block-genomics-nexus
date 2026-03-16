@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     if (!block || block.ownerAddress !== walletAddress) return error('Not the block owner', 403);
 
     // Validate parcel indices are numbers
-    const indices = parcelIndices.filter((i: any) => typeof i === 'number' && i >= 0);
+    const indices = parcelIndices.filter((i: unknown) => typeof i === 'number' && i >= 0);
     if (indices.length === 0) return error('Invalid parcelIndices', 400);
 
     const estate = await prisma.estate.create({
@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
     });
 
     return success({ ...estate, parcelIndices: indices }, 201);
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

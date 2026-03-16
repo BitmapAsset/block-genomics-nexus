@@ -42,8 +42,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not the block owner' }, { status: 403 });
     }
 
+    // H-03: Allowlist fields to prevent mass assignment
+    const allowedFields = ['geometry', 'color', 'material', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ', 'name', 'visible', 'locked'];
+    const safeData: Record<string, unknown> = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) safeData[field] = body[field];
+    }
+
     const object = await prisma.blockObject.create({
-      data: { blockHeight, ownerAddress, objectType, ...rest },
+      data: { blockHeight, ownerAddress, objectType, ...safeData },
     });
 
     return NextResponse.json({ object }, { status: 201 });

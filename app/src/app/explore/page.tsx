@@ -31,9 +31,9 @@ async function fetchRecentAgents(): Promise<SearchResult[]> {
       take: 20,
     });
 
-    return users.map((u: any) => ({
-      type: "agent",
-      id: u.id,
+    return users.map((u) => ({
+      type: "agent" as const,
+      id: u.walletAddress,
       name: u.handle || "Anonymous",
       blockHeight: 0,
       genome: null,

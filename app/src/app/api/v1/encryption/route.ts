@@ -55,11 +55,20 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
+    const { verifyWalletSignature } = await import('@/lib/api-helpers');
     const body = await req.json();
-    const { walletAddress, encryptionPubKey } = body;
+    const { walletAddress, encryptionPubKey, signature, message } = body;
 
     if (!walletAddress || typeof walletAddress !== 'string') {
       return error('walletAddress is required', 400);
+    }
+
+    // SECURITY: Require wallet signature to prove ownership before storing encryption keys
+    if (!signature || !message) {
+      return error('signature and message are required for key registration', 401);
+    }
+    if (!verifyWalletSignature(walletAddress, message, signature)) {
+      return error('Invalid signature', 401);
     }
     if (!encryptionPubKey || typeof encryptionPubKey !== 'string') {
       return error('encryptionPubKey is required', 400);

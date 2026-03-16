@@ -57,6 +57,40 @@
   background-clip: text;
 }
 
+/* ─── Light Theme Override ─────────────────────────────── */
+.light {
+  --color-bg-primary: #f8f9fc;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #eef0f5;
+  --color-accent-cyan: #0891b2;
+  --color-accent-purple: #7c3aed;
+  --color-success: #16a34a;
+  --color-bitcoin: #d97706;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+  --color-border: rgba(15, 23, 42, 0.08);
+  --color-border-hover: rgba(15, 23, 42, 0.15);
+}
+
+.light .glass-panel {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+.light .glass-panel-hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+.light ::-webkit-scrollbar-track {
+  background: #f8f9fc;
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
 /* Base body styles */
 body {
   background-color: var(--color-bg-primary);
@@ -64,6 +98,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Scrollbar styling */
@@ -293,4 +328,76 @@ body {
 .glass {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(12px);
+}
+
+/* ─── Notification Banner ─────────────────────────────── */
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ─── PWA Touch Optimizations ─────────────────────────────── */
+
+/* Prevent text selection on interactive elements for app-like feel */
+.pwa-no-select {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Pull-to-refresh hint — used by JS */
+.pull-to-refresh-indicator {
+  position: fixed;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: top 0.2s ease-out;
+  z-index: 9998;
+}
+
+.pull-to-refresh-indicator.visible {
+  top: 16px;
+}
+
+/* Smooth overscroll for iOS */
+@supports (-webkit-touch-callout: none) {
+  body {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Safe area padding for notched devices */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Haptic-style active state for buttons */
+@media (hover: none) and (pointer: coarse) {
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:active, a:active, [role="button"]:active {
+    transform: scale(0.97);
+    transition: transform 0.1s ease-out;
+  }
 }

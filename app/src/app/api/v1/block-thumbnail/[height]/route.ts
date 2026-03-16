@@ -26,14 +26,20 @@ async function fetchBlockTxs(height: number): Promise<TxInput[]> {
   if (!txsRes.ok) throw new Error('Failed to fetch txs');
   const txsData = await txsRes.json();
 
-  const realTxs: TxInput[] = txsData.map((tx: any, i: number) => ({
+  interface RawMempoolTx {
+    weight?: number;
+    size?: number;
+    fee?: number;
+  }
+
+  const realTxs: TxInput[] = txsData.map((tx: RawMempoolTx) => ({
     vbytes: tx.weight ? Math.ceil(tx.weight / 4) : tx.size || 250,
   }));
 
   const totalTx = block.tx_count;
   if (realTxs.length < totalTx) {
     // Estimate remaining txs
-    const fetchedWeight = txsData.reduce((s: number, tx: any) => s + (tx.weight || (tx.size || 250) * 4), 0);
+    const fetchedWeight = txsData.reduce((s: number, tx: RawMempoolTx) => s + (tx.weight || (tx.size || 250) * 4), 0);
     const remainingWeight = Math.max(0, (block.weight || block.size * 4) - fetchedWeight);
     const remaining = totalTx - realTxs.length;
     const avgWeight = remaining > 0 ? remainingWeight / remaining : 1000;
@@ -110,7 +116,8 @@ export async function GET(
         'Cache-Control': `public, max-age=${maxAge}${epoch <= 4 ? ', immutable' : ''}`,
       },
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Failed to render' }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to render';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

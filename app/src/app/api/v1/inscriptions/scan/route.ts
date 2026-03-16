@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
     }
 
     return success({ inscriptions: results, count: results.length });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('[inscriptions/scan] Error:', e);
     return error('Failed to scan inscriptions', 500);
   }

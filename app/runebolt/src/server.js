@@ -10,8 +10,38 @@ const LndClient = require('./lnd');
 const RuneBoltBridge = require('./bridge');
 
 const app = express();
-app.use(cors());
+// SECURITY: Restrict CORS to known origins only
+const ALLOWED_ORIGINS = [
+  'https://blockgenomics.io',
+  'https://www.blockgenomics.io',
+  'https://runebolt.blockgenomics.io',
+];
+if (process.env.NODE_ENV !== 'production') {
+  ALLOWED_ORIGINS.push('http://localhost:3000', 'http://localhost:3141');
+}
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (server-to-server, curl, etc.)
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+}));
 app.use(express.json());
+
+// SECURITY: Admin authentication middleware
+function requireAdminAuth(req, res, next) {
+  const apiKey = req.headers['x-admin-key'];
+  if (!process.env.RUNEBOLT_ADMIN_KEY) {
+    return res.status(503).json({ error: 'Admin key not configured' });
+  }
+  if (apiKey !== process.env.RUNEBOLT_ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
 
 // Initialize LND client & bridge
 const lnd = new LndClient(
@@ -164,15 +194,15 @@ app.get('/api/bridge/inventory', (req, res) => {
   res.json(bridge.getInventory());
 });
 
-// Add DOG inventory (admin)
-app.post('/api/bridge/inventory/dog', (req, res) => {
+// Add DOG inventory (admin — requires x-admin-key header)
+app.post('/api/bridge/inventory/dog', requireAdminAuth, (req, res) => {
   const { amount } = req.body;
   if (!amount) return res.status(400).json({ error: 'amount required' });
   res.json(bridge.addDogInventory(amount));
 });
 
-// Add Bitmap inventory (admin)
-app.post('/api/bridge/inventory/bitmap', (req, res) => {
+// Add Bitmap inventory (admin — requires x-admin-key header)
+app.post('/api/bridge/inventory/bitmap', requireAdminAuth, (req, res) => {
   const { blockNumber } = req.body;
   if (!blockNumber) return res.status(400).json({ error: 'blockNumber required' });
   res.json(bridge.addBitmapInventory(blockNumber));

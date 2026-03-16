@@ -2,18 +2,40 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { decryptApiKey } from '@/lib/key-encryption';
 import { callLLM } from '@/lib/llm-proxy';
+import { verifyWalletSignature } from '@/lib/api-helpers';
+
+/** Strip control characters to mitigate prompt injection */
+function stripControlChars(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { blockHeight, message, visitorAddress, visitorHandle, conversationId } = await req.json();
+    const { blockHeight, message: rawMessage, visitorAddress, visitorHandle, conversationId, signature, signedMessage } = await req.json();
 
-    if (!blockHeight || !message) {
+    if (!blockHeight || !rawMessage) {
       return NextResponse.json({ error: 'blockHeight and message required' }, { status: 400 });
     }
 
     // Input sanitization — limit message length and strip control characters
-    if (typeof message !== 'string' || message.length > 4000) {
+    if (typeof rawMessage !== 'string' || rawMessage.length > 4000) {
       return NextResponse.json({ error: 'Message too long (max 4000 chars)' }, { status: 400 });
+    }
+
+    // SECURITY: Strip control characters to reduce prompt injection risk
+    const message = stripControlChars(rawMessage);
+
+    // SECURITY: Verify visitorAddress via wallet signature if provided
+    // This prevents spoofing the visitor identity for owner-only actions
+    let verifiedVisitorAddress = visitorAddress;
+    if (visitorAddress && signature && signedMessage) {
+      if (!verifyWalletSignature(visitorAddress, signedMessage, signature)) {
+        verifiedVisitorAddress = undefined; // Treat as anonymous if sig fails
+      }
+    } else {
+      // Without signature verification, do not trust visitorAddress for owner checks
+      verifiedVisitorAddress = undefined;
     }
 
     // Find active guardian for this block
@@ -76,7 +98,7 @@ export async function POST(req: NextRequest) {
       const worldActions = extractWorldActions(response);
       let finalResponse = response;
       if (worldActions.length > 0) {
-        if (visitorAddress === guardian.ownerAddress) {
+        if (verifiedVisitorAddress === guardian.ownerAddress) {
           const results = await executeWorldActions(worldActions, parseInt(blockHeight), guardian.ownerAddress);
           finalResponse = response.replace(/```json\n\{[\s\S]*?\}\n```/g, '').trim();
           if (results.length > 0) {
@@ -90,7 +112,7 @@ export async function POST(req: NextRequest) {
 
       // TWO-PASS BUILD SYSTEM: If the LLM didn't output JSON tool calls but the owner
       // sent a build request, make a second structured call to generate build actions.
-      if (worldActions.length === 0 && visitorAddress === guardian.ownerAddress && isBuildRequest(message)) {
+      if (worldActions.length === 0 && verifiedVisitorAddress === guardian.ownerAddress && isBuildRequest(message)) {
         console.log('[Guardian Chat] Two-pass build: detected build intent, making structured call');
         try {
           const buildActions = await generateBuildActions({
@@ -175,7 +197,7 @@ async function generateBuildActions(config: {
   endpoint?: string;
   guardianId: string;
   userMessage: string;
-}): Promise<any[]> {
+}): Promise<WorldAction[]> {
   const response = await callLLM({
     provider: config.provider,
     model: config.model,
@@ -295,20 +317,46 @@ Example of a correct building response:
   return prompt;
 }
 
-function extractWorldActions(response: string): any[] {
-  const actions: any[] = [];
+function extractWorldActions(response: string): WorldAction[] {
+  const actions: WorldAction[] = [];
   const regex = /```json\n(\{[\s\S]*?\})\n```/g;
   let match;
   while ((match = regex.exec(response)) !== null) {
     try {
       const parsed = JSON.parse(match[1]);
-      if (parsed.tool) actions.push(parsed);
+      if (parsed.tool) actions.push(parsed as WorldAction);
     } catch { /* skip invalid JSON */ }
   }
   return actions;
 }
 
-async function executeWorldActions(actions: any[], blockHeight: number, ownerAddress: string) {
+interface WorldAction {
+  tool: string;
+  objectType?: string;
+  prefabType?: string;
+  geometry?: string;
+  color?: string;
+  posX?: number;
+  posY?: number;
+  posZ?: number;
+  rotX?: number;
+  rotY?: number;
+  rotZ?: number;
+  scaleX?: number;
+  scaleY?: number;
+  scaleZ?: number;
+  name?: string;
+  items?: WorldAction[];
+  groundColor?: string;
+  surfaceType?: string;
+  fogEnabled?: boolean;
+  fogColor?: string;
+  skyColor?: string;
+  radius?: number;
+  id?: string;
+}
+
+async function executeWorldActions(actions: WorldAction[], blockHeight: number, ownerAddress: string) {
   const results: { action: string; success: boolean; error?: string }[] = [];
 
   for (const action of actions) {
@@ -371,7 +419,7 @@ async function executeWorldActions(actions: any[], blockHeight: number, ownerAdd
           snow: '#F0F4FF', lava: '#FF4400', crystal: '#88DDFF', void: '#0a0a14',
           neon_grid: '#00FF88', marble: '#E8E0D8', mossy_stone: '#6B8E5A',
         };
-        const groundColor = action.groundColor || action.color || surfaceColors[action.surfaceType] || '#7CFC00';
+        const groundColor = action.groundColor || action.color || (action.surfaceType && surfaceColors[action.surfaceType]) || '#7CFC00';
         const updateData: Record<string, unknown> = { groundColor };
         if (action.fogEnabled !== undefined) updateData.fogEnabled = action.fogEnabled;
         if (action.fogColor) updateData.fogColor = action.fogColor;

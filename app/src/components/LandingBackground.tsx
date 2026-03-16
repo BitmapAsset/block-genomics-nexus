@@ -15,7 +15,6 @@ import {
   Object3D,
   QuadraticBezierCurve3,
   Quaternion,
-  Vector2,
   Vector3,
 } from 'three';
 import type {
@@ -64,11 +63,14 @@ const WHITE = new Color('#ffffff');
 
 /* ── Mouse Parallax Tracker ─────────────────────────────── */
 const mousePos = { x: 0, y: 0, smoothX: 0, smoothY: 0 };
-if (typeof window !== 'undefined') {
+let mouseListenerAttached = false;
+function attachMouseListener() {
+  if (mouseListenerAttached || typeof window === 'undefined') return;
+  mouseListenerAttached = true;
   window.addEventListener('mousemove', (e) => {
     mousePos.x = (e.clientX / window.innerWidth - 0.5) * 2;
     mousePos.y = (e.clientY / window.innerHeight - 0.5) * 2;
-  });
+  }, { passive: true });
 }
 
 /* ── Shader: Grid with intersection glow + fade ─────────── */
@@ -896,6 +898,9 @@ const NexusScene: React.FC = () => {
 
 /* ── Exported Component ─────────────────────────────────── */
 const LandingBackground: React.FC = () => {
+  // Attach mouse listener on mount instead of at module scope
+  React.useEffect(() => { attachMouseListener(); }, []);
+
   return (
     <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 0 }}>
       <Canvas

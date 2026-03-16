@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 
-const REVEAL_MS = 3430; // 3.43 seconds
+const REVEAL_MS = 1200; // 1.2s — fast enough for atmosphere, fast enough for LCP
 
 interface LandingRevealProps {
   children: React.ReactNode;

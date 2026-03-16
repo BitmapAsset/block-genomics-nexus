@@ -71,6 +71,8 @@ const nextConfig: NextConfig = {
       '@react-three/drei',
       '@supabase/supabase-js',
       'qrcode',
+      'framer-motion',
+      'lucide-react',
     ],
   },
 
@@ -90,6 +92,20 @@ const nextConfig: NextConfig = {
     {
       source: "/api/:path*",
       headers: corsHeaders,
+    },
+    {
+      // Service worker — must not be cached
+      source: "/sw.js",
+      headers: [
+        {
+          key: "Cache-Control",
+          value: "public, max-age=0, must-revalidate",
+        },
+        {
+          key: "Service-Worker-Allowed",
+          value: "/",
+        },
+      ],
     },
     {
       source: "/(.*)",

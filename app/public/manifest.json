@@ -1,0 +1,64 @@
+{
+  "name": "Block Genomics — Bitcoin DNA for Verified AI",
+  "short_name": "Block Genomics",
+  "description": "Anchor AI identity to Bitcoin blocks. Explore The Nexus — a decentralized metaverse built on Bitcoin.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a0a0f",
+  "theme_color": "#F7931A",
+  "categories": ["finance", "crypto", "bitcoin", "metaverse"],
+  "lang": "en",
+  "dir": "ltr",
+  "scope": "/",
+  "id": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Explore The Nexus",
+      "short_name": "Nexus",
+      "url": "/nexus",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "My Profile",
+      "short_name": "Profile",
+      "url": "/profile",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Verify Agent",
+      "short_name": "Verify",
+      "url": "/verify",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

@@ -1,9 +1,17 @@
+/**
+ * LLM Proxy — Unified router for Guardian AI calls.
+ *
+ * Routes to OpenAI, Anthropic, xAI/Grok, Google/Gemini, or custom endpoints.
+ * Includes per-guardian rate limiting (60 calls/hour) and 30s timeout.
+ */
+
 // Rate limiter: guardianId -> { count, resetAt }
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 
 const MAX_CALLS_PER_HOUR = 60;
 const TIMEOUT_MS = 30000;
 
+/** Configuration for an LLM call routed through the proxy. */
 interface LLMConfig {
   provider: string;
   model: string;
@@ -37,6 +45,15 @@ async function fetchWithTimeout(url: string, options: RequestInit): Promise<Resp
   }
 }
 
+/**
+ * Route an LLM call to the configured provider with rate limiting.
+ *
+ * Supports: OpenAI, Anthropic, xAI/Grok, Google/Gemini, custom endpoints.
+ * Returns a user-facing error string (not throw) on rate limit or failure.
+ *
+ * @param config - Provider, model, API key, messages, and optional guardian ID for rate limiting
+ * @returns AI response text, or a bracketed error message on failure
+ */
 export async function callLLM(config: LLMConfig): Promise<string> {
   if (config.guardianId && !checkRateLimit(config.guardianId)) {
     return '[Rate limit exceeded — max 60 calls/hour. Please try again later.]';

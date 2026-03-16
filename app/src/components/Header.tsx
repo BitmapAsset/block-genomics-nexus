@@ -1,16 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import WalletConnect from "@/components/auth/WalletConnect";
-import GlobalSearch from "@/components/GlobalSearch";
+import dynamic from "next/dynamic";
 
-const navLinks = [
+const WalletConnect = dynamic(() => import("@/components/auth/WalletConnect"), {
+  ssr: false,
+  loading: () => (
+    <button className="flex items-center gap-2 rounded-lg border border-accent-cyan/30 bg-accent-cyan/5 px-4 py-2 text-sm font-medium text-accent-cyan">
+      Connect
+    </button>
+  ),
+});
+
+const GlobalSearch = dynamic(() => import("@/components/GlobalSearch"), {
+  ssr: false,
+  loading: () => <div className="w-[180px] sm:w-[260px] lg:w-[320px] h-[34px]" />,
+});
+
+const NotificationBell = dynamic(() => import("@/components/NotificationBell"), {
+  ssr: false,
+  loading: () => <div className="w-9 h-9" />,
+});
+
+const ThemeToggle = dynamic(() => import("@/components/ThemeToggle"), {
+  ssr: false,
+  loading: () => <div className="w-9 h-9" />,
+});
+
+interface NavLinkItem {
+  href: string;
+  label: string;
+  isBrain?: boolean;
+  isLive?: boolean;
+  isRuneBolt?: boolean;
+}
+
+const navLinks: NavLinkItem[] = [
   { href: "/nexus", label: "Nexus" },
+  { href: "/portfolio", label: "Portfolio" },
   { href: "/directory", label: "Directory" },
   { href: "/live", label: "TimesSquare", isLive: true },
   { href: "/marketplace", label: "Marketplace" },
+  { href: "/history", label: "History" },
   { href: "/runebolt", label: "RuneBolt", isRuneBolt: true },
   { href: "/verify", label: "Verify" },
   { href: "/whitepaper", label: "White Paper" },
@@ -42,11 +75,11 @@ const runeBoltStyle = {
   fontWeight: 700,
 };
 
-function NavLink({ link }: { link: { href: string; label: string; isBrain?: boolean; isLive?: boolean; isRuneBolt?: boolean } }) {
+const NavLink = React.memo(function NavLink({ link }: { link: NavLinkItem }) {
   const isNexus = link.href === '/nexus';
-  const isBrain = !!(link as any).isBrain;
-  const isLive = !!(link as any).isLive;
-  const isRuneBolt = !!(link as any).isRuneBolt;
+  const isBrain = !!link.isBrain;
+  const isLive = !!link.isLive;
+  const isRuneBolt = !!link.isRuneBolt;
   const liveStyle: React.CSSProperties = { color: '#ff6b6b', textShadow: '0 0 8px rgba(255,51,51,0.3)' };
   return (
     <Link
@@ -81,12 +114,17 @@ function NavLink({ link }: { link: { href: string; label: string; isBrain?: bool
       ) : link.label}
     </Link>
   );
-}
+});
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
   const inNexus = pathname === '/nexus' || pathname.startsWith('/nexus/');
+
+  // Close mobile menu on route change (handles browser back/forward)
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   return (
     <header
@@ -132,8 +170,10 @@ export default function Header() {
           {navLinks.map((link) => <NavLink key={link.href} link={link} />)}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <GlobalSearch />
+          <NotificationBell />
+          <ThemeToggle />
           <WalletConnect />
           {/* Mobile hamburger */}
           <button
@@ -159,11 +199,11 @@ export default function Header() {
               key={link.href}
               href={link.href}
               onClick={() => setMenuOpen(false)}
-              className={`px-4 py-3 text-sm rounded-lg transition-all ${link.href === '/nexus' ? 'font-bold' : (link as any).isBrain ? 'font-semibold' : (link as any).isRuneBolt ? 'font-bold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
-              style={link.href === '/nexus' ? nexusStyle : (link as any).isBrain ? brainStyle : (link as any).isRuneBolt ? runeBoltStyle : undefined}
+              className={`px-4 py-3 text-sm rounded-lg transition-all ${link.href === '/nexus' ? 'font-bold' : link.isBrain ? 'font-semibold' : link.isRuneBolt ? 'font-bold' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/50'}`}
+              style={link.href === '/nexus' ? nexusStyle : link.isBrain ? brainStyle : link.isRuneBolt ? runeBoltStyle : undefined}
             >
               {link.href === '/nexus' ? '⚡ ' : ''}
-              {(link as any).isBrain ? (
+              {link.isBrain ? (
                 <span className="inline-flex items-center gap-1.5">
                   🧠
                   <span>{link.label}</span>
@@ -172,7 +212,7 @@ export default function Header() {
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                   </span>
                 </span>
-              ) : (link as any).isRuneBolt ? (
+              ) : link.isRuneBolt ? (
                 <span className="inline-flex items-center gap-1.5">
                   <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#F7931A] to-[#FFD700] flex items-center justify-center">
                     <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 24 24">

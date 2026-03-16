@@ -1,20 +1,13 @@
 'use client';
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useStats } from "@/hooks/useStats";
 
-export default function Footer() {
-  const [stats, setStats] = useState<{ verifiedAgents: number; blocksVerified: number } | null>(null);
-
-  useEffect(() => {
-    fetch('/api/v1/stats')
-      .then(r => r.json())
-      .then(d => setStats({ verifiedAgents: d.verifiedAgents || 0, blocksVerified: d.blocksVerified || 0 }))
-      .catch(() => {});
-  }, []);
+export default function Footer({ className }: { className?: string }) {
+  const stats = useStats();
 
   return (
-    <footer className="relative border-t border-border" style={{ background: '#0a0a12', zIndex: 30 }}>
+    <footer className={`relative border-t border-border ${className || ''}`} style={{ background: '#0a0a12', zIndex: 30 }}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}

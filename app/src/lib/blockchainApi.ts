@@ -23,6 +23,13 @@ export interface RealBlockData {
   estimated?: boolean; // true if most tx sizes are estimated (not fetched)
 }
 
+/** Raw transaction shape from mempool.space / blockchain.info APIs */
+interface RawApiTx {
+  weight?: number;
+  size?: number;
+  fee?: number;
+}
+
 // In-memory cache
 const blockCache = new Map<number, RealBlockData>();
 
@@ -106,7 +113,7 @@ async function fetchFromMempool(height: number): Promise<RealBlockData | null> {
     const txsData = await txsRes.json();
 
     // Map real first-page txs
-    const realTxs: RealTx[] = txsData.map((tx: any, i: number) => ({
+    const realTxs: RealTx[] = txsData.map((tx: RawApiTx, i: number) => ({
       txIndex: i,
       size: tx.weight ? Math.ceil(tx.weight / 4) : tx.size || 250,
       weight: tx.weight || (tx.size || 250) * 4,
@@ -158,7 +165,7 @@ async function fetchFullFromMempool(height: number): Promise<RealBlockData | nul
     if (!blockRes.ok) return null;
     const block = await blockRes.json();
 
-    const allTxs: any[] = [];
+    const allTxs: RawApiTx[] = [];
     const totalTx = block.tx_count;
     const maxTxs = 5000;
     let startIndex = 0;
@@ -177,7 +184,7 @@ async function fetchFullFromMempool(height: number): Promise<RealBlockData | nul
       }
     }
 
-    const txs: RealTx[] = allTxs.map((tx: any, i: number) => ({
+    const txs: RealTx[] = allTxs.map((tx: RawApiTx, i: number) => ({
       txIndex: i,
       size: tx.weight ? Math.ceil(tx.weight / 4) : tx.size || 250,
       weight: tx.weight || (tx.size || 250) * 4,
@@ -211,10 +218,10 @@ async function fetchFromBlockchainInfo(height: number): Promise<RealBlockData | 
     const block = data.blocks?.[0];
     if (!block) return null;
 
-    const txs: RealTx[] = (block.tx || []).map((tx: any, i: number) => ({
+    const txs: RealTx[] = (block.tx || []).map((tx: RawApiTx, i: number) => ({
       txIndex: i,
       size: tx.size || 250,
-      weight: tx.weight || tx.size * 4,
+      weight: tx.weight || (tx.size || 250) * 4,
       fee: tx.fee || 0,
       isCoinbase: i === 0,
     }));

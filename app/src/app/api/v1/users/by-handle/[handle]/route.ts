@@ -84,8 +84,9 @@ export async function GET(
       pageViews,
       isBlockProfile: false,
     });
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }
 
@@ -159,9 +160,10 @@ export async function PATCH(
       handle: updated.handle,
       displayName: updated.displayName,
       bio: updated.bio,
-      avatar: (updated as any).avatar || null,
+      avatar: updated.avatar || null,
     });
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

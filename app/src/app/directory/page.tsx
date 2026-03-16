@@ -178,17 +178,21 @@ export default function DirectoryPage() {
   const [sortBy, setSortBy] = useState<'name' | 'block' | 'date'>('name');
   const [onlineOnly, setOnlineOnly] = useState(false);
   const [realUsers, setRealUsers] = useState<VerifiedAgent[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchUsers = () => {
+    setLoadingUsers(true);
+    setFetchError(null);
     (async () => {
       try {
         const resp = await fetch('/api/v1/users/list');
-        if (!resp.ok) return;
+        if (!resp.ok) throw new Error('Failed to load agents');
         const json = await resp.json();
         const usersData = json?.data?.users ?? json?.data;
-        if (!Array.isArray(usersData)) return;
+        if (!Array.isArray(usersData)) { setLoadingUsers(false); return; }
         const users = usersData;
-        setRealUsers(users.map((u: any, i: number) => ({
+        setRealUsers(users.map((u: { handle: string; displayName?: string; tier?: number; anchorBlock?: number; genomeHash?: string; createdAt?: string; bio?: string }, i: number) => ({
           id: `real-${u.handle}-${i}`,
           handle: u.handle,
           displayName: u.displayName || u.handle,
@@ -203,9 +207,16 @@ export default function DirectoryPage() {
           tags: ['verified', 'bitcoin', 'bitmap'],
           isMock: false,
         })));
-      } catch { /* ignore */ }
+      } catch (err) {
+        setFetchError(err instanceof Error ? err.message : 'Failed to load agents');
+      } finally {
+        setLoadingUsers(false);
+      }
     })();
-  }, []);
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchUsers(); }, []);
 
   const allAgents = useMemo(() => [...realUsers, ...MOCK_AGENTS], [realUsers]);
 
@@ -361,6 +372,22 @@ export default function DirectoryPage() {
           </span>
         </div>
 
+        {/* Error banner */}
+        {fetchError && (
+          <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-between">
+            <p className="text-sm text-red-400">Couldn&apos;t load agents. {fetchError}</p>
+            <button onClick={fetchUsers} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors">Retry</button>
+          </div>
+        )}
+
+        {/* Loading state */}
+        {loadingUsers && realUsers.length === 0 && (
+          <div className="text-center py-12">
+            <div className="mx-auto w-6 h-6 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin mb-3" />
+            <p className="text-sm text-text-muted">Loading agents...</p>
+          </div>
+        )}
+
         {/* Agent Grid */}
         {filtered.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -368,13 +395,13 @@ export default function DirectoryPage() {
               <AgentCard key={agent.id} agent={agent} />
             ))}
           </div>
-        ) : (
+        ) : !loadingUsers ? (
           <div className="text-center py-20">
             <div className="text-4xl mb-3">🔍</div>
             <h3 className="text-lg font-semibold text-text-secondary mb-1">No agents found</h3>
             <p className="text-sm text-text-muted">Try adjusting your search or filters</p>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

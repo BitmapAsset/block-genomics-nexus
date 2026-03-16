@@ -70,6 +70,12 @@ export default async function HomePage() {
                 </svg>
               </Link>
               <Link
+                href="/explore"
+                className="rounded-lg border border-accent-purple/40 backdrop-blur-sm bg-accent-purple/10 px-6 py-3 text-sm font-semibold text-accent-purple hover:bg-accent-purple/20 hover:border-accent-purple/60 transition-colors"
+              >
+                Try Demo — No Wallet Needed
+              </Link>
+              <Link
                 href="/nexus"
                 className="rounded-lg border border-border backdrop-blur-sm bg-bg-primary/30 px-6 py-3 text-sm font-medium text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
               >

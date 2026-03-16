@@ -195,7 +195,7 @@ export default function VerifyPage() {
       .then(r => r.json())
       .then(data => {
         if (data.success && data.data?.profiles) {
-          setExistingProfiles(data.data.profiles.map((p: any) => ({
+          setExistingProfiles(data.data.profiles.map((p: { handle: string; blockHeight: number; avatar?: string }) => ({
             handle: p.handle,
             blockHeight: p.blockHeight,
             avatar: p.avatar,

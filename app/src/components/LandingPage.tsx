@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import LandingReveal from './LandingReveal';
+import WebGLErrorBoundary from './WebGLErrorBoundary';
 
 const LandingBackground = dynamic(() => import('./LandingBackground'), {
   ssr: false,
@@ -20,8 +21,8 @@ const LandingPage: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [animFaded, setAnimFaded] = useState(false);
 
   useEffect(() => {
-    // Fade out the verification animation after it finishes (3.43s intro + 3s post-verify ambient)
-    const timer = setTimeout(() => setAnimFaded(true), 6500);
+    // Fade out the verification animation after it finishes (1.2s intro + 2s post-verify ambient)
+    const timer = setTimeout(() => setAnimFaded(true), 3200);
     return () => clearTimeout(timer);
   }, []);
 
@@ -29,9 +30,11 @@ const LandingPage: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <>
       {/* Immersive Nexus background — always visible but dimmed behind content */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, opacity: 0.8 }}>
-        <LandingBackground />
+        <WebGLErrorBoundary>
+          <LandingBackground />
+        </WebGLErrorBoundary>
       </div>
-      
+
       {/* Verification animation overlay — stays visible (bubbles persist) */}
       <div
         style={{
@@ -41,7 +44,9 @@ const LandingPage: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           pointerEvents: 'none',
         }}
       >
-        <LandingAnimation />
+        <WebGLErrorBoundary>
+          <LandingAnimation />
+        </WebGLErrorBoundary>
       </div>
       
       {/* Content fades in after verification */}

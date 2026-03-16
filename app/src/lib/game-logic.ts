@@ -71,7 +71,7 @@ export const GAME_ELEMENT_CATEGORIES = [
   { category: 'Scoreboards & UI', icon: '🏆' },
 ];
 
-/* ─── Trigger Checking ─── */
+/** Check if a game element's trigger condition is met based on player proximity and game state */
 export function checkTrigger(
   element: { triggerType?: string | null; triggerRadius?: number | null; posX: number; posY: number; posZ: number; triggerData?: string | null },
   playerPos: { x: number; y: number; z: number },
@@ -98,7 +98,7 @@ export function checkTrigger(
   }
 }
 
-/* ─── Reward Processing ─── */
+/** Process a game element reward and return score/coin/xp deltas */
 export interface RewardResult {
   rewardType: string;
   rewardAmount: number;
@@ -143,7 +143,7 @@ export function processReward(element: {
   return result;
 }
 
-/* ─── XP Level Curve ─── */
+/** Calculate player level from total XP using progressive curve (level N needs N*100 XP) */
 export function calculateLevel(xp: number): number {
   // Each level requires progressively more XP: level N needs N*100 XP
   let level = 1;
@@ -157,10 +157,12 @@ export function calculateLevel(xp: number): number {
   return level;
 }
 
+/** XP required to reach the next level from current level */
 export function xpForNextLevel(level: number): number {
   return (level + 1) * 100;
 }
 
+/** Calculate XP progress within current level (level, current XP, needed, percentage) */
 export function xpProgress(xp: number): { level: number; current: number; needed: number; percent: number } {
   const level = calculateLevel(xp);
   let consumed = 0;
@@ -192,6 +194,7 @@ export const ACHIEVEMENT_DEFS: AchievementDef[] = [
   { id: 'level_5', name: 'Leveled Up', description: 'Reach level 5', icon: '🎖️', check: (s) => calculateLevel(s.xp) >= 5 },
 ];
 
+/** Check all achievement definitions against current game state, returning newly earned achievement IDs */
 export function checkAchievements(state: { score: number; xp: number; coins: number; collected?: string | null; achievements?: string | null; totalTimeMs: number }): string[] {
   const existing: string[] = state.achievements ? JSON.parse(state.achievements) : [];
   const newAchievements: string[] = [];

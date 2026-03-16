@@ -40,8 +40,9 @@ export async function PATCH(
     });
 
     return success({ ...updated, permissions: JSON.parse(updated.permissions) });
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }
 
@@ -89,7 +90,8 @@ export async function DELETE(
     });
 
     return success({ revoked: true });
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

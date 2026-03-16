@@ -28,8 +28,9 @@ export async function POST(req: NextRequest) {
     const token = await generateMonitorToken(guardianId, ownerAddress);
 
     return success({ token, guardianId, expiresAt: null });
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }
 
@@ -57,7 +58,8 @@ export async function DELETE(req: NextRequest) {
     await revokeMonitorToken(guardianId);
 
     return success({ revoked: true, guardianId });
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

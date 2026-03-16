@@ -161,19 +161,10 @@ export function verifyAgentSignature(
     const { Verifier } = require('bip322-js');
     return Verifier.verifySignature(walletAddress, challenge, signature);
   } catch (e: unknown) {
-    // Fallback for taproot — bip322-js has known offset bugs with p2tr
-    console.warn('BIP-322 lib error (likely taproot):', (e as Error).message);
-    if (walletAddress.startsWith('bc1p') && signature.length >= 40) {
-      try {
-        const decoded = Buffer.from(signature, 'base64');
-        return decoded.length >= 64;
-      } catch { return false; }
-    }
-    try {
-      const decoded = Buffer.from(signature, 'base64');
-      return decoded.length >= 64 && signature.length >= 40;
-    } catch {
-      return false;
-    }
+    // SECURITY: Do not fall back to length-only checks — any 64-byte base64 would pass.
+    // Taproot (bc1p) signature verification requires proper BIP-322 support.
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    console.warn('BIP-322 verification failed:', msg);
+    return false;
   }
 }

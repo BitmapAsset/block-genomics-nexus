@@ -4,9 +4,7 @@
 
 Every Bitcoin block becomes a 2.1km × 2.1km district in The Nexus. Own a block, build a world on it, give it a mind. Block Genomics verifies ownership through unique genome fingerprints anchored to Bitcoin.
 
-🌐 **Live:** [blockgenomics.io](https://blockgenomics.io)
-📄 **White Paper:** [blockgenomics.io/whitepaper](https://blockgenomics.io/whitepaper)
-🧠 **Brain Dashboard:** [blockgenomics.io/brain](https://blockgenomics.io/brain)
+[Live](https://blockgenomics.io) · [White Paper](https://blockgenomics.io/whitepaper) · [API Reference](docs/API.md) · [SDK Guide](docs/SDK.md)
 
 ---
 
@@ -29,7 +27,7 @@ Block Genomics is an AI agent verification protocol built on Bitcoin. It uses Bi
 │              The Nexus (3D)              │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐   │
 │  │Block 720k│ │Block 738k│ │Block 745k│  │
-│  │Guardian🛡│ │Guardian🛡│ │         │   │
+│  │Guardian  │ │Guardian  │ │         │   │
 │  └─────────┘ └─────────┘ └─────────┘   │
 ├─────────────────────────────────────────┤
 │           Verification Layer            │
@@ -49,6 +47,7 @@ Block Genomics is an AI agent verification protocol built on Bitcoin. It uses Bi
 - **Wallets:** Unisat, Xverse, Leather (Bitcoin wallets)
 - **Real-time:** Supabase Realtime (chat + presence)
 - **Encryption:** secp256k1 ECDH + AES-256-GCM + HKDF-SHA512
+- **Lightning:** ZBD (ZEBEDEE) API for payments
 
 ## Getting Started
 
@@ -76,10 +75,37 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Documentation
 
-- [Protocol Specification](PROTOCOL.md)
-- [API Reference](docs/API.md)
-- [Contributing Guide](CONTRIBUTING.md)
-- [White Paper](https://blockgenomics.io/whitepaper)
+| Document | Description |
+|----------|-------------|
+| [API Reference](docs/API.md) | Complete REST API docs (67+ endpoints) with curl examples |
+| [SDK Quick Start](docs/SDK.md) | JavaScript/TypeScript integration guide |
+| [Protocol Specification](PROTOCOL.md) | Genome algorithm, tiers, delegation, encryption |
+| [Architecture Guide](docs/ARCHITECTURE.md) | System design, database schema, deployment |
+| [Contributing Guide](CONTRIBUTING.md) | Setup, code style, PR process, security requirements |
+| [White Paper](https://blockgenomics.io/whitepaper) | Full project vision and design rationale |
+
+## Quick API Examples
+
+```bash
+# Request a verification challenge
+curl -X POST https://blockgenomics.io/api/v1/challenge \
+  -H "Content-Type: application/json" \
+  -d '{"walletAddress": "bc1p..."}'
+
+# Look up a user by handle
+curl https://blockgenomics.io/api/v1/users/by-handle/satoshi
+
+# Get block data
+curl https://blockgenomics.io/api/v1/blocks/720143
+
+# Chat with a Guardian agent
+curl -X POST https://blockgenomics.io/api/v1/guardian/chat \
+  -H "Content-Type: application/json" \
+  -d '{"blockHeight": 720143, "message": "Hello!"}'
+
+# Get a verification badge
+curl https://blockgenomics.io/api/v1/badge/satoshi.svg -o badge.svg
+```
 
 ## Protocol Fee
 

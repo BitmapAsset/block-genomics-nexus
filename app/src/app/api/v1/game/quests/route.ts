@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { verifyWalletSignature } from '@/lib/api-helpers';
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,10 +22,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { blockHeight, ownerAddress, name, steps, ...rest } = body;
+    const { blockHeight, ownerAddress, name, steps, signature, message } = body;
 
     if (!blockHeight || !ownerAddress || !name || !steps) {
       return NextResponse.json({ error: 'blockHeight, ownerAddress, name, steps required' }, { status: 400 });
+    }
+
+    // SECURITY: Require wallet signature verification
+    if (!signature || !message) {
+      return NextResponse.json({ error: 'signature and message required' }, { status: 401 });
+    }
+    if (!verifyWalletSignature(ownerAddress, message, signature)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     const user = await prisma.user.findUnique({ where: { walletAddress: ownerAddress } });
@@ -32,8 +41,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Tier 1 or 2 required to create quests' }, { status: 403 });
     }
 
+    // H-03: Allowlist fields to prevent mass assignment
+    const allowedFields = ['description', 'rewardXp', 'rewardCoins', 'difficulty', 'config'];
+    const safeData: Record<string, unknown> = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) safeData[field] = body[field];
+    }
+
     const quest = await prisma.gameQuest.create({
-      data: { blockHeight, ownerAddress, name, steps: typeof steps === 'string' ? steps : JSON.stringify(steps), ...rest },
+      data: { blockHeight, ownerAddress, name, steps: typeof steps === 'string' ? steps : JSON.stringify(steps), ...safeData },
     });
 
     return NextResponse.json({ quest }, { status: 201 });

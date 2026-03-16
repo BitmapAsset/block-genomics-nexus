@@ -394,10 +394,12 @@ export class NexusCanvasEngine {
     if (this.prefetchSet.size > 0) {
       const iter = this.prefetchSet.values();
       const h = iter.next().value;
-      this.prefetchSet.delete(h);
-      if (!this.realThumbnailBlocks.has(h) && !this.loadingThumbnails.has(h)) {
-        this.loadingThumbnails.add(h);
-        this.loadRealThumbnail(h);
+      if (h !== undefined) {
+        this.prefetchSet.delete(h);
+        if (!this.realThumbnailBlocks.has(h) && !this.loadingThumbnails.has(h)) {
+          this.loadingThumbnails.add(h);
+          this.loadRealThumbnail(h);
+        }
       }
     }
   }

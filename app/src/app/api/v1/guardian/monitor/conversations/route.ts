@@ -35,7 +35,8 @@ export async function GET(req: NextRequest) {
         messages: JSON.parse(c.messages),
       }))
     );
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

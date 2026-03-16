@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
       where: {
         ownerAddress: { not: null },
         inscriptionId: { not: null },
-      } as any,
-      orderBy: { lastOwnerCheck: { sort: 'asc', nulls: 'first' } } as any,
+      },
+      orderBy: { lastOwnerCheck: { sort: 'asc', nulls: 'first' } },
       take: 10,
       select: { height: true },
     });
@@ -56,8 +56,9 @@ export async function GET(req: NextRequest) {
         action: r.action,
       })),
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('[ownership-cron] Error:', e);
-    return error(e.message, 500);
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

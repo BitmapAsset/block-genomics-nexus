@@ -33,6 +33,17 @@ async function scanOnChain(address: string, baseUrl: string): Promise<ScanResult
   }
 }
 
+/**
+ * Resolve a wallet's highest verification tier by scanning on-chain inscriptions.
+ *
+ * Checks owned blocks (Tier 1), parcels (Tier 2), and active delegations (Tier 3).
+ * Caches on-chain results for 24 hours. Applies 7-day grace period on Tier 1 downgrade.
+ *
+ * @param walletAddress - Bitcoin wallet address to resolve
+ * @param options.force - Skip stale check and force on-chain re-scan
+ * @param options.baseUrl - API base URL for inscription scanning
+ * @returns Full tier resolution with owned assets, previous tier, and change info
+ */
 export async function resolveTier(
   walletAddress: string,
   options: { force?: boolean; baseUrl?: string } = {}

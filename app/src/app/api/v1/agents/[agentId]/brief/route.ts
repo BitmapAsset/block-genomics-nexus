@@ -34,7 +34,8 @@ export async function POST(
       stats: JSON.parse(brief.stats),
       pendingPermissions: JSON.parse(brief.pendingPermissions),
     }, 201);
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

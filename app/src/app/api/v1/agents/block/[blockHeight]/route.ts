@@ -19,7 +19,8 @@ export async function GET(
     return success(
       agents.map((a) => ({ ...a, permissions: JSON.parse(a.permissions) }))
     );
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

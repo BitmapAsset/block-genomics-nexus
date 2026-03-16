@@ -29,7 +29,8 @@ export async function GET(
     return success(
       events.map((e) => ({ ...e, payload: JSON.parse(e.payload) }))
     );
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

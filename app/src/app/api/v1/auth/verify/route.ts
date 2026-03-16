@@ -26,42 +26,30 @@ export async function POST(req: NextRequest) {
       return error('Invalid Bitcoin address', 400);
     }
 
-    // BIP-322 signature verification — no fallback, must be real
-    // BIP-322 signature verification
-    // Note: bip322-js has known issues with p2tr (taproot) addresses — it throws on offset errors.
-    // For taproot addresses, we accept the signature if it's a valid base64 string of reasonable length,
-    // since on-chain ownership verification is the real security gate (not just wallet control).
+    // BIP-322 signature verification — no fallback, must be cryptographically valid
     let isValid = false;
     try {
       const { Verifier } = require('bip322-js');
       isValid = Verifier.verifySignature(walletAddress, message, signature);
-    } catch (e: any) {
-      console.warn('[auth] BIP-322 lib error (likely taproot):', e?.message);
-      // Fallback for taproot: verify signature is non-trivial (real wallet extensions produce 64+ byte sigs)
-      if (walletAddress.startsWith('bc1p') && signature && signature.length >= 40) {
-        try {
-          const sigBytes = Buffer.from(signature, 'base64');
-          isValid = sigBytes.length >= 64; // Real BIP-322/Schnorr signatures are 64+ bytes
-        } catch {
-          isValid = false;
-        }
-      }
-      if (!isValid) {
-        return error('Signature verification failed. Please try again.', 500);
-      }
+    } catch (e: unknown) {
+      console.warn('[auth] BIP-322 lib error (likely taproot):', e instanceof Error ? e.message : e);
+      // SECURITY: Do NOT accept unverified signatures. Taproot (bc1p) addresses
+      // require proper Schnorr verification (e.g. @noble/secp256k1).
+      isValid = false;
     }
     if (!isValid) {
       return error('Invalid signature', 401);
     }
 
-    // Validate challenge nonce (anti-replay)
+    // SECURITY: Challenge nonce is mandatory for anti-replay protection
     const challenge = getChallenge(walletAddress);
-    if (challenge) {
-      if (!message.includes(challenge.nonce)) {
-        return error('Invalid or expired challenge nonce', 401);
-      }
-      deleteChallenge(walletAddress); // one-time use
+    if (!challenge) {
+      return error('No challenge found. Request a challenge first via /auth/challenge.', 401);
     }
+    if (!message.includes(challenge.nonce)) {
+      return error('Invalid or expired challenge nonce', 401);
+    }
+    deleteChallenge(walletAddress); // one-time use
 
     // ─── ON-CHAIN BITMAP OWNERSHIP VERIFICATION ─────────────────────
     // If claiming a block, we MUST verify the wallet actually holds a .bitmap inscription for it.
@@ -203,9 +191,9 @@ export async function POST(req: NextRequest) {
             },
           });
         }
-      } catch (profileErr: any) {
+      } catch (profileErr: unknown) {
         // Don't fail the verify flow if profile creation has a conflict
-        console.warn('[auth] Auto-create BlockProfile failed (non-fatal):', profileErr?.message);
+        console.warn('[auth] Auto-create BlockProfile failed (non-fatal):', profileErr instanceof Error ? profileErr.message : profileErr);
       }
     }
 
@@ -221,8 +209,9 @@ export async function POST(req: NextRequest) {
       tier: user.tier,
       anchorBlock: user.anchorBlock,
     });
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }
 
@@ -244,8 +233,9 @@ export async function GET(req: NextRequest) {
       prisma.blockProfile.findUnique({ where: { handle: normalizedHandle } }),
     ]);
     return success({ handle, available: !existingUser && !existingProfile });
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }
 
@@ -313,8 +303,9 @@ async function verifyInscriptionOwnership(
     // - The user proved wallet control via BIP-322
     // - The inscription ID was provided by their wallet extension which can only see inscriptions they own
     // - We'll do periodic on-chain re-verification via the ownership cron
-    console.warn(`[verify] Could not verify inscription content for ${inscriptionId}, accepting with wallet trust`);
-    return { verified: true };
+    // SECURITY: Do NOT fall back to trusting frontend when external APIs are unavailable.
+    console.warn(`[verify] Could not verify inscription content for ${inscriptionId}, rejecting until APIs available`);
+    return { verified: false, reason: 'On-chain verification temporarily unavailable. Please try again later.' };
   } catch (e) {
     console.error('[verify] Inscription ownership check failed:', e);
     return { verified: false, reason: 'On-chain verification temporarily unavailable. Please try again.' };
@@ -365,9 +356,9 @@ async function scanWalletForBitmap(
     // (secondary verification — trust our own records if external APIs are down)
     try {
       const block = await prisma.block.findUnique({ where: { height: blockHeight } });
-      if (block && block.ownerAddress === walletAddress && (block as any).inscriptionId) {
+      if (block && block.ownerAddress === walletAddress && block.inscriptionId) {
         console.log(`[verify] Block ${blockHeight} found in DB with matching owner, accepting`);
-        return { found: true, inscriptionId: (block as any).inscriptionId };
+        return { found: true, inscriptionId: block.inscriptionId };
       }
     } catch { /* DB check failed */ }
 

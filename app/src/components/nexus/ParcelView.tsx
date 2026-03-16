@@ -1320,7 +1320,7 @@ const StreetInfrastructure = memo(function StreetInfrastructure({ viewMode }: { 
 
   // Compute all infrastructure geometry
   const { sidewalks, curbs, yellowDashes, whiteEdges, lights } = useMemo(() => {
-    if (!isVisible) return { sidewalks: [] as any[], curbs: [] as any[], yellowDashes: [] as THREE.Matrix4[], whiteEdges: [] as THREE.Matrix4[], lights: [] as { x: number; z: number }[] };
+    if (!isVisible) return { sidewalks: [] as { x: number; z: number; w: number; d: number }[], curbs: [] as { x: number; z: number; w: number; d: number }[], yellowDashes: [] as THREE.Matrix4[], whiteEdges: [] as THREE.Matrix4[], lights: [] as { x: number; z: number }[] };
 
     const sidewalks: { x: number; z: number; w: number; d: number }[] = [];
     const curbs: { x: number; z: number; w: number; d: number }[] = [];
@@ -3141,8 +3141,8 @@ function VPSLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => vo
     try {
       const walletAddress = getStoredAddress();
       const challenge = `vps-link:${blockHeight}:${parcelIndex}:${Date.now()}`;
-      const signature = typeof window !== 'undefined' && (window as any).unisat
-        ? await (window as any).unisat.signMessage(challenge) : '';
+      const signature = typeof window !== 'undefined' && window.unisat
+        ? await window.unisat.signMessage(challenge) : '';
       const res = await fetch('/api/v1/vps/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3159,8 +3159,8 @@ function VPSLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => vo
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to link VPS');
       setStatus('linked');
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Unknown error');
       setStatus('idle');
     }
   };
@@ -3396,8 +3396,8 @@ function AgentLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => 
     try {
       const walletAddress = getStoredAddress();
       const challenge = `agent-register:${blockHeight}:${parcelIndex}:${Date.now()}`;
-      const signature = typeof window !== 'undefined' && (window as any).unisat
-        ? await (window as any).unisat.signMessage(challenge) : '';
+      const signature = typeof window !== 'undefined' && window.unisat
+        ? await window.unisat.signMessage(challenge) : '';
 
       // Map permission keys to AgentPermission enum values
       const permMap: Record<string, string> = {
@@ -3423,8 +3423,8 @@ function AgentLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to register agent');
       setStatus('linked');
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Unknown error');
       setStatus('idle');
     }
   };
@@ -3540,29 +3540,31 @@ function SendBitcoinModal({ onClose, blockHeight, recipientOwner }: {
 
     try {
       const walletType = getStoredType() || '';
-      const toAddress = mockAddress; // TODO: replace with real recipient address from profile
+      const toAddress = mockAddress; // Deferred: real recipient address will come from profile when transfer feature is fully implemented
+
+      interface WalletSendResult { txid?: string }
 
       if (walletType === 'unisat' && window.unisat) {
         const result = await window.unisat.sendBitcoin(toAddress, sats);
-        setTxId(typeof result === 'string' ? result : (result as any)?.txid || null);
+        setTxId(typeof result === 'string' ? result : (result as WalletSendResult)?.txid || null);
         setStatus('sent');
       } else if (walletType === 'xverse' && window.BitcoinProvider) {
         // Xverse uses a different API for sending
         const resp = await window.BitcoinProvider!.request!('sendTransfer', {
           recipients: [{ address: toAddress, amount: sats }],
         });
-        setTxId((resp as any)?.result?.txid || null);
+        setTxId((resp as WalletSendResult)?.txid || null);
         setStatus('sent');
       } else if (window.unisat) {
         // Fallback to unisat if available
         const result = await window.unisat.sendBitcoin(toAddress, sats);
-        setTxId(typeof result === 'string' ? result : (result as any)?.txid || null);
+        setTxId(typeof result === 'string' ? result : (result as WalletSendResult)?.txid || null);
         setStatus('sent');
       } else {
         throw new Error('No compatible wallet detected. Please connect Unisat or Xverse.');
       }
-    } catch (err: any) {
-      const msg = err?.message || 'Transaction failed';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Transaction failed';
       if (msg.includes('User rejected') || msg.includes('cancel') || msg.includes('denied')) {
         setErrorMsg('Transaction cancelled by user');
       } else if (msg.includes('Insufficient') || msg.includes('insufficient') || msg.includes('not enough')) {
@@ -3841,10 +3843,10 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
           signature = await window.unisat.signMessage(message);
         } else if (walletType === 'xverse' && window.BitcoinProvider) {
           const resp = await window.BitcoinProvider.signMessage(message, { network: 'Mainnet' });
-          signature = typeof resp === 'string' ? resp : (resp as any)?.signature || '';
+          signature = typeof resp === 'string' ? resp : '';
         } else if (walletType === 'leather' && window.LeatherProvider) {
           const resp = await window.LeatherProvider.request('signMessage', { message, paymentType: 'p2tr' });
-          signature = (resp as any)?.result?.signature || '';
+          signature = resp?.result?.signature || '';
         } else {
           // Fallback — try unisat
           if (window.unisat) {
@@ -3853,11 +3855,12 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
             throw new Error('No wallet detected');
           }
         }
-      } catch (signErr: any) {
-        if (signErr?.message?.includes('User rejected') || signErr?.message?.includes('cancel')) {
+      } catch (signErr: unknown) {
+        const signMsg = signErr instanceof Error ? signErr.message : '';
+        if (signMsg.includes('User rejected') || signMsg.includes('cancel')) {
           setErrorMsg('Signing cancelled');
         } else {
-          setErrorMsg(signErr?.message || 'Wallet signing failed');
+          setErrorMsg(signMsg || 'Wallet signing failed');
         }
         setStatus('idle');
         return;
@@ -3900,9 +3903,9 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
           }),
         });
       } catch {}
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Publish listing failed:', e);
-      setErrorMsg(e?.message || 'Failed to publish listing');
+      setErrorMsg(e instanceof Error ? e.message : 'Failed to publish listing');
       setStatus('idle');
     }
   };
@@ -4072,9 +4075,19 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
 function GetAccessModal({ onClose, blockHeight, parcelIndex, owner }: {
   onClose: () => void; blockHeight: number; parcelIndex: number; owner: OwnerData;
 }) {
+  interface DelegationListing {
+    id: string;
+    parcelTxIndex: number | null;
+    price30d: number;
+    price365d: number;
+    spotsTotal: number;
+    spotsUsed: number;
+    welcomeMessage?: string;
+  }
+
   const [selectedDuration, setSelectedDuration] = useState<30 | 365>(30);
   const [status, setStatus] = useState<'idle' | 'signing' | 'confirmed'>('idle');
-  const [listing, setListing] = useState<any>(null);
+  const [listing, setListing] = useState<DelegationListing | null>(null);
   const [loadingListing, setLoadingListing] = useState(true);
 
   const isBlock = parcelIndex < 0;
@@ -4088,7 +4101,7 @@ function GetAccessModal({ onClose, blockHeight, parcelIndex, owner }: {
         const data = await res.json();
         if (data.data?.listings?.length > 0) {
           // Find matching listing (block-level or parcel-level)
-          const match = data.data.listings.find((l: any) =>
+          const match = data.data.listings.find((l: DelegationListing) =>
             isBlock ? l.parcelTxIndex === null : l.parcelTxIndex === parcelIndex
           ) || data.data.listings[0];
           setListing(match);
@@ -4127,7 +4140,7 @@ function GetAccessModal({ onClose, blockHeight, parcelIndex, owner }: {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Purchase failed');
       setStatus('confirmed');
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Purchase failed:', e);
       setStatus('idle');
     }
@@ -5008,7 +5021,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
   const [flyTarget, setFlyTarget] = useState<FlyTarget | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const controlsRef = useRef<any>(null);
+  const controlsRef = useRef<React.ComponentRef<typeof OrbitControls>>(null);
   const [spatialReactions, setSpatialReactions] = useState<{ id: number; parcelIndex: number; emoji: string; y: number; opacity: number }[]>([]);
   const reactionIdRef = useRef(0);
 
@@ -5017,7 +5030,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const [showSendBtcModal, setShowSendBtcModal] = useState(false);
   const [showQrProfile, setShowQrProfile] = useState(false);
   const [showDelegationListing, setShowDelegationListing] = useState(false);
-  const [activeListing, setActiveListing] = useState<any>(null);
+  const [activeListing, setActiveListing] = useState<{ id: string; price30d?: number; price365d?: number; spotsTotal?: number; spotsUsed?: number } | null>(null);
 
   // Fetch active delegation listing for this block
   useEffect(() => {
@@ -5128,13 +5141,13 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
       let signature = '';
 
       const walletType = getStoredType();
-      if (walletType === 'unisat' && (window as any).unisat?.signMessage) {
-        signature = await (window as any).unisat.signMessage(message);
-      } else if (walletType === 'xverse' && (window as any).XverseProviders?.signMessage) {
-        const resp = await (window as any).XverseProviders.signMessage({ message, address: walletAddress });
-        signature = resp?.signature || resp;
-      } else if ((window as any).unisat?.signMessage) {
-        signature = await (window as any).unisat.signMessage(message);
+      if (walletType === 'unisat' && window.unisat?.signMessage) {
+        signature = await window.unisat.signMessage(message);
+      } else if (walletType === 'xverse' && window.XverseProviders?.signMessage) {
+        const resp = await window.XverseProviders.signMessage({ message, address: walletAddress });
+        signature = resp?.signature || '';
+      } else if (window.unisat?.signMessage) {
+        signature = await window.unisat.signMessage(message);
       } else {
         // Fallback: use a mock signature for development
         signature = 'dev-sig-' + Date.now();
@@ -5163,8 +5176,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
       setCustomizeSaveMsg({ type: 'success', text: '✅ Customization saved!' });
       setTimeout(() => setCustomizeSaveMsg(null), 3000);
-    } catch (e: any) {
-      setCustomizeSaveMsg({ type: 'error', text: `❌ ${e.message || 'Save failed'}` });
+    } catch (e: unknown) {
+      setCustomizeSaveMsg({ type: 'error', text: `❌ ${e instanceof Error ? e.message : 'Save failed'}` });
       setTimeout(() => setCustomizeSaveMsg(null), 5000);
     } finally {
       setIsSavingCustomization(false);
@@ -5336,8 +5349,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const blockOwner: OwnerData = realBlockOwner || (ownerLoading
     ? { handle: 'Loading...', tier: 3 as const, verified: false, avatar: '⏳' }
     : generateMockOwner(blockHeight, -1));
-  // Check if current wallet user is the block owner
-  const isBlockOwner = false; // TODO: compare walletAddress against on-chain ownership — for now, owner actions are gated on wallet connection
+  // Check if current wallet user is the block owner by comparing wallet profile handle against the block's owner handle
+  const isBlockOwner = !!(walletAddress && realBlockOwner && profile?.handle && profile.handle === realBlockOwner.handle);
   // Fetch guardian status
   useEffect(() => {
     fetch(`/api/v1/guardian?blockHeight=${blockHeight}`)
@@ -6511,7 +6524,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                         <span className="ml-auto" style={{ color: '#f7931a' }}>{activeListing.price30d?.toLocaleString()} sats/month</span>
                       </div>
                       <div className="text-[9px] mt-1" style={{ color: '#64748b' }}>
-                        {activeListing.spotsTotal === -1 ? '∞' : (activeListing.spotsTotal - activeListing.spotsUsed)} spots available · {activeListing.price365d?.toLocaleString()} sats/year
+                        {activeListing.spotsTotal === -1 ? '∞' : ((activeListing.spotsTotal ?? 0) - (activeListing.spotsUsed ?? 0))} spots available · {activeListing.price365d?.toLocaleString()} sats/year
                       </div>
                     </div>
                   )}
@@ -6634,7 +6647,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  // TODO: upload file to storage, for now just show locally
+                  // Deferred: file upload requires a file storage service (e.g. S3, Cloudflare R2). For now, display locally only.
                   const newMsg: ChatMessage = {
                     id: `msg-${Date.now()}`,
                     sender: 'You',

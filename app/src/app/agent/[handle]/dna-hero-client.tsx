@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import WebGLErrorBoundary from '@/components/WebGLErrorBoundary';
 
 const DNAVisualizer = dynamic(() => import('@/components/DNAVisualizer'), { ssr: false });
 
@@ -11,5 +12,9 @@ interface Props {
 }
 
 export default function DNAHeroClient({ genomeHash, state = 'verified', height = '280px' }: Props) {
-  return <DNAVisualizer genomeHash={genomeHash} state={state} height={height} />;
+  return (
+    <WebGLErrorBoundary fallbackMessage="DNA visualization couldn't render. Try a browser with WebGL support.">
+      <DNAVisualizer genomeHash={genomeHash} state={state} height={height} />
+    </WebGLErrorBoundary>
+  );
 }

@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { useModalClose } from '@/hooks/useModalClose';
 
 const MAGIC_EDEN_BITMAP = 'https://magiceden.io/ordinals/marketplace/bitmap';
 
@@ -9,13 +10,19 @@ interface UpgradeModalProps {
 }
 
 export default function UpgradeModal({ onClose, currentTier }: UpgradeModalProps) {
+  const { modalRef, handleBackdropClick } = useModalClose(onClose);
+
   return (
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.85)' }}
-      onClick={onClose}
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Upgrade to Unlock"
     >
       <div
+        ref={modalRef}
         className="w-full max-w-lg rounded-2xl overflow-hidden"
         style={{
           background: 'linear-gradient(135deg, #0a0e17 0%, #111827 100%)',

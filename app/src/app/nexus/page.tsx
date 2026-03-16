@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
+import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
 
 const NexusMap = dynamic(() => import("@/components/nexus/NexusMap"), {
   ssr: false,
@@ -10,7 +11,8 @@ const NexusMap = dynamic(() => import("@/components/nexus/NexusMap"), {
     <div className="flex items-center justify-center h-full w-full" style={{ background: '#0a0a0f' }}>
       <div className="text-center">
         <div className="text-2xl font-mono font-bold mb-2" style={{ color: '#66ccff' }}>The Nexus</div>
-        <div className="text-xs font-mono" style={{ color: '#64748b' }}>Loading block map...</div>
+        <div className="text-xs font-mono mb-3" style={{ color: '#64748b' }}>Loading block map...</div>
+        <div className="mx-auto w-6 h-6 border-2 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin" />
       </div>
     </div>
   ),
@@ -65,7 +67,13 @@ function NexusContent() {
         }}
       >
         {checked && (
-          <NexusMap initialBlock={isNaN(initialBlock as number) ? undefined : initialBlock} />
+          <WebGLErrorBoundary
+            fallbackMessage="The 3D Nexus map couldn't load. Your browser may not support WebGL, or hardware acceleration may be disabled."
+            fallbackHref="/explore"
+            fallbackLinkText="Explore blocks instead"
+          >
+            <NexusMap initialBlock={isNaN(initialBlock as number) ? undefined : initialBlock} />
+          </WebGLErrorBoundary>
         )}
       </section>
     </>

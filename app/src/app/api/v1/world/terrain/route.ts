@@ -37,10 +37,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not the block owner' }, { status: 403 });
     }
 
+    // H-03: Allowlist terrain fields to prevent mass assignment
+    const allowedFields = ['groundColor', 'fogEnabled', 'fogColor', 'skyColor', 'weather', 'surfaceType'];
+    const safeSettings: Record<string, unknown> = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) safeSettings[field] = body[field];
+    }
+
     const terrain = await prisma.blockTerrain.upsert({
       where: { blockHeight },
-      create: { blockHeight, ownerAddress, ...settings },
-      update: settings,
+      create: { blockHeight, ownerAddress, ...safeSettings },
+      update: safeSettings,
     });
 
     return NextResponse.json({ terrain });

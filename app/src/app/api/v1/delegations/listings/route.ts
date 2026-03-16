@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100);
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
 
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     if (blockHeight) where.blockHeight = parseInt(blockHeight, 10);
     if (tier) where.tier = parseInt(tier, 10);
     if (active !== null) where.active = active !== 'false';
@@ -31,8 +31,9 @@ export async function GET(req: NextRequest) {
     ]);
 
     return success({ listings, total, limit, offset });
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }
 
@@ -86,7 +87,8 @@ export async function POST(req: NextRequest) {
     });
 
     return success(listing);
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

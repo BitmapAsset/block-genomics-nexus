@@ -1,14 +1,22 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error } from '@/lib/api-helpers';
+import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
 
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { walletAddress, blockHeight, displayName, bio, handle } = body;
+    const { walletAddress, blockHeight, displayName, bio, handle, signature, message } = body;
 
     if (!walletAddress || !blockHeight) {
       return error('walletAddress and blockHeight are required', 400);
+    }
+
+    // SECURITY: Require wallet signature verification
+    if (!signature || !message) {
+      return error('signature and message are required', 401);
+    }
+    if (!verifyWalletSignature(walletAddress, message, signature)) {
+      return error('Invalid signature', 401);
     }
 
     const existing = await prisma.blockProfile.findUnique({

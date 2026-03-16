@@ -1,5 +1,6 @@
 'use client';
 import React, { useState } from 'react';
+import { useModalClose } from '@/hooks/useModalClose';
 
 type WipeOption = 'full' | 'selective' | 'none';
 
@@ -41,6 +42,7 @@ export default function TransferPrepModal({ onClose, blockHeight, guardianCount,
   const [status, setStatus] = useState<'idle' | 'signing' | 'done' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [result, setResult] = useState<{ guardiansWiped: number; message: string } | null>(null);
+  const { modalRef, handleBackdropClick } = useModalClose(onClose);
 
   const handlePrep = async () => {
     setStatus('signing');
@@ -67,8 +69,9 @@ export default function TransferPrepModal({ onClose, blockHeight, guardianCount,
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={onClose}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={handleBackdropClick} role="dialog" aria-modal="true" aria-label="Prepare for Transfer">
       <div
+        ref={modalRef}
         className="w-full max-w-lg rounded-2xl overflow-hidden"
         style={{
           background: 'linear-gradient(135deg, #0a0e17 0%, #111827 100%)',

@@ -48,7 +48,8 @@ export async function GET(req: NextRequest) {
       topSearches: topSearches.map(s => ({ query: s.query, count: s._count })),
       topPages: topPages.map(p => ({ path: p.path, views: p._count })),
     });
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

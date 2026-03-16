@@ -62,8 +62,19 @@ interface LeatherProvider {
   request(method: string, params?: unknown): Promise<LeatherRpcResponse>;
 }
 
+interface OkxWallet {
+  bitcoin?: {
+    requestAccounts(): Promise<string[]>;
+    signMessage(message: string, type?: string): Promise<string>;
+  };
+}
+
 interface Window {
   unisat?: UnisatWallet;
   BitcoinProvider?: BitcoinProvider;
   LeatherProvider?: LeatherProvider;
+  XverseProviders?: {
+    signMessage(options: { message: string; address: string }): Promise<{ signature: string }>;
+  };
+  okxwallet?: OkxWallet;
 }

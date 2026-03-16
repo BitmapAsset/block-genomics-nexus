@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { verifyWalletSignature } from '@/lib/api-helpers';
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,10 +22,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { blockHeight, ownerAddress, gameType, ...rest } = body;
+    const { blockHeight, ownerAddress, gameType, signature, message } = body;
 
     if (!blockHeight || !ownerAddress || !gameType) {
       return NextResponse.json({ error: 'blockHeight, ownerAddress, gameType required' }, { status: 400 });
+    }
+
+    // SECURITY: Require wallet signature verification
+    if (!signature || !message) {
+      return NextResponse.json({ error: 'signature and message required' }, { status: 401 });
+    }
+    if (!verifyWalletSignature(ownerAddress, message, signature)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     // Verify ownership (T1 block owner or T2 parcel owner)
@@ -37,8 +46,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not the block owner' }, { status: 403 });
     }
 
+    // H-03: Allowlist fields to prevent mass assignment
+    const allowedFields = ['name', 'description', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ', 'color', 'geometry', 'material', 'config'];
+    const safeData: Record<string, unknown> = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) safeData[field] = body[field];
+    }
+
     const element = await prisma.gameElement.create({
-      data: { blockHeight, ownerAddress, gameType, ...rest },
+      data: { blockHeight, ownerAddress, gameType, ...safeData },
     });
 
     return NextResponse.json({ element }, { status: 201 });

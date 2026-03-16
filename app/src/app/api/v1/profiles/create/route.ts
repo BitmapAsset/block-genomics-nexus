@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, isValidBitcoinAddress } from '@/lib/api-helpers';
+import { success, error, isValidBitcoinAddress, verifyWalletSignature } from '@/lib/api-helpers';
 import crypto from 'crypto';
 import { logActivity } from '@/lib/activity';
 
@@ -9,13 +9,12 @@ const HANDLE_RE = /^[a-z0-9_]{1,30}$/;
 /**
  * POST /api/v1/profiles/create
  * Create a block-specific profile.
- * Body: { walletAddress, blockHeight, handle, displayName?, bio? }
- * Assumes wallet ownership already verified (user must be verified via /auth/verify first).
+ * Body: { walletAddress, blockHeight, handle, signature, message, displayName?, bio? }
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { walletAddress, blockHeight, handle, displayName, bio } = body;
+    const { walletAddress, blockHeight, handle, displayName, bio, signature, message } = body;
 
     if (!walletAddress || !blockHeight || !handle) {
       return error('walletAddress, blockHeight, and handle are required', 400);
@@ -23,6 +22,14 @@ export async function POST(req: NextRequest) {
 
     if (!isValidBitcoinAddress(walletAddress)) {
       return error('Invalid Bitcoin address', 400);
+    }
+
+    // SECURITY: Require wallet signature verification
+    if (!signature || !message) {
+      return error('signature and message are required', 401);
+    }
+    if (!verifyWalletSignature(walletAddress, message, signature)) {
+      return error('Invalid signature', 401);
     }
 
     // Validate handle
@@ -94,10 +101,11 @@ export async function POST(req: NextRequest) {
     logActivity(walletAddress, 'block_profile_created', { blockHeight, handle: normalizedHandle });
 
     return success(profile);
-  } catch (e: any) {
-    if (e.code === 'P2002') {
+  } catch (e: unknown) {
+    if (e instanceof Error && 'code' in e && (e as { code: string }).code === 'P2002') {
       return error('Handle already taken or duplicate profile', 409);
     }
-    return error(e.message, 500);
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

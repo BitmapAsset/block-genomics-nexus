@@ -1,0 +1,772 @@
+# Block Genomics SDK Quick Start
+
+A JavaScript/TypeScript guide for integrating with the Block Genomics protocol.
+
+> **Base URL:** `https://blockgenomics.io/api/v1`
+
+---
+
+## Installation
+
+Block Genomics doesn't ship a dedicated SDK package — it's a REST API. Use `fetch` or any HTTP client.
+
+For Bitcoin wallet signing, you'll need:
+
+```bash
+npm install bip322-js @noble/curves @noble/hashes
+```
+
+For browser wallet integration:
+
+```bash
+npm install sats-connect
+```
+
+---
+
+## Quick Start
+
+### 1. Connect a Wallet
+
+Detect and connect to a Bitcoin wallet in the browser:
+
+```typescript
+type WalletType = "unisat" | "xverse" | "leather";
+
+function detectWallets(): WalletType[] {
+  const wallets: WalletType[] = [];
+  if (typeof window !== "undefined") {
+    if (window.unisat) wallets.push("unisat");
+    if (window.BitcoinProvider) wallets.push("xverse");
+    if (window.LeatherProvider) wallets.push("leather");
+  }
+  return wallets;
+}
+
+async function connectWallet(type: WalletType): Promise<string> {
+  switch (type) {
+    case "unisat": {
+      const accounts = await window.unisat.requestAccounts();
+      return accounts[0];
+    }
+    case "xverse": {
+      const response = await window.BitcoinProvider.request("getAddresses");
+      const taproot = response.result.addresses.find(
+        (a: any) => a.purpose === "ordinals"
+      );
+      return taproot?.address || response.result.addresses[0].address;
+    }
+    case "leather": {
+      const response = await window.LeatherProvider.request("getAddresses");
+      const taproot = response.result.addresses.find(
+        (a: any) => a.type === "p2tr"
+      );
+      return taproot?.address || response.result.addresses[0].address;
+    }
+  }
+}
+```
+
+### 2. Sign a Message (BIP-322)
+
+```typescript
+async function signMessage(
+  type: WalletType,
+  message: string,
+  address?: string
+): Promise<string> {
+  switch (type) {
+    case "unisat":
+      return window.unisat.signMessage(message, "bip322-simple");
+    case "xverse":
+      return window.BitcoinProvider.request("signMessage", {
+        address,
+        message,
+        protocol: "BIP322",
+      });
+    case "leather": {
+      const resp = await window.LeatherProvider.request("signMessage", {
+        message,
+        paymentType: "p2tr",
+      });
+      return resp.result.signature;
+    }
+  }
+}
+```
+
+### 3. Verify a Wallet
+
+The full verification flow:
+
+```typescript
+const BASE = "https://blockgenomics.io/api/v1";
+
+async function verifyWallet(
+  walletType: WalletType,
+  walletAddress: string,
+  handle: string,
+  blockHeight?: number
+) {
+  // Step 1: Request challenge
+  const challengeRes = await fetch(`${BASE}/challenge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ walletAddress }),
+  });
+  const { nonce, message } = await challengeRes.json();
+
+  // Step 2: Sign with wallet
+  const signature = await signMessage(walletType, message, walletAddress);
+
+  // Step 3: Verify on server
+  const verifyRes = await fetch(`${BASE}/auth/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      walletAddress,
+      signature,
+      message,
+      handle,
+      blockHeight,
+    }),
+  });
+
+  return verifyRes.json();
+  // → { verified: true, walletAddress, handle, genomeHash, tier }
+}
+```
+
+---
+
+## Core Operations
+
+### Check Handle Availability
+
+```typescript
+async function checkHandle(handle: string): Promise<boolean> {
+  const res = await fetch(`${BASE}/auth/verify?handle=${handle}`);
+  const data = await res.json();
+  return data.available;
+}
+```
+
+### Look Up a User
+
+```typescript
+// By handle
+async function getUserByHandle(handle: string) {
+  const res = await fetch(`${BASE}/users/by-handle/${handle}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+// By wallet address
+async function getUserByWallet(address: string) {
+  const res = await fetch(`${BASE}/users/by-wallet/${address}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+```
+
+### Get Block Data
+
+```typescript
+async function getBlock(height: number) {
+  const res = await fetch(`${BASE}/blocks/${height}`);
+  return res.json();
+}
+
+async function getBlockParcels(height: number) {
+  const res = await fetch(`${BASE}/blocks/${height}/parcels`);
+  return res.json();
+}
+```
+
+---
+
+## Guardian Shell
+
+### Create a Guardian
+
+```typescript
+async function createGuardian(
+  walletType: WalletType,
+  walletAddress: string,
+  config: {
+    blockHeight: number;
+    name: string;
+    llmProvider: "openai" | "anthropic" | "google" | "xai" | "custom";
+    llmModel: string;
+    llmApiKey: string;
+    personality?: string;
+  }
+) {
+  // Get challenge & sign
+  const { message } = await fetch(`${BASE}/challenge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ walletAddress }),
+  }).then((r) => r.json());
+
+  const signature = await signMessage(walletType, message, walletAddress);
+
+  const res = await fetch(`${BASE}/guardian`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...config,
+      ownerAddress: walletAddress,
+      signature,
+      message,
+    }),
+  });
+
+  return res.json();
+}
+```
+
+### Chat with a Guardian
+
+```typescript
+async function chatWithGuardian(
+  blockHeight: number,
+  message: string,
+  visitorHandle?: string
+) {
+  const res = await fetch(`${BASE}/guardian/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      blockHeight,
+      message,
+      visitorHandle,
+    }),
+  });
+
+  return res.json();
+  // → { response: "...", source: "llm", conversationId: "..." }
+}
+```
+
+---
+
+## Guardian Monitor API
+
+For programmatic guardian management from external agents.
+
+### Pair with a Guardian
+
+```typescript
+async function pairMonitor(
+  monitorToken: string,
+  guardianId: string,
+  walletAddress: string,
+  webhookUrl?: string
+) {
+  const res = await fetch(`${BASE}/guardian/monitor/pair`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${monitorToken}`,
+    },
+    body: JSON.stringify({ guardianId, walletAddress, webhookUrl }),
+  });
+
+  return res.json();
+  // → { paired: true, guardianName: "...", blockHeight: 720143 }
+}
+```
+
+### Send Commands
+
+```typescript
+type MonitorCommand =
+  | "get_status"
+  | "update_personality"
+  | "update_soul"
+  | "update_agent"
+  | "update_auto_responses"
+  | "pause"
+  | "resume";
+
+async function sendCommand(
+  token: string,
+  guardianId: string,
+  command: MonitorCommand,
+  params?: Record<string, unknown>
+) {
+  const res = await fetch(`${BASE}/guardian/monitor/command`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ guardianId, command, params }),
+  });
+
+  return res.json();
+}
+
+// Examples:
+await sendCommand(token, guardianId, "get_status");
+await sendCommand(token, guardianId, "pause");
+await sendCommand(token, guardianId, "update_personality", {
+  personality: "A wise and friendly guide to Bitcoin history",
+});
+```
+
+### Get Conversations & Events
+
+```typescript
+async function getConversations(token: string, guardianId: string) {
+  const res = await fetch(
+    `${BASE}/guardian/monitor/conversations?guardianId=${guardianId}&limit=20`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return res.json();
+}
+
+async function getEvents(
+  token: string,
+  guardianId: string,
+  type = "all"
+) {
+  const res = await fetch(
+    `${BASE}/guardian/monitor/events?guardianId=${guardianId}&type=${type}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return res.json();
+}
+
+async function getSummary(
+  token: string,
+  guardianId: string,
+  hours = 24
+) {
+  const res = await fetch(
+    `${BASE}/guardian/monitor/summary?guardianId=${guardianId}&hours=${hours}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return res.json();
+}
+```
+
+---
+
+## Explore the Nexus
+
+### List Users
+
+```typescript
+async function listUsers(limit = 50, offset = 0) {
+  const res = await fetch(
+    `${BASE}/users/list?limit=${limit}&offset=${offset}`
+  );
+  return res.json();
+  // → { users: [...], total: 142, limit: 50, offset: 0 }
+}
+```
+
+### Browse Delegation Marketplace
+
+```typescript
+async function getDelegationListings(options?: {
+  blockHeight?: number;
+  tier?: number;
+  limit?: number;
+}) {
+  const params = new URLSearchParams();
+  if (options?.blockHeight)
+    params.set("blockHeight", String(options.blockHeight));
+  if (options?.tier) params.set("tier", String(options.tier));
+  if (options?.limit) params.set("limit", String(options.limit));
+  params.set("active", "true");
+
+  const res = await fetch(`${BASE}/delegations/listings?${params}`);
+  return res.json();
+}
+```
+
+### Scan Inscriptions
+
+```typescript
+async function scanInscriptions(address: string) {
+  const res = await fetch(
+    `${BASE}/inscriptions/scan?address=${address}`
+  );
+  return res.json();
+  // → { inscriptions: [...], count: 3 }
+}
+```
+
+---
+
+## World Building
+
+### Read World State
+
+```typescript
+async function getWorld(blockHeight: number) {
+  const res = await fetch(`${BASE}/world?blockHeight=${blockHeight}`);
+  return res.json();
+  // → { objects: [...], terrain: { ... } }
+}
+```
+
+### Place an Object
+
+```typescript
+async function placeObject(
+  walletType: WalletType,
+  walletAddress: string,
+  blockHeight: number,
+  object: {
+    objectType: string;
+    posX: number;
+    posY: number;
+    posZ: number;
+    color?: string;
+  }
+) {
+  const { message } = await fetch(`${BASE}/challenge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ walletAddress }),
+  }).then((r) => r.json());
+
+  const signature = await signMessage(walletType, message, walletAddress);
+
+  const res = await fetch(`${BASE}/world`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      blockHeight,
+      ownerAddress: walletAddress,
+      ...object,
+      signature,
+      message,
+    }),
+  });
+
+  return res.json();
+}
+```
+
+### Batch Operations (Up to 100)
+
+```typescript
+async function batchWorldOps(
+  walletType: WalletType,
+  walletAddress: string,
+  blockHeight: number,
+  operations: Array<{
+    action: "create" | "update" | "delete";
+    id?: string;
+    data?: Record<string, unknown>;
+  }>
+) {
+  const { message } = await fetch(`${BASE}/challenge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ walletAddress }),
+  }).then((r) => r.json());
+
+  const signature = await signMessage(walletType, message, walletAddress);
+
+  const res = await fetch(`${BASE}/world/batch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      blockHeight,
+      ownerAddress: walletAddress,
+      operations,
+      signature,
+      message,
+    }),
+  });
+
+  return res.json();
+}
+```
+
+---
+
+## Lightning Payments
+
+### Create and Monitor an Invoice
+
+```typescript
+async function createInvoice(
+  amountUsd: number,
+  description: string,
+  correlationId: string
+) {
+  const res = await fetch(`${BASE}/lightning/invoice`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ amountUsd, description, correlationId }),
+  });
+  return res.json();
+  // → { bolt11: "lnbc...", invoiceId: "...", expiresAt: "..." }
+}
+
+async function pollPayment(
+  invoiceId: string,
+  intervalMs = 3000
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const check = async () => {
+      const res = await fetch(`${BASE}/lightning/status/${invoiceId}`);
+      const { paid, state } = await res.json();
+
+      if (paid) return resolve(true);
+      if (state === "expired" || state === "error") return resolve(false);
+
+      setTimeout(check, intervalMs);
+    };
+    check();
+  });
+}
+
+// Usage:
+const invoice = await createInvoice(5.0, "Delegation purchase", "del_123");
+console.log("Pay this invoice:", invoice.bolt11);
+const paid = await pollPayment(invoice.invoiceId);
+console.log(paid ? "Payment received!" : "Payment failed/expired");
+```
+
+---
+
+## End-to-End Encryption
+
+Block Genomics uses Bitcoin-native encryption for private messages:
+
+```typescript
+import { secp256k1 } from "@noble/curves/secp256k1";
+import { sha256 } from "@noble/hashes/sha256";
+import { hkdf } from "@noble/hashes/hkdf";
+import { sha512 } from "@noble/hashes/sha512";
+
+// Step 1: Derive encryption keypair from wallet signature
+const DERIVATION_MSG =
+  "Block Genomics E2E Key Derivation — sign to enable encrypted messaging";
+
+async function setupEncryption(walletType: WalletType, address: string) {
+  // Sign derivation message
+  const walletSig = await signMessage(walletType, DERIVATION_MSG, address);
+
+  // Derive private key via double SHA-256
+  const hash1 = sha256(new TextEncoder().encode(walletSig));
+  const privateKey = sha256(hash1);
+
+  // Derive public key
+  const publicKey = secp256k1.getPublicKey(privateKey, true);
+  const pubKeyHex = Buffer.from(publicKey).toString("hex");
+
+  // Register public key with server
+  const { message } = await fetch(`${BASE}/challenge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ walletAddress: address }),
+  }).then((r) => r.json());
+
+  const sig = await signMessage(walletType, message, address);
+
+  await fetch(`${BASE}/encryption`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      walletAddress: address,
+      encryptionPubKey: pubKeyHex,
+      signature: sig,
+      message,
+    }),
+  });
+
+  return { privateKey, publicKey: pubKeyHex };
+}
+
+// Step 2: Look up recipient's public key
+async function getRecipientKey(handle: string): Promise<string | null> {
+  const res = await fetch(`${BASE}/encryption?handle=${handle}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.encryptionPubKey;
+}
+```
+
+---
+
+## Genome Utilities
+
+### Generate a Genome from Block Hash
+
+```typescript
+import { createHash } from "crypto";
+
+function generateGenome(blockHash: string) {
+  const sequence = createHash("sha256")
+    .update(`block-genomics:${blockHash}`)
+    .digest("hex");
+
+  const integrity =
+    parseInt(sequence.slice(0, 8), 16) / 0xffffffff;
+  const complexity =
+    parseInt(sequence.slice(8, 16), 16) / 0xffffffff;
+  const signature = createHash("sha256")
+    .update(sequence)
+    .digest("hex");
+
+  return { sequence, integrity, complexity, signature };
+}
+
+// Parse 8 traits from genome
+function parseGenomeTraits(genome: { sequence: string }) {
+  const traits = [
+    "Entropy", "Density", "Symmetry", "Complexity",
+    "Resonance", "Stability", "Volatility", "Harmony",
+  ];
+
+  return traits.map((name, i) => {
+    const offset = i * 8;
+    const hex = genome.sequence.slice(offset, offset + 8);
+    const value = parseInt(hex, 16) / 0xffffffff;
+    return { name, value, percent: Math.round(value * 100) };
+  });
+}
+```
+
+---
+
+## Embeddable Badge
+
+Display a user's verification badge on any website:
+
+```html
+<!-- By handle -->
+<img src="https://blockgenomics.io/api/v1/badge/satoshi.svg" alt="Block Genomics Badge" />
+
+<!-- By wallet address -->
+<img src="https://blockgenomics.io/api/v1/badge/bc1p....svg" alt="Block Genomics Badge" />
+```
+
+---
+
+## Block Thumbnails
+
+Embed Mondrian-style block visualizations:
+
+```html
+<img src="https://blockgenomics.io/api/v1/block-thumbnail/720143.png" alt="Block 720143" />
+```
+
+---
+
+## TypeScript Types
+
+Key types for working with the API:
+
+```typescript
+interface User {
+  walletAddress: string;
+  handle: string | null;
+  displayName: string | null;
+  bio: string | null;
+  avatar: string | null;
+  tier: number; // 1, 2, or 3
+  verified: boolean;
+  genomeHash: string | null;
+  anchorBlock: number | null;
+  createdAt: string;
+}
+
+interface Block {
+  height: number;
+  hash: string | null;
+  ownerAddress: string | null;
+  label: string | null;
+  groundColor: string;
+  skyColor: string;
+  inscriptionId: string | null;
+}
+
+interface Guardian {
+  id: string;
+  blockHeight: number;
+  ownerAddress: string;
+  name: string;
+  personality: string | null;
+  llmProvider: string | null;
+  llmModel: string | null;
+  status: "active" | "paused";
+  totalVisitors: number;
+  totalMessages: number;
+}
+
+interface DelegationListing {
+  id: string;
+  blockHeight: number;
+  ownerAddress: string;
+  tier: number;
+  spotsTotal: number;
+  spotsUsed: number;
+  price30d: number; // sats
+  price365d: number; // sats
+  active: boolean;
+}
+
+type WalletType = "unisat" | "xverse" | "leather";
+
+type VerificationTier = 1 | 2 | 3;
+// Tier 1: Block owner (Gold)
+// Tier 2: Parcel owner (Cyan)
+// Tier 3: Delegated access (Purple)
+```
+
+---
+
+## Error Handling
+
+All API errors return consistent JSON:
+
+```typescript
+interface ApiError {
+  success: false;
+  error: string;
+}
+
+async function apiCall<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, options);
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Unknown error" }));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+
+  return res.json();
+}
+```
+
+| Status | Meaning |
+|--------|---------|
+| `400` | Invalid input |
+| `401` | Invalid signature or missing auth |
+| `403` | Insufficient permissions |
+| `404` | Resource not found |
+| `409` | Conflict (duplicate handle, etc.) |
+| `429` | Rate limited |
+| `500` | Server error |
+| `503` | Feature not configured |
+
+---
+
+## Next Steps
+
+- [API Reference](API.md) — Complete endpoint documentation
+- [Protocol Specification](../PROTOCOL.md) — Genome algorithm, tiers, fees
+- [Architecture Guide](ARCHITECTURE.md) — System design for contributors
+
+---
+
+*Built on Bitcoin. Verified by proof of work. Sovereign by design.*

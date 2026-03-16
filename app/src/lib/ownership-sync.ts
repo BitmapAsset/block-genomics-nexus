@@ -48,7 +48,7 @@ export async function wipeGuardianMemories(
   // Mark block as transfer-prepped
   await prisma.block.update({
     where: { height: blockHeight },
-    data: { transferPrepped: true } as any,
+    data: { transferPrepped: true },
   });
 
   return { wiped: guardians.length };
@@ -153,7 +153,7 @@ export async function verifyBlockOwnership(blockHeight: number): Promise<Ownersh
     };
   }
 
-  const inscriptionId = (block as any).inscriptionId as string | null;
+  const inscriptionId = block.inscriptionId;
 
   if (!inscriptionId) {
     // No inscription linked — can't verify on-chain
@@ -172,7 +172,7 @@ export async function verifyBlockOwnership(blockHeight: number): Promise<Ownersh
   // Update lastOwnerCheck
   await prisma.block.update({
     where: { height: blockHeight },
-    data: { lastOwnerCheck: new Date() } as any,
+    data: { lastOwnerCheck: new Date() },
   });
 
   const match = !onChainOwner || onChainOwner === block.ownerAddress;
@@ -204,16 +204,16 @@ export async function processOwnershipTransfer(
     data: {
       ownerAddress: newOwnerAddress,
       lastOwnerCheck: new Date(),
-    } as any,
+    },
   });
 
   // 2. If owner didn't prep, apply default full memory wipe for privacy
   const blockData = await prisma.block.findUnique({ where: { height: blockHeight } });
-  if (!(blockData as any)?.transferPrepped) {
+  if (!blockData?.transferPrepped) {
     await wipeGuardianMemories(blockHeight, 'full', previousOwner);
   }
   // Reset transfer prep flag
-  await prisma.block.update({ where: { height: blockHeight }, data: { transferPrepped: false } as any });
+  await prisma.block.update({ where: { height: blockHeight }, data: { transferPrepped: false } });
 
   // 3. Pause all Guardian Agents on this block
   await prisma.guardianAgent.updateMany({

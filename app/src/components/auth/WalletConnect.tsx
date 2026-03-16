@@ -28,21 +28,28 @@ const WALLETS: { type: WalletType; name: string; desc: string; color: string; ic
 export default function WalletConnect() {
   const {
     isConnected, isConnecting, walletAddress, walletType,
-    connect, disconnect, availableWallets,
+    connect, disconnect, availableWallets, error: walletError, clearError,
   } = useGlobalWallet();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click or ESC
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => {
+    const handleClick = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, [open]);
 
   // Allow other parts of the app to open the wallet modal
@@ -59,14 +66,25 @@ export default function WalletConnect() {
     return () => { document.body.style.overflow = ''; };
   }, [open, isConnected]);
 
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [lastAttemptedWallet, setLastAttemptedWallet] = useState<WalletType | null>(null);
+
   const handleConnect = async (type: WalletType) => {
+    setConnectError(null);
+    setLastAttemptedWallet(type);
     try {
       await connect(type);
       setOpen(false);
-    } catch {
-      // error is in context
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Connection failed. Please try again.';
+      setConnectError(message);
     }
   };
+
+  // Clear connect error when modal closes
+  useEffect(() => {
+    if (!open) { setConnectError(null); clearError(); }
+  }, [open, clearError]);
 
   const isAvailable = (type: WalletType) => availableWallets.includes(type);
 
@@ -358,6 +376,23 @@ export default function WalletConnect() {
                 );
               })}
             </div>
+
+            {/* Connection error */}
+            {(connectError || walletError) && (
+              <div className="mx-5 mb-3 p-3 rounded-lg" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                <p className="text-xs text-red-400 mb-2">{connectError || walletError}</p>
+                {lastAttemptedWallet && (
+                  <button
+                    onClick={() => handleConnect(lastAttemptedWallet)}
+                    disabled={isConnecting}
+                    className="text-xs font-medium px-3 py-1.5 rounded-md transition-all disabled:opacity-50"
+                    style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}
+                  >
+                    {isConnecting ? 'Retrying...' : 'Retry connection'}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Footer */}
             <div className="px-6 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>

@@ -47,14 +47,15 @@ export async function GET(req: NextRequest) {
     ]);
 
     // Map block profiles to same shape as users for directory compatibility
-    const profilesAsList = blockProfiles.map((p: any) => ({
+    const profilesAsList = blockProfiles.map((p) => ({
       ...p,
       anchorBlock: p.blockHeight,
       isBlockProfile: true,
     }));
 
     return success({ users: [...users, ...profilesAsList], total: userTotal + profileTotal, limit, offset });
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

@@ -197,9 +197,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signMessage = useCallback(async (message: string) => {
-    const nonce = Math.random().toString(36).slice(2, 10);
-    return `mock_bip322_${nonce}_${btoa(message).slice(0, 12)}`;
-  }, []);
+    if (!state.walletType || !state.walletAddress) {
+      throw new Error('Wallet not connected');
+    }
+    // Delegate to actual wallet signing — never use mock signatures
+    const { signWithWallet } = await import('@/lib/wallet-utils');
+    return signWithWallet(state.walletType, message, state.walletAddress);
+  }, [state.walletType, state.walletAddress]);
 
   const getBitmapBlocks = useCallback(async (): Promise<BitmapBlock[]> => {
     if (!state.isConnected || !state.walletType) return [];

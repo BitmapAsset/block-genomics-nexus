@@ -3,7 +3,6 @@ import prisma from '@/lib/prisma';
 import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
 import { calculateDelegationFee } from '@/lib/protocol';
 
-// Rate limiting: in-memory (upgrade to Redis for production scale)
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -27,43 +26,15 @@ export async function POST(req: NextRequest) {
     const priceSats = durationDays === 30 ? listing.price30d : listing.price365d;
     const fee = calculateDelegationFee(priceSats, listing.ownerAddress);
 
-    /* MOCK — replace with real tx verification against Bitcoin network */
-    // TODO: Verify txId on-chain: correct outputs, amounts, confirmations
-
-    // Ensure delegatee user exists
-    await prisma.user.upsert({
-      where: { walletAddress },
-      update: {},
-      create: { walletAddress, tier: 3 },
-    });
-
-    const now = new Date();
-    const endDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
-
-    const [delegation] = await prisma.$transaction([
-      prisma.delegation.create({
-        data: {
-          blockHeight: listing.blockHeight,
-          parcelTxIndex: listing.parcelTxIndex,
-          ownerAddress: listing.ownerAddress,
-          delegateeAddress: walletAddress,
-          tier: listing.tier,
-          durationDays,
-          priceSats,
-          protocolFeeSats: fee.protocolFeeSats,
-          startDate: now,
-          endDate,
-          txId,
-        },
-      }),
-      prisma.delegationListing.update({
-        where: { id: listingId },
-        data: { spotsUsed: { increment: 1 } },
-      }),
-    ]);
-
-    return success(delegation);
-  } catch (e: any) {
-    return error(e.message, 500);
+    // SECURITY: On-chain transaction verification is required before granting delegation access.
+    // This needs proper implementation using mempool.space or ordinals.com API to verify:
+    // 1. The txId exists and has sufficient confirmations
+    // 2. Outputs match the expected fee split (owner + protocol)
+    // 3. The transaction was sent from the walletAddress
+    // Blocked until verification is implemented to prevent fake transaction attacks.
+    return error('Transaction verification not yet implemented — delegation purchases are disabled', 503);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

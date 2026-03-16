@@ -78,7 +78,8 @@ export async function POST(req: NextRequest) {
     });
 
     return success({ ...agent, permissions: JSON.parse(agent.permissions) }, 201);
-  } catch (e: any) {
-    return error(e.message, 500);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return error(message, 500);
   }
 }

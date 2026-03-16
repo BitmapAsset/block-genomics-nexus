@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useModalClose } from '@/hooks/useModalClose';
 
 /**
  * Lightning Payment Modal
@@ -39,6 +40,7 @@ export default function LightningPayModal({
   const [error, setError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { modalRef, handleBackdropClick } = useModalClose(onClose);
 
   // Create invoice on mount
   useEffect(() => {
@@ -60,9 +62,9 @@ export default function LightningPayModal({
         setAmountBtc(data.amountBtc);
         setExpiresIn(data.expirationInSec);
         setState('ready');
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!cancelled) {
-          setError(e?.message || 'Failed to create Lightning invoice');
+          setError(e instanceof Error ? e.message : 'Failed to create Lightning invoice');
           setState('error');
         }
       }
@@ -135,9 +137,12 @@ export default function LightningPayModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Lightning Payment"
     >
-      <div className="bg-[#1a1a2e] border border-orange-500/30 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl shadow-orange-500/10">
+      <div ref={modalRef} className="bg-[#1a1a2e] border border-orange-500/30 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl shadow-orange-500/10">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { verifyWalletSignature } from '@/lib/api-helpers';
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,10 +28,25 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { blockHeight, walletAddress, ...updates } = body;
+    const { blockHeight, walletAddress, signature, message } = body;
 
     if (!blockHeight || !walletAddress) {
       return NextResponse.json({ error: 'blockHeight and walletAddress required' }, { status: 400 });
+    }
+
+    // SECURITY: Require wallet signature verification
+    if (!signature || !message) {
+      return NextResponse.json({ error: 'signature and message required' }, { status: 401 });
+    }
+    if (!verifyWalletSignature(walletAddress, message, signature)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+
+    // Allowlist fields that can be updated (H-03: prevent mass assignment)
+    const allowedFields = ['score', 'coins', 'xp', 'level', 'questsCompleted', 'elementsPlaced'];
+    const updates: Record<string, unknown> = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) updates[field] = body[field];
     }
 
     const state = await prisma.gameState.upsert({

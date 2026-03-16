@@ -18,8 +18,8 @@ export async function GET(
 
     const result = await checkInvoiceStatus(invoiceId);
     return NextResponse.json(result);
-  } catch (e: any) {
-    console.error('[Lightning status error]', e?.message);
+  } catch (e: unknown) {
+    console.error('[Lightning status error]', e instanceof Error ? e.message : e);
     return NextResponse.json(
       { error: 'Failed to check payment status' },
       { status: 500 }
