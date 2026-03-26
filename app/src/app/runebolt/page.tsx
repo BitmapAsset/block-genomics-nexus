@@ -6,10 +6,6 @@ import dynamic from "next/dynamic";
 import {
   Zap,
   Wallet,
-  Shield,
-  Clock,
-  Bitcoin,
-  ChevronRight,
   ExternalLink,
 } from "lucide-react";
 import { cn, truncateAddress, wallets } from "@/lib/runebolt-utils";

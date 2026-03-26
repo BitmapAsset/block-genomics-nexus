@@ -3,6 +3,15 @@ node_modules/
 prisma/dev.db
 .vercel
 
+# Test coverage
+coverage/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
 # Ignore ALL .env files (secrets) — only .env.example files are safe to track
 .env
 .env.*
