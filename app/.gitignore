@@ -1,21 +1,27 @@
-node_modules/
-.next/
-prisma/dev.db
-.vercel
-
-# Test coverage
-coverage/
-
-# Logs
-*.log
-
-# OS files
-.DS_Store
-
-# Ignore ALL .env files (secrets) — only .env.example files are safe to track
+# Secrets
 .env
 .env.*
 !.env.example
-runebolt/.env
-runebolt/.env.*
-!runebolt/.env.example
+
+# Agent/Soul files
+backups/
+memory/
+MEMORY.md
+SOUL.md
+USER.md
+
+# Build
+.next/
+out/
+dist/
+coverage/
+node_modules/
+*.tsbuildinfo
+
+# DB
+*.db
+*.sqlite
+
+# OS/IDE
+.DS_Store
+.vscode/
