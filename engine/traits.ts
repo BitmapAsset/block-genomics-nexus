@@ -312,7 +312,7 @@ export function detectTraits(
 
   // ── Hash traits ──────────────────────────
 
-  if (blockData.id.includes('21e8')) {
+  if (blockData.hash.includes('21e8')) {
     add({
       id: 'is_21e8',
       name: '21e8 Hash',
@@ -326,7 +326,7 @@ export function detectTraits(
   // ── Economic / Custom ────────────────────
 
   // Empty block (coinbase only)
-  if (blockData.tx_count === 1) {
+  if (blockData.txCount === 1) {
     add({
       id: 'is_empty',
       name: 'Empty Block',
@@ -349,14 +349,15 @@ export function detectTraits(
     });
   }
 
-  // High fee (if extras available)
-  if (blockData.extras?.totalFees !== undefined) {
+  // High fee (if total fees available)
+  if (blockData.totalFeeSats !== undefined) {
     // > 1 BTC total fees = "high fee"
-    if (blockData.extras.totalFees > 100_000_000) {
+    const totalFees = Number(blockData.totalFeeSats);
+    if (totalFees > 100_000_000) {
       add({
         id: 'is_high_fee',
         name: 'High Fee Block',
-        description: `Total fees in this block exceed 1 BTC (${(blockData.extras.totalFees / 1e8).toFixed(2)} BTC).`,
+        description: `Total fees in this block exceed 1 BTC (${(totalFees / 1e8).toFixed(2)} BTC).`,
         category: 'economic',
         rarity: 'uncommon',
         icon: '🔥',

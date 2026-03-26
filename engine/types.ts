@@ -101,6 +101,24 @@ export interface BlockTrait {
   readonly value: boolean | number | string;
 }
 
+/** Detected trait from the trait-detection engine */
+export interface Trait {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly category: string;
+  readonly rarity: string;
+  readonly icon: string;
+}
+
+/** Result of running trait detection on a block */
+export interface TraitDetectionResult {
+  readonly blockHeight: number;
+  readonly traits: readonly Trait[];
+  readonly flags: Readonly<Record<string, boolean>>;
+  readonly detectedAt: number;
+}
+
 // =============================================================================
 // AGENT DATA
 // =============================================================================
