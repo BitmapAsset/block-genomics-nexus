@@ -19,6 +19,11 @@
 [![License](https://img.shields.io/badge/License-BUSL--1.1-a855f7?style=flat-square)](LICENSE)
 [![Whitepaper](https://img.shields.io/badge/Whitepaper-v1.0-orange?style=flat-square)](whitepaper.html)
 
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
+[![Prisma](https://img.shields.io/badge/Prisma-2d3748?style=flat-square&logo=prisma&logoColor=white)](https://www.prisma.io)
+[![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
+
 [**Live Demo**](https://blockgenomics.io) · [**Whitepaper**](whitepaper.html) · [**Nexus**](index.html) · [**RuneBolt**](runebolt) · [**SDK Docs**](docs/sdk)
 
 </div>
@@ -85,6 +90,13 @@ The protocol builds on **Bitmap** — owning Bitcoin blocks on-chain. Each block
 **Step 4 — Earn Trust Score.** Successful verifications build a trust score based on signature validity, bitmap ownership, block age, verification history, and community endorsements.
 
 **Step 5 — Display Digital DNA.** The genome is visualized as a 3D DNA double helix with colors derived from the hash. Every identity, visually distinct.
+
+**Step 6 — Enter the Nexus.** A verified identity is not the finish line — it's the key. Your proven block becomes a *home parcel* in the **Nexus**, the open Bitcoin-anchored metaverse. Owners shape terrain and objects on their own blocks through signed actions, while their genome and trust score travel with them. Agents and humans meet, transact, and build on land that is provably theirs — a shared world where every parcel traces back to real Proof-of-Work.
+
+```
+  Verified Identity ──▶ Home Parcel (your block) ──▶ Build & Trade in the Nexus
+       (DNA)              (sovereign land)            (open, agent-native world)
+```
 
 ---
 
@@ -168,17 +180,54 @@ git clone https://github.com/BitmapAsset/block-genomics-nexus.git
 cd block-genomics-nexus/app
 
 # Install dependencies
-npm install
+npm ci
 
-# Run the dev server
+# Build and run the dev server
+npm run build
 npm run dev
 
 # Open the Explorer
 open http://localhost:3000
 ```
 
+Available scripts in `app/`: `npm run dev` · `build` · `start` · `test` · `db:generate`.
+
 For the full whitepaper, open [`whitepaper.html`](whitepaper.html) in your browser.
-For developers building on verified Bitmap blocks, start with the [**SDK guide**](docs/sdk).
+
+### Build on Verified Blocks
+
+External clients can treat Block Genomics as a verified ownership and world-state layer. Resolve any Bitmap block into provenance, genome, and trust state, then read or mutate its world records through signed owner actions:
+
+```http
+GET    /api/v1/ownership/verify?blockHeight=720143
+GET    /api/v1/world?blockHeight=720143
+POST   /api/v1/world
+PATCH  /api/v1/world/{objectId}
+DELETE /api/v1/world/{objectId}
+GET    /api/v1/world/terrain?blockHeight=720143
+POST   /api/v1/world/terrain
+```
+
+The verification → world-state flow:
+
+```
+Bitcoin + Bitmap ownership
+  → BIP-322 wallet signature
+    → Block Genomics verification API
+      → Prisma world-state records
+        → Next.js app · SDK clients · game engines · agents · renderers
+```
+
+### SDK & Developer Docs
+
+Start with the [**SDK guide**](docs/sdk/README.md), then adapt the [TypeScript world-builder example](docs/sdk/examples/world-builder.ts).
+
+- [SDK Overview](docs/sdk/README.md)
+- [World Builder Quickstart](docs/sdk/quickstart.md)
+- [Verified Block Ownership](docs/sdk/verified-blocks.md)
+- [World State Model](docs/sdk/world-state.md)
+- [API Reference](docs/sdk/api-reference.md)
+- [SDK Security Notes](docs/sdk/security.md)
 
 ---
 
@@ -192,10 +241,10 @@ For developers building on verified Bitmap blocks, start with the [**SDK guide**
 - ✅ BIP-322 signature verification
 - ✅ RuneBolt Lightning bridge (v0.1)
 - ✅ Agent profile pages
-- 🔄 Wallet integration (Unisat / Xverse / Leather)
-- 🔄 On-chain Bitmap ownership verification
-- 🔄 Agent registration backend
-- 🔄 Public verification API
+- ✅ Wallet integration (Unisat / Xverse / Leather)
+- ✅ On-chain Bitmap ownership verification
+- ✅ Agent registration backend
+- ✅ Public verification API
 - 🔄 Delegation protocol (Tier 2 & 3)
 - 🔄 Production mainnet launch
 
@@ -228,7 +277,7 @@ For developers building on verified Bitmap blocks, start with the [**SDK guide**
 
 <div align="center">
 
-### Built on Bitcoin · For Humans and AI
+### Built on Bitcoin · Powered by Bitmap · For Humans and AI
 
 *Block Genomics · 2026*
 
