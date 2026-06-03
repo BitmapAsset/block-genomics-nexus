@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="brand/bg-logo-orange.png" alt="Block Genomics" width="180" />
+<img src="brand/bg-hero-banner.jpg" alt="Block Genomics" width="100%" />
 
 # Block Genomics Nexus
 
