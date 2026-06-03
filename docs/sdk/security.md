@@ -1,6 +1,6 @@
-# SDK Security Model
+# SDK Security Notes
 
-Block Genomics world writes are security-sensitive. A world builder is acting on behalf of a Bitcoin block owner.
+World builders act on behalf of Bitcoin block owners. Treat every write as a security-sensitive owner action.
 
 ## Trust Boundaries
 
@@ -13,8 +13,8 @@ Block Genomics world writes are security-sensitive. A world builder is acting on
 
 Every mutation message should include:
 
-- Product name: `Block Genomics`
-- Action: `create-object`, `update-object`, `delete-object`, or `update-terrain`
+- Product name: Block Genomics
+- Action: create-object, update-object, delete-object, or update-terrain
 - Block height.
 - Object id when applicable.
 - Nonce.
@@ -24,19 +24,28 @@ Do not ask users to sign vague messages. A wallet prompt should make the action 
 
 ## Replay Protection
 
-Client-generated nonces and timestamps should be included in every signed message. Server-side nonce tracking should be added before high-value marketplace or delegation operations depend on these endpoints.
+Clients should generate a fresh nonce for each signed action and should submit the action promptly. Server-side nonce storage should be added before marketplace, delegation, or high-value write flows depend on these endpoints.
 
 ## Secret Handling
 
 SDK clients should not contain server secrets. Public clients can call read endpoints directly. Write endpoints require wallet signatures, not embedded API keys.
 
+Never request seed phrases, private keys, or raw wallet credentials. Wallet adapters should only expose public addresses and signing methods.
+
 ## Owner UX
 
-World builders should surface the block height, action, and target object before asking for a signature. The owner should understand exactly what authority they are granting.
+Before requesting a signature, show:
 
-## Production Readiness Notes
+- block height,
+- action,
+- target object id when applicable,
+- exact object or terrain fields being changed.
 
-- Add nonce storage for replay prevention.
+The owner should understand exactly what authority they are granting.
+
+## Production Readiness Checklist
+
+- Add server-side nonce tracking for replay prevention.
 - Add typed client validation around object and terrain payloads.
 - Add rate limits on mutation endpoints.
 - Add audit events for world writes.

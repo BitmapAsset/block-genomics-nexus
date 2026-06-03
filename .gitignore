@@ -11,6 +11,23 @@ build/
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.cert
+secrets/
+secrets.*
+
+# Local agent/workspace files
+.openclaw/
+AGENTS.md
+MEMORY.md
+SOUL.md
+USER.md
+IDENTITY.md
+HEARTBEAT.md
+TOOLS.md
 
 # Test coverage
 coverage/

@@ -1,53 +1,75 @@
 # Block Genomics Nexus
 
-Block Genomics Nexus is a Bitcoin-native world stack for verified Bitmap block owners. It turns block ownership into programmable land, identity, agent reputation, and 3D world state that can be inspected, extended, and verified from public Bitcoin data.
+[![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-blue.svg)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](app/package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6.svg)](app/package.json)
+[![Bitcoin](https://img.shields.io/badge/Bitcoin-Bitmap-f7931a.svg)](docs/VERIFICATION-PROTOCOL.md)
 
-The core promise is simple: if you can prove ownership of a Bitmap block, you can build a sovereign world on that block.
+Block Genomics Nexus is a Bitcoin-native world stack for verified Bitmap block owners. It turns block ownership into programmable land, identity, agent reputation, and renderer-neutral world state that can be inspected, extended, and verified from public Bitcoin data.
+
+The product thesis is simple: if a wallet can prove ownership of a Bitmap block, it can author a sovereign world on that block.
 
 ## What This Repo Contains
 
-- `app/` - the production Next.js application for block profiles, verification, Nexus world views, Guardian agents, and API routes.
-- `engine/` - genome and Bitmap resolution primitives.
-- `auth/` - wallet challenge, BIP-322, and token protocol notes.
-- `claims/` - identity claim verification helpers.
-- `sdk/` - embeddable badge and API client assets.
-- `docs/` - protocol, product, wallet, security, and SDK documentation.
+- app/ - production Next.js application, API routes, Prisma schema, ownership verification, block profiles, Nexus world views, and Guardian interfaces.
+- docs/ - protocol, product, wallet, security, white paper, and SDK documentation.
+- docs/sdk/ - developer guide for building external clients on verified Bitmap blocks.
+- engine/ - block genome and Bitmap resolution primitives.
+- auth/ - wallet challenge, BIP-322, and token protocol notes.
+- claims/ - identity claim verification helpers.
+- sdk/ - embeddable badge and client-side integration assets.
 
 ## Product Surface
 
-- Verified Bitmap ownership for Bitcoin block holders.
-- Genome fingerprints generated from block and wallet provenance.
-- Block and agent profiles with badges, trust state, and history.
-- Nexus world APIs for block terrain, objects, and programmable scenes.
-- Guardian agents and Monitor APIs for owner-controlled block intelligence.
-- Developer-facing SDK docs for building worlds on top of verified blocks.
+- Verify Bitmap block ownership using Bitcoin wallet signatures.
+- Resolve block provenance into genome fingerprints and trust state.
+- Render block, owner, agent, and world profiles from verified data.
+- Read and mutate block-level terrain and object state through /api/v1/world.
+- Build external worlds using signed owner actions and renderer-neutral scene records.
 
 ## Quick Start
 
-```bash
-git clone https://github.com/BitmapAsset/block-genomics-nexus.git
-cd block-genomics-nexus/app
-npm ci
-npm run build
-npm run dev
-```
+    git clone https://github.com/BitmapAsset/block-genomics-nexus.git
+    cd block-genomics-nexus/app
+    npm ci
+    npm run build
+    npm run dev
 
-Open `http://localhost:3000`.
+Open http://localhost:3000.
 
-The production app expects database and provider environment variables at deploy time. Do not commit local environment files.
+Production deployments require database, wallet/provider, and operational environment variables. Do not commit local .env files.
 
-## Build Worlds On Verified Blocks
+## Build On Verified Blocks
 
-Developers can use the Nexus world APIs to read and write block-level scene state after ownership verification:
+External clients can treat Block Genomics as a verified ownership and world-state layer:
 
-- Read world state for a block: `GET /api/v1/world?blockHeight=720143`
-- Create a world object: `POST /api/v1/world`
-- Update or delete an object: `PATCH|DELETE /api/v1/world/{objectId}`
-- Read terrain: `GET /api/v1/world/terrain?blockHeight=720143`
-- Update terrain: `POST /api/v1/world/terrain`
-- Verify on-chain ownership: `GET /api/v1/ownership/verify?blockHeight=720143`
+    GET    /api/v1/ownership/verify?blockHeight=720143
+    GET    /api/v1/world?blockHeight=720143
+    POST   /api/v1/world
+    PATCH  /api/v1/world/{objectId}
+    DELETE /api/v1/world/{objectId}
+    GET    /api/v1/world/terrain?blockHeight=720143
+    POST   /api/v1/world/terrain
 
-Start with [docs/sdk/README.md](docs/sdk/README.md).
+Start with the [SDK docs](docs/sdk/README.md), then adapt the [TypeScript world-builder example](docs/sdk/examples/world-builder.ts).
+
+## Architecture Overview
+
+    Bitcoin + Bitmap ownership
+            |
+            v
+    BIP-322 wallet signature
+            |
+            v
+    Block Genomics verification API
+            |
+            v
+    Prisma world-state records
+            |
+            v
+    Next.js app, SDK clients, game engines, agents, renderers
+
+Bitcoin remains the source of truth for block provenance. Wallet signatures authorize owner intent. Block Genomics stores renderer-neutral world state so owners can build in web, game, agent, and simulation clients without surrendering block authority.
 
 ## Documentation
 
@@ -56,35 +78,35 @@ Start with [docs/sdk/README.md](docs/sdk/README.md).
 - [Verified Block Ownership](docs/sdk/verified-blocks.md)
 - [World State Model](docs/sdk/world-state.md)
 - [API Reference](docs/sdk/api-reference.md)
-- [Security Model](docs/sdk/security.md)
-- [Protocol Documentation](docs/VERIFICATION-PROTOCOL.md)
+- [SDK Security Notes](docs/sdk/security.md)
+- [Verification Protocol](docs/VERIFICATION-PROTOCOL.md)
+- [Threat Model](docs/THREAT-MODEL.md)
 - [White Paper](docs/WHITE-PAPER.md)
 
 ## Development
 
-```bash
-cd app
-npm ci
-npm run build
-```
+    cd app
+    npm ci
+    npm run build
 
 Useful app scripts:
 
-- `npm run dev` - run the Next.js development server.
-- `npm run build` - generate Prisma client and build the production app.
-- `npm run start` - run the built app.
-- `npm run test` - run Jest tests.
+- npm run dev - run the Next.js development server.
+- npm run build - generate Prisma client and build the production app.
+- npm run start - run the built app.
+- npm run test - run Jest tests.
+- npm run db:generate - regenerate Prisma client.
 
 ## Security
 
-Block Genomics treats Bitcoin as the source of truth and local wallet signatures as authority for write actions. World mutation endpoints require an owner address, signed message, and signature; the API verifies the signature and checks the block owner before accepting changes.
+World mutation endpoints require ownerAddress, message, and signature. The API verifies the wallet signature and checks that the signer owns the target block before accepting object or terrain changes.
 
-Never commit secrets, local database files, generated build output, dependency directories, or private agent/memory files.
+Report vulnerabilities through the process in [SECURITY.md](SECURITY.md). Never open a public issue for an active vulnerability.
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Contributions are licensed under the same terms as the repository.
 
 ## License
 
-The app currently carries the Business Source License 1.1 in `app/LICENSE`.
-
-## Status
-
-Active product build. Current app version: `21.0.0`, a tribute to Bitcoin's 21 million supply cap.
+Block Genomics Nexus is licensed under the Business Source License 1.1. See [LICENSE](LICENSE).
