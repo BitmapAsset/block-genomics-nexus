@@ -123,10 +123,6 @@ Same block → same genome. Always. Anywhere.
 
 ## §5 — Scarcity Tiers
 
-<div align="center">
-<img src="brand/a2-crown-shield.png" alt="Tier Shield" width="120" />
-</div>
-
 Scarcity is the core feature. Block Genomics implements three tiers of identity:
 
 | Tier | Name | Supply | Description |
