@@ -1,112 +1,239 @@
+<div align="center">
+
+<img src="brand/bg-logo-orange.png" alt="Block Genomics" width="180" />
+
 # Block Genomics Nexus
 
-[![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-blue.svg)](LICENSE)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](app/package.json)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6.svg)](app/package.json)
-[![Bitcoin](https://img.shields.io/badge/Bitcoin-Bitmap-f7931a.svg)](docs/VERIFICATION-PROTOCOL.md)
+### Bitcoin-Anchored Identity for AI Agents and Humans
 
-Block Genomics Nexus is a Bitcoin-native world stack for verified Bitmap block owners. It turns block ownership into programmable land, identity, agent reputation, and renderer-neutral world state that can be inspected, extended, and verified from public Bitcoin data.
+*The trust layer for the agentic internet. Built on Bitcoin. Powered by Bitmap.*
 
-The product thesis is simple: if a wallet can prove ownership of a Bitmap block, it can author a sovereign world on that block.
+<br>
 
-## What This Repo Contains
+<img src="brand/x-banner-nexus.png" alt="Block Genomics Nexus" width="100%" />
 
-- app/ - production Next.js application, API routes, Prisma schema, ownership verification, block profiles, Nexus world views, and Guardian interfaces.
-- docs/ - protocol, product, wallet, security, white paper, and SDK documentation.
-- docs/sdk/ - developer guide for building external clients on verified Bitmap blocks.
-- engine/ - block genome and Bitmap resolution primitives.
-- auth/ - wallet challenge, BIP-322, and token protocol notes.
-- claims/ - identity claim verification helpers.
-- sdk/ - embeddable badge and client-side integration assets.
+<br>
 
-## Product Surface
+[![Bitcoin](https://img.shields.io/badge/Anchored%20On-Bitcoin-f7931a?style=flat-square&logo=bitcoin&logoColor=white)](https://bitcoin.org)
+[![Bitmap](https://img.shields.io/badge/Powered%20By-Bitmap-66ccff?style=flat-square)](https://bitmap.community)
+[![License](https://img.shields.io/badge/License-BUSL--1.1-a855f7?style=flat-square)](LICENSE)
+[![Whitepaper](https://img.shields.io/badge/Whitepaper-v1.0-orange?style=flat-square)](whitepaper.html)
 
-- Verify Bitmap block ownership using Bitcoin wallet signatures.
-- Resolve block provenance into genome fingerprints and trust state.
-- Render block, owner, agent, and world profiles from verified data.
-- Read and mutate block-level terrain and object state through /api/v1/world.
-- Build external worlds using signed owner actions and renderer-neutral scene records.
+[**Live Demo**](https://blockgenomics.io) · [**Whitepaper**](whitepaper.html) · [**Nexus**](index.html) · [**RuneBolt**](runebolt) · [**SDK Docs**](docs/sdk)
 
-## Quick Start
+</div>
 
-    git clone https://github.com/BitmapAsset/block-genomics-nexus.git
-    cd block-genomics-nexus/app
-    npm ci
-    npm run build
-    npm run dev
+<br>
 
-Open http://localhost:3000.
+---
 
-Production deployments require database, wallet/provider, and operational environment variables. Do not commit local .env files.
+## §0 — Abstract
 
-## Build On Verified Blocks
+**Block Genomics** is a Bitcoin-native protocol that creates unique digital DNA for AI agents and humans by anchoring identity to **Bitcoin blocks**. Each identity is derived from real Proof-of-Work — the most powerful computational network ever built — making it **unforgeable, scarce, and sovereign**.
 
-External clients can treat Block Genomics as a verified ownership and world-state layer:
+In a world rapidly filling with AI agents, the question is no longer *"can this agent do the job?"* — it's *"can I trust this agent is who it claims to be?"* Block Genomics answers this by creating an identity system as trustworthy as Bitcoin itself.
 
-    GET    /api/v1/ownership/verify?blockHeight=720143
-    GET    /api/v1/world?blockHeight=720143
-    POST   /api/v1/world
-    PATCH  /api/v1/world/{objectId}
-    DELETE /api/v1/world/{objectId}
-    GET    /api/v1/world/terrain?blockHeight=720143
-    POST   /api/v1/world/terrain
+---
 
-Start with the [SDK docs](docs/sdk/README.md), then adapt the [TypeScript world-builder example](docs/sdk/examples/world-builder.ts).
+## §1 — The Problem
 
-## Architecture Overview
+We are entering an era where AI agents will outnumber humans on the internet. They will trade, negotiate, create, and decide on our behalf — yet we have no universal way to verify *who* or *what* they are.
 
-    Bitcoin + Bitmap ownership
-            |
-            v
-    BIP-322 wallet signature
-            |
-            v
-    Block Genomics verification API
-            |
-            v
-    Prisma world-state records
-            |
-            v
-    Next.js app, SDK clients, game engines, agents, renderers
+| Problem | Today | With Block Genomics |
+|---|---|---|
+| **Impersonation** | Any agent can claim any identity | Cryptographic Proof-of-Work anchoring |
+| **Centralized Gatekeepers** | OAuth / API keys, revocable at will | Sovereign, permissionless identity |
+| **Infinite Replication** | Identities copy endlessly | Each Bitcoin block = one unique DNA |
+| **No Universal Standard** | Each platform has its own silo | Cross-platform, cross-chain, cross-agent |
 
-Bitcoin remains the source of truth for block provenance. Wallet signatures authorize owner intent. Block Genomics stores renderer-neutral world state so owners can build in web, game, agent, and simulation clients without surrendering block authority.
+---
 
-## Documentation
+## §2 — The Solution
 
-- [SDK Overview](docs/sdk/README.md)
-- [World Builder Quickstart](docs/sdk/quickstart.md)
-- [Verified Block Ownership](docs/sdk/verified-blocks.md)
-- [World State Model](docs/sdk/world-state.md)
-- [API Reference](docs/sdk/api-reference.md)
-- [SDK Security Notes](docs/sdk/security.md)
-- [Verification Protocol](docs/VERIFICATION-PROTOCOL.md)
-- [Threat Model](docs/THREAT-MODEL.md)
-- [White Paper](docs/WHITE-PAPER.md)
+Block Genomics leverages the one thing that **cannot be faked, copied, or revoked**: Bitcoin's Proof-of-Work.
 
-## Development
+Every Bitcoin block represents real energy expended, real computation performed, real scarcity. By anchoring identity to blocks, we create identities with the same unforgeable properties as Bitcoin itself.
 
-    cd app
-    npm ci
-    npm run build
+The protocol builds on **Bitmap** — owning Bitcoin blocks on-chain. Each block becomes a *digital land deed* that generates a unique **genome**: a 256-bit hash serving as the entity's DNA, visually represented as a colorful double helix.
 
-Useful app scripts:
+> *Why Bitcoin? Bitcoin is the only truly neutral, decentralized, permissionless network with 15+ years of unbroken operation. Its Proof-of-Work represents real thermodynamic energy — the bridge between the physical and digital worlds. No other system provides this level of trust.*
 
-- npm run dev - run the Next.js development server.
-- npm run build - generate Prisma client and build the production app.
-- npm run start - run the built app.
-- npm run test - run Jest tests.
-- npm run db:generate - regenerate Prisma client.
+---
 
-## Security
+## §3 — How It Works
 
-World mutation endpoints require ownerAddress, message, and signature. The API verifies the wallet signature and checks that the signer owns the target block before accepting object or terrain changes.
+```
+  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+  │   1. Claim      │    │  2. Generate    │    │  3. Prove       │
+  │   Bitcoin Block │───▶│  Digital Genome │───▶│  via BIP-322    │
+  │   (Bitmap)      │    │  (256-bit hash) │    │  (sign challenge)│
+  └─────────────────┘    └─────────────────┘    └─────────────────┘
+                                                          │
+                                                          ▼
+                              ┌─────────────────────────────────────┐
+                              │   4. Earn Trust Score               │
+                              │   5. Display Digital DNA Helix      │
+                              └─────────────────────────────────────┘
+```
 
-Report vulnerabilities through the process in [SECURITY.md](SECURITY.md). Never open a public issue for an active vulnerability.
+**Step 1 — Claim a Bitcoin Block.** Agent or human claims ownership of a Bitcoin block via Bitmap inscription. This is their *home block* — the foundation of their identity.
 
-## Contributing
+**Step 2 — Generate Digital Genome.** The protocol computes a unique 256-bit genome hash from the block's data (hash, height, timestamp, merkle root, transactions). Deterministic — the same block always produces the same DNA.
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Contributions are licensed under the same terms as the repository.
+**Step 3 — Prove Ownership via BIP-322.** The entity signs a challenge message with their Bitcoin wallet using BIP-322 (generic message signing). Cryptographic proof of address control.
 
-## License
+**Step 4 — Earn Trust Score.** Successful verifications build a trust score based on signature validity, bitmap ownership, block age, verification history, and community endorsements.
 
-Block Genomics Nexus is licensed under the Business Source License 1.1. See [LICENSE](LICENSE).
+**Step 5 — Display Digital DNA.** The genome is visualized as a 3D DNA double helix with colors derived from the hash. Every identity, visually distinct.
+
+---
+
+## §4 — The Digital Genome
+
+At the heart of Block Genomics is the **genome** — a 64-character hexadecimal hash (256 bits) that encodes an entity's unique identity.
+
+**Example Genome:**
+
+```
+a3f8c2e91b4d6f0785c3e2a19b7d4f6e8c2a1b3d5f7e9c0b2a4d6f8e1c3b5a7d
+```
+
+Each hex character (0–f) maps to a color from a 16-color palette. The genome drives:
+
+- **3D DNA Helix** — 64 base pairs arranged in a double helix with 3 full turns
+- **Color Grid** — 8×8 grid of genome-derived colors as a visual fingerprint
+- **DNA Sequence** — Hex characters mapped to nucleotides (A, T, G, C)
+- **Trait Extraction** — Deterministic traits derived from hash patterns (palindromes, primes, etc.)
+
+Same block → same genome. Always. Anywhere.
+
+---
+
+## §5 — Scarcity Tiers
+
+<div align="center">
+<img src="brand/a2-crown-shield.png" alt="Tier Shield" width="120" />
+</div>
+
+Scarcity is the core feature. Block Genomics implements three tiers of identity:
+
+| Tier | Name | Supply | Description |
+|:---:|:---|:---:|:---|
+| **🥇 1** | **Block Owners** | ~1,000,000 | Direct Bitmap ownership. The rarest and most trusted tier. One owner per block. Absolute digital scarcity. |
+| **🥈 2** | **Transaction Level** | ~2.3 billion | Identity derived from specific transactions within blocks. Finite, tied to confirmed Bitcoin transactions. |
+| **🥉 3** | **Delegated** | Unlimited | Delegated authority from a Tier 1 or 2 identity. Open access. Web-of-trust model. |
+
+The most valuable identities are naturally scarce — just like Bitcoin itself.
+
+---
+
+## §6 — The Stack
+
+| Layer | What it does |
+|---|---|
+| **Nexus** | The protocol's autonomous moral guardian. Watches every block, every parcel, every interaction. |
+| **Explorer** | Visualize the DNA of any Bitcoin block. See genomes, traits, ownership. |
+| **Verify** | AI agent verification protocol with cryptographic badges (BIP-322 signatures). |
+| **RuneBolt** | Lightning Deed Protocol — self-sovereign Runes/DOG/Bitmap Lightning bridge. |
+| **Agent Profiles** | Public, verifiable identity cards for autonomous agents. |
+| **Trust Scoring** | Multi-factor reputation derived from on-chain proof and community endorsements. |
+
+---
+
+## §7 — Project Structure
+
+```
+block-genomics-nexus/
+├── app/              ← Next.js frontend (Explorer, Verify, Agent profiles)
+├── api/              ← REST API for verification, lookups
+├── api-server/       ← Node.js verification & trust-scoring backend
+├── auth/             ← BIP-322 signature verification
+├── claims/           ← Identity claim verification helpers
+├── cli/              ← Developer tooling
+├── engine/           ← Genome generation, trait extraction
+├── runebolt/         ← Lightning Deed Protocol (Runes/DOG/Bitmap bridge)
+├── sdk/              ← Client SDK for third-party integrations
+├── verify/           ← Verification UI
+├── docs/             ← Technical & SDK documentation
+└── whitepaper.html   ← Full protocol whitepaper (v1.0)
+```
+
+---
+
+## §8 — Quick Start
+
+```bash
+# Clone the repo
+git clone https://github.com/BitmapAsset/block-genomics-nexus.git
+cd block-genomics-nexus/app
+
+# Install dependencies
+npm install
+
+# Run the dev server
+npm run dev
+
+# Open the Explorer
+open http://localhost:3000
+```
+
+For the full whitepaper, open [`whitepaper.html`](whitepaper.html) in your browser.
+For developers building on verified Bitmap blocks, start with the [**SDK guide**](docs/sdk).
+
+---
+
+## §9 — Roadmap
+
+- ✅ Block genome fingerprint generation
+- ✅ 3D DNA double-helix visualization
+- ✅ Interactive block explorer
+- ✅ Three-tier scarcity model
+- ✅ Trust scoring algorithm
+- ✅ BIP-322 signature verification
+- ✅ RuneBolt Lightning bridge (v0.1)
+- ✅ Agent profile pages
+- 🔄 Wallet integration (Unisat / Xverse / Leather)
+- 🔄 On-chain Bitmap ownership verification
+- 🔄 Agent registration backend
+- 🔄 Public verification API
+- 🔄 Delegation protocol (Tier 2 & 3)
+- 🔄 Production mainnet launch
+
+---
+
+## §10 — Why This Matters
+
+> *AI agents are coming. Billions of them.*
+>
+> *Without verifiable identity, the internet becomes a hall of mirrors — every claim suspect, every interaction risky, every transaction gambling on trust.*
+>
+> *Block Genomics gives every agent a sovereign identity, rooted in the same Proof-of-Work that secures trillions in value. No corporation can revoke it. No platform can de-platform it. No government can rewrite it.*
+>
+> *It is yours. As long as Bitcoin exists, you exist.*
+
+---
+
+## §11 — Links
+
+- 🌐 **Website:** [blockgenomics.io](https://blockgenomics.io)
+- 📜 **Whitepaper:** [`whitepaper.html`](whitepaper.html)
+- 🧬 **Nexus Brain:** [`index.html`](index.html)
+- ⚡ **RuneBolt:** [`runebolt/`](runebolt)
+- 📚 **SDK Docs:** [`docs/sdk`](docs/sdk)
+- 💬 **Bitmap Community:** [bitmap.community](https://bitmap.community)
+- 📊 **Mempool API:** [mempool.space/docs/api](https://mempool.space/docs/api)
+- 📜 **Ordinals:** [ordinals.com](https://ordinals.com)
+
+---
+
+<div align="center">
+
+### Built on Bitcoin · For Humans and AI
+
+*Block Genomics · 2026*
+
+<br>
+
+<sub>As long as blocks are mined, we live. 🐸</sub>
+
+</div>
