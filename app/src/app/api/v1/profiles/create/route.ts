@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, isValidBitcoinAddress, verifyWalletSignature } from '@/lib/api-helpers';
-import crypto from 'crypto';
+import { deriveGenomeHash } from '@/lib/genome-utils';
 import { logActivity } from '@/lib/activity';
+import { consumeChallenge } from '@/lib/challenges';
+import { verifyActionBinding, hashBody } from '@/lib/action-message';
 
 const HANDLE_RE = /^[a-z0-9_]{1,30}$/;
 
@@ -30,6 +32,23 @@ export async function POST(req: NextRequest) {
     }
     if (!verifyWalletSignature(walletAddress, message, signature)) {
       return error('Invalid signature', 401);
+    }
+
+    // ACTION BINDING + REPLAY PROTECTION: the signature must authorize THIS
+    // profile creation on THIS block, and the one-time nonce is consumed so a
+    // captured request cannot be replayed or re-pointed.
+    const binding = verifyActionBinding(message, {
+      action: 'profile.create',
+      method: 'POST',
+      path: '/api/v1/profiles/create',
+      blockHeight,
+      bodyHash: await hashBody(body),
+    });
+    if (!binding.ok) {
+      return error(binding.reason || 'Invalid authorization', 401);
+    }
+    if (!(await consumeChallenge(binding.nonce!, { address: walletAddress, purpose: 'profile' }))) {
+      return error('Invalid or already-used challenge nonce', 401);
     }
 
     // Validate handle
@@ -75,10 +94,8 @@ export async function POST(req: NextRequest) {
       return error(`You already have a profile on block ${blockHeight} as @${existingBlockProfile.handle}`, 409);
     }
 
-    // Generate unique genome hash for this profile
-    const genomeHash = '0x' + crypto.createHash('sha256')
-      .update(`${walletAddress}:${blockHeight}:profile:${Date.now()}`)
-      .digest('hex');
+    // Deterministic genome: same block+owner always yields the same 256-bit hash.
+    const genomeHash = deriveGenomeHash(blockHeight, walletAddress);
 
     const profile = await prisma.blockProfile.create({
       data: {

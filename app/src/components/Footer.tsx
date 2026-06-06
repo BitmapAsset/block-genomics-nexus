@@ -86,18 +86,30 @@ export default function Footer({ className }: { className?: string }) {
             </h3>
             <ul className="space-y-2">
               {[
-                { href: "/whitepaper", label: "Documentation" },
-                { href: "/api/v1/blocks/1", label: "API Reference" },
-                { href: "https://github.com", label: "GitHub" },
+                { href: "/whitepaper", label: "Documentation", external: false },
+                { href: "https://github.com/BitmapAsset/block-genomics-nexus/blob/main/docs/sdk/api-reference.md", label: "API Reference", external: true },
+                { href: "https://github.com/BitmapAsset/block-genomics-nexus", label: "GitHub", external: true },
               ].map((link) => (
                 <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-sm transition-colors hover:text-white"
-                    style={{ color: '#c8d0da' }}
-                  >
-                    {link.label}
-                  </Link>
+                  {link.external ? (
+                    <a
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm transition-colors hover:text-white"
+                      style={{ color: '#c8d0da' }}
+                    >
+                      {link.label}
+                    </a>
+                  ) : (
+                    <Link
+                      href={link.href}
+                      className="text-sm transition-colors hover:text-white"
+                      style={{ color: '#c8d0da' }}
+                    >
+                      {link.label}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

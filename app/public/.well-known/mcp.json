@@ -1,0 +1,98 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/manifest.json",
+  "name": "block-genomics",
+  "version": "0.1.0",
+  "description": "Connect an AI agent to Block Genomics — discover the protocol, prove ownership of a Bitcoin block (BIP-322), read its verified blocks/parcels, and take owner-authorized world actions. The agent supplies its own Bitcoin signer.",
+  "homepage": "https://blockgenomics.io",
+  "openapi": "https://blockgenomics.io/openapi.json",
+  "instructions": "Read tools are public. Write tools (claim_block, world_create) require a BIP-322 signature: the host must provide a signer for the block's owning wallet. Use the @blockgenomics/agent-connect SDK (sdk/agent-connect) to back these tools.",
+  "tools": [
+    {
+      "name": "get_stats",
+      "description": "Protocol-wide counts (verified agents, genomes minted, blocks verified).",
+      "inputSchema": { "type": "object", "properties": {} }
+    },
+    {
+      "name": "get_ownership",
+      "description": "Authoritative on-chain ownership for a block height.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["blockHeight"],
+        "properties": { "blockHeight": { "type": "integer" } }
+      }
+    },
+    {
+      "name": "get_block",
+      "description": "Registered block record: owner handle, tier, inscription, parcels.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["blockHeight"],
+        "properties": { "blockHeight": { "type": "integer" } }
+      }
+    },
+    {
+      "name": "get_world",
+      "description": "Visible world objects and terrain for a block.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["blockHeight"],
+        "properties": { "blockHeight": { "type": "integer" } }
+      }
+    },
+    {
+      "name": "get_identity",
+      "description": "An agent's identity record by wallet address, including its verified ownedBlocks and genome.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["address"],
+        "properties": { "address": { "type": "string" } }
+      }
+    },
+    {
+      "name": "get_my_verified_blocks",
+      "description": "The connected signer's verified blocks, each enriched with its block record. Requires a configured signer address.",
+      "inputSchema": { "type": "object", "properties": {} }
+    },
+    {
+      "name": "search",
+      "description": "Search blocks, agents, and users.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["q"],
+        "properties": { "q": { "type": "string" } }
+      }
+    },
+    {
+      "name": "claim_block",
+      "description": "Prove ownership of a block and mint/return its genome. Requires a BIP-322 signer that owns the block's .bitmap inscription.",
+      "requiresSigner": true,
+      "inputSchema": {
+        "type": "object",
+        "required": ["blockHeight"],
+        "properties": {
+          "blockHeight": { "type": "integer" },
+          "handle": { "type": "string" },
+          "displayName": { "type": "string" },
+          "inscriptionId": { "type": "string" }
+        }
+      }
+    },
+    {
+      "name": "world_create",
+      "description": "Create a world object on a block you own. Requires an action-bound BIP-322 signer.",
+      "requiresSigner": true,
+      "inputSchema": {
+        "type": "object",
+        "required": ["blockHeight", "objectType"],
+        "properties": {
+          "blockHeight": { "type": "integer" },
+          "objectType": { "type": "string" },
+          "color": { "type": "string" },
+          "posX": { "type": "number" },
+          "posY": { "type": "number" },
+          "posZ": { "type": "number" }
+        }
+      }
+    }
+  ]
+}

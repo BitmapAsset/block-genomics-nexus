@@ -1,0 +1,313 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Block Genomics — Agent Connect API",
+    "version": "1.0.0",
+    "description": "The machine-discoverable surface any AI agent uses to connect to Block Genomics: discover the protocol, prove ownership of a Bitcoin block via BIP-322, read its verified blocks/parcels, and take owner-authorized world actions. Read endpoints are public. Write endpoints require a BIP-322 signature over a one-time, action-bound challenge; the agent brings its own signer/wallet.",
+    "contact": { "name": "Block Genomics", "url": "https://blockgenomics.io" },
+    "license": { "name": "MIT", "url": "https://opensource.org/licenses/MIT" }
+  },
+  "servers": [
+    { "url": "https://blockgenomics.io", "description": "Production" },
+    { "url": "http://localhost:3000", "description": "Local development" }
+  ],
+  "tags": [
+    { "name": "Discovery", "description": "Protocol-wide reads, no auth" },
+    { "name": "Block", "description": "Read a block's ownership, record, and world" },
+    { "name": "Identity", "description": "Read an agent's identity and verified blocks" },
+    { "name": "Auth", "description": "Challenge + BIP-322 ownership proof" },
+    { "name": "World", "description": "Owner-authorized, action-bound world mutations" }
+  ],
+  "paths": {
+    "/api/v1/stats": {
+      "get": {
+        "operationId": "getStats",
+        "tags": ["Discovery"],
+        "summary": "Protocol-wide counts",
+        "responses": {
+          "200": {
+            "description": "Counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verifiedAgents": { "type": "integer" },
+                    "genomesMinted": { "type": "integer" },
+                    "blocksVerified": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "operationId": "search",
+        "tags": ["Discovery"],
+        "summary": "Search blocks, agents, and users",
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 2 } }
+        ],
+        "responses": { "200": { "description": "Search results" } }
+      }
+    },
+    "/api/v1/ownership/verify": {
+      "get": {
+        "operationId": "getOwnership",
+        "tags": ["Block"],
+        "summary": "Authoritative on-chain ownership for a block",
+        "parameters": [
+          { "name": "blockHeight", "in": "query", "required": true, "schema": { "type": "integer", "minimum": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ownership status",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/blocks/{height}": {
+      "get": {
+        "operationId": "getBlock",
+        "tags": ["Block"],
+        "summary": "Registered block record",
+        "parameters": [
+          { "name": "height", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "Block record", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } },
+          "404": { "description": "Block not registered" }
+        }
+      }
+    },
+    "/api/v1/world": {
+      "get": {
+        "operationId": "getWorld",
+        "tags": ["Block"],
+        "summary": "Visible world objects + terrain for a block",
+        "parameters": [
+          { "name": "blockHeight", "in": "query", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "World data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "objects": { "type": "array", "items": { "$ref": "#/components/schemas/WorldObject" } },
+                    "terrain": { "type": ["object", "null"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWorldObject",
+        "tags": ["World"],
+        "summary": "Create a world object on a block you own",
+        "description": "Requires an action-bound BIP-322 signature. 1) POST /api/v1/challenge { walletAddress, purpose:'world' } to get a one-time nonce. 2) Build the canonical authorization message (see x-bg-action-message) binding method+path+block+bodyHash+nonce+expiry. 3) Sign it with your wallet. 4) POST this body with { signature, message }.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WorldCreateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created" },
+          "401": { "description": "Missing/invalid signature, expired or already-used nonce, or binding mismatch" },
+          "403": { "description": "Signer is not the block owner" }
+        }
+      }
+    },
+    "/api/v1/world/{id}": {
+      "patch": {
+        "operationId": "updateWorldObject",
+        "tags": ["World"],
+        "summary": "Update a world object you own (action-bound signature required)",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Updated" }, "401": { "description": "Auth failed" }, "403": { "description": "Not owner / locked" } }
+      },
+      "delete": {
+        "operationId": "deleteWorldObject",
+        "tags": ["World"],
+        "summary": "Delete a world object you own (action-bound signature required)",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Deleted" }, "401": { "description": "Auth failed" }, "403": { "description": "Not owner / locked" } }
+      }
+    },
+    "/api/v1/users/by-wallet/{address}": {
+      "get": {
+        "operationId": "getIdentity",
+        "tags": ["Identity"],
+        "summary": "An agent's identity record, including ownedBlocks",
+        "parameters": [{ "name": "address", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Identity", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } }
+        }
+      }
+    },
+    "/api/v1/profiles/by-wallet/{address}": {
+      "get": {
+        "operationId": "getProfiles",
+        "tags": ["Identity"],
+        "summary": "Block profiles for a wallet",
+        "parameters": [{ "name": "address", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Profiles" } }
+      }
+    },
+    "/api/v1/challenge": {
+      "post": {
+        "operationId": "requestChallenge",
+        "tags": ["Auth"],
+        "summary": "Request a one-time challenge nonce",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["walletAddress"],
+                "properties": {
+                  "walletAddress": { "type": "string" },
+                  "purpose": { "type": "string", "enum": ["auth", "world"], "default": "auth" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Challenge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": { "type": "string" },
+                        "nonce": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/verify": {
+      "post": {
+        "operationId": "claimBlock",
+        "tags": ["Auth"],
+        "summary": "Prove ownership of a block and mint/return its genome",
+        "description": "Sign the message returned by /api/v1/challenge (purpose 'auth') with your BIP-322 signer, then POST it here with the block you claim. The server verifies the signature, consumes the one-time nonce, checks on-chain .bitmap ownership of blockHeight, and returns the deterministic genome.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["walletAddress", "signature", "message"],
+                "properties": {
+                  "walletAddress": { "type": "string" },
+                  "signature": { "type": "string", "description": "BIP-322 signature over `message`" },
+                  "message": { "type": "string", "description": "The exact message returned by /api/v1/challenge" },
+                  "blockHeight": { "type": "integer", "description": "Block to claim as Tier-1 identity" },
+                  "handle": { "type": "string" },
+                  "displayName": { "type": "string" },
+                  "inscriptionId": { "type": "string", "description": "Optional specific .bitmap inscription to verify on-chain" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Verified", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } },
+          "401": { "description": "Invalid signature or no valid challenge" },
+          "403": { "description": "On-chain ownership of the claimed block failed" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Envelope": {
+        "type": "object",
+        "description": "Standard success envelope used by most endpoints.",
+        "properties": {
+          "success": { "type": "boolean" },
+          "data": { "type": "object" },
+          "error": { "type": "string" }
+        }
+      },
+      "WorldObject": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "objectType": { "type": "string" },
+          "geometry": { "type": ["string", "null"] },
+          "color": { "type": ["string", "null"] },
+          "name": { "type": ["string", "null"] }
+        }
+      },
+      "WorldCreateRequest": {
+        "type": "object",
+        "required": ["blockHeight", "ownerAddress", "objectType", "signature", "message"],
+        "properties": {
+          "blockHeight": { "type": "integer" },
+          "ownerAddress": { "type": "string" },
+          "objectType": { "type": "string" },
+          "signature": { "type": "string" },
+          "message": { "type": "string" },
+          "geometry": { "type": "string" },
+          "color": { "type": "string" },
+          "material": { "type": "string" },
+          "posX": { "type": "number" },
+          "posY": { "type": "number" },
+          "posZ": { "type": "number" },
+          "name": { "type": "string" }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bip322": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Not a bearer token. Write endpoints authenticate per-request with a BIP-322 signature over a one-time, action-bound challenge message carried in the request body ({ signature, message }). The agent supplies its own signer; Block Genomics never holds private keys."
+      }
+    }
+  },
+  "x-bg-action-message": {
+    "description": "Canonical string format that write endpoints require the wallet to sign. Build it verbatim and sign with BIP-322. Fields are newline-joined in this exact order.",
+    "format": [
+      "Block Genomics Authorization v1",
+      "Action: <world.create|world.update|world.delete>",
+      "Method: <POST|PATCH|DELETE>",
+      "Path: <exact route path, e.g. /api/v1/world or /api/v1/world/{id}>",
+      "Block: <blockHeight>",
+      "Body: <sha256 hex of the canonical JSON body intent, excluding signature/message>",
+      "Nonce: <one-time nonce from /api/v1/challenge purpose=world>",
+      "Expires: <epoch milliseconds>"
+    ],
+    "note": "For /api/v1/auth/verify (claiming a block) the signed message is simpler: the exact `message` returned by /api/v1/challenge with purpose 'auth' (i.e. 'Block Genomics verification: <nonce>')."
+  },
+  "x-bg-sdk": {
+    "package": "@blockgenomics/agent-connect",
+    "repo": "sdk/agent-connect",
+    "docs": "docs/agent-connect/README.md"
+  }
+}

@@ -1,26 +1,51 @@
+import { getOwnership, getBlock, ApiError } from "./api";
+
 export type BlockInfo = {
   height: number;
-  epoch: "gold" | "cyan" | "purple" | "green" | "emerald";
   claimed: boolean;
-  owner?: string;
+  ownerAddress: string | null;
+  ownerHandle: string | null;
+  tier: number | null;
+  inscriptionId: string | null;
+  onChainMatch: boolean;
 };
 
-export function getMockBlockInfo(height: number): BlockInfo {
-  const epochs = ["gold", "cyan", "purple", "green", "emerald"] as const;
-  const epoch = epochs[height % epochs.length];
-  const claimed = height % 3 !== 0;
+// Real on-chain + DB block lookup. Combines ownership/verify (authoritative
+// on-chain owner) with the block record (handle/tier/label) when present.
+export async function getBlockInfo(height: number): Promise<BlockInfo> {
+  const ownership = await getOwnership(height);
+  let ownerHandle: string | null = null;
+  let tier: number | null = null;
+  let inscriptionId: string | null = ownership.inscriptionId;
+
+  try {
+    const block = await getBlock(height);
+    ownerHandle = block.owner?.handle ?? null;
+    tier = block.owner?.tier ?? null;
+    inscriptionId = block.inscriptionId ?? inscriptionId;
+  } catch (e) {
+    // 404 = block not registered in our DB yet; on-chain data still valid.
+    if (!(e instanceof ApiError && e.status === 404)) throw e;
+  }
+
+  const ownerAddress = ownership.onChainOwner || ownership.dbOwner;
   return {
     height,
-    epoch,
-    claimed,
-    owner: claimed ? `bc1qowner${height}` : undefined,
+    claimed: Boolean(ownerAddress),
+    ownerAddress,
+    ownerHandle,
+    tier,
+    inscriptionId,
+    onChainMatch: ownership.match,
   };
 }
 
-export function getMockBlockData(height: number): string {
-  return `block:${height}:bitmap:mock-data:${new Date(1700000000000 + height * 1000).toISOString()}`;
-}
+// Illustrative-only palette for the terminal map grid. This is a visual layout
+// hint derived from the height — NOT real claim status. Real ownership is
+// fetched on selection. Kept deterministic so the grid is stable between renders.
+const VISUAL_EPOCHS = ["gold", "cyan", "purple", "green", "emerald"] as const;
+export type VisualEpoch = (typeof VISUAL_EPOCHS)[number];
 
-export function searchBitmapHeights(): number[] {
-  return Array.from({ length: 5 }, (_, i) => 840000 + i * 128);
+export function visualEpoch(height: number): VisualEpoch {
+  return VISUAL_EPOCHS[height % VISUAL_EPOCHS.length];
 }

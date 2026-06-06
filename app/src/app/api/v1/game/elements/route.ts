@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
+import { consumeChallenge } from '@/lib/challenges';
+import { verifyActionBinding, hashBody } from '@/lib/action-message';
 
 export async function GET(req: NextRequest) {
   try {
@@ -34,6 +36,23 @@ export async function POST(req: NextRequest) {
     }
     if (!verifyWalletSignature(ownerAddress, message, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+
+    // ACTION BINDING: signature must authorize THIS game-element write on THIS block.
+    const binding = verifyActionBinding(message, {
+      action: 'game.create',
+      method: 'POST',
+      path: '/api/v1/game/elements',
+      blockHeight,
+      bodyHash: await hashBody(body),
+    });
+    if (!binding.ok) {
+      return NextResponse.json({ error: binding.reason }, { status: 401 });
+    }
+
+    // REPLAY PROTECTION: consume the exact one-time nonce the signed binding carried.
+    if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
+      return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
     }
 
     // Verify ownership (T1 block owner or T2 parcel owner)

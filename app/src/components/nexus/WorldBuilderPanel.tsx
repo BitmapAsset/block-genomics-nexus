@@ -1,6 +1,8 @@
 'use client';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import GameElementsPanel, { type GameElement } from './GameElementsPanel';
+import { useGlobalWallet } from '@/context/GlobalWalletContext';
+import { signedWorldFetch } from '@/lib/world-signing';
 
 /* ─── Types ─── */
 export interface WorldObject {
@@ -188,6 +190,53 @@ export default function WorldBuilderPanel({
   const [undoStack, setUndoStack] = useState<WorldObject[][]>([]);
   const [gameElements, setGameElements] = useState<GameElement[]>([]);
   const [selectedGameElementId, setSelectedGameElementId] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const { signMessage, isConnected, walletAddress } = useGlobalWallet();
+
+  // Guarded, action-bound signed request. Returns the parsed JSON on success,
+  // or null (and sets authError) on any auth/signing/network failure.
+  const runSigned = useCallback(async (opts: {
+    method: 'POST' | 'PATCH' | 'DELETE';
+    path: string;
+    action: string;
+    body?: Record<string, unknown>;
+  }): Promise<Record<string, unknown> | null> => {
+    setAuthError(null);
+    if (!isConnected || !walletAddress) {
+      setAuthError('Connect your wallet to edit this world.');
+      return null;
+    }
+    if (walletAddress !== ownerAddress) {
+      setAuthError('Switch to the owner wallet for this block to make changes.');
+      return null;
+    }
+    try {
+      const res = await signedWorldFetch({
+        method: opts.method,
+        path: opts.path,
+        action: opts.action,
+        blockHeight,
+        ownerAddress,
+        body: opts.body ?? {},
+        signMessage,
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        setAuthError((json?.error as string) || `Request failed (${res.status})`);
+        return null;
+      }
+      return json ?? {};
+    } catch (e) {
+      setAuthError(e instanceof Error ? e.message : 'Signing failed.');
+      return null;
+    }
+  }, [isConnected, walletAddress, ownerAddress, blockHeight, signMessage]);
+
+  // Debounced signed persist for high-frequency property edits (sliders): apply
+  // the change to the scene immediately, then sign+save once the user settles.
+  const updateTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const pendingUpdates = useRef<Map<string, Partial<WorldObject>>>(new Map());
 
   const selectedObject = objects.find(o => o.id === selectedObjectId) || null;
 
@@ -221,91 +270,63 @@ export default function WorldBuilderPanel({
       ...template.defaults,
     };
 
-    try {
-      const res = await fetch('/api/v1/world', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newObj),
-      });
-      const data = await res.json();
-      if (data.object) {
-        onObjectsChange([...objects, data.object]);
-        onSelectObject(data.object.id);
-      }
-    } catch (err) {
-      console.error('[WorldBuilder] Place failed:', err);
+    const data = await runSigned({ method: 'POST', path: '/api/v1/world', action: 'world.create', body: newObj as Record<string, unknown> });
+    if (data?.object) {
+      onObjectsChange([...objects, data.object as WorldObject]);
+      onSelectObject((data.object as WorldObject).id);
     }
-  }, [blockHeight, ownerAddress, objects, onObjectsChange, onSelectObject, pushUndo]);
+  }, [blockHeight, ownerAddress, objects, onObjectsChange, onSelectObject, pushUndo, runSigned]);
 
-  const handleUpdateObject = useCallback(async (id: string, updates: Partial<WorldObject>) => {
-    // Optimistic update
+  // Flush a settled property edit to the server with one signature.
+  const flushUpdate = useCallback(async (id: string) => {
+    const updates = pendingUpdates.current.get(id);
+    pendingUpdates.current.delete(id);
+    updateTimers.current.delete(id);
+    if (!updates) return;
+    await runSigned({ method: 'PATCH', path: `/api/v1/world/${id}`, action: 'world.update', body: updates as Record<string, unknown> });
+  }, [runSigned]);
+
+  const handleUpdateObject = useCallback((id: string, updates: Partial<WorldObject>) => {
+    // Apply to the scene immediately for responsive editing.
     onObjectsChange(objects.map(o => o.id === id ? { ...o, ...updates } : o));
-
-    try {
-      await fetch(`/api/v1/world/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerAddress, ...updates }),
-      });
-    } catch (err) {
-      console.error('[WorldBuilder] Update failed:', err);
-    }
-  }, [objects, onObjectsChange, ownerAddress]);
+    // Coalesce rapid edits (slider drags) and sign+persist once they settle.
+    const merged = { ...(pendingUpdates.current.get(id) || {}), ...updates };
+    pendingUpdates.current.set(id, merged);
+    const existing = updateTimers.current.get(id);
+    if (existing) clearTimeout(existing);
+    updateTimers.current.set(id, setTimeout(() => { void flushUpdate(id); }, 900));
+  }, [objects, onObjectsChange, flushUpdate]);
 
   const handleDeleteObject = useCallback(async () => {
     if (!selectedObjectId) return;
-    pushUndo();
-    onObjectsChange(objects.filter(o => o.id !== selectedObjectId));
-    onSelectObject(null);
-
-    try {
-      await fetch(`/api/v1/world/${selectedObjectId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerAddress }),
-      });
-    } catch (err) {
-      console.error('[WorldBuilder] Delete failed:', err);
+    const id = selectedObjectId;
+    const data = await runSigned({ method: 'DELETE', path: `/api/v1/world/${id}`, action: 'world.delete' });
+    if (data) {
+      pushUndo();
+      onObjectsChange(objects.filter(o => o.id !== id));
+      onSelectObject(null);
     }
-  }, [selectedObjectId, objects, onObjectsChange, onSelectObject, ownerAddress, pushUndo]);
+  }, [selectedObjectId, objects, onObjectsChange, onSelectObject, pushUndo, runSigned]);
 
   const handleDuplicate = useCallback(async () => {
     if (!selectedObject) return;
-    pushUndo();
     const copy = { ...selectedObject, posX: selectedObject.posX + 2 };
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id, createdAt, updatedAt, ...data } = copy as WorldObject & { createdAt?: string; updatedAt?: string };
 
-    try {
-      const res = await fetch('/api/v1/world', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      const result = await res.json();
-      if (result.object) {
-        onObjectsChange([...objects, result.object]);
-        onSelectObject(result.object.id);
-      }
-    } catch (err) {
-      console.error('[WorldBuilder] Duplicate failed:', err);
+    const result = await runSigned({ method: 'POST', path: '/api/v1/world', action: 'world.create', body: data as Record<string, unknown> });
+    if (result?.object) {
+      pushUndo();
+      onObjectsChange([...objects, result.object as WorldObject]);
+      onSelectObject((result.object as WorldObject).id);
     }
-  }, [selectedObject, objects, onObjectsChange, onSelectObject, pushUndo]);
+  }, [selectedObject, objects, onObjectsChange, onSelectObject, pushUndo, runSigned]);
 
   const handleSaveTerrain = useCallback(async (updates: Partial<TerrainSettings>) => {
     const newTerrain = { ...terrain, ...updates };
     onTerrainChange(newTerrain);
-
-    try {
-      await fetch('/api/v1/world/terrain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blockHeight, ownerAddress, ...newTerrain }),
-      });
-    } catch (err) {
-      console.error('[WorldBuilder] Terrain save failed:', err);
-    }
-  }, [terrain, onTerrainChange, blockHeight, ownerAddress]);
+    await runSigned({ method: 'POST', path: '/api/v1/world/terrain', action: 'world.terrain', body: { blockHeight, ...newTerrain } });
+  }, [terrain, onTerrainChange, blockHeight, runSigned]);
 
   const toolButtons: { mode: ToolMode; icon: string; label: string }[] = [
     { mode: 'select', icon: '🔍', label: 'Select' },
@@ -326,6 +347,15 @@ export default function WorldBuilderPanel({
         </div>
         <button onClick={onClose} className="text-lg hover:opacity-70 transition-opacity" style={{ color: '#64748b' }}>✕</button>
       </div>
+
+      {/* Auth / signing error banner */}
+      {authError && (
+        <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-[10px] font-mono"
+          style={{ background: 'rgba(255,68,68,0.12)', borderBottom: '1px solid rgba(255,68,68,0.3)', color: '#ff8888' }}>
+          <span>⚠️ {authError}</span>
+          <button onClick={() => setAuthError(null)} className="hover:opacity-70" style={{ color: '#ff8888' }}>✕</button>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
+import { consumeChallenge } from '@/lib/challenges';
+import { verifyActionBinding, hashBody } from '@/lib/action-message';
 
 // H-03: Allowlist of fields that can be updated on block objects
 const ALLOWED_UPDATE_FIELDS = ['objectType', 'geometry', 'color', 'material', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ', 'name', 'visible', 'locked'];
@@ -34,6 +36,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (existing.ownerAddress !== ownerAddress) return NextResponse.json({ error: 'Not owner' }, { status: 403 });
     if (existing.locked) return NextResponse.json({ error: 'Object is locked' }, { status: 403 });
 
+    // ACTION BINDING: signature must authorize THIS object on THIS block.
+    const binding = verifyActionBinding(message, {
+      action: 'world.update',
+      method: 'PATCH',
+      path: `/api/v1/world/${id}`,
+      blockHeight: existing.blockHeight,
+      bodyHash: await hashBody(body),
+    });
+    if (!binding.ok) {
+      return NextResponse.json({ error: binding.reason }, { status: 401 });
+    }
+
+    // REPLAY PROTECTION: consume the exact one-time nonce the signed binding carried.
+    if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
+      return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
+    }
+
     const updates = pickAllowed(body);
     const updated = await prisma.blockObject.update({ where: { id }, data: updates });
     return NextResponse.json({ object: updated });
@@ -46,7 +65,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const { ownerAddress, signature, message } = await req.json();
+    const body = await req.json();
+    const { ownerAddress, signature, message } = body;
 
     if (!ownerAddress) return NextResponse.json({ error: 'ownerAddress required' }, { status: 400 });
 
@@ -62,6 +82,23 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (!existing) return NextResponse.json({ error: 'Object not found' }, { status: 404 });
     if (existing.ownerAddress !== ownerAddress) return NextResponse.json({ error: 'Not owner' }, { status: 403 });
     if (existing.locked) return NextResponse.json({ error: 'Object is locked' }, { status: 403 });
+
+    // ACTION BINDING: signature must authorize THIS object on THIS block.
+    const binding = verifyActionBinding(message, {
+      action: 'world.delete',
+      method: 'DELETE',
+      path: `/api/v1/world/${id}`,
+      blockHeight: existing.blockHeight,
+      bodyHash: await hashBody(body),
+    });
+    if (!binding.ok) {
+      return NextResponse.json({ error: binding.reason }, { status: 401 });
+    }
+
+    // REPLAY PROTECTION: consume the exact one-time nonce the signed binding carried.
+    if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
+      return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
+    }
 
     await prisma.blockObject.delete({ where: { id } });
     return NextResponse.json({ success: true });

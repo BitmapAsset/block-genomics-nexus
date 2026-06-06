@@ -19,5 +19,6 @@ export async function runConnect(resource: string, block?: number) {
   resources.push({ type: "External resource", value: resource, block: targetBlock, createdAt: new Date().toISOString() });
   updateConfig({ resources });
 
-  console.log(chalk.greenBright(`Linked ${resource} to block #${targetBlock}`));
+  console.log(chalk.greenBright(`Reachability confirmed; linked ${resource} to block #${targetBlock} (local record).`));
+  console.log(chalk.gray("Note: the reachability probe is real; the on-chain link requires a signed world deploy."));
 }

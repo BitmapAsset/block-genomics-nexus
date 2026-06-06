@@ -1,0 +1,38 @@
+{
+  "name": "@blockgenomics/agent-connect",
+  "version": "0.1.0",
+  "description": "Dependency-light TypeScript client any AI agent can use to connect to Block Genomics: discover the API, prove ownership of a Bitcoin block (BIP-322, pluggable signer), read its verified blocks/parcels, and take owner-authorized world actions.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "openapi.json",
+    "mcp.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "keywords": [
+    "block-genomics",
+    "bitcoin",
+    "bitmap",
+    "bip322",
+    "agent",
+    "identity",
+    "mcp",
+    "openclaw"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

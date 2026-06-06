@@ -699,3 +699,19 @@ model SystemState {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+// ─── Verification Challenges (serverless-safe anti-replay nonce store) ───
+// Replaces the old in-memory Map so a nonce issued by /api/v1/challenge on one
+// lambda is visible to /api/v1/auth/verify (and world mutations) on another.
+model Challenge {
+  id         String    @id @default(cuid())
+  challenge  String    @unique
+  address    String?
+  purpose    String?
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([address])
+  @@index([expiresAt])
+}

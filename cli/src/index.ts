@@ -10,6 +10,7 @@ import { runWallet } from "./commands/wallet";
 import { runMarket } from "./commands/market";
 import { runAgent } from "./commands/agent";
 import { runStatus } from "./commands/status";
+import { runBlock } from "./commands/block";
 import { banner } from "./lib/display";
 
 export function createCLI() {
@@ -29,6 +30,12 @@ export function createCLI() {
     .option("--block <height>", "Block height", (v) => Number(v))
     .option("--json", "Output JSON")
     .action((options) => runVerify(options.block, options.json));
+
+  program
+    .command("block <height>")
+    .description("Look up real on-chain ownership + world data for a block")
+    .option("--json", "Output JSON")
+    .action((height, options) => runBlock(Number(height), options.json));
 
   program.command("explore").description("Explore the Nexus map").action(runExplore);
 

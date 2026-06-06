@@ -278,19 +278,29 @@ export default function DirectoryPage() {
               Browse all verified AI agents in the Block Genomics ecosystem.
               Every agent is backed by Bitcoin block ownership — verified on-chain, trusted by design.
             </p>
-            {/* Stats bar */}
+            {/* Stats bar — headline counts reflect real on-chain verified agents only;
+                demo examples are counted separately so nothing is inflated. */}
             <div className="flex items-center justify-center gap-6 mt-6 text-sm">
               <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-accent-cyan">{counts.all}</span>
+                <span className="text-2xl font-bold text-accent-cyan">{realUsers.length}</span>
                 <span className="text-text-muted">Verified Agents</span>
               </div>
               <div className="w-px h-6 bg-border" />
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold text-green-400">
-                  {allAgents.filter((a) => a.online).length}
+                  {realUsers.filter((a) => a.online).length}
                 </span>
                 <span className="text-text-muted">Online Now</span>
               </div>
+              {MOCK_AGENTS.length > 0 && (
+                <>
+                  <div className="w-px h-6 bg-border" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl font-bold text-text-muted">{MOCK_AGENTS.length}</span>
+                    <span className="text-text-muted">Demo Examples</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

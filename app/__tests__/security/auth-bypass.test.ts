@@ -19,9 +19,57 @@ jest.mock('next/server', () => ({
   },
 }));
 
+// In-memory stand-in for prisma.challenge (DB-backed challenge store).
+jest.mock('@/lib/prisma', () => {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const rows: any[] = [];
+  let id = 0;
+  const matches = (row: any, where: any): boolean => {
+    if (!where) return true;
+    if (where.OR && !where.OR.some((o: any) => matches(row, o))) return false;
+    if (where.challenge !== undefined && row.challenge !== where.challenge) return false;
+    if (where.address !== undefined && row.address !== where.address) return false;
+    if (where.purpose !== undefined && row.purpose !== where.purpose) return false;
+    if (where.consumedAt === null && row.consumedAt !== null) return false;
+    if (where.expiresAt?.gt !== undefined && !(row.expiresAt > where.expiresAt.gt)) return false;
+    if (where.expiresAt?.lt !== undefined && !(row.expiresAt < where.expiresAt.lt)) return false;
+    return true;
+  };
+  return {
+    __esModule: true,
+    default: {
+      challenge: {
+        create: async ({ data }: any) => {
+          const r = { id: String(++id), consumedAt: null, createdAt: new Date(), address: null, purpose: null, ...data };
+          rows.push(r);
+          return r;
+        },
+        updateMany: async ({ where, data }: any) => {
+          let count = 0;
+          for (const r of rows) if (matches(r, where)) { Object.assign(r, data); count++; }
+          return { count };
+        },
+        findMany: async ({ where, orderBy, take }: any) => {
+          let res = rows.filter((r) => matches(r, where));
+          if (orderBy?.createdAt === 'desc') res = res.slice().sort((a, b) => b.createdAt - a.createdAt);
+          if (take) res = res.slice(0, take);
+          return res;
+        },
+        deleteMany: async ({ where }: any) => {
+          let count = 0;
+          for (let i = rows.length - 1; i >= 0; i--) if (matches(rows[i], where)) { rows.splice(i, 1); count++; }
+          return { count };
+        },
+        __reset: () => { rows.length = 0; },
+      },
+    },
+  };
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+});
+
 import { verifyWalletSignature, isValidBitcoinAddress, sanitizeString } from '@/lib/api-helpers';
 import { verifyAgentSignature, validatePermissions, canPerformAction, AgentPermission } from '@/lib/agent-protocol';
-import { setChallenge, getChallenge, deleteChallenge } from '@/lib/challenges';
+import { issueChallenge, consumeChallenge } from '@/lib/challenges';
 
 const bip322 = require('bip322-js');
 
@@ -76,32 +124,19 @@ describe('SECURITY: Signature bypass prevention', () => {
   describe('Challenge replay attacks', () => {
     const wallet = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
 
-    it('challenge is consumed after use (one-time use)', () => {
-      setChallenge(wallet, 'replay-nonce-1');
-      expect(getChallenge(wallet)).toBeDefined();
-
-      // Simulate verification consuming the challenge
-      deleteChallenge(wallet);
-
-      // Replay attempt should fail
-      expect(getChallenge(wallet)).toBeUndefined();
+    it('challenge is consumed after use (one-time use)', async () => {
+      await issueChallenge('replay-nonce-1', { address: wallet, purpose: 'auth' });
+      // First consume succeeds, replay attempt fails — atomic one-time use.
+      expect(await consumeChallenge('replay-nonce-1')).toBe(true);
+      expect(await consumeChallenge('replay-nonce-1')).toBe(false);
     });
 
-    it('cannot use challenge from different wallet', () => {
+    it('challenge bound to a wallet cannot be consumed by another wallet', async () => {
       const wallet2 = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa';
-      setChallenge(wallet, 'nonce-for-wallet-1');
+      await issueChallenge('nonce-for-wallet-1', { address: wallet, purpose: 'auth' });
 
-      // Attacker tries to use wallet1's challenge with wallet2
-      expect(getChallenge(wallet2)).toBeUndefined();
-    });
-
-    it('overwriting challenge invalidates previous one', () => {
-      setChallenge(wallet, 'nonce-old');
-      setChallenge(wallet, 'nonce-new');
-
-      const challenge = getChallenge(wallet);
-      expect(challenge!.nonce).toBe('nonce-new');
-      // Old nonce is gone — can't be replayed
+      // Attacker tries to consume wallet1's challenge while binding to wallet2.
+      expect(await consumeChallenge('nonce-for-wallet-1', { address: wallet2 })).toBe(false);
     });
   });
 

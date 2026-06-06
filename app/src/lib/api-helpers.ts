@@ -63,11 +63,11 @@ export function verifyWalletSignature(address: string, message: string, signatur
     return bip322.Verifier.verifySignature(address, message, signature);
   } catch (e: unknown) {
     const errMsg = e instanceof Error ? e.message : String(e);
-    console.warn('[auth] BIP-322 lib error (likely taproot):', errMsg);
-    // SECURITY: Do NOT accept unverified signatures for taproot (bc1p) addresses.
-    // bip322-js has known issues with p2tr but the previous fallback accepted ANY
-    // 64-byte base64 string, which is a complete auth bypass. Proper Schnorr
-    // verification (e.g. via @noble/secp256k1) is needed for taproot support.
+    console.warn('[auth] BIP-322 verification error:', errMsg);
+    // SECURITY: On any verifier error, reject — never fall back to accepting an
+    // unverified signature. bip322-js@3.0.0 does support single-key P2TR (bc1p)
+    // signatures, so a thrown error here means a genuinely invalid signature or
+    // malformed input, not an unsupported address type.
     return false;
   }
 }

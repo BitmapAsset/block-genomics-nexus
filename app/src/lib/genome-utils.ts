@@ -144,6 +144,23 @@ export function formatRelativeTime(timestamp: number): string {
 }
 
 /**
+ * Derive an identity genome hash — a deterministic 256-bit (64 hex char) value.
+ *
+ * The genome is a pure function of stable inputs (block height + owner address),
+ * so the same block+owner ALWAYS yields the same genome. No signatures or
+ * timestamps are mixed in — those vary per signing/request and would make the
+ * "digital DNA" non-deterministic. Address is used verbatim (Bitcoin addresses
+ * are case-sensitive; bech32 is already lowercase).
+ *
+ * @returns "0x"-prefixed 64-char hex string.
+ */
+export function deriveGenomeHash(blockHeight: number, ownerAddress: string): string {
+  return '0x' + createHash('sha256')
+    .update(`block-genomics:genome:v1:${blockHeight}:${ownerAddress}`)
+    .digest('hex');
+}
+
+/**
  * Generate a deterministic genome from a block hash.
  * Same block hash always produces the same genome.
  */

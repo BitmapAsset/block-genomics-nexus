@@ -15,6 +15,7 @@ import {
   type WalletType,
   detectWallets,
   connectWalletByType,
+  refreshXverseAddress,
   signWithWallet,
   getSavedSession,
   saveSession,
@@ -157,9 +158,10 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
               const accts = await window.unisat.getAccounts();
               currentAddr = accts?.[0] || null;
             } else if (prev.walletType === 'xverse' && window.BitcoinProvider) {
-              // Xverse: re-connect returns current addresses without prompting
-              const resp = await window.BitcoinProvider.connect();
-              currentAddr = resp?.addresses?.[0]?.address || null;
+              // Xverse: silently re-read the SAME canonical (ordinals/taproot) address
+              // as connect. Must NOT use legacy connect()[0] (the payment address) —
+              // that flips the identity and breaks BIP-322 signing.
+              currentAddr = await refreshXverseAddress();
             } else if (prev.walletType === 'leather' && window.LeatherProvider) {
               const resp = await window.LeatherProvider.request('getAddresses');
               const addrs = resp.result?.addresses || [];

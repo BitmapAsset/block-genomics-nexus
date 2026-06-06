@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { countVerifiedAgents } from '@/lib/directory-counts';
 
 export async function GET(req: NextRequest) {
   try {
@@ -8,7 +9,7 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100);
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
 
-    const [users, userTotal, blockProfiles, profileTotal] = await Promise.all([
+    const [users, blockProfiles, total] = await Promise.all([
       prisma.user.findMany({
         where: { verified: true },
         orderBy: { createdAt: 'desc' },
@@ -26,7 +27,6 @@ export async function GET(req: NextRequest) {
           avatar: true,
         },
       }),
-      prisma.user.count({ where: { verified: true } }),
       prisma.blockProfile.findMany({
         where: { verified: true },
         orderBy: { createdAt: 'desc' },
@@ -43,7 +43,8 @@ export async function GET(req: NextRequest) {
           avatar: true,
         },
       }),
-      prisma.blockProfile.count({ where: { verified: true } }),
+      // Shared source of truth — identical filtering to /api/v1/stats.
+      countVerifiedAgents(),
     ]);
 
     // Map block profiles to same shape as users for directory compatibility
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
       isBlockProfile: true,
     }));
 
-    return success({ users: [...users, ...profilesAsList], total: userTotal + profileTotal, limit, offset });
+    return success({ users: [...users, ...profilesAsList], total, limit, offset });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return error(message, 500);

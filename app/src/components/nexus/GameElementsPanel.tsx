@@ -1,6 +1,8 @@
 'use client';
 import React, { useState, useCallback, useEffect } from 'react';
 import { GAME_ELEMENT_TYPES, GAME_ELEMENT_CATEGORIES, type GameElementType } from '@/lib/game-logic';
+import { useGlobalWallet } from '@/context/GlobalWalletContext';
+import { signedWorldFetch } from '@/lib/world-signing';
 
 export interface GameElement {
   id: string;
@@ -65,8 +67,50 @@ export default function GameElementsPanel({
   const [quests, setQuests] = useState<Quest[]>([]);
   const [questName, setQuestName] = useState('');
   const [questSteps, setQuestSteps] = useState<QuestStep[]>([{ type: 'collect', target: '', count: 1 }]);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const { signMessage, isConnected, walletAddress } = useGlobalWallet();
 
   const selectedElement = elements.find(e => e.id === selectedElementId) || null;
+
+  // Guarded, action-bound signed request. Returns parsed JSON on success, or
+  // null (and sets authError) on any auth/signing/network failure.
+  const runSigned = useCallback(async (opts: {
+    method: 'POST' | 'PATCH' | 'DELETE';
+    path: string;
+    action: string;
+    body?: Record<string, unknown>;
+  }): Promise<Record<string, unknown> | null> => {
+    setAuthError(null);
+    if (!isConnected || !walletAddress) {
+      setAuthError('Connect your wallet to edit game elements.');
+      return null;
+    }
+    if (walletAddress !== ownerAddress) {
+      setAuthError('Switch to the owner wallet for this block to make changes.');
+      return null;
+    }
+    try {
+      const res = await signedWorldFetch({
+        method: opts.method,
+        path: opts.path,
+        action: opts.action,
+        blockHeight,
+        ownerAddress,
+        body: opts.body ?? {},
+        signMessage,
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        setAuthError((json?.error as string) || `Request failed (${res.status})`);
+        return null;
+      }
+      return json ?? {};
+    } catch (e) {
+      setAuthError(e instanceof Error ? e.message : 'Signing failed.');
+      return null;
+    }
+  }, [isConnected, walletAddress, ownerAddress, blockHeight, signMessage]);
 
   // Fetch elements on mount
   useEffect(() => {
@@ -80,76 +124,63 @@ export default function GameElementsPanel({
       .catch(console.error);
   }, [blockHeight]);
 
+  // Placing a game element is TWO signed writes: first the 3D BlockObject
+  // (world.create), then the GameElement (game.create). Each consumes its own
+  // one-time nonce, so the user signs twice.
   const handlePlaceElement = useCallback(async (template: GameElementType) => {
-    try {
-      // Create BlockObject for 3D representation
-      const objRes = await fetch('/api/v1/world', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          blockHeight, ownerAddress, objectType: 'primitive',
-          geometry: template.geometry === 'octahedron' ? 'sphere' : template.geometry,
-          name: template.label, color: template.color,
-          emissive: template.glowColor, emissiveIntensity: 0.5,
-          posX: 0, posY: 1, posZ: 0,
-          scaleX: 0.5, scaleY: 0.5, scaleZ: 0.5,
-          interactive: true, clickAction: 'message', clickData: `${template.icon} ${template.label}`,
-        }),
-      });
-      const objData = await objRes.json();
+    const objData = await runSigned({
+      method: 'POST', path: '/api/v1/world', action: 'world.create',
+      body: {
+        objectType: 'primitive',
+        geometry: template.geometry === 'octahedron' ? 'sphere' : template.geometry,
+        name: template.label, color: template.color,
+        emissive: template.glowColor, emissiveIntensity: 0.5,
+        posX: 0, posY: 1, posZ: 0,
+        scaleX: 0.5, scaleY: 0.5, scaleZ: 0.5,
+        interactive: true, clickAction: 'message', clickData: `${template.icon} ${template.label}`,
+      },
+    });
+    if (!objData) return;
+    const object = objData.object as { id?: string } | undefined;
 
-      // Create GameElement
-      const res = await fetch('/api/v1/game/elements', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          blockHeight, ownerAddress, objectId: objData.object?.id,
-          gameType: template.gameType, subType: template.subType,
-          rewardType: template.rewardType, rewardAmount: template.rewardAmount,
-          triggerType: template.triggerType, triggerRadius: template.triggerRadius,
-          icon: template.icon, label: template.label,
-          color: template.color, glowColor: template.glowColor,
-          animation: template.animation, particleEffect: template.particleEffect,
-          posX: 0, posY: 1, posZ: 0,
-        }),
-      });
-      const data = await res.json();
-      if (data.element) {
-        onElementsChange([...elements, data.element]);
-        onSelectElement(data.element.id);
-      }
-    } catch (err) {
-      console.error('[GameElements] Place failed:', err);
+    const data = await runSigned({
+      method: 'POST', path: '/api/v1/game/elements', action: 'game.create',
+      body: {
+        objectId: object?.id,
+        gameType: template.gameType, subType: template.subType,
+        rewardType: template.rewardType, rewardAmount: template.rewardAmount,
+        triggerType: template.triggerType, triggerRadius: template.triggerRadius,
+        icon: template.icon, label: template.label,
+        color: template.color, glowColor: template.glowColor,
+        animation: template.animation, particleEffect: template.particleEffect,
+        posX: 0, posY: 1, posZ: 0,
+      },
+    });
+    if (data?.element) {
+      onElementsChange([...elements, data.element as GameElement]);
+      onSelectElement((data.element as GameElement).id);
     }
-  }, [blockHeight, ownerAddress, elements, onElementsChange, onSelectElement]);
+  }, [elements, onElementsChange, onSelectElement, runSigned]);
 
   const handleUpdateElement = useCallback(async (id: string, updates: Partial<GameElement>) => {
+    // Optimistic local update; sign+persist after.
     onElementsChange(elements.map(e => e.id === id ? { ...e, ...updates } : e));
-    try {
-      await fetch(`/api/v1/game/elements/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerAddress, ...updates }),
-      });
-    } catch (err) {
-      console.error('[GameElements] Update failed:', err);
-    }
-  }, [elements, onElementsChange, ownerAddress]);
+    await runSigned({
+      method: 'PATCH', path: `/api/v1/game/elements/${id}`, action: 'game.update',
+      body: updates as Record<string, unknown>,
+    });
+  }, [elements, onElementsChange, runSigned]);
 
   const handleDeleteElement = useCallback(async () => {
     if (!selectedElementId) return;
-    onElementsChange(elements.filter(e => e.id !== selectedElementId));
-    onSelectElement(null);
-    try {
-      await fetch(`/api/v1/game/elements/${selectedElementId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerAddress }),
-      });
-    } catch (err) {
-      console.error('[GameElements] Delete failed:', err);
+    const data = await runSigned({
+      method: 'DELETE', path: `/api/v1/game/elements/${selectedElementId}`, action: 'game.delete',
+    });
+    if (data) {
+      onElementsChange(elements.filter(e => e.id !== selectedElementId));
+      onSelectElement(null);
     }
-  }, [selectedElementId, elements, onElementsChange, onSelectElement, ownerAddress]);
+  }, [selectedElementId, elements, onElementsChange, onSelectElement, runSigned]);
 
   const handleCreateQuest = useCallback(async () => {
     if (!questName) return;
@@ -193,6 +224,15 @@ export default function GameElementsPanel({
           </button>
         ))}
       </div>
+
+      {/* Auth / signing error banner */}
+      {authError && (
+        <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-[10px] font-mono"
+          style={{ background: 'rgba(255,68,68,0.12)', borderBottom: '1px solid rgba(255,68,68,0.3)', color: '#ff8888' }}>
+          <span>⚠️ {authError}</span>
+          <button onClick={() => setAuthError(null)} className="hover:opacity-70" style={{ color: '#ff8888' }}>✕</button>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-2" style={{ scrollbarWidth: 'thin' }}>
         {subPanel === 'library' && (

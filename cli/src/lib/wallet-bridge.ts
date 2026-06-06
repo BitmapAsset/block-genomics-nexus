@@ -1,24 +1,16 @@
 import { loadConfig, updateConfig } from "./config";
 
+// LOCAL DEMO wallet only — placeholder address, no keys, no on-chain state.
+const DEMO_WALLET = { address: "bc1q-demo-no-keys-read-only-cli", balance: 1250000 };
+
 export function getWallet() {
   const config = loadConfig();
-  if (!config.wallet) {
-    return null;
-  }
-  return config.wallet;
+  return config.wallet ?? null;
 }
 
 export function ensureWallet() {
   const wallet = getWallet();
   if (wallet) return wallet;
-  const created = { address: "bc1qmockwalletaddressxyz", balance: 1250000 };
-  updateConfig({ wallet: created });
-  return created;
-}
-
-export function updateBalance(delta: number) {
-  const wallet = ensureWallet();
-  const next = { ...wallet, balance: wallet.balance + delta };
-  updateConfig({ wallet: next });
-  return next.balance;
+  updateConfig({ wallet: { ...DEMO_WALLET } });
+  return { ...DEMO_WALLET };
 }

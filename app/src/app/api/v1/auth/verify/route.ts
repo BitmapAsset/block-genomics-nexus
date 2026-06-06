@@ -1,15 +1,15 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, isValidBitcoinAddress } from '@/lib/api-helpers';
-import crypto from 'crypto';
 import { logActivity } from '@/lib/activity';
-import { getChallenge, deleteChallenge } from '@/lib/challenges';
+import { consumeChallengeFromMessage } from '@/lib/challenges';
+import { deriveGenomeHash } from '@/lib/genome-utils';
 
 /**
  * POST /api/v1/auth/verify
  * Body: { walletAddress, signature, message, blockHeight?, handle?, displayName? }
  * 
- * Step 1: Verify wallet signature (BIP-322 — currently accepts any non-empty sig)
+ * Step 1: Verify wallet signature (BIP-322, cryptographically enforced — no fallback)
  * Step 2: Generate genome hash from wallet + block
  * Step 3: Upsert user with tier, handle, genome
  */
@@ -32,24 +32,24 @@ export async function POST(req: NextRequest) {
       const { Verifier } = require('bip322-js');
       isValid = Verifier.verifySignature(walletAddress, message, signature);
     } catch (e: unknown) {
-      console.warn('[auth] BIP-322 lib error (likely taproot):', e instanceof Error ? e.message : e);
-      // SECURITY: Do NOT accept unverified signatures. Taproot (bc1p) addresses
-      // require proper Schnorr verification (e.g. @noble/secp256k1).
+      console.warn('[auth] BIP-322 verification error:', e instanceof Error ? e.message : e);
+      // SECURITY: On any verifier error, reject — never accept an unverified
+      // signature. bip322-js@3.0.0 supports single-key P2TR (bc1p), so a thrown
+      // error means an invalid signature or malformed input, not an unsupported
+      // address type.
       isValid = false;
     }
     if (!isValid) {
       return error('Invalid signature', 401);
     }
 
-    // SECURITY: Challenge nonce is mandatory for anti-replay protection
-    const challenge = getChallenge(walletAddress);
-    if (!challenge) {
-      return error('No challenge found. Request a challenge first via /auth/challenge.', 401);
+    // SECURITY: Challenge nonce is mandatory for anti-replay protection.
+    // Atomically consume the persisted nonce (DB-backed, serverless-safe). The
+    // signed message must contain a live, unconsumed nonce issued to this wallet.
+    const consumed = await consumeChallengeFromMessage(walletAddress, message, { purpose: 'auth' });
+    if (!consumed) {
+      return error('No valid challenge found. Request a challenge first via /api/v1/challenge.', 401);
     }
-    if (!message.includes(challenge.nonce)) {
-      return error('Invalid or expired challenge nonce', 401);
-    }
-    deleteChallenge(walletAddress); // one-time use
 
     // ─── ON-CHAIN BITMAP OWNERSHIP VERIFICATION ─────────────────────
     // If claiming a block, we MUST verify the wallet actually holds a .bitmap inscription for it.
@@ -92,10 +92,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Reuse existing genome hash if already verified, otherwise generate new one
+    // Reuse existing genome hash if already verified (preserve already-minted
+    // genomes), otherwise derive deterministically from block height + owner so
+    // the same block+owner always yields the same 256-bit genome.
     const genomeHash = (existingUser?.genomeHash && existingUser?.verified)
       ? existingUser.genomeHash
-      : '0x' + crypto.createHash('sha256').update(`${walletAddress}:${verifiedBlockHeight || 0}:${signature}`).digest('hex');
+      : deriveGenomeHash(verifiedBlockHeight || 0, walletAddress);
 
     // Normalize handle to lowercase
     const normalizedHandle = handle?.toLowerCase().replace(/-/g, '_');
@@ -175,9 +177,7 @@ export async function POST(req: NextRequest) {
           where: { walletAddress, blockHeight: verifiedBlockHeight },
         });
         if (!existingProfile) {
-          const profileGenomeHash = '0x' + crypto.createHash('sha256')
-            .update(`${walletAddress}:${verifiedBlockHeight}:profile`)
-            .digest('hex');
+          const profileGenomeHash = deriveGenomeHash(verifiedBlockHeight, walletAddress);
           await prisma.blockProfile.create({
             data: {
               walletAddress,

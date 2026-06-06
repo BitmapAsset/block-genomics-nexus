@@ -1,6 +1,7 @@
 import blessed from "blessed";
 import chalk from "chalk";
-import { getMockBlockInfo } from "../lib/bitmap-api";
+import { visualEpoch, getBlockInfo } from "../lib/bitmap-api";
+import { ApiError } from "../lib/api";
 
 const epochColors: Record<string, (text: string) => string> = {
   gold: chalk.hex("#F5C542"),
@@ -19,7 +20,7 @@ export function launchMap(startHeight = 840000) {
     width: "70%",
     height: "100%",
     border: "line",
-    label: " Nexus Map ",
+    label: " Nexus Map (grid colors illustrative) ",
     style: { border: { fg: "cyan" } },
   });
 
@@ -29,7 +30,7 @@ export function launchMap(startHeight = 840000) {
     width: "30%",
     height: "100%",
     border: "line",
-    label: " Block Details ",
+    label: " Block Details (live) ",
     style: { border: { fg: "magenta" } },
     tags: true,
   });
@@ -50,16 +51,18 @@ export function launchMap(startHeight = 840000) {
   const cols = 24;
   const rows = 18;
 
+  function selectedHeight() {
+    return startHeight + cursorY * cols + cursorX;
+  }
+
   function render() {
     const lines: string[] = [];
     for (let y = 0; y < rows; y++) {
       let line = "";
       for (let x = 0; x < cols; x++) {
         const height = startHeight + y * cols + x;
-        const info = getMockBlockInfo(height);
-        const char = info.claimed ? "█" : "▒";
-        const color = epochColors[info.epoch] || chalk.white;
-        let cell = color(char);
+        const color = epochColors[visualEpoch(height)] || chalk.white;
+        let cell = color("█");
         if (x === cursorX && y === cursorY) {
           cell = chalk.inverse(cell);
         }
@@ -68,21 +71,40 @@ export function launchMap(startHeight = 840000) {
       lines.push(line);
     }
     mapBox.setContent(lines.join("\n"));
-    updateDetails();
+    showHint();
     screen.render();
   }
 
-  function updateDetails() {
-    const height = startHeight + cursorY * cols + cursorX;
-    const info = getMockBlockInfo(height);
-    const status = info.claimed ? chalk.green("Claimed") : chalk.yellow("Unclaimed");
+  function showHint() {
+    const height = selectedHeight();
     detailBox.setContent(
-      `${chalk.bold("Block")}: ${height}\n` +
-        `${chalk.bold("Epoch")}: ${info.epoch}\n` +
-        `${chalk.bold("Status")}: ${status}\n` +
-        `${chalk.bold("Owner")}: ${info.owner ?? "—"}\n\n` +
-        chalk.gray("Arrows to navigate • Enter to select • / to search")
+      `${chalk.bold("Block")}: ${height}\n\n` +
+        chalk.gray("Press Enter to fetch LIVE on-chain ownership.\n\n") +
+        chalk.gray("Arrows to navigate • Enter to verify • / to search • q to quit")
     );
+  }
+
+  async function fetchLive() {
+    const height = selectedHeight();
+    detailBox.setContent(`${chalk.bold("Block")}: ${height}\n\n${chalk.gray("Fetching live ownership…")}`);
+    screen.render();
+    try {
+      const info = await getBlockInfo(height);
+      const status = info.claimed ? chalk.green("Claimed") : chalk.yellow("Unclaimed");
+      detailBox.setContent(
+        `${chalk.bold("Block")}: ${height}\n` +
+          `${chalk.bold("Status")}: ${status}\n` +
+          `${chalk.bold("Owner")}: ${info.ownerAddress ? info.ownerAddress.slice(0, 18) + "…" : "—"}\n` +
+          `${chalk.bold("Handle")}: ${info.ownerHandle ? "@" + info.ownerHandle : "—"}\n` +
+          `${chalk.bold("Tier")}: ${info.tier ?? "—"}\n` +
+          `${chalk.bold("Chain match")}: ${info.onChainMatch ? "yes" : "no"}\n\n` +
+          chalk.gray("Live from /api/v1. Arrows • Enter • / • q")
+      );
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : String(e);
+      detailBox.setContent(`${chalk.bold("Block")}: ${height}\n\n${chalk.red(msg)}`);
+    }
+    screen.render();
   }
 
   screen.key(["escape", "q", "C-c"], () => process.exit(0));
@@ -103,9 +125,7 @@ export function launchMap(startHeight = 840000) {
     render();
   });
   screen.key(["enter"], () => {
-    const height = startHeight + cursorY * cols + cursorX;
-    detailBox.setContent(detailBox.getContent() + `\n\n${chalk.cyan("Selected")}: ${height}`);
-    screen.render();
+    void fetchLive();
   });
   screen.key(["/"], () => {
     searchBox.focus();

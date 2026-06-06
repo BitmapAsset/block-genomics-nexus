@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
+import { consumeChallenge } from '@/lib/challenges';
+import { verifyActionBinding, hashBody } from '@/lib/action-message';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,6 +21,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const element = await prisma.gameElement.findUnique({ where: { id } });
     if (!element) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (element.ownerAddress !== ownerAddress) return NextResponse.json({ error: 'Not the owner' }, { status: 403 });
+
+    // ACTION BINDING: signature must authorize THIS element on THIS block.
+    const binding = verifyActionBinding(message, {
+      action: 'game.update',
+      method: 'PATCH',
+      path: `/api/v1/game/elements/${id}`,
+      blockHeight: element.blockHeight,
+      bodyHash: await hashBody(body),
+    });
+    if (!binding.ok) {
+      return NextResponse.json({ error: binding.reason }, { status: 401 });
+    }
+
+    // REPLAY PROTECTION: consume the exact one-time nonce the signed binding carried.
+    if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
+      return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
+    }
 
     // H-03: Allowlist fields to prevent mass assignment
     const allowedFields = ['name', 'description', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ', 'color', 'geometry', 'material', 'config', 'enabled'];
@@ -52,6 +71,23 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const element = await prisma.gameElement.findUnique({ where: { id } });
     if (!element) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (element.ownerAddress !== ownerAddress) return NextResponse.json({ error: 'Not the owner' }, { status: 403 });
+
+    // ACTION BINDING: signature must authorize THIS element on THIS block.
+    const binding = verifyActionBinding(message, {
+      action: 'game.delete',
+      method: 'DELETE',
+      path: `/api/v1/game/elements/${id}`,
+      blockHeight: element.blockHeight,
+      bodyHash: await hashBody(body),
+    });
+    if (!binding.ok) {
+      return NextResponse.json({ error: binding.reason }, { status: 401 });
+    }
+
+    // REPLAY PROTECTION: consume the exact one-time nonce the signed binding carried.
+    if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
+      return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
+    }
 
     await prisma.gameElement.delete({ where: { id } });
     return NextResponse.json({ success: true });

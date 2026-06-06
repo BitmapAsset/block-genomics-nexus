@@ -25,3 +25,5 @@ node_modules/
 # OS/IDE
 .DS_Store
 .vscode/
+.vercel
+.env*.local

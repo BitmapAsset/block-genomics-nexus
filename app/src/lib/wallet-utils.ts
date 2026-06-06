@@ -4,12 +4,13 @@
  * Uses official sats-connect package for Xverse wallet interactions.
  */
 
-import Wallet, { AddressPurpose, MessageSigningProtocols } from 'sats-connect';
+import { AddressPurpose, MessageSigningProtocols } from 'sats-connect';
 
 export type WalletType = 'unisat' | 'xverse' | 'leather';
 
 interface WalletAddress {
   address: string;
+  publicKey?: string;
   purpose?: string;
   type?: string;
 }
@@ -46,12 +47,28 @@ function isXverseInAppBrowser(): boolean {
   return ua.includes('xverse') || (!!window.BitcoinProvider && /android|iphone|ipad|mobile/i.test(ua));
 }
 
-/** Helper: extract address from Xverse response */
+/**
+ * Pick the canonical Xverse address. The ORDINALS (taproot, bc1p) address is the
+ * identity for this app because .bitmap inscriptions live on the ordinals address,
+ * and Tier-1 on-chain ownership scans that address. connect, the refresh poll, and
+ * signing must ALL resolve to this same address — otherwise BIP-322 is signed with
+ * one key while the server verifies against another, which is the Xverse mobile
+ * "wrong address type" signing failure.
+ */
 function extractXverseAddress(addrs: WalletAddress[]): string | null {
   if (!Array.isArray(addrs) || addrs.length === 0) return null;
   const ordinals = addrs.find((a) => a.purpose === 'ordinals' || a.purpose === AddressPurpose.Ordinals);
   const payment = addrs.find((a) => a.purpose === 'payment' || a.purpose === AddressPurpose.Payment);
   return ordinals?.address || payment?.address || addrs[0]?.address || null;
+}
+
+/** Normalize a getAddresses RpcResponse (raw provider OR sats-connect wrapper) to an address list. */
+function addressesFromResponse(response: ProviderResponse): WalletAddress[] {
+  const result = response?.result;
+  if (Array.isArray(result)) return result;
+  if (result?.addresses) return result.addresses;
+  if (response?.addresses) return response.addresses;
+  return [];
 }
 
 /** Connect to Xverse wallet — always uses direct provider to avoid adapter validation errors */
@@ -66,19 +83,8 @@ export async function connectXverse(): Promise<string> {
         purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
         message: 'Block Genomics needs your Bitcoin address for verification.',
       }) as ProviderResponse;
-      if (response?.status === 'success') {
-        const result = response.result;
-        const addrs: WalletAddress[] = Array.isArray(result) ? result : result?.addresses || [];
-        const addr = extractXverseAddress(addrs);
-        if (addr) return addr;
-      }
-      // Some versions return addresses directly without status wrapper
-      if (response?.result) {
-        const result = response.result;
-        const addrs: WalletAddress[] = Array.isArray(result) ? result : result.addresses || [];
-        const addr = extractXverseAddress(addrs);
-        if (addr) return addr;
-      }
+      const addr = extractXverseAddress(addressesFromResponse(response));
+      if (addr) return addr;
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e);
       if (errMsg.includes('reject') || errMsg.includes('cancel')) throw e;
@@ -86,15 +92,15 @@ export async function connectXverse(): Promise<string> {
     }
   }
 
-  // Path 2: Legacy provider.connect fallback
+  // Path 2: Legacy provider.connect fallback — extract the SAME canonical address
+  // (ordinals/taproot preferred) so a fallback connect does not silently switch the
+  // identity to the payment address.
   if (provider?.connect) {
     console.log('[Xverse] Falling back to legacy provider.connect');
     try {
       const response = await provider.connect();
-      if (response?.addresses?.length) {
-        const taproot = response.addresses.find((a: WalletAddress) => a.address?.startsWith('bc1p'));
-        return taproot?.address || response.addresses[0].address;
-      }
+      const addr = extractXverseAddress(response?.addresses || []);
+      if (addr) return addr;
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e);
       if (errMsg.includes('reject') || errMsg.includes('cancel')) throw e;
@@ -103,6 +109,26 @@ export async function connectXverse(): Promise<string> {
   }
 
   throw new Error('Could not connect to Xverse. Please make sure the extension is installed and unlocked.');
+}
+
+/**
+ * Silently re-read the current Xverse address using the SAME canonical extractor as
+ * connectXverse. Used by the account-change poll. Returns null on any error (locked,
+ * permission revoked, unavailable) so the caller can ignore it. Crucially this must
+ * NOT take the legacy `connect()[0]` payment address — doing so flips the stored
+ * identity from the ordinals address to the payment address and breaks signing.
+ */
+export async function refreshXverseAddress(): Promise<string | null> {
+  const provider = window.BitcoinProvider;
+  if (!provider?.request) return null;
+  try {
+    const response = await provider.request('getAddresses', {
+      purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
+    }) as ProviderResponse;
+    return extractXverseAddress(addressesFromResponse(response));
+  } catch {
+    return null;
+  }
 }
 
 /** Connect to Leather wallet — returns address */
@@ -135,19 +161,21 @@ export async function signWithWallet(walletType: WalletType, message: string, ad
     if (!address) throw new Error('Xverse signing requires an address — reconnect your wallet');
     const provider = window.BitcoinProvider;
 
-    // Always use direct provider — Wallet class adapter causes "Error validating request"
+    // Always use direct provider — Wallet class adapter causes "Error validating request".
+    // The injected provider returns a raw RpcResponse ({ result } | { error }); the
+    // sats-connect wrapper would add { status }. Handle both shapes.
     if (provider?.request) {
       console.log('[Xverse] Signing via direct BitcoinProvider.request');
       try {
         const resp = await provider.request('signMessage', {
           address,
           message,
-          protocol: 'BIP322',
+          protocol: MessageSigningProtocols.BIP322,
         }) as ProviderResponse;
-        const result = resp?.result && !Array.isArray(resp.result) ? resp.result : null;
-        if (resp?.status === 'success' && result?.signature) {
-          return result.signature;
+        if (resp?.status === 'error') {
+          throw new Error(resp?.error?.message || 'Xverse signing failed');
         }
+        const result = resp?.result && !Array.isArray(resp.result) ? resp.result : null;
         if (result?.signature) return result.signature;
         throw new Error(resp?.error?.message || 'Xverse signing returned no signature');
       } catch (e: unknown) {
@@ -162,9 +190,14 @@ export async function signWithWallet(walletType: WalletType, message: string, ad
   }
   if (walletType === 'leather') {
     if (!window.LeatherProvider) throw new Error('Leather not available');
+    // Sign with the key matching the connected address so the BIP-322 signature
+    // verifies against the exact ownerAddress we send the server. Taproot (bc1p)
+    // → p2tr; native segwit (bc1q…) and everything else → p2wpkh. Hardcoding p2tr
+    // would mismatch whenever connectLeather fell back to a non-taproot address.
+    const paymentType = address?.startsWith('bc1p') ? 'p2tr' : 'p2wpkh';
     const resp = await window.LeatherProvider.request('signMessage', {
       message,
-      paymentType: 'p2tr',
+      paymentType,
     });
     if (resp.error) throw new Error(resp.error.message);
     const sig = resp.result?.signature || resp.result?.hex;

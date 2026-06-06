@@ -10,6 +10,7 @@ export type Profile = {
 };
 
 export type Config = {
+  apiBaseUrl?: string;
   wallet?: {
     address: string;
     balance: number;
@@ -18,9 +19,10 @@ export type Config = {
   profile?: Profile;
   verification?: {
     genomeHash: string;
-    trustScore: number;
     block: number;
     verifiedAt: string;
+    ownerAddress?: string | null;
+    onChainMatch?: boolean;
   };
   resources?: Array<{ type: string; value: string; block: number; createdAt: string }>;
 };
@@ -53,4 +55,14 @@ export function updateConfig(patch: Partial<Config>) {
   return next;
 }
 
-export { CONFIG_PATH };
+const DEFAULT_API_BASE = "https://blockgenomics.io";
+
+// Resolve the live API base: env var > saved config > default.
+// Trailing slashes are stripped so callers can concatenate "/api/v1/...".
+export function getApiBase(): string {
+  const fromEnv = process.env.BLOCKGENOMICS_API_URL;
+  const raw = fromEnv || loadConfig().apiBaseUrl || DEFAULT_API_BASE;
+  return raw.replace(/\/+$/, "");
+}
+
+export { CONFIG_PATH, DEFAULT_API_BASE };

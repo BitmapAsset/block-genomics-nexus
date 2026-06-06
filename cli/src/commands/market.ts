@@ -1,29 +1,50 @@
 import chalk from "chalk";
 import Table from "cli-table3";
-import { getMarketListings, getPrice } from "../lib/api-client";
+import { getMarketListings } from "../lib/api-client";
+import { ApiError } from "../lib/api";
 
 export async function runMarket(action: string, options: any) {
   if (action === "list") {
-    const listings = getMarketListings(options.type);
-    const table = new Table({ head: ["Type", "Block", "Price (sats)", "Status"] });
+    let listings;
+    try {
+      listings = await getMarketListings(options.block ? { blockHeight: options.block } : {});
+    } catch (e) {
+      console.log(chalk.red(e instanceof ApiError ? e.message : String(e)));
+      return;
+    }
+    if (listings.length === 0) {
+      console.log(chalk.yellow("No active delegation/rental listings on the live marketplace right now."));
+      return;
+    }
+    const table = new Table({ head: ["Block", "Parcel", "Tier", "Owner", "Spots", "30d (sats)", "365d (sats)"] });
     listings.forEach((l) => {
-      const status = l.status === "available" ? chalk.green(l.status) : chalk.yellow(l.status);
-      table.push([l.type, `#${l.block}`, l.price.toLocaleString(), status]);
+      table.push([
+        `#${l.blockHeight}${l.label ? ` (${l.label})` : ""}`,
+        l.parcelTxIndex === null ? "whole" : `#${l.parcelTxIndex}`,
+        `${l.tier}`,
+        l.ownerHandle ? `@${l.ownerHandle}` : "—",
+        `${l.spotsUsed}/${l.spotsTotal === -1 ? "∞" : l.spotsTotal}`,
+        l.price30d.toLocaleString(),
+        l.price365d.toLocaleString(),
+      ]);
     });
     console.log(table.toString());
+    console.log(chalk.gray("\nLive delegation listings from /api/v1/delegations/listings."));
     return;
   }
 
   if (action === "rent") {
-    console.log(chalk.cyanBright(`Rental request sent for block #${options.block}`));
+    console.log(chalk.yellow("Renting a delegation requires a signed (BIP-322) purchase request."));
+    console.log(chalk.gray("This CLI holds no keys and does not sign — renting is not wired here."));
+    console.log(chalk.gray("Use the web app, or POST a signed request to /api/v1/delegations/purchase."));
     return;
   }
 
   if (action === "price") {
-    const price = getPrice(options.block);
-    console.log(chalk.cyanBright(`Current price for #${options.block}: ${price} sats`));
+    console.log(chalk.yellow("There is no live spot-price endpoint — pricing is per-listing."));
+    console.log(chalk.gray("Run `bg market list` to see real 30d / 365d delegation prices."));
     return;
   }
 
-  console.log(chalk.red("Unknown market action."));
+  console.log(chalk.red("Unknown market action. Use: list | rent | price"));
 }

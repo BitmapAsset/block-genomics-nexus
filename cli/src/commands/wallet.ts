@@ -1,41 +1,25 @@
-import inquirer from "inquirer";
 import chalk from "chalk";
-import { getWallet, updateBalance, ensureWallet } from "../lib/wallet-bridge";
-import { getPrice } from "../lib/api-client";
+import { ensureWallet } from "../lib/wallet-bridge";
 
-export async function runWallet(action: string, args: string[]) {
-  ensureWallet();
-  const wallet = getWallet();
-  if (!wallet) return;
+// NOTE: This is a LOCAL DEMO wallet. The CLI holds no real keys and cannot
+// sign Bitcoin transactions or BIP-322 messages. Balances and purchases are
+// local bookkeeping only — nothing touches the chain or the live API.
+export async function runWallet(action: string, _args: string[]) {
+  const wallet = ensureWallet();
 
   if (action === "balance") {
-    console.log(chalk.cyanBright(`Balance: ${wallet.balance.toLocaleString()} sats`));
+    console.log(chalk.cyanBright(`Demo balance: ${wallet.balance.toLocaleString()} sats`));
+    console.log(chalk.gray(`Demo address: ${wallet.address}`));
+    console.log(chalk.yellow("\nThis is a local demo wallet — no real keys, no on-chain state."));
     return;
   }
 
-  if (action === "buy-bitmap") {
-    const height = Number(args[0]);
-    const price = getPrice(height);
-    const { confirm } = await inquirer.prompt([
-      { type: "confirm", name: "confirm", message: `Buy Bitmap #${height} for ${price} sats?` },
-    ]);
-    if (!confirm) return;
-    updateBalance(-price);
-    console.log(chalk.greenBright(`Bitmap #${height} purchased.`));
+  if (action === "buy-bitmap" || action === "buy-parcel") {
+    console.log(chalk.yellow("Buying requires a real wallet that can sign and broadcast Bitcoin transactions."));
+    console.log(chalk.gray("This CLI is read-first and holds no keys — purchasing is not wired here."));
+    console.log(chalk.gray("Acquire Bitmaps via an ordinals marketplace, then `bg verify --block <height>`."));
     return;
   }
 
-  if (action === "buy-parcel") {
-    const parcel = args[0];
-    const price = 45000;
-    const { confirm } = await inquirer.prompt([
-      { type: "confirm", name: "confirm", message: `Buy parcel ${parcel} for ${price} sats?` },
-    ]);
-    if (!confirm) return;
-    updateBalance(-price);
-    console.log(chalk.greenBright(`Parcel ${parcel} purchased.`));
-    return;
-  }
-
-  console.log(chalk.red("Unknown wallet action."));
+  console.log(chalk.red("Unknown wallet action. Use: balance"));
 }

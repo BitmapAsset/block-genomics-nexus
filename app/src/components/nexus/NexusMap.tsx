@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { NexusCanvasEngine, getZoomLevel } from './NexusCanvas';
 import NexusStatsBar from './NexusStatsBar';
 import NexusSearch from './NexusSearch';
@@ -9,8 +10,23 @@ import NexusMinimap from './NexusMinimap';
 import ActivityFeed from './ActivityFeed';
 import BlockSpotlight from './BlockSpotlight';
 import UserProfilePopover from './UserProfilePopover';
-import ParcelView from './ParcelView';
 import { generateBlock } from './NexusBlockData';
+
+// Heavy three.js parcel view (~323 kB) is split out of the initial Nexus bundle
+// and only loaded when a user actually enters a parcel, so the 2D galaxy map
+// paints immediately.
+const ParcelView = dynamic(() => import('./ParcelView'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center w-full h-full" style={{ background: '#050510' }}>
+      <div className="text-center">
+        <div className="text-2xl font-mono font-bold mb-2" style={{ color: '#66ccff' }}>Entering Parcel</div>
+        <div className="text-xs font-mono mb-3" style={{ color: '#64748b' }}>Loading 3D world...</div>
+        <div className="mx-auto w-6 h-6 border-2 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin" />
+      </div>
+    </div>
+  ),
+});
 import { getLandmark } from './NexusLandmarks';
 import { useNexusSocial, type Visitor } from './NexusSocial';
 

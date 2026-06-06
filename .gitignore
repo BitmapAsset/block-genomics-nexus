@@ -49,3 +49,6 @@ Thumbs.db
 
 # Framework artifacts
 *.framework
+
+# Internal engineering audits — never publish
+audits/

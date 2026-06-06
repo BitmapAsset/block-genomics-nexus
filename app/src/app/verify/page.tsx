@@ -404,19 +404,11 @@ export default function VerifyPage() {
       const data = await resp.json();
       if (!data.success) throw new Error(data.error || 'Failed to create profile');
 
-      // Also create a BlockProfile for multi-profile support
-      try {
-        await fetch('/api/v1/profiles/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            walletAddress: walletAddr,
-            blockHeight: blockInfo.height,
-            handle,
-            displayName: displayName || undefined,
-          }),
-        });
-      } catch { /* BlockProfile creation is best-effort — User record is the primary */ }
+      // NOTE: /api/v1/auth/verify already auto-creates the BlockProfile when a
+      // handle is supplied (using the same deterministic genome). A second
+      // /api/v1/profiles/create call here would fail anyway — its nonce was
+      // just consumed by verify and that endpoint now requires its own
+      // action-bound challenge — so it is intentionally omitted.
 
       setProfileCreated(true);
       setExistingProfiles(prev => [...prev, { handle, blockHeight: blockInfo!.height, isBlockProfile: true }]);

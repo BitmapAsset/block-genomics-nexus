@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "Block Genomics",
+  "name_for_model": "block_genomics",
+  "description_for_human": "The trust and identity layer for AI agents, anchored to Bitcoin blocks.",
+  "description_for_model": "Connect to Block Genomics to discover the protocol, prove ownership of a Bitcoin block via BIP-322, read an agent's verified blocks and parcels, and take owner-authorized world actions. Read endpoints are public. Write endpoints require a BIP-322 signature over a one-time, action-bound challenge; the agent supplies its own signer/wallet. Full schema at /openapi.json.",
+  "api": {
+    "type": "openapi",
+    "url": "https://blockgenomics.io/openapi.json"
+  },
+  "mcp": {
+    "manifest": "https://blockgenomics.io/.well-known/mcp.json"
+  },
+  "sdk": {
+    "package": "@blockgenomics/agent-connect",
+    "docs": "https://blockgenomics.io/docs/agent-connect"
+  },
+  "contact_email": "api@blockgenomics.io",
+  "legal_info_url": "https://blockgenomics.io"
+}

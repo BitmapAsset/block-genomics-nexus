@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
+import { consumeChallenge } from '@/lib/challenges';
+import { verifyActionBinding, hashBody } from '@/lib/action-message';
 
 // H-03: Allowlist of fields for block objects
 const ALLOWED_OBJECT_FIELDS = ['objectType', 'geometry', 'color', 'material', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ', 'name', 'visible'];
@@ -39,10 +41,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
+    // ACTION BINDING: signature must authorize THIS batch (incl. operations) on THIS block.
+    const binding = verifyActionBinding(message, {
+      action: 'world.batch',
+      method: 'POST',
+      path: '/api/v1/world/batch',
+      blockHeight,
+      bodyHash: await hashBody(body),
+    });
+    if (!binding.ok) {
+      return NextResponse.json({ error: binding.reason }, { status: 401 });
+    }
+
     if (operations.length > 100) {
       return NextResponse.json({ error: 'Max 100 operations per batch' }, { status: 400 });
     }
 
+    // OWNERSHIP + RESOURCE VALIDATION BEFORE NONCE BURN: like the single PATCH/DELETE
+    // routes, every sub-op's ownership and resource existence is validated up front.
+    // A forged or unauthorized sub-op rejects the whole batch with the nonce
+    // preserved, so an attacker cannot burn a victim's valid nonce on a bad batch.
     const block = await prisma.block.findUnique({ where: { height: blockHeight } });
     if (!block || block.ownerAddress !== ownerAddress) {
       return NextResponse.json({ error: 'Not the block owner' }, { status: 403 });
@@ -64,35 +82,58 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Validation pass: reject the entire batch (and preserve the nonce) if any
+    // sub-op is malformed, references a missing object, or targets a resource the
+    // caller does not own / that is locked.
+    for (const op of operations) {
+      if (op.action === 'create') {
+        const safeData = op.data ? pickAllowed(op.data) : {};
+        if (!safeData.objectType || typeof safeData.objectType !== 'string') {
+          return NextResponse.json({ error: 'Invalid batch: create op requires objectType' }, { status: 400 });
+        }
+      } else if (op.action === 'update') {
+        if (!op.id || !op.data) {
+          return NextResponse.json({ error: 'Invalid batch: update op requires id and data' }, { status: 400 });
+        }
+        const existing = existingMap.get(op.id);
+        if (!existing || existing.ownerAddress !== ownerAddress || existing.locked) {
+          return NextResponse.json({ error: `Invalid batch: update target ${op.id} not found/owned/locked` }, { status: 403 });
+        }
+      } else if (op.action === 'delete') {
+        if (!op.id) {
+          return NextResponse.json({ error: 'Invalid batch: delete op requires id' }, { status: 400 });
+        }
+        const existing = existingMap.get(op.id);
+        if (!existing || existing.ownerAddress !== ownerAddress || existing.locked) {
+          return NextResponse.json({ error: `Invalid batch: delete target ${op.id} not found/owned/locked` }, { status: 403 });
+        }
+      } else {
+        return NextResponse.json({ error: `Invalid batch: unknown action ${op.action}` }, { status: 400 });
+      }
+    }
+
+    // REPLAY PROTECTION: only now — after the whole batch is known valid — consume
+    // the exact one-time nonce the signed binding carried.
+    if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
+      return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
+    }
+
+    // Execution pass: every sub-op already validated above.
     const results: { action: string; id?: string; success: boolean; error?: string }[] = [];
 
     for (const op of operations) {
       try {
         if (op.action === 'create' && op.data) {
           const safeData = pickAllowed(op.data);
-          if (!safeData.objectType || typeof safeData.objectType !== 'string') {
-            results.push({ action: 'create', success: false, error: 'objectType is required' });
-            continue;
-          }
           const obj = await prisma.blockObject.create({
-            data: { blockHeight, ownerAddress, objectType: safeData.objectType, ...safeData },
+            data: { blockHeight, ownerAddress, objectType: safeData.objectType as string, ...safeData },
           });
           results.push({ action: 'create', id: obj.id, success: true });
         } else if (op.action === 'update' && op.id && op.data) {
-          const existing = existingMap.get(op.id);
-          if (!existing || existing.ownerAddress !== ownerAddress || existing.locked) {
-            results.push({ action: 'update', id: op.id, success: false, error: 'Not found/owned/locked' });
-            continue;
-          }
           const safeData = pickAllowed(op.data);
           await prisma.blockObject.update({ where: { id: op.id }, data: safeData });
           results.push({ action: 'update', id: op.id, success: true });
         } else if (op.action === 'delete' && op.id) {
-          const existing = existingMap.get(op.id);
-          if (!existing || existing.ownerAddress !== ownerAddress || existing.locked) {
-            results.push({ action: 'delete', id: op.id, success: false, error: 'Not found/owned/locked' });
-            continue;
-          }
           await prisma.blockObject.delete({ where: { id: op.id } });
           results.push({ action: 'delete', id: op.id, success: true });
         }
