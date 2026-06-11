@@ -34,7 +34,7 @@
     "url": "https://github.com/gary-moto/runebolt"
   },
   "dependencies": {
-    "@grpc/grpc-js": "^1.9.0",
+    "@grpc/grpc-js": "^1.14.4",
     "@grpc/proto-loader": "^0.7.10",
     "argon2": "^0.31.0",
     "bitcoinjs-lib": "^6.1.5",
