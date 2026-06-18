@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useModalClose } from '@/hooks/useModalClose';
 
-type WipeOption = 'full' | 'selective' | 'none';
+type WipeOption = 'full' | 'selective';
 
 interface TransferPrepModalProps {
   onClose: () => void;
@@ -26,14 +26,6 @@ const WIPE_OPTIONS: { value: WipeOption; icon: string; title: string; desc: stri
     icon: '✂️',
     title: 'Selective Wipe',
     desc: 'You\'ve already cleaned up the agent\'s memory manually. This just marks the block as prepped for transfer. Make sure you removed any personal details first.',
-  },
-  {
-    value: 'none',
-    icon: '🔓',
-    title: 'Transfer As-Is',
-    desc: 'Everything passes to the new owner — full memory, conversations, learned behavior. The agent is "fully trained" which may command a higher sale price. Ensure no private data is stored.',
-    badge: 'PREMIUM',
-    badgeColor: '#f7931a',
   },
 ];
 
@@ -107,10 +99,8 @@ export default function TransferPrepModal({ onClose, blockHeight, guardianCount,
               <div className="mt-2 space-y-1 text-[11px]" style={{ color: '#64748b' }}>
                 <div>🏗️ All buildings & customizations — <span style={{ color: '#22c55e' }}>preserved</span></div>
                 <div>🎮 Games, quests & leaderboards — <span style={{ color: '#22c55e' }}>preserved</span></div>
-                <div>🛡️ Guardian Agents — <span style={{ color: '#f7931a' }}>paused, awaiting new owner</span></div>
-                <div>🧠 Agent memories — <span style={{ color: selected === 'none' ? '#22c55e' : '#ef4444' }}>
-                  {selected === 'none' ? 'preserved (as-is)' : selected === 'full' ? 'wiped clean' : 'selectively cleaned'}
-                </span></div>
+                <div>🛡️ Guardian Agents — <span style={{ color: '#ef4444' }}>released and wiped on transfer</span></div>
+                <div>🧠 Agent soul, skills, API keys — <span style={{ color: '#ef4444' }}>cleared (never passed to buyer)</span></div>
                 <div>🏷️ Active delegations — <span style={{ color: '#ef4444' }}>cancelled on transfer</span></div>
               </div>
             </div>

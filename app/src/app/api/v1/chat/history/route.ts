@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       ...(cursor ? { cursor, skip: 1 } : {}),
       include: {
         sender: {
-          select: { handle: true, tier: true, verified: true },
+          select: { handle: true, tier: true, resolvedTier: true, verified: true },
         },
         reactions: {
           select: { emoji: true, wallet: true },
@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
         senderAddress: m.senderAddress,
         senderHandle: m.sender?.handle || m.senderHandle || 'anon',
         senderTier: m.sender?.tier ?? 3,
+        senderResolvedTier: m.sender?.resolvedTier ?? 0,
         senderVerified: m.sender?.verified ?? false,
         text: m.text,
         type: m.type,

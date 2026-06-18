@@ -17,9 +17,16 @@ export async function GET(
         },
       },
       orderBy: { createdAt: 'desc' },
+      include: { owner: { select: { resolvedTier: true } } },
     });
 
-    return success({ profiles });
+    // Attach live resolvedTier (SSOT) from the owning User; strip the joined relation.
+    const withResolved = profiles.map(({ owner, ...p }) => ({
+      ...p,
+      resolvedTier: owner?.resolvedTier ?? 0,
+    }));
+
+    return success({ profiles: withResolved });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return error(message, 500);

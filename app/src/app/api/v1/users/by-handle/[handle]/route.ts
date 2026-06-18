@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
 import { logActivity, logProfileView } from '@/lib/activity';
+import { normalizeHandle } from '@/lib/handle';
 
 export async function GET(
   _req: NextRequest,
@@ -9,11 +10,12 @@ export async function GET(
 ) {
   try {
     const { handle } = await params;
-    const normalizedHandle = handle.toLowerCase();
+    const normalizedHandle = normalizeHandle(handle);
 
     // First check BlockProfile table, then fall back to User
     const blockProfile = await prisma.blockProfile.findUnique({
       where: { handle: normalizedHandle },
+      include: { owner: { select: { resolvedTier: true } } },
     });
 
     if (blockProfile) {
@@ -33,6 +35,7 @@ export async function GET(
         genomeHash: blockProfile.genomeHash,
         anchorBlock: blockProfile.blockHeight,
         tier: blockProfile.tier,
+        resolvedTier: blockProfile.owner?.resolvedTier ?? 0,
         verified: blockProfile.verified,
         createdAt: blockProfile.createdAt,
         blockCount: 1,
@@ -74,6 +77,7 @@ export async function GET(
       genomeHash: user.genomeHash,
       anchorBlock: user.anchorBlock,
       tier: user.tier,
+      resolvedTier: user.resolvedTier ?? 0,
       verified: user.verified,
       createdAt: user.createdAt,
       blockCount: user._count.blocks,
@@ -96,7 +100,7 @@ export async function PATCH(
 ) {
   try {
     const { handle } = await params;
-    const normalizedHandle = handle.toLowerCase();
+    const normalizedHandle = normalizeHandle(handle);
     const body = await req.json();
     const { displayName, bio, avatar, walletAddress, signature, message } = body;
 

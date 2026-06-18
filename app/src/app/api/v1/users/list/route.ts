@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
           displayName: true,
           bio: true,
           tier: true,
+          resolvedTier: true,
           anchorBlock: true,
           genomeHash: true,
           walletAddress: true,
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest) {
           walletAddress: true,
           createdAt: true,
           avatar: true,
+          owner: { select: { resolvedTier: true } },
         },
       }),
       // Shared source of truth — identical filtering to /api/v1/stats.
@@ -48,8 +50,9 @@ export async function GET(req: NextRequest) {
     ]);
 
     // Map block profiles to same shape as users for directory compatibility
-    const profilesAsList = blockProfiles.map((p) => ({
+    const profilesAsList = blockProfiles.map(({ owner, ...p }) => ({
       ...p,
+      resolvedTier: owner?.resolvedTier ?? 0,
       anchorBlock: p.blockHeight,
       isBlockProfile: true,
     }));

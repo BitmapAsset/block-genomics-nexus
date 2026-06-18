@@ -18,12 +18,6 @@ const MOCK_MEDIA = [
   { type: 'image' as const, url: '', gradient: 'linear-gradient(135deg, #06b6d4, #8b5cf6, #d946ef)', label: 'DNA Helix Render' },
 ];
 
-const MOCK_HANDLES = [
-  'satoshi_labs', 'nexus_pioneer', 'block_artist', 'cipher_node', 'bitmap_og',
-  'proof_walker', 'hash_dream', 'chain_weaver', 'epoch_one', 'genesis_dev',
-  'quantum_miner', 'signal_tower', 'void_block', 'neon_chain', 'deep_hash',
-];
-
 const TIER_COLORS = { 1: '#f7931a', 2: '#66ccff', 3: '#a855f7' };
 const TIER_LABELS = { 1: '👑', 2: '⭐', 3: '🔗' };
 
@@ -48,44 +42,11 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-function generateSpotlightItems(count: number, category: SpotlightItem['category']): SpotlightItem[] {
-  const items: SpotlightItem[] = [];
-  const baseSeed = category === 'featured' ? 42 : category === 'trending' ? 777 : category === 'new' ? 1337 : 9999;
-  
-  for (let i = 0; i < count; i++) {
-    const rng = seededRandom(baseSeed + i * 31);
-    const height = Math.floor(rng() * 880000);
-    const block = generateBlock(height);
-    const tier = (rng() < 0.15 ? 1 : rng() < 0.5 ? 2 : 3) as 1 | 2 | 3;
-    const descriptions = [
-      'Deployed a generative art gallery on this block',
-      'Running a Bitcoin oracle service from block ' + height,
-      'AI agent marketplace — 24 verified agents hosted here',
-      'Block museum — preserving Bitcoin history on-chain',
-      'Decentralized file storage node with 2TB capacity',
-      'Community hub for Bitmap builders and explorers',
-      'Live music streaming service powered by Lightning',
-      'NFT exhibition — unique pieces anchored to this block',
-      'Research lab: studying block patterns since epoch ' + block.epoch,
-      'Trading bot fleet — 12 autonomous agents verified here',
-      'Educational content about Bitcoin mining and PoW',
-      'Metaverse portal — enter a 3D world built on this block',
-    ];
-
-    items.push({
-      blockHeight: height,
-      handle: MOCK_HANDLES[Math.floor(rng() * MOCK_HANDLES.length)],
-      tier,
-      media: MOCK_MEDIA[Math.floor(rng() * MOCK_MEDIA.length)],
-      visitors: category === 'trending' ? Math.floor(rng() * 500) + 50 : Math.floor(rng() * 100),
-      trending: category === 'trending' || rng() < 0.2,
-      category,
-      description: descriptions[Math.floor(rng() * descriptions.length)],
-      genomePreview: block.genomeHash.slice(0, 16),
-      timestamp: Date.now() - Math.floor(rng() * 86400000),
-    });
-  }
-  return items;
+// No fabricated discovery items. These cards represent REAL deployed blocks with
+// real owners/handles/visitors; inventing them would put fake owners on the public
+// map. Returns empty until a real "featured/deployed blocks" data source exists.
+function generateSpotlightItems(_count: number, _category: SpotlightItem['category']): SpotlightItem[] {
+  return [];
 }
 
 /* ─── Mini Genome Bar ─── */
@@ -445,6 +406,7 @@ export default function BlockSpotlight({
   // Rotate hero block every 30s
   useEffect(() => {
     const allFeatured = items.spotlight;
+    if (allFeatured.length === 0) { setHeroItem(null); return; }
     setHeroItem(allFeatured[0]);
     let idx = 0;
     const iv = setInterval(() => {
@@ -473,9 +435,10 @@ export default function BlockSpotlight({
       journeyRef.current = null;
       setJourneyActive(false);
     } else {
+      const allBlocks = [...items.spotlight, ...items.trending, ...items.gallery];
+      if (allBlocks.length === 0) return; // no real blocks to journey through yet
       setJourneyActive(true);
       setAchievement('🚀 Journey Mode activated! Sit back and explore...');
-      const allBlocks = [...items.spotlight, ...items.trending, ...items.gallery];
       let idx = 0;
       journeyRef.current = setInterval(() => {
         const item = allBlocks[idx % allBlocks.length];
@@ -653,13 +616,23 @@ export default function BlockSpotlight({
           />
         ))}
 
-        {/* Load more teaser */}
-        <div
-          className="text-center py-3 text-[10px] cursor-pointer hover:text-white transition-colors"
-          style={{ color: '#475569' }}
-        >
-          Scroll for more discoveries...
-        </div>
+        {/* Honest empty state — no fabricated discoveries until blocks are live */}
+        {currentItems.length === 0 ? (
+          <div className="text-center py-6 px-3 space-y-1.5">
+            <div className="text-2xl opacity-60">🛰️</div>
+            <div className="text-[11px] font-medium" style={{ color: '#94a3b8' }}>No blocks to discover yet</div>
+            <div className="text-[10px]" style={{ color: '#475569' }}>
+              Featured blocks will appear here as owners deploy experiences. Use search to jump to any block.
+            </div>
+          </div>
+        ) : (
+          <div
+            className="text-center py-3 text-[10px] cursor-pointer hover:text-white transition-colors"
+            style={{ color: '#475569' }}
+          >
+            Scroll for more discoveries...
+          </div>
+        )}
       </div>
     </div>
   );

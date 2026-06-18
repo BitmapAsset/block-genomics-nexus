@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       prisma.delegationListing.findMany({
         where,
         include: {
-          owner: { select: { walletAddress: true, handle: true, tier: true } },
+          owner: { select: { walletAddress: true, handle: true, tier: true, resolvedTier: true } },
           block: { select: { height: true, label: true } },
         },
         orderBy: { createdAt: 'desc' },

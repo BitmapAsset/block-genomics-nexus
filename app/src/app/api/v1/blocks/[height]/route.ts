@@ -14,7 +14,7 @@ export async function GET(
     const block = await prisma.block.findUnique({
       where: { height: h },
       include: {
-        owner: { select: { walletAddress: true, handle: true, avatar: true, tier: true } },
+        owner: { select: { walletAddress: true, handle: true, avatar: true, tier: true, resolvedTier: true } },
         _count: { select: { parcels: true } },
       },
     });

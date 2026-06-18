@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { TIER_BADGE_COLORS, VerificationTier } from '@/lib/protocol';
 
 /**
  * 👑🛡️ A2 Crown Shield — Block Genomics
@@ -15,7 +16,8 @@ import React from 'react';
  * - Tiers: Gold, Cyan, Purple
  */
 
-export type ShieldTier = 1 | 2 | 3;
+// 0 = unverified (no on-chain tier resolved yet). 1/2/3 = block/parcel/delegated.
+export type ShieldTier = 0 | 1 | 2 | 3;
 
 interface CrownShieldProps {
   tier?: ShieldTier;
@@ -27,10 +29,18 @@ interface CrownShieldProps {
   verifiedStyle?: 'dot' | 'check';
 }
 
+// Tier 1/2/3 primaries are sourced from the protocol SSOT (TIER_BADGE_COLORS) so
+// badge colors never drift from protocol.ts. T1 = #FFD700 gold, T2 = #00CCFF cyan,
+// T3 = #AA44FF purple. Tier 0 is the local "unverified" grey state (no protocol entry).
+const T1 = TIER_BADGE_COLORS[VerificationTier.TIER_1_BLOCK_OWNER].primary;
+const T2 = TIER_BADGE_COLORS[VerificationTier.TIER_2_PARCEL_OWNER].primary;
+const T3 = TIER_BADGE_COLORS[VerificationTier.TIER_3_DELEGATED].primary;
+
 const TIER_COLORS: Record<ShieldTier, { primary: string; light: string; glow: string; glowRgba: string }> = {
-  1: { primary: '#f7931a', light: '#ffcc44', glow: '#f7931a', glowRgba: 'rgba(247,147,26,' },
-  2: { primary: '#00ccff', light: '#88eeff', glow: '#00ccff', glowRgba: 'rgba(0,204,255,' },
-  3: { primary: '#b44dff', light: '#d88bff', glow: '#b44dff', glowRgba: 'rgba(180,77,255,' },
+  0: { primary: '#6b7280', light: '#9ca3af', glow: '#6b7280', glowRgba: 'rgba(107,114,128,' },
+  1: { primary: T1, light: '#ffe066', glow: T1, glowRgba: 'rgba(255,215,0,' },
+  2: { primary: T2, light: '#88eeff', glow: T2, glowRgba: 'rgba(0,204,255,' },
+  3: { primary: T3, light: '#d88bff', glow: T3, glowRgba: 'rgba(170,68,255,' },
 };
 
 const CrownShield: React.FC<CrownShieldProps> = ({
@@ -44,6 +54,9 @@ const CrownShield: React.FC<CrownShieldProps> = ({
   // Auto-select: dot for small shields (≤40px), checkmark for larger
   const vStyle = verifiedStyle ?? (size <= 40 ? 'dot' : 'check');
   const c = TIER_COLORS[tier];
+  // Tier 0 is unverified: no crown, no verified mark — just a muted grey shield.
+  const showCrown = tier !== 0;
+  const showVerified = verified && tier !== 0;
   const uid = `cs${tier}${Math.random().toString(36).slice(2, 5)}`;
 
   // Shield path — wide, rounded, generous curves matching the screenshot
@@ -118,7 +131,8 @@ const CrownShield: React.FC<CrownShieldProps> = ({
       {/* ═══ INNER BORDER (thin) ═══ */}
       <path d={innerShieldPath} fill="none" stroke={c.primary} strokeWidth="1" opacity="0.35" />
 
-      {/* ═══ CROWN (3 spikes with orb tips) ═══ */}
+      {/* ═══ CROWN (3 spikes with orb tips) — hidden for unverified T0 ═══ */}
+      {showCrown && (<>
       <path
         d={`
           M 30 22
@@ -158,6 +172,7 @@ const CrownShield: React.FC<CrownShieldProps> = ({
       <circle cx="34" cy="7" r="5" fill={c.light} opacity="0.2" />
       <circle cx="50" cy="3" r="6" fill={c.light} opacity="0.2" />
       <circle cx="66" cy="7" r="5" fill={c.light} opacity="0.2" />
+      </>)}
 
       {/* ═══ ₿ SYMBOL ═══ */}
       <text
@@ -222,13 +237,13 @@ const CrownShield: React.FC<CrownShieldProps> = ({
       </g>
 
       {/* ═══ GREEN VERIFIED INDICATOR ═══ */}
-      {verified && vStyle === 'dot' && (
+      {showVerified && vStyle === 'dot' && (
         <g>
           <circle cx="50" cy="96" r="5" fill="#22ff88" />
           <circle cx="50" cy="96" r="8" fill="#22ff88" opacity="0.15" filter={`url(#${uid}g)`} />
         </g>
       )}
-      {verified && vStyle === 'check' && (
+      {showVerified && vStyle === 'check' && (
         <g>
           <circle cx="50" cy="96" r="7" fill="#22ff88" opacity="0.2" />
           <path d="M 41 96 L 48 103 L 60 89" stroke="#22ff88" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
@@ -246,6 +261,8 @@ export default CrownShield;
  */
 export function crownShieldSVGString(tier: ShieldTier = 1, verified = true, size = 200): string {
   const c = TIER_COLORS[tier];
+  const showCrown = tier !== 0;
+  const showVerified = verified && tier !== 0;
   const sp = 'M 50 18 C 30 18, 10 24, 8 36 L 8 62 C 8 82, 22 96, 50 108 C 78 96, 92 82, 92 62 L 92 36 C 90 24, 70 18, 50 18 Z';
   const ip = 'M 50 23 C 33 23, 15 28, 13 38 L 13 61 C 13 79, 25 91, 50 102 C 75 91, 87 79, 87 61 L 87 38 C 85 28, 67 23, 50 23 Z';
   const crown = 'M 30 22 L 34 8 L 42 18 L 50 4 L 58 18 L 66 8 L 70 22 Z';
@@ -267,10 +284,10 @@ export function crownShieldSVGString(tier: ShieldTier = 1, verified = true, size
   <path d="${sp}" fill="url(#f)"/>
   <path d="${sp}" fill="none" stroke="url(#b)" stroke-width="3"/>
   <path d="${ip}" fill="none" stroke="${c.primary}" stroke-width="1" opacity="0.35"/>
-  <path d="${crown}" fill="${c.primary}" opacity="0.7"/>
-  <circle cx="34" cy="7" r="3" fill="${c.light}"/><circle cx="50" cy="3" r="3.5" fill="${c.light}"/><circle cx="66" cy="7" r="3" fill="${c.light}"/>
+  ${showCrown ? `<path d="${crown}" fill="${c.primary}" opacity="0.7"/>
+  <circle cx="34" cy="7" r="3" fill="${c.light}"/><circle cx="50" cy="3" r="3.5" fill="${c.light}"/><circle cx="66" cy="7" r="3" fill="${c.light}"/>` : ''}
   <text x="50" y="65" text-anchor="middle" dominant-baseline="central" fill="url(#t)" font-family="system-ui" font-size="42" font-weight="bold">₿</text>
-  ${verified ? '<circle cx="50" cy="96" r="5" fill="#22ff88"/>' : ''}
+  ${showVerified ? '<circle cx="50" cy="96" r="5" fill="#22ff88"/>' : ''}
 </svg>`;
 }
 
@@ -279,13 +296,16 @@ export function crownShieldSVGString(tier: ShieldTier = 1, verified = true, size
  */
 export function CrownShieldInline({ size = 16, tier = 1 as ShieldTier }: { size?: number; tier?: ShieldTier }) {
   const c = TIER_COLORS[tier];
+  const showCrown = tier !== 0;
   return (
     <svg width={size} height={size * 1.15} viewBox="0 0 100 115" fill="none" className="inline-block">
       <path d="M 50 18 C 30 18, 10 24, 8 36 L 8 62 C 8 82, 22 96, 50 108 C 78 96, 92 82, 92 62 L 92 36 C 90 24, 70 18, 50 18 Z" fill="#12121a" stroke={c.primary} strokeWidth="3"/>
-      <path d="M 30 22 L 34 8 L 42 18 L 50 4 L 58 18 L 66 8 L 70 22 Z" fill={c.primary} opacity="0.7"/>
-      <circle cx="34" cy="7" r="3" fill={c.light}/><circle cx="50" cy="3" r="3.5" fill={c.light}/><circle cx="66" cy="7" r="3" fill={c.light}/>
+      {showCrown && (<>
+        <path d="M 30 22 L 34 8 L 42 18 L 50 4 L 58 18 L 66 8 L 70 22 Z" fill={c.primary} opacity="0.7"/>
+        <circle cx="34" cy="7" r="3" fill={c.light}/><circle cx="50" cy="3" r="3.5" fill={c.light}/><circle cx="66" cy="7" r="3" fill={c.light}/>
+      </>)}
       <text x="50" y="65" textAnchor="middle" dominantBaseline="central" fill={c.primary} fontFamily="system-ui" fontSize="42" fontWeight="bold">₿</text>
-      <circle cx="50" cy="96" r="5" fill="#22ff88"/>
+      {showCrown && <circle cx="50" cy="96" r="5" fill="#22ff88"/>}
     </svg>
   );
 }

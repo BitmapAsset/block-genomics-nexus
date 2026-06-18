@@ -8,8 +8,9 @@ import { OrbitControls, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
 import { fetchRealBlock, fetchFullBlock, type RealBlockData } from '@/lib/blockchainApi';
+import { packSquares, packSquaresToWorldSpace } from '@/lib/square-packing';
 import Helix from '../dna/Helix';
-import CrownShield from '../CrownShield';
+import CrownShield, { type ShieldTier } from '../CrownShield';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { getStoredAddress, getStoredType } from '@/lib/wallet-utils';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
@@ -56,9 +57,12 @@ interface ChatMessage {
 
 interface OwnerData {
   handle: string;
-  tier: 1 | 2 | 3;
+  tier: ShieldTier;
   verified: boolean;
   avatar?: string;
+  // Real BTC payout address from the owner's profile; undefined/null until the
+  // parcel-profile work wires it. Never fabricated — sending stays disabled when null.
+  btcAddress?: string | null;
 }
 
 interface FlyTarget {
@@ -145,114 +149,32 @@ interface TreemapRect {
 /**
  * Bitfeed-standard Mondrian square packing layout.
  * Each tx becomes a SQUARE with side = ceil(sqrt(vbytes / 256)).
- * Squares are packed into a grid using slot-based bin packing.
- * This produces the distinctive bitmap look seen on Bitfeed.live and Bitmap.Community.
+ * Squares are packed into a grid using the CANONICAL slot-based bin packer in
+ * `@/lib/square-packing` (faithful bitfeed port) — the SAME packer used by the
+ * top-view map (NexusCanvas) and the server thumbnail route. This guarantees
+ * the inside-3D arrangement is identical to the top-view tile and the 2D bitmap.
+ *
+ * Returns world-space rects whose (x, z) are the CENTER of each parcel.
  */
-function txSquareSize(vbytes: number): number {
-  return Math.max(1, Math.ceil(Math.sqrt(vbytes / 256)));
-}
-
 function mondrianLayout(
   items: TreemapItem[],
-  originX: number,
-  originZ: number,
   blockSize: number,
   gap: number
 ): TreemapRect[] {
-  // Calculate grid sizes for each tx
-  const squares = items.map(it => ({
-    index: it.index,
-    gridSize: txSquareSize(it.weight),
-  }));
-
-  // Natural transaction order (as they appear in the block) — matches Bitfeed/Magic Eden standard
-  // Bitfeed places txs in arrival order, NOT sorted by size
-
-  // Calculate total grid area to determine grid dimensions
-  const totalGridArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
-  const gridWidth = Math.ceil(Math.sqrt(totalGridArea));
-
-  // Scale factor: map grid units to world units
-  const scale = blockSize / gridWidth;
-
-  // Standard bitmap images use thin gaps (~2-3% of cell)
-  // Bitfeed's 50% padding is only for the animated live view, not the standard bitmap
-  const cellGap = Math.max(scale * 0.06, blockSize * 0.002);
-
-  // 2D occupancy grid for packing
-  const gridH = gridWidth + 50; // extra rows for overflow
-  const occupied: boolean[][] = [];
-  for (let r = 0; r < gridH; r++) {
-    occupied.push(new Array(gridWidth).fill(false));
-  }
-
-  const results: TreemapRect[] = [];
-
-  for (const sq of squares) {
-    const size = sq.gridSize;
-    let placed = false;
-
-    // Scan grid for first available position (top-left to bottom-right)
-    for (let row = 0; row < gridH - size + 1 && !placed; row++) {
-      for (let col = 0; col <= gridWidth - size && !placed; col++) {
-        // Check if this area is free
-        let fits = true;
-        for (let dr = 0; dr < size && fits; dr++) {
-          for (let dc = 0; dc < size && fits; dc++) {
-            if (occupied[row + dr][col + dc]) fits = false;
-          }
-        }
-        if (fits) {
-          // Mark occupied
-          for (let dr = 0; dr < size; dr++) {
-            for (let dc = 0; dc < size; dc++) {
-              occupied[row + dr][col + dc] = true;
-            }
-          }
-          // Convert grid coords to world coords with proportional gaps
-          const halfGap = cellGap / 2;
-          results.push({
-            index: sq.index,
-            x: originX + col * scale + halfGap,
-            z: originZ + row * scale + halfGap,
-            width: Math.max(0.01, size * scale - cellGap),
-            depth: Math.max(0.01, size * scale - cellGap),
-          });
-          placed = true;
-        }
-      }
-    }
-
-    // Failsafe: if somehow not placed, put at end
-    if (!placed) {
-      results.push({
-        index: sq.index,
-        x: originX + cellGap / 2,
-        z: originZ + (gridH - size) * scale + cellGap / 2,
-        width: Math.max(0.01, size * scale - cellGap),
-        depth: Math.max(0.01, size * scale - cellGap),
-      });
-    }
-  }
-
-  return results;
+  // packSquaresToWorldSpace centers the layout on the origin and returns
+  // center-anchored coordinates. Natural tx order is preserved by the packer.
+  return packSquaresToWorldSpace(
+    items.map(it => ({ index: it.index, vbytes: it.weight })),
+    blockSize,
+    gap,
+  );
 }
 
 /* ═══════════════════════════════════════════
-   MOCK DATA LAYER
+   DATA LAYER
+   Ownership/identity/social data is REAL or honestly empty — never fabricated.
    ═══════════════════════════════════════════ */
 
-/* MOCK — replace with API */
-const MOCK_HANDLES = [
-  'satoshi_hodler', 'bitmap_maxi', 'block_builder', 'nexus_dev', 'anon_miner',
-  'crypto_whale', 'pixel_punk', 'chain_surfer', 'hash_hunter', 'node_runner',
-  'btc_stacker', 'digital_nomad', 'rune_crafter', 'ordinal_og', 'taproot_fan',
-  'mempool_watcher', 'utxo_king', 'genesis_block', 'lightning_lord', 'sig_hash',
-];
-
-const MOCK_AVATARS = ['⚡', '🔥', '💎', '🏴‍☠️', '🐋', '🧬', '🪐', '🎯', '🦊', '👾'];
-
-/* MOCK — replace with API */
 interface Estate {
   id: string;
   name: string;
@@ -264,96 +186,35 @@ interface Estate {
   created: number;
 }
 
-const ESTATE_NAMES = ['Bitcoin Citadel', 'Satoshi Plaza', 'The Nexus Hub', 'Hash Tower Complex', 'Lightning District', 'Genesis Gardens'];
 const NEON_COLORS = ['#00ffff', '#ff00ff', '#00ff88', '#ffcc00', '#aa44ff', '#ff4444'];
 
-/* MOCK — replace with API */
-function generateMockEstates(blockHeight: number, parcels: ParcelData[]): Estate[] {
-  if (parcels.length < 6) return [];
-  const rng = seededRandom(blockHeight * 13337);
-  const estateCount = 1 + Math.floor(rng() * 2); // 1-2 estates (reduced to avoid collisions)
-  const used = new Set<number>();
-  const estates: Estate[] = [];
-
-  // Helper: check if two parcels are spatially adjacent (bounding boxes touch/overlap)
-  const isAdjacent = (a: ParcelData, b: ParcelData): boolean => {
-    const margin = TREEMAP_GAP * 2;
-    const aLeft = a.x - a.width / 2, aRight = a.x + a.width / 2;
-    const aTop = a.z - a.depth / 2, aBottom = a.z + a.depth / 2;
-    const bLeft = b.x - b.width / 2, bRight = b.x + b.width / 2;
-    const bTop = b.z - b.depth / 2, bBottom = b.z + b.depth / 2;
-    // Check they overlap on one axis and touch on the other
-    const overlapX = aLeft < bRight + margin && aRight > bLeft - margin;
-    const overlapZ = aTop < bBottom + margin && aBottom > bTop - margin;
-    const touchX = Math.abs(aRight - bLeft) < margin * 3 || Math.abs(bRight - aLeft) < margin * 3;
-    const touchZ = Math.abs(aBottom - bTop) < margin * 3 || Math.abs(bBottom - aTop) < margin * 3;
-    return (overlapX && touchZ) || (overlapZ && touchX);
-  };
-
-  for (let e = 0; e < estateCount; e++) {
-    const size = 2 + Math.floor(rng() * 3); // 2-4 parcels (smaller to ensure adjacency)
-    let start = 1 + Math.floor(rng() * (parcels.length - 1));
-    let attempts = 0;
-    while (used.has(start) && attempts < 50) { start = 1 + Math.floor(rng() * (parcels.length - 1)); attempts++; }
-    if (used.has(start)) continue;
-
-    const indices: number[] = [start];
-    used.add(start);
-
-    // Grow by finding spatially adjacent parcels in the treemap
-    for (let s = 1; s < size; s++) {
-      let found = false;
-      for (let candidate = 0; candidate < parcels.length; candidate++) {
-        if (used.has(candidate) || candidate === 0) continue;
-        // Check if candidate is adjacent to ANY parcel already in estate
-        const adj = indices.some(idx => isAdjacent(parcels[idx], parcels[candidate]));
-        if (adj) {
-          indices.push(candidate);
-          used.add(candidate);
-          found = true;
-          break;
-        }
-      }
-      if (!found) break;
-    }
-
-    if (indices.length < 2) continue;
-
-    const nameIdx = e % ESTATE_NAMES.length;
-    const ownerIdx = Math.floor(rng() * MOCK_HANDLES.length);
-    estates.push({
-      id: `estate-${blockHeight}-${e}`,
-      name: ESTATE_NAMES[nameIdx],
-      ownerHandle: MOCK_HANDLES[ownerIdx],
-      ownerTier: rng() < 0.4 ? 1 : 2,
-      parcelIndices: indices,
-      glowColor: NEON_COLORS[e % NEON_COLORS.length],
-      created: blockHeight - Math.floor(rng() * 1000),
-    });
-  }
-
-  return estates;
-}
-
-/* MOCK — replace with API */
-function generateMockOwner(blockHeight: number, txIndex: number): OwnerData {
-  const rng = seededRandom(blockHeight * 9973 + txIndex * 6991);
-  const handleIdx = Math.floor(rng() * MOCK_HANDLES.length);
-  const tierRoll = rng();
-  const tier: 1 | 2 | 3 = tierRoll < 0.15 ? 1 : tierRoll < 0.45 ? 2 : 3;
-  const avatarIdx = Math.floor(rng() * MOCK_AVATARS.length);
-  return {
-    handle: MOCK_HANDLES[handleIdx],
-    tier,
-    verified: tier === 1 || rng() > 0.5,
-    avatar: MOCK_AVATARS[avatarIdx],
-  };
+// No fabricated estates. Estates group parcels under a named owner; inventing
+// them would surface fake owner handles on unowned blocks. Returns empty until a
+// real estate data source exists.
+function generateMockEstates(_blockHeight: number, _parcels: ParcelData[]): Estate[] {
+  return [];
 }
 
 /* MOCK — replace with API */
 function generateMockVisitors(blockHeight: number): number {
   const rng = seededRandom(blockHeight * 4217);
   return 1 + Math.floor(rng() * 50);
+}
+
+/* Honest placeholder for blocks with no real owner in the DB. NEVER a fabricated
+   handle — `handle` is the empty sentinel and the UI renders an "Unclaimed" state. */
+const UNCLAIMED_OWNER: OwnerData = { handle: '', tier: 0, verified: false, avatar: '○' };
+function isUnclaimedOwner(o: OwnerData | null | undefined): boolean {
+  return !o || o.handle === '';
+}
+
+// Real on-chain receive/recipient address for a block owner. Sourcing this
+// requires the parcel-profile work; until then there is NO genuine address and we
+// must never fabricate one (a fake bc1q... would burn real sats). Returns null
+// today; the UI shows an honest "not available yet" state and disables sending.
+// TODO: resolve from the owner's verified profile once that lands.
+function getOwnerReceiveAddress(_blockHeight: number, _owner: OwnerData): string | null {
+  return null;
 }
 
 /* ─── Block size constant ─── */
@@ -416,10 +277,9 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
 
   const maxValue = Math.max(...rawParcels.map(p => p.value));
 
-  // Bitfeed-standard Mondrian square packing layout
-  const halfSize = BLOCK_SIZE / 2;
+  // Bitfeed-standard Mondrian square packing layout (canonical packer)
   const treemapItems: TreemapItem[] = rawParcels.map(p => ({ index: p.txIndex, weight: p.bytes }));
-  const rects = mondrianLayout(treemapItems, -halfSize, -halfSize, BLOCK_SIZE, TREEMAP_GAP);
+  const rects = mondrianLayout(treemapItems, BLOCK_SIZE, TREEMAP_GAP);
 
   // Build lookup from txIndex to rect
   const rectMap = new Map<number, TreemapRect>();
@@ -444,8 +304,8 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
       bytes: raw.bytes,
       value: raw.value,
       isCoinbase: raw.isCoinbase,
-      x: rect ? rect.x + rect.width / 2 : 0,  // center x
-      z: rect ? rect.z + rect.depth / 2 : 0,   // center z
+      x: rect ? rect.x : 0,  // center x (packSquaresToWorldSpace returns centers)
+      z: rect ? rect.z : 0,  // center z (packSquaresToWorldSpace returns centers)
       width: w,
       depth: d,
       areaSqMeters: Math.round(w * d * METERS_PER_UNIT * METERS_PER_UNIT),
@@ -3032,33 +2892,10 @@ function CameraManager({ viewMode }: { viewMode: ViewMode }) {
    Mock Chat Data
    ═══════════════════════════════════════════ */
 
-function generateMockChat(blockHeight: number): ChatMessage[] {
-  const rng = seededRandom(blockHeight * 3331);
-  const names = ['satoshi_fan', 'bitmap_maxi', 'block_builder', 'nexus_explorer', 'anon_42'];
-  const messages = [
-    { text: 'Anyone building on this block? 🏗️', type: 'text' as const },
-    { text: 'Just claimed parcel 42, let\'s go!', type: 'text' as const },
-    { text: 'The coinbase on this one is wild', type: 'text' as const },
-    { text: 'https://bitmap.community/block/' + blockHeight, type: 'link' as const },
-    { text: 'Check out my build 🔥', type: 'image' as const },
-    { text: 'This block has great energy beams', type: 'text' as const },
-    { text: 'GM from The Nexus ☀️', type: 'text' as const },
-    { text: 'pepe.gif', type: 'gif' as const },
-  ];
-
-  return messages.slice(0, 3).map((m, i) => {
-    const senderIdx = Math.floor(rng() * names.length);
-    const owner = generateMockOwner(blockHeight, i);
-    return {
-      id: `msg-${i}`,
-      sender: names[senderIdx],
-      text: m.text,
-      time: `${Math.floor(rng() * 12 + 1)}:${String(Math.floor(rng() * 60)).padStart(2, '0')} ${rng() > 0.5 ? 'AM' : 'PM'}`,
-      type: m.type,
-      isOwner: i === 0 && rng() > 0.7,
-      ownerData: owner,
-    };
-  });
+// No fabricated chat. Real messages come from GET /api/v1/chat/[blockHeight];
+// when there are none, the chat shows an honest empty state.
+function generateMockChat(_blockHeight: number): ChatMessage[] {
+  return [];
 }
 
 /* ═══════════════════════════════════════════
@@ -3527,11 +3364,15 @@ function SendBitcoinModal({ onClose, blockHeight, recipientOwner }: {
   const [txId, setTxId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  /* MOCK address fallback — real address would come from recipient's profile */
-  const mockAddress = `bc1q${blockHeight.toString(16).padStart(8, '0')}${recipientOwner.handle.slice(0, 20).replace(/[^a-z0-9]/g, '')}`.slice(0, 42);
+  // TODO: depends on parcel-profile work — wire the recipient's real on-chain
+  // address from their profile. Until then there is no genuine address, so we
+  // must NOT fabricate one (a fake bc1q... would burn real sats). Sending stays
+  // disabled while this is null.
+  const recipientAddress: string | null = recipientOwner.btcAddress ?? null;
 
   const handleSend = async () => {
     if (!amount || parseFloat(amount) <= 0) return;
+    if (!recipientAddress) { setErrorMsg("Recipient's Bitcoin address is not available yet."); setStatus('error'); return; }
     setStatus('signing');
     setErrorMsg('');
 
@@ -3540,7 +3381,7 @@ function SendBitcoinModal({ onClose, blockHeight, recipientOwner }: {
 
     try {
       const walletType = getStoredType() || '';
-      const toAddress = mockAddress; // Deferred: real recipient address will come from profile when transfer feature is fully implemented
+      const toAddress = recipientAddress;
 
       interface WalletSendResult { txid?: string }
 
@@ -3600,7 +3441,7 @@ function SendBitcoinModal({ onClose, blockHeight, recipientOwner }: {
                 <span className="text-[12px] font-mono font-bold" style={{ color: '#e2e8f0' }}>@{recipientOwner.handle}</span>
                 <CrownShield tier={recipientOwner.tier} size={12} />
               </div>
-              <div className="text-[9px] font-mono" style={{ color: '#64748b' }}>{mockAddress.slice(0, 12)}...{mockAddress.slice(-6)}</div>
+              <div className="text-[9px] font-mono" style={{ color: '#64748b' }}>{recipientAddress ? `${recipientAddress.slice(0, 12)}...${recipientAddress.slice(-6)}` : 'Bitcoin address not available yet'}</div>
             </div>
           </div>
         </div>
@@ -3671,14 +3512,21 @@ function SendBitcoinModal({ onClose, blockHeight, recipientOwner }: {
           </div>
         )}
 
+        {/* Recipient address not available — honest notice (no fabricated address) */}
+        {!recipientAddress && (
+          <div className="rounded-lg px-3 py-2 text-[10px]" style={{ background: 'rgba(255,204,0,0.06)', border: '1px solid rgba(255,204,0,0.15)', color: '#94a3b8' }}>
+            Sending is unavailable until @{recipientOwner.handle} links a Bitcoin address to their profile.
+          </div>
+        )}
+
         {/* Send button */}
-        <button onClick={handleSend} disabled={!amount || parseFloat(amount) <= 0 || status === 'signing'}
+        <button onClick={handleSend} disabled={!recipientAddress || !amount || parseFloat(amount) <= 0 || status === 'signing'}
           className="w-full py-3 rounded-xl text-sm font-mono font-bold transition-all active:scale-[0.97]"
           style={{
             background: status === 'sent' ? 'rgba(0,255,136,0.2)' : status === 'error' ? 'rgba(255,50,50,0.15)' : 'rgba(247,147,26,0.15)',
             border: `1.5px solid ${status === 'sent' ? '#00ff88' : status === 'error' ? 'rgba(255,50,50,0.4)' : 'rgba(247,147,26,0.4)'}`,
             color: status === 'sent' ? '#00ff88' : status === 'error' ? '#ff6b6b' : '#f7931a',
-            opacity: (!amount || parseFloat(amount) <= 0) ? 0.4 : 1,
+            opacity: (!recipientAddress || !amount || parseFloat(amount) <= 0) ? 0.4 : 1,
             boxShadow: status === 'sent' ? '0 0 20px rgba(0,255,136,0.2)' : '0 0 20px rgba(247,147,26,0.15)',
           }}>
           {status === 'idle' ? `⚡ Send ${satsAmount > 0 ? satsAmount.toLocaleString() + ' sats' : 'Bitcoin'}` : status === 'signing' ? '🔐 Waiting for wallet...' : status === 'sent' ? '✅ Sent!' : '🔄 Try Again'}
@@ -3710,8 +3558,10 @@ function SendBitcoinModal({ onClose, blockHeight, recipientOwner }: {
 function QrProfileModal({ onClose, owner, blockHeight }: {
   onClose: () => void; owner: OwnerData; blockHeight: number;
 }) {
-  /* MOCK — replace with real address from wallet verification */
-  const mockAddress = `bc1q${blockHeight.toString(16).padStart(8, '0')}${owner.handle.slice(0, 20).replace(/[^a-z0-9]/g, '')}`.slice(0, 42);
+  // TODO: depends on parcel-profile work — surface the owner's real receive
+  // address from their verified profile. No genuine address exists yet, so we
+  // show an honest "not available" state instead of fabricating a bc1q... value.
+  const receiveAddress: string | null = null;
 
   // Generate QR code as SVG (simple visual representation)
   const qrSize = 200;
@@ -3757,45 +3607,57 @@ function QrProfileModal({ onClose, owner, blockHeight }: {
           </div>
         </div>
 
-        {/* QR Code */}
-        <div className="flex justify-center">
-          <div className="p-3 rounded-xl" style={{ background: '#ffffff' }}>
-            <svg width={qrSize} height={qrSize} viewBox={`0 0 ${qrModules.length} ${qrModules.length}`}>
-              {qrModules.map((row, y) => row.map((cell, x) =>
-                cell ? <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill="#1a1a2e" /> : null
-              ))}
-              {/* Bitcoin logo in center */}
-              <rect x={qrModules.length / 2 - 2.5} y={qrModules.length / 2 - 2.5} width={5} height={5} fill="#ffffff" rx={0.5} />
-              <text x={qrModules.length / 2} y={qrModules.length / 2 + 1.5} textAnchor="middle" fill="#f7931a" fontSize="4" fontWeight="bold">₿</text>
-            </svg>
-          </div>
-        </div>
+        {receiveAddress ? (
+          <>
+            {/* QR Code */}
+            <div className="flex justify-center">
+              <div className="p-3 rounded-xl" style={{ background: '#ffffff' }}>
+                <svg width={qrSize} height={qrSize} viewBox={`0 0 ${qrModules.length} ${qrModules.length}`}>
+                  {qrModules.map((row, y) => row.map((cell, x) =>
+                    cell ? <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill="#1a1a2e" /> : null
+                  ))}
+                  {/* Bitcoin logo in center */}
+                  <rect x={qrModules.length / 2 - 2.5} y={qrModules.length / 2 - 2.5} width={5} height={5} fill="#ffffff" rx={0.5} />
+                  <text x={qrModules.length / 2} y={qrModules.length / 2 + 1.5} textAnchor="middle" fill="#f7931a" fontSize="4" fontWeight="bold">₿</text>
+                </svg>
+              </div>
+            </div>
 
-        {/* Address */}
-        <div className="space-y-1.5">
-          <div className="text-[9px] uppercase tracking-wider" style={{ color: '#64748b' }}>Bitcoin Address</div>
-          <div className="px-3 py-2 rounded-lg font-mono text-[10px] break-all cursor-pointer hover:brightness-130 transition-all"
-            onClick={() => { navigator.clipboard.writeText(mockAddress); }}
-            title="Click to copy"
-            style={{ background: 'rgba(247,147,26,0.06)', border: '1px solid rgba(247,147,26,0.15)', color: '#f7931a' }}>
-            {mockAddress}
-          </div>
-          <div className="text-[9px]" style={{ color: '#475569' }}>Tap address to copy · Scan QR to send sats</div>
-        </div>
+            {/* Address */}
+            <div className="space-y-1.5">
+              <div className="text-[9px] uppercase tracking-wider" style={{ color: '#64748b' }}>Bitcoin Address</div>
+              <div className="px-3 py-2 rounded-lg font-mono text-[10px] break-all cursor-pointer hover:brightness-130 transition-all"
+                onClick={() => { navigator.clipboard.writeText(receiveAddress); }}
+                title="Click to copy"
+                style={{ background: 'rgba(247,147,26,0.06)', border: '1px solid rgba(247,147,26,0.15)', color: '#f7931a' }}>
+                {receiveAddress}
+              </div>
+              <div className="text-[9px]" style={{ color: '#475569' }}>Tap address to copy · Scan QR to send sats</div>
+            </div>
 
-        {/* Quick actions */}
-        <div className="flex gap-2">
-          <button onClick={() => { navigator.clipboard.writeText(mockAddress); }}
-            className="flex-1 py-2 rounded-lg text-[11px] font-mono font-bold transition-all hover:brightness-130"
-            style={{ background: 'rgba(247,147,26,0.1)', border: '1px solid rgba(247,147,26,0.25)', color: '#f7931a' }}>
-            📋 Copy Address
-          </button>
-          <button onClick={() => { onClose(); }}
-            className="flex-1 py-2 rounded-lg text-[11px] font-mono font-bold transition-all hover:brightness-130"
-            style={{ background: 'rgba(0,255,136,0.08)', border: '1px solid rgba(0,255,136,0.2)', color: '#00ff88' }}>
-            ⚡ Send Sats
-          </button>
-        </div>
+            {/* Quick actions */}
+            <div className="flex gap-2">
+              <button onClick={() => { navigator.clipboard.writeText(receiveAddress); }}
+                className="flex-1 py-2 rounded-lg text-[11px] font-mono font-bold transition-all hover:brightness-130"
+                style={{ background: 'rgba(247,147,26,0.1)', border: '1px solid rgba(247,147,26,0.25)', color: '#f7931a' }}>
+                📋 Copy Address
+              </button>
+              <button onClick={() => { onClose(); }}
+                className="flex-1 py-2 rounded-lg text-[11px] font-mono font-bold transition-all hover:brightness-130"
+                style={{ background: 'rgba(0,255,136,0.08)', border: '1px solid rgba(0,255,136,0.2)', color: '#00ff88' }}>
+                ⚡ Send Sats
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-3 py-4 text-center">
+            <div className="text-3xl">○</div>
+            <div className="text-[12px] font-mono" style={{ color: '#94a3b8' }}>No Bitcoin address yet</div>
+            <div className="text-[10px]" style={{ color: '#64748b' }}>
+              @{owner.handle} hasn’t linked a receive address to their profile. Check back once they do.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -4272,22 +4134,10 @@ interface SpatialAvatar {
   active: boolean;
 }
 
-function generateMockAvatars(blockHeight: number, parcelCount: number): SpatialAvatar[] {
-  const rng = seededRandom(blockHeight * 5501);
-  const count = 5 + Math.floor(rng() * 11); // 5-15
-  const avatars: SpatialAvatar[] = [];
-  const names = MOCK_HANDLES;
-  for (let i = 0; i < count; i++) {
-    const hue = 20 + rng() * 30;
-    avatars.push({
-      id: i,
-      name: names[Math.floor(rng() * names.length)],
-      color: `hsl(${hue}, 80%, ${50 + rng() * 20}%)`,
-      parcelIndex: Math.floor(rng() * parcelCount),
-      active: rng() > 0.5,
-    });
-  }
-  return avatars;
+// No fabricated visitors. Real presence will come from the social/presence
+// layer; until then the block shows no fake avatars walking around.
+function generateMockAvatars(_blockHeight: number, _parcelCount: number): SpatialAvatar[] {
+  return [];
 }
 
 const MOCK_SPATIAL_MESSAGES = [
@@ -4301,23 +4151,10 @@ const MOCK_SPATIAL_MESSAGES = [
   'Wagmi 🚀',
 ];
 
-function generateMockActivities(blockHeight: number): string[] {
-  const rng = seededRandom(blockHeight * 8837);
-  const activities = [
-    `⚡ satoshi_fan claimed parcel ${Math.floor(rng() * 100)}.${blockHeight}.bitmap`,
-    `👁 bitmap_whale is exploring block ${blockHeight.toLocaleString()}`,
-    `🏗️ nexus_dev deployed a new experience`,
-    `🔥 ${1 + Math.floor(rng() * 5)} reactions on the coinbase parcel`,
-    `💬 anon_42: This block has amazing energy`,
-    `💎 block_builder minted a rare inscription`,
-    `🎮 pixel_punk launched a game on parcel ${Math.floor(rng() * 50)}`,
-    `⚡ lightning_lord zapped 1000 sats to the block`,
-    `👁 ${2 + Math.floor(rng() * 20)} visitors on block ${blockHeight.toLocaleString()}`,
-    `🏗️ hash_hunter is building on parcel ${Math.floor(rng() * 80)}`,
-    `💬 crypto_whale: Who wants to collab?`,
-    `🔥 ordinal_og inscribed on this block`,
-  ];
-  return activities;
+// No fabricated activity feed. Real on-chain/social activity will populate the
+// ticker later; until then it stays empty rather than inventing events/handles.
+function generateMockActivities(_blockHeight: number): string[] {
+  return [];
 }
 
 /* ═══════════════════════════════════════════
@@ -4489,6 +4326,7 @@ function SpatialReactions({ parcels, reactions }: { parcels: ParcelData[]; react
 
 /* ─── Live Activity Ticker (overlay) — memoized to prevent re-renders ─── */
 const LiveActivityTicker = memo(function LiveActivityTicker({ activities }: { activities: string[] }) {
+  if (activities.length === 0) return null; // no fabricated feed — hide when empty
   const text = activities.join('    ·    ');
   return (
     <div style={{
@@ -4677,93 +4515,13 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
     ctx.fillRect(0, 0, SIZE, SIZE);
 
     // ═══ Bitfeed Mondrian Layout (canonical bitmap standard) ═══
-    // Inline Mondrian to avoid async import in useEffect
-    function txToSquareSize(vb: number) { return Math.max(1, Math.ceil(Math.sqrt(Math.max(1, vb) / 256))); }
-    
-    interface Slot { x: number; y: number; r: number; }
-    interface Row { y: number; slots: Slot[]; map: Record<number, Slot>; }
-    
-    class MondrianLayout {
-      width: number; rowOffset = 0; rows: Row[] = [];
-      constructor(w: number) { this.width = w; }
-      addRow() { const r: Row = { y: this.rows.length + this.rowOffset, slots: [], map: {} }; this.rows.push(r); return r; }
-      getRow(y: number) { return this.rows[y - this.rowOffset]; }
-      getSlot(x: number, y: number) { const r = this.getRow(y); return r ? r.map[x] : undefined; }
-      addSlot(s: Slot) {
-        if (s.r <= 0) return;
-        const e = this.getSlot(s.x, s.y);
-        if (e) { if (s.r > e.r) e.r = s.r; return e; }
-        const row = this.getRow(s.y); if (!row) return;
-        let at: number | null = null;
-        for (let i = 0; i < row.slots.length && at === null; i++) if (row.slots[i].x > s.x) at = i;
-        if (at === null) row.slots.push(s); else row.slots.splice(at, 0, s);
-        row.map[s.x] = s; return s;
-      }
-      removeSlot(s: Slot) {
-        const row = this.getRow(s.y);
-        if (row) { delete row.map[s.x]; const i = row.slots.indexOf(s); if (i >= 0) row.slots.splice(i, 1); }
-      }
-      fillSlot(slot: Slot, sw: number) {
-        const sq = { left: slot.x, right: slot.x + sw, top: slot.y + sw };
-        this.removeSlot(slot);
-        for (let ri = slot.y; ri < sq.top; ri++) {
-          const row = this.getRow(ri);
-          if (row) {
-            const cols: Slot[] = []; let maxE = 0;
-            for (let i = 0; i < row.slots.length; i++) {
-              const ts = row.slots[i];
-              if (!((ts.x + ts.r < sq.left) || (ts.x >= sq.right))) { cols.push(ts); maxE = Math.max(maxE, Math.max(0, (ts.x + ts.r) - (slot.x + slot.r))); }
-            }
-            if (sq.right < this.width && !row.map[sq.right]) this.addSlot({ x: sq.right, y: ri, r: slot.r - sw + maxE });
-            for (const c of cols) { c.r = slot.x - c.x; if (c.r <= 0) this.removeSlot(c); }
-          } else {
-            this.addRow();
-            if (slot.x > 0) this.addSlot({ x: 0, y: ri, r: slot.x });
-            if (sq.right < this.width) this.addSlot({ x: sq.right, y: ri, r: this.width - sq.right });
-          }
-        }
-        for (let ri = Math.max(0, slot.y - sw); ri < slot.y; ri++) {
-          const row = this.getRow(ri);
-          if (row) {
-            for (let i = 0; i < row.slots.length; i++) {
-              const ts = row.slots[i];
-              if (ts.x < slot.x + sw && ts.x + ts.r > slot.x && ts.y + ts.r >= slot.y) {
-                const old = ts.r; ts.r = slot.y - ts.y;
-                if (ts.r <= 0) this.removeSlot(ts);
-                let rem = { x: ts.x + ts.r, y: ts.y, w: old - ts.r, h: ts.r };
-                while (rem.w > 0 && rem.h > 0) {
-                  if (rem.w <= rem.h) { this.addSlot({ x: rem.x, y: rem.y, r: rem.w }); rem.y += rem.w; rem.h -= rem.w; }
-                  else { this.addSlot({ x: rem.x, y: rem.y, r: rem.h }); rem.x += rem.h; rem.w -= rem.h; }
-                }
-              }
-            }
-          }
-        }
-        return { x: slot.x, y: slot.y, r: sw };
-      }
-      place(size: number) {
-        let found = false, ri = 0, si = 0, sq = null;
-        while (!found && ri < this.rows.length) {
-          const row = this.rows[ri];
-          while (!found && si < row.slots.length) { if (row.slots[si].r >= size) { found = true; sq = this.fillSlot(row.slots[si], size); } si++; }
-          si = 0; ri++;
-        }
-        if (!found) { const row = this.addRow(); const slot = this.addSlot({ x: 0, y: row.y, r: this.width })!; sq = this.fillSlot(slot, size); }
-        return sq!;
-      }
-    }
-
-    const txSizes = parcels.map(p => txToSquareSize(p.bytes));
-    const totalArea = txSizes.reduce((s, sz) => s + sz * sz, 0);
-    const gridWidth = Math.ceil(Math.sqrt(totalArea));
-    const layout = new MondrianLayout(gridWidth);
-    const packed: { x: number; y: number; size: number }[] = [];
-    let gridHeight = 0;
-    for (let i = 0; i < parcels.length; i++) {
-      const pos = layout.place(txSizes[i]);
-      packed.push({ x: pos.x, y: pos.y, size: pos.r });
-      gridHeight = Math.max(gridHeight, pos.y + pos.r);
-    }
+    // Uses the SHARED packer in @/lib/square-packing — identical arrangement to
+    // the top-view map tile and the inside-3D parcels.
+    const { squares, gridWidth, gridHeight: packGridHeight } = packSquares(
+      parcels.map(p => ({ index: p.txIndex, vbytes: p.bytes })),
+    );
+    const packed = squares.map(sq => ({ x: sq.x, y: sq.y, size: sq.size }));
+    const gridHeight = packGridHeight;
     if (packed.length === 0) return;
 
     // Scale to fit canvas — use larger dimension to keep proportions
@@ -5269,10 +5027,23 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     let cancelled = false;
     setDataSource('loading');
     setRealBlock(null);
+    // Phase 1: fast first paint (page-0 real txs + estimated remainder).
     fetchRealBlock(blockHeight).then(data => {
       if (cancelled) return;
       setRealBlock(data);
       setDataSource(data ? 'real' : 'mock');
+
+      // Phase 2: for the ENTERED block, upgrade to FULL real tx vbytes (all
+      // pages) so the parcel arrangement reflects genuine on-chain data, not the
+      // page-0 estimate. Runs behind the existing spinner/'Estimated' badge; the
+      // canonical packer means the layout only refines, it does not re-shuffle.
+      if (data && data.estimated) {
+        fetchFullBlock(blockHeight).then(full => {
+          if (cancelled || !full) return;
+          setRealBlock(full);
+          setDataSource('real');
+        });
+      }
     });
     return () => { cancelled = true; };
   }, [blockHeight]);
@@ -5322,11 +5093,16 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               const profileData = await profileResp.json();
               const profiles = profileData?.data?.profiles;
               if (profiles?.length > 0) {
-                const bp = profiles[0];
+                // Pick the profile that belongs to THIS block's owner — never just
+                // profiles[0], which could be another wallet's profile on the same
+                // block and would bleed the wrong handle onto this block.
+                const bp = profiles.find(
+                  (p: { walletAddress?: string }) => p.walletAddress === owner.walletAddress
+                ) ?? profiles[0];
                 setRealBlockOwner({
                   handle: bp.handle,
                   avatar: bp.avatar || '₿',
-                  tier: (bp.tier || 1) as 1 | 2 | 3,
+                  tier: (bp.resolvedTier ?? 0) as ShieldTier,
                   verified: bp.verified ?? true,
                 });
                 if (!cancelled) setOwnerLoading(false);
@@ -5337,7 +5113,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           setRealBlockOwner({
             handle: owner.handle,
             avatar: '₿',
-            tier: (owner.tier || 1) as 1 | 2 | 3,
+            tier: (owner.resolvedTier ?? 0) as ShieldTier,
             verified: true,
           });
         }
@@ -5347,8 +5123,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     return () => { cancelled = true; };
   }, [blockHeight]);
   const blockOwner: OwnerData = realBlockOwner || (ownerLoading
-    ? { handle: 'Loading...', tier: 3 as const, verified: false, avatar: '⏳' }
-    : generateMockOwner(blockHeight, -1));
+    ? { handle: 'Loading...', tier: 0 as const, verified: false, avatar: '⏳' }
+    : UNCLAIMED_OWNER);
   // Check if current wallet user is the block owner by comparing wallet profile handle against the block's owner handle
   const isBlockOwner = !!(walletAddress && realBlockOwner && profile?.handle && profile.handle === realBlockOwner.handle);
   // Fetch guardian status
@@ -5420,10 +5196,11 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const displayParcel = selectedParcel || (parcelNavIndex < parcels.length ? parcels[parcelNavIndex] : null);
   const displayParcelOwner = useMemo(() => {
     if (!displayParcel) return null;
-    // Use real block owner if available (don't show mock names for owned blocks)
+    // Real owner only — never fabricate a handle for an unowned block/parcel.
     if (realBlockOwner) return realBlockOwner;
-    return generateMockOwner(blockHeight, displayParcel.txIndex);
-  }, [blockHeight, displayParcel, realBlockOwner]);
+    if (ownerLoading) return null;
+    return UNCLAIMED_OWNER;
+  }, [displayParcel, realBlockOwner, ownerLoading]);
 
   // Real chat: fetch messages from API + poll every 3s
   const lastMessageTime = useRef<string | null>(null);
@@ -5438,15 +5215,15 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
       const res = await fetch(url);
       if (!res.ok) return;
       const json = await res.json();
-      const rawMsgs = (json.data || []).map((m: { id: string; senderHandle?: string; senderAddress: string; text: string; type: string; createdAt: string; senderTier?: number; senderVerified?: boolean }) => ({
+      const rawMsgs = (json.data || []).map((m: { id: string; senderHandle?: string; senderAddress: string; text: string; type: string; createdAt: string; senderTier?: number; senderResolvedTier?: number; senderVerified?: boolean }) => ({
         id: m.id,
         sender: m.senderHandle || m.senderAddress.slice(0, 8),
         text: m.text,
         time: new Date(m.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
         type: m.type as ChatMessage['type'],
         createdAt: m.createdAt,
-        ownerData: m.senderTier ? { handle: m.senderHandle || m.senderAddress.slice(0, 8), tier: m.senderTier as 1 | 2 | 3 } : undefined,
-        isOwner: m.senderTier === 1,
+        ownerData: m.senderResolvedTier ? { handle: m.senderHandle || m.senderAddress.slice(0, 8), tier: m.senderResolvedTier as ShieldTier } : undefined,
+        isOwner: m.senderResolvedTier === 1,
       }));
 
       // Decrypt encrypted DM messages client-side
@@ -6189,47 +5966,13 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               </div>
             </div>
 
-            {/* Top Blocks Leaderboard */}
+            {/* Top Blocks Leaderboard — hidden until real ranking data exists
+                (no fabricated owners/handles/rankings on the public surface). */}
             <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div className="text-[10px] uppercase tracking-wider font-bold mb-3" style={{ color: '#94a3b8' }}>🏆 Top Blocks — Global</div>
-              {(() => {
-                const rng = seededRandom(blockHeight * 8881);
-                const topBlocks = Array.from({ length: 10 }, (_, i) => ({
-                  rank: i + 1,
-                  height: Math.floor(rng() * 880000),
-                  handle: MOCK_HANDLES[Math.floor(rng() * MOCK_HANDLES.length)],
-                  gdp: Math.floor(9999 - i * (rng() * 800 + 200)),
-                  change: Math.floor(rng() * 50) - 15,
-                  avatar: MOCK_AVATARS[Math.floor(rng() * MOCK_AVATARS.length)],
-                  tier: (rng() < 0.6 ? 1 : 2) as 1 | 2,
-                }));
-                return topBlocks.map((b, i) => (
-                  <div key={i} className="flex items-center gap-2 py-2 group hover:brightness-130 cursor-pointer transition-all"
-                    style={{ borderBottom: i < 9 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
-                    <span className="w-5 text-right text-[11px] font-mono font-black" style={{
-                      color: i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : '#475569',
-                      textShadow: i < 3 ? `0 0 8px ${i === 0 ? '#FFD70066' : i === 1 ? '#C0C0C066' : '#CD7F3266'}` : 'none',
-                    }}>
-                      {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
-                    </span>
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px]"
-                      style={{ background: 'rgba(247,147,26,0.15)', color: '#f7931a' }}>{b.avatar}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] font-mono font-bold truncate" style={{ color: '#e2e8f0' }}>#{b.height.toLocaleString()}</span>
-                        <CrownShield tier={b.tier} size={10} />
-                      </div>
-                      <span className="text-[8px] font-mono" style={{ color: '#64748b' }}>@{b.handle}</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[10px] font-mono font-bold" style={{ color: '#f7931a' }}>{b.gdp.toLocaleString()}</div>
-                      <div className="text-[8px] font-mono" style={{ color: b.change >= 0 ? '#22c55e' : '#ff4444' }}>
-                        {b.change >= 0 ? '▲' : '▼'} {Math.abs(b.change)}
-                      </div>
-                    </div>
-                  </div>
-                ));
-              })()}
+              <div className="text-[10px] font-mono py-2" style={{ color: '#64748b' }}>
+                Leaderboard coming soon — rankings appear once blocks are live.
+              </div>
             </div>
 
             {/* Block Achievements */}
@@ -6276,12 +6019,20 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             <div className="px-4 py-2 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px]"
                 style={{ background: 'rgba(247,147,26,0.15)', color: '#f7931a' }}>{blockOwner.avatar}</div>
-              <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                <span className="text-xs font-mono truncate" style={{ color: '#e2e8f0' }}>@{blockOwner.handle}</span>
-                <CrownShield tier={blockOwner.tier} size={16} />
-                {blockOwner.verified && <span className="text-[9px]" style={{ color: '#66ccff' }}>✓</span>}
-              </div>
-              <button onClick={() => setShowQrProfile(true)} className="text-[12px] hover:brightness-150 transition-all active:scale-90" title="View Bitcoin address & QR">₿</button>
+              {isUnclaimedOwner(blockOwner) ? (
+                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                  <span className="text-xs font-mono" style={{ color: '#64748b' }}>Unclaimed</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                    <span className="text-xs font-mono truncate" style={{ color: '#e2e8f0' }}>@{blockOwner.handle}</span>
+                    <CrownShield tier={blockOwner.tier} size={16} />
+                    {blockOwner.verified && <span className="text-[9px]" style={{ color: '#66ccff' }}>✓</span>}
+                  </div>
+                  <button onClick={() => setShowQrProfile(true)} className="text-[12px] hover:brightness-150 transition-all active:scale-90" title="View Bitcoin address & QR">₿</button>
+                </>
+              )}
             </div>
 
             <div className="px-4 py-3 space-y-2 text-xs font-mono" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -6364,7 +6115,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
             {displayParcel && (
               <div className="px-4 py-3 space-y-2 text-xs font-mono" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                {displayParcelOwner && (
+                {displayParcelOwner && !isUnclaimedOwner(displayParcelOwner) && (
                   <div className="flex items-center gap-2 pb-2 mb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px]"
                       style={{ background: 'rgba(247,147,26,0.15)', color: '#f7931a' }}>{displayParcelOwner.avatar}</div>
@@ -6374,6 +6125,11 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                     <div className="flex-1" />
                     <button onClick={() => setShowQrProfile(true)} className="text-[11px] hover:brightness-150 transition-all active:scale-90" title="View Bitcoin address & QR">₿</button>
                     {isWalletConnected && <button onClick={() => setShowSendBtcModal(true)} className="text-[11px] hover:brightness-150 transition-all active:scale-90" title="Send sats">⚡</button>}
+                  </div>
+                )}
+                {displayParcelOwner && isUnclaimedOwner(displayParcelOwner) && (
+                  <div className="flex items-center gap-2 pb-2 mb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span className="text-[10px] font-mono" style={{ color: '#64748b' }}>○ Unclaimed parcel</span>
                   </div>
                 )}
 

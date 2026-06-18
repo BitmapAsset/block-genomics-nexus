@@ -16,6 +16,8 @@ interface BlockProfileData {
   bio?: string;
   genomeHash?: string;
   tier: number;
+  /** Live SSOT tier (owner's User.resolvedTier); 0 = unverified. */
+  resolvedTier?: number;
   verified: boolean;
   isPrimary: boolean;
 }
@@ -231,7 +233,7 @@ function BlockCard({
               {profile?.displayName || profile?.handle || `Block #${blockHeight}`}
             </span>
             {profile && (
-              <CrownShield tier={(profile.tier || 1) as ShieldTier} size={20} verified={profile.verified} />
+              <CrownShield tier={(profile.resolvedTier ?? 0) as ShieldTier} size={20} verified={profile.verified} />
             )}
           </div>
           {profile && (
@@ -423,7 +425,7 @@ function BlockCard({
 export default function ProfileHubPage() {
   const { isConnected, walletAddress, connect, availableWallets } = useGlobalWallet();
   const [profiles, setProfiles] = useState<BlockProfileData[]>([]);
-  const [userFallback, setUserFallback] = useState<{ handle: string; displayName?: string; tier: number; verified: boolean; anchorBlock?: number } | null>(null);
+  const [userFallback, setUserFallback] = useState<{ handle: string; displayName?: string; tier: number; resolvedTier?: number; verified: boolean; anchorBlock?: number } | null>(null);
   const [ownedBlocks, setOwnedBlocks] = useState<number[]>([]);
   const [empireStats, setEmpireStats] = useState<EmpireStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -484,7 +486,7 @@ export default function ProfileHubPage() {
           // Store user-level data as fallback if they have a handle but no BlockProfiles
           const u = uData.data;
           if (u.handle) {
-            setUserFallback({ handle: u.handle, displayName: u.displayName, tier: u.tier ?? 1, verified: !!u.verified, anchorBlock: u.anchorBlock });
+            setUserFallback({ handle: u.handle, displayName: u.displayName, tier: u.tier ?? 1, resolvedTier: u.resolvedTier ?? 0, verified: !!u.verified, anchorBlock: u.anchorBlock });
           }
         }
       }
@@ -553,6 +555,7 @@ export default function ProfileHubPage() {
       handle: userFallback.handle,
       displayName: userFallback.displayName,
       tier: userFallback.tier || 1,
+      resolvedTier: userFallback.resolvedTier ?? 0,
       verified: userFallback.verified,
       isPrimary: true,
     } as BlockProfileData);
@@ -660,7 +663,7 @@ export default function ProfileHubPage() {
                         <span className="text-sm font-semibold text-white truncate">
                           {p.displayName || p.handle}
                         </span>
-                        <CrownShield tier={(p.tier || 1) as ShieldTier} size={16} verified={p.verified} />
+                        <CrownShield tier={(p.resolvedTier ?? 0) as ShieldTier} size={16} verified={p.verified} />
                       </div>
                       <p className="text-xs text-gray-500 truncate">@{p.handle}</p>
                     </div>
@@ -687,7 +690,7 @@ export default function ProfileHubPage() {
                       <span className="text-sm font-semibold text-white truncate">
                         {userFallback.displayName || userFallback.handle}
                       </span>
-                      <CrownShield tier={(userFallback.tier || 1) as ShieldTier} size={16} verified={userFallback.verified} />
+                      <CrownShield tier={(userFallback.resolvedTier ?? 0) as ShieldTier} size={16} verified={userFallback.verified} />
                     </div>
                     <p className="text-xs text-gray-500 truncate">@{userFallback.handle}</p>
                   </div>

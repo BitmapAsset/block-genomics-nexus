@@ -5,6 +5,7 @@ import { deriveGenomeHash } from '@/lib/genome-utils';
 import { logActivity } from '@/lib/activity';
 import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
+import { normalizeHandle, isValidHandle, HANDLE_ERROR } from '@/lib/handle';
 
 const HANDLE_RE = /^[a-z0-9_]{1,30}$/;
 
@@ -52,9 +53,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate handle
-    const normalizedHandle = handle.toLowerCase().replace(/-/g, '_');
-    if (!HANDLE_RE.test(normalizedHandle)) {
-      return error('Handle can only contain lowercase letters, numbers, and underscores (max 30 chars)', 400);
+    const normalizedHandle = normalizeHandle(handle);
+    if (!isValidHandle(normalizedHandle)) {
+      return error(HANDLE_ERROR, 400);
     }
 
     // Check user exists and is verified

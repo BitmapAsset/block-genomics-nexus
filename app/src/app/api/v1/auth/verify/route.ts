@@ -4,6 +4,8 @@ import { success, error, isValidBitcoinAddress } from '@/lib/api-helpers';
 import { logActivity } from '@/lib/activity';
 import { consumeChallengeFromMessage } from '@/lib/challenges';
 import { deriveGenomeHash } from '@/lib/genome-utils';
+import { normalizeHandle, isValidHandle, HANDLE_ERROR } from '@/lib/handle';
+import { getInscriptionOwner as ordGetInscriptionOwner, getAddressInscriptions as ordGetAddressInscriptions } from '@/lib/onchain/ord';
 
 /**
  * POST /api/v1/auth/verify
@@ -73,6 +75,11 @@ export async function POST(req: NextRequest) {
         if (ownerCheck.verified) {
           verifiedBlockHeight = blockHeight;
           tier = 1;
+        } else if (ownerCheck.unavailable) {
+          // FAIL CLOSED: no live indexer could confirm the current holder. Surface
+          // a retryable "temporarily unavailable" (503) instead of a hard 403, and
+          // do NOT grant ownership.
+          return error('On-chain verification temporarily unavailable. Please try again shortly.', 503);
         } else {
           return error(`Ownership verification failed: ${ownerCheck.reason}`, 403);
         }
@@ -99,12 +106,12 @@ export async function POST(req: NextRequest) {
       ? existingUser.genomeHash
       : deriveGenomeHash(verifiedBlockHeight || 0, walletAddress);
 
-    // Normalize handle to lowercase
-    const normalizedHandle = handle?.toLowerCase().replace(/-/g, '_');
+    // Normalize handle to canonical form ('' when absent)
+    const normalizedHandle = normalizeHandle(handle);
 
     // Validate handle format: only letters, numbers, underscores
-    if (normalizedHandle && !/^[a-z0-9_]{1,30}$/.test(normalizedHandle)) {
-      return error('Handle can only contain letters, numbers, and underscores (max 30 chars)', 400);
+    if (normalizedHandle && !isValidHandle(normalizedHandle)) {
+      return error(HANDLE_ERROR, 400);
     }
 
     // Check handle uniqueness if provided (ABSOLUTE global uniqueness across User + BlockProfile)
@@ -224,10 +231,10 @@ export async function GET(req: NextRequest) {
     const handle = req.nextUrl.searchParams.get('handle');
     if (!handle) return error('handle query param required', 400);
 
-    if (handle.length < 3 || handle.length > 20) return error('Handle must be 3-20 characters', 400);
-    if (!/^[a-zA-Z0-9_]+$/.test(handle)) return error('Only letters, numbers, underscores', 400);
+    // Normalize identically to the claim paths so availability matches reality.
+    const normalizedHandle = normalizeHandle(handle);
+    if (!isValidHandle(normalizedHandle)) return error(HANDLE_ERROR, 400);
 
-    const normalizedHandle = handle.toLowerCase();
     const [existingUser, existingProfile] = await Promise.all([
       prisma.user.findUnique({ where: { handle: normalizedHandle } }),
       prisma.blockProfile.findUnique({ where: { handle: normalizedHandle } }),
@@ -250,117 +257,172 @@ function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = FETCH_TIMEOU
 }
 
 /**
- * Verify a specific inscription is owned by the wallet and maps to the claimed block.
- * Uses Unisat open API (ordinals.com JSON API is disabled).
+ * Verify a specific inscription is CURRENTLY held by the wallet AND maps to the
+ * claimed block.
+ *
+ * SECURITY MODEL (fail closed):
+ *   - The current-holder check is MANDATORY. `.bitmap` content is public and
+ *     immutable, so a content match alone proves nothing about who holds the
+ *     inscription now. We REQUIRE a live indexer to report the current holder
+ *     and that holder to equal `walletAddress` (case-sensitive bech32).
+ *   - Holder providers, in order: ord (ordinals.com `/r/inscription/<id>` — the
+ *     non-recursive JSON API is 406-disabled on the public instance), then
+ *     Unisat as a tertiary fallback — applying the SAME address-equality
+ *     assertion. Unisat is NEVER a content-only bypass.
+ *   - The block-number content match is an ADDITIONAL constraint, not a
+ *     substitute for the holder check. There is NO content-only success path.
+ *   - If NO provider returns a current holder, we return `unavailable` so the
+ *     route surfaces a retryable "temporarily unavailable" — we do NOT verify.
+ *
+ * Returns:
+ *   { verified: true }                       — live holder == wallet AND content matches block
+ *   { verified: false, reason }              — a provider answered and the claim is wrong
+ *   { verified: false, unavailable: true }   — no live provider could confirm the holder (fail closed)
  */
 async function verifyInscriptionOwnership(
   walletAddress: string,
   inscriptionId: string,
   blockHeight: number
-): Promise<{ verified: boolean; reason?: string }> {
+): Promise<{ verified: boolean; reason?: string; unavailable?: boolean }> {
   try {
-    // Strategy 1: Unisat API — get inscription info
-    try {
-      const res = await fetchWithTimeout(
-        `https://open-api.unisat.io/v1/indexer/inscription/info/${inscriptionId}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const info = data?.data;
-        if (info) {
-          // Check owner address
-          if (info.address && info.address !== walletAddress) {
-            return { verified: false, reason: 'Inscription is not held by this wallet' };
-          }
-          // Check content type — .bitmap inscriptions are text/plain
-          if (info.contentType && !info.contentType.includes('text')) {
-            return { verified: false, reason: 'Inscription is not a text inscription (.bitmap must be text)' };
+    // ── MANDATORY current-holder check ────────────────────────────
+    // `holderAddress` stays null until SOME live indexer reports a current holder.
+    let holderAddress: string | null = null;
+
+    // Provider 1: ord (ordinals.com /r/inscription/<id> JSON via the ord client).
+    const ordOwner = await ordGetInscriptionOwner(inscriptionId);
+    if (ordOwner) {
+      holderAddress = ordOwner.address;
+    }
+
+    // Provider 2 (tertiary fallback): Unisat — ONLY to learn the current holder,
+    // with the SAME equality assertion. Never a content-only bypass.
+    if (!holderAddress) {
+      try {
+        const res = await fetchWithTimeout(
+          `https://open-api.unisat.io/v1/indexer/inscription/info/${inscriptionId}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const info = data?.data;
+          if (info?.address && typeof info.address === 'string') {
+            holderAddress = info.address;
           }
         }
-      }
-    } catch { /* Unisat API unavailable, continue */ }
+      } catch { /* Unisat unavailable — fall through to fail-closed below */ }
+    }
 
-    // Strategy 2: Verify content matches the block
-    // Try ordinals.com/content (this endpoint still works even if JSON API is disabled)
+    // FAIL CLOSED: no live indexer could establish the current holder.
+    if (!holderAddress) {
+      console.warn(`[verify] No on-chain holder available for ${inscriptionId}; failing closed`);
+      return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
+    }
+
+    // The wallet must CURRENTLY hold the inscription (case-sensitive bech32).
+    if (holderAddress !== walletAddress) {
+      return { verified: false, reason: 'Inscription is not held by this wallet' };
+    }
+
+    // ── ADDITIONAL constraint: content must name the claimed block ──
+    // This runs AFTER a successful holder match; it can only tighten the result,
+    // never substitute for the holder check. If the content endpoint itself is
+    // unavailable we fail closed (cannot confirm this is the block's .bitmap).
+    let content: string | null = null;
     try {
       const contentRes = await fetchWithTimeout(`https://ordinals.com/content/${inscriptionId}`);
       if (contentRes.ok) {
-        const content = await contentRes.text();
-        const trimmed = content.trim();
-        const isMatch =
-          trimmed === `${blockHeight}` ||
-          trimmed === `${blockHeight}.bitmap` ||
-          trimmed === String(blockHeight);
-        if (!isMatch) {
-          return { verified: false, reason: `Inscription content "${trimmed}" does not match block ${blockHeight}` };
-        }
-        return { verified: true };
+        content = (await contentRes.text()).trim();
       }
-    } catch { /* ordinals content unavailable */ }
+    } catch { /* content unavailable */ }
 
-    // Strategy 3: If we can't verify content but inscription was provided by the wallet extension,
-    // trust the frontend scanner (it already checked content). This is acceptable because:
-    // - The user proved wallet control via BIP-322
-    // - The inscription ID was provided by their wallet extension which can only see inscriptions they own
-    // - We'll do periodic on-chain re-verification via the ownership cron
-    // SECURITY: Do NOT fall back to trusting frontend when external APIs are unavailable.
-    console.warn(`[verify] Could not verify inscription content for ${inscriptionId}, rejecting until APIs available`);
-    return { verified: false, reason: 'On-chain verification temporarily unavailable. Please try again later.' };
+    if (content === null) {
+      console.warn(`[verify] Holder confirmed for ${inscriptionId} but content unavailable; failing closed`);
+      return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
+    }
+
+    const isMatch =
+      content === `${blockHeight}` ||
+      content === `${blockHeight}.bitmap`;
+    if (!isMatch) {
+      return { verified: false, reason: `Inscription content "${content}" does not match block ${blockHeight}` };
+    }
+
+    // Held by this wallet now AND content names the claimed block.
+    return { verified: true };
   } catch (e) {
     console.error('[verify] Inscription ownership check failed:', e);
-    return { verified: false, reason: 'On-chain verification temporarily unavailable. Please try again.' };
+    // Unexpected error — fail closed as retryable, never grant ownership.
+    return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
   }
 }
 
 /**
- * Scan a wallet's inscriptions for a .bitmap matching the claimed block.
- * Uses Unisat open API.
+ * Scan a wallet's CURRENTLY held inscriptions for a .bitmap matching the claimed
+ * block.
+ *
+ * SECURITY MODEL (fail closed):
+ *   - The inscription list comes ONLY from live indexers that report what the
+ *     wallet holds NOW: ord (`/address/<addr>` → `inscriptions[]`), then Unisat
+ *     (`inscription-utxo-data`) as a tertiary fallback. Both are real
+ *     current-holding sources, so a content match against a listed inscription
+ *     proves both holding and identity.
+ *   - The prior "trust our own DB owner when APIs are down" fallback is REMOVED.
+ *     Our DB is a cache; trusting it on an outage let a stale/forged record
+ *     re-grant a sold block.
+ *   - If NO live provider returns the wallet's inscriptions, return found:false
+ *     (fail closed). The route then rejects with a clear message.
  */
 async function scanWalletForBitmap(
   walletAddress: string,
   blockHeight: number
 ): Promise<{ found: boolean; inscriptionId?: string }> {
   try {
-    // Strategy 1: Unisat open API — list wallet inscriptions
-    try {
-      const res = await fetchWithTimeout(
-        `https://open-api.unisat.io/v1/indexer/address/${walletAddress}/inscription-utxo-data?cursor=0&size=100`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const utxos = data?.data?.utxo || [];
-        const inscriptionIds: string[] = [];
-        for (const utxo of utxos) {
-          for (const insc of (utxo.inscriptions || [])) {
-            if (insc.inscriptionId) inscriptionIds.push(insc.inscriptionId);
+    let inscriptionIds: string[] | null = null;
+
+    // Provider 1: ord — inscriptions currently held by this address.
+    inscriptionIds = await ordGetAddressInscriptions(walletAddress);
+
+    // Provider 2 (tertiary fallback): Unisat UTXO-held inscriptions for the address.
+    if (inscriptionIds === null) {
+      try {
+        const res = await fetchWithTimeout(
+          `https://open-api.unisat.io/v1/indexer/address/${walletAddress}/inscription-utxo-data?cursor=0&size=100`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const utxos = data?.data?.utxo || [];
+          const ids: string[] = [];
+          for (const utxo of utxos) {
+            for (const insc of (utxo.inscriptions || [])) {
+              if (insc.inscriptionId) ids.push(insc.inscriptionId);
+            }
+          }
+          inscriptionIds = ids;
+        }
+      } catch { /* Unisat unavailable — fall through to fail-closed below */ }
+    }
+
+    // FAIL CLOSED: no live provider could list the wallet's current inscriptions.
+    // (An empty array is a real "holds none" negative; null means "down".)
+    if (inscriptionIds === null) {
+      console.warn(`[verify] No on-chain inscription list available for ${walletAddress}; failing closed`);
+      return { found: false };
+    }
+
+    // Content-match each currently held inscription against the claimed block
+    // (limit to first 50 to avoid timeout). A hit proves current holding AND
+    // block identity together.
+    for (const id of inscriptionIds.slice(0, 50)) {
+      try {
+        const contentRes = await fetchWithTimeout(`https://ordinals.com/content/${id}`, {}, 5000);
+        if (contentRes.ok) {
+          const trimmed = (await contentRes.text()).trim();
+          if (trimmed === `${blockHeight}` || trimmed === `${blockHeight}.bitmap`) {
+            return { found: true, inscriptionId: id };
           }
         }
-
-        // Check content of each inscription (limit to first 50 to avoid timeout)
-        for (const id of inscriptionIds.slice(0, 50)) {
-          try {
-            const contentRes = await fetchWithTimeout(`https://ordinals.com/content/${id}`, {}, 5000);
-            if (contentRes.ok) {
-              const content = await contentRes.text();
-              const trimmed = content.trim();
-              if (trimmed === `${blockHeight}` || trimmed === `${blockHeight}.bitmap`) {
-                return { found: true, inscriptionId: id };
-              }
-            }
-          } catch { continue; }
-        }
-      }
-    } catch { /* Unisat API unavailable */ }
-
-    // Strategy 2: Check if we already have this block in our DB with this owner
-    // (secondary verification — trust our own records if external APIs are down)
-    try {
-      const block = await prisma.block.findUnique({ where: { height: blockHeight } });
-      if (block && block.ownerAddress === walletAddress && block.inscriptionId) {
-        console.log(`[verify] Block ${blockHeight} found in DB with matching owner, accepting`);
-        return { found: true, inscriptionId: block.inscriptionId };
-      }
-    } catch { /* DB check failed */ }
+      } catch { continue; }
+    }
 
     return { found: false };
   } catch (e) {

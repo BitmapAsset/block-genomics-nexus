@@ -16,6 +16,8 @@ export interface ChatMsg {
   senderAddress: string;
   senderHandle: string;
   senderTier: number;
+  /** Live SSOT tier (User.resolvedTier); 0 = unverified. Preferred over senderTier for badges. */
+  senderResolvedTier?: number;
   senderVerified: boolean;
   text: string;
   type: string;
@@ -290,7 +292,7 @@ export default function ChatWindow({
                 {/* Sender info (others only) */}
                 {!own && (
                   <div className="flex items-center gap-1.5 mb-0.5 ml-1">
-                    <CrownShield tier={(msg.senderTier as ShieldTier) || 3} size={16} />
+                    <CrownShield tier={(msg.senderResolvedTier ?? 0) as ShieldTier} size={16} />
                     <span className="text-[11px] font-medium text-cyan-400/80">{msg.senderHandle}</span>
                     <span className="text-[10px] text-gray-600">{shortAddr(msg.senderAddress)}</span>
                   </div>

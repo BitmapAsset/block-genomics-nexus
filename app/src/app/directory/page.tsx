@@ -99,10 +99,10 @@ function MiniHelix({ hash }: { hash: string }) {
 
 /* ── Agent Card ── */
 function AgentCard({ agent }: { agent: VerifiedAgent }) {
-  const tierLabel = agent.tier === 1 ? 'Block Owner' : agent.tier === 2 ? 'Parcel Owner' : 'Delegated';
-  const tierColor = agent.tier === 1 ? 'text-yellow-400' : agent.tier === 2 ? 'text-cyan-400' : 'text-purple-400';
-  const tierBorder = agent.tier === 1 ? 'border-yellow-500/20 hover:border-yellow-500/40' : agent.tier === 2 ? 'border-cyan-500/20 hover:border-cyan-500/40' : 'border-purple-500/20 hover:border-purple-500/40';
-  const tierGlow = agent.tier === 1 ? 'hover:shadow-yellow-500/10' : agent.tier === 2 ? 'hover:shadow-cyan-500/10' : 'hover:shadow-purple-500/10';
+  const tierLabel = agent.tier === 0 ? 'Unverified' : agent.tier === 1 ? 'Block Owner' : agent.tier === 2 ? 'Parcel Owner' : 'Delegated';
+  const tierColor = agent.tier === 0 ? 'text-gray-400' : agent.tier === 1 ? 'text-yellow-400' : agent.tier === 2 ? 'text-cyan-400' : 'text-purple-400';
+  const tierBorder = agent.tier === 0 ? 'border-gray-500/20 hover:border-gray-500/40' : agent.tier === 1 ? 'border-yellow-500/20 hover:border-yellow-500/40' : agent.tier === 2 ? 'border-cyan-500/20 hover:border-cyan-500/40' : 'border-purple-500/20 hover:border-purple-500/40';
+  const tierGlow = agent.tier === 0 ? 'hover:shadow-gray-500/10' : agent.tier === 1 ? 'hover:shadow-yellow-500/10' : agent.tier === 2 ? 'hover:shadow-cyan-500/10' : 'hover:shadow-purple-500/10';
 
   return (
     <Link href={`/agent/${agent.handle}`}>
@@ -192,11 +192,11 @@ export default function DirectoryPage() {
         const usersData = json?.data?.users ?? json?.data;
         if (!Array.isArray(usersData)) { setLoadingUsers(false); return; }
         const users = usersData;
-        setRealUsers(users.map((u: { handle: string; displayName?: string; tier?: number; anchorBlock?: number; genomeHash?: string; createdAt?: string; bio?: string }, i: number) => ({
+        setRealUsers(users.map((u: { handle: string; displayName?: string; tier?: number; resolvedTier?: number; anchorBlock?: number; genomeHash?: string; createdAt?: string; bio?: string }, i: number) => ({
           id: `real-${u.handle}-${i}`,
           handle: u.handle,
           displayName: u.displayName || u.handle,
-          tier: (u.tier || 3) as ShieldTier,
+          tier: (u.resolvedTier ?? 0) as ShieldTier,
           blockHeight: u.anchorBlock || 0,
           parcelIndex: null,
           genomeHash: u.genomeHash || '0x' + '0'.repeat(32),

@@ -88,10 +88,10 @@ export async function resolveTier(
     const inscriptions = await scanOnChain(walletAddress, baseUrl);
     const now = new Date();
 
-    // Extract blocks and parcels from scan
-    const scannedBlocks = inscriptions
-      .filter(i => i.type === 'block')
-      .map(i => i.height);
+    // Extract blocks and parcels from scan (retain inscriptionId so the ownership
+    // cron — which only re-checks blocks that HAVE one — can see scan-found blocks)
+    const scannedBlockRecords = inscriptions.filter(i => i.type === 'block');
+    const scannedBlocks = scannedBlockRecords.map(i => i.height);
     const scannedParcels = inscriptions
       .filter(i => i.type === 'parcel' && i.parcelIndex !== undefined)
       .map(i => ({ blockHeight: i.height, txIndex: i.parcelIndex! }));
@@ -111,12 +111,22 @@ export async function resolveTier(
         },
       });
     }
-    // Update Block ownership in DB
-    for (const block of scannedBlocks) {
+    // Update Block ownership in DB — persist inscriptionId from the scan so these
+    // wallet-scan-discovered blocks become eligible for the ownership re-check cron.
+    for (const { height, inscriptionId } of scannedBlockRecords) {
       await prisma.block.upsert({
-        where: { height: block },
-        create: { height: block, ownerAddress: walletAddress, lastOwnerCheck: now },
-        update: { ownerAddress: walletAddress, lastOwnerCheck: now },
+        where: { height },
+        create: {
+          height,
+          ownerAddress: walletAddress,
+          lastOwnerCheck: now,
+          ...(inscriptionId && { inscriptionId }),
+        },
+        update: {
+          ownerAddress: walletAddress,
+          lastOwnerCheck: now,
+          ...(inscriptionId && { inscriptionId }),
+        },
       });
     }
   }

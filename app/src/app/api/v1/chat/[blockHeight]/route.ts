@@ -34,6 +34,7 @@ export async function GET(
           select: {
             handle: true,
             tier: true,
+            resolvedTier: true,
             verified: true,
           },
         },
@@ -57,6 +58,7 @@ export async function GET(
         senderAddress: m.senderAddress,
         senderHandle: m.sender?.handle || m.senderHandle || 'anon',
         senderTier: m.sender?.tier ?? 3,
+        senderResolvedTier: m.sender?.resolvedTier ?? 0,
         senderVerified: m.sender?.verified ?? false,
         text: m.text,
         type: m.type,

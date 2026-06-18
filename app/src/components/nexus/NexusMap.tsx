@@ -44,8 +44,25 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
   const [feedOpen, setFeedOpen] = useState(true);
   const [cyberpunk, setCyberpunk] = useState(true);
   const [enteredBlock, setEnteredBlock] = useState<number | null>(null);
+  // Real claimed-block heights from the DB. Empty until loaded / on error,
+  // in which case every block honestly renders as unclaimed (never fabricated).
+  const [claimedSet, setClaimedSet] = useState<Set<number>>(() => new Set());
 
   const { visitors, activity, messagesByBlock, sendMessage } = useNexusSocial();
+
+  // Fetch the genuine owned-block set once on mount.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/v1/blocks/claimed')
+      .then((res) => (res.ok ? res.json() : { heights: [] }))
+      .then((data: { heights?: number[] }) => {
+        if (!cancelled && Array.isArray(data.heights)) {
+          setClaimedSet(new Set(data.heights));
+        }
+      })
+      .catch(() => { /* honest: stays unclaimed on error */ });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -162,6 +179,8 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
   // Tooltip for hovered block
   const hoveredData = hoveredBlock !== null ? generateBlock(hoveredBlock) : null;
   const hoveredLandmark = hoveredBlock !== null ? getLandmark(hoveredBlock) : null;
+  // Claimed status comes from real owned-block data, not the visual generator.
+  const hoveredClaimed = hoveredBlock !== null && claimedSet.has(hoveredBlock);
 
   // If inside a block, render ParcelView
   if (enteredBlock !== null) {
@@ -249,7 +268,7 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
             <span className="text-[#64748b]">|</span>
             <span>{hoveredData.txCount.toLocaleString()} parcels (child inscriptions)</span>
             <span className="text-[#64748b]">|</span>
-            <span style={{ color: hoveredData.claimed ? '#22c55e' : '#64748b' }}>{hoveredData.claimed ? '● Claimed' : '○ Unclaimed'}</span>
+            <span style={{ color: hoveredClaimed ? '#22c55e' : '#64748b' }}>{hoveredClaimed ? '● Claimed' : '○ Unclaimed'}</span>
           </div>
           {hoveredLandmark && (
             <div className="mt-1 text-[10px] text-[#fbbf24]">✨ {hoveredLandmark.title}</div>

@@ -59,6 +59,7 @@ export async function GET(
       genomeHash: user.genomeHash,
       anchorBlock: user.anchorBlock,
       tier: user.tier,
+      resolvedTier: user.resolvedTier ?? 0,
       verified: user.verified,
       blockProfiles: user.blockProfiles,
       ownedBlocks,

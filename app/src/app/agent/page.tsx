@@ -17,6 +17,8 @@ interface BlockProfileData {
   bio?: string;
   genomeHash?: string;
   tier: number;
+  /** Live SSOT tier (owner's User.resolvedTier); 0 = unverified. */
+  resolvedTier?: number;
   verified: boolean;
   isPrimary: boolean;
 }
@@ -129,7 +131,7 @@ function AgentCard({
                 {guardian.name || profile?.displayName || `Agent #${guardian.blockHeight}`}
               </span>
               {profile && (
-                <CrownShield tier={(profile.tier || 1) as ShieldTier} size={18} verified={profile.verified} />
+                <CrownShield tier={(profile.resolvedTier ?? 0) as ShieldTier} size={18} verified={profile.verified} />
               )}
             </div>
             {profile && (

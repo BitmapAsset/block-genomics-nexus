@@ -6,7 +6,8 @@ import prisma from "@/lib/prisma";
  * GET /api/v1/badge/[id].svg
  *
  * Returns the Crown Shield SVG badge for the given agent/badge ID.
- * Tiers: 1 (Gold/Bitmap owner), 2 (Cyan/Tx verified), 3 (Purple/Delegated)
+ * Tiers: 0 (Grey/Unverified), 1 (Gold/Bitmap owner), 2 (Cyan/Tx verified), 3 (Purple/Delegated)
+ * SSOT is User.resolvedTier. Unknown ids and unresolved users render the T0 unverified badge.
  */
 export async function GET(
   _request: NextRequest,
@@ -24,9 +25,11 @@ export async function GET(
   // Strip .svg extension if present
   const cleanId = id.replace(/\.svg$/, "");
 
-  // Look up actual tier from DB (by handle or wallet address)
-  let tier: 1 | 2 | 3 = 1;
-  const verified = true;
+  // Look up live tier from the SSOT (User.resolvedTier) by handle or wallet address.
+  // Default to Tier 0 / unverified: an unknown id (non-existent user) or a user whose
+  // tier hasn't resolved on-chain MUST NOT render a gold "verified T1" shield.
+  let tier: 0 | 1 | 2 | 3 = 0;
+  let verified = false;
 
   const user = await prisma.user.findFirst({
     where: {
@@ -35,13 +38,14 @@ export async function GET(
         { walletAddress: cleanId },
       ],
     },
-    select: { resolvedTier: true, tier: true },
+    select: { resolvedTier: true },
   });
 
   if (user) {
-    const resolvedTier = user.resolvedTier ?? user.tier ?? 1;
+    const resolvedTier = user.resolvedTier ?? 0;
     if (resolvedTier === 1 || resolvedTier === 2 || resolvedTier === 3) {
       tier = resolvedTier;
+      verified = true;
     }
   }
 

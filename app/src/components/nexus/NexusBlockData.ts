@@ -1,4 +1,8 @@
-// Mock Bitcoin block data generation
+// Deterministic Bitcoin block VISUALS (geometry, epoch colors, special markers,
+// tx-packing texture). Ownership/identity is NOT generated here — real claimed
+// status comes from the DB (GET /api/v1/blocks/claimed). The hash/genomeHash
+// fields are placeholder visuals only and must never be surfaced as a real
+// block hash or owner identity.
 
 export interface BlockData {
   height: number;
@@ -83,7 +87,9 @@ export function generateBlock(height: number): BlockData {
     size: Math.floor(rng() * 1500000) + 300000,
     fees: parseFloat((rng() * 2 + 0.01).toFixed(4)),
     epoch,
-    claimed: rng() < 0.3,
+    // Ownership is real data, not fabricated. Default unclaimed; the map overlays
+    // genuine claimed heights from GET /api/v1/blocks/claimed.
+    claimed: false,
     isSpecial: special,
     specialType: getSpecialType(height),
     hash: fakeHash(height),

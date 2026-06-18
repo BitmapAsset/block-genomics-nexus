@@ -6,6 +6,22 @@ function getEpoch(height: number): number {
   return Math.floor(height / 210000) + 1;
 }
 
+// Short-lived negative cache: heights whose live fetch failed (mempool down /
+// rate-limited / not-yet-mined). Avoids re-running the slow sequential mempool
+// fetches on every request for the same height during the window.
+const NEGATIVE_TTL_MS = 60_000;
+const negativeCache = new Map<number, number>(); // height → expiry timestamp
+
+function isNegativelyCached(height: number): boolean {
+  const expiry = negativeCache.get(height);
+  if (expiry === undefined) return false;
+  if (Date.now() > expiry) {
+    negativeCache.delete(height);
+    return false;
+  }
+  return true;
+}
+
 async function fetchBlockTxs(height: number): Promise<TxInput[]> {
   const hashRes = await fetch(`https://mempool.space/api/block-height/${height}`, {
     signal: AbortSignal.timeout(8000),
@@ -57,6 +73,40 @@ async function fetchBlockTxs(height: number): Promise<TxInput[]> {
   return realTxs;
 }
 
+/**
+ * Deterministic estimated tx set seeded purely by height — no network.
+ * Used when the live block is unreachable (negative-cached) so the tile still
+ * renders a canonical Mondrian skeleton instead of erroring. Estimates only;
+ * NOT persisted to the DB cache (which holds real/live-derived thumbnails).
+ */
+function estimateTxs(height: number): TxInput[] {
+  let seed = (height * 7919 + 17) >>> 0;
+  const rng = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0xffffffff;
+  };
+  // Plausible tx count by era (mirrors the client-side generator distribution).
+  const count = height < 100_000
+    ? 1 + Math.floor(rng() * 50)
+    : height < 400_000
+    ? 10 + Math.floor(rng() * 500)
+    : 100 + Math.floor(rng() * 3000);
+
+  const txs: TxInput[] = [];
+  for (let i = 0; i < count; i++) {
+    if (i === 0) { txs.push({ vbytes: 200 + Math.floor(rng() * 400) }); continue; }
+    const u = rng();
+    let vb: number;
+    if (u < 0.60) vb = 140 + Math.floor(rng() * 116);
+    else if (u < 0.85) vb = 257 + Math.floor(rng() * 543);
+    else if (u < 0.95) vb = 801 + Math.floor(rng() * 2199);
+    else if (u < 0.99) vb = 3001 + Math.floor(rng() * 12000);
+    else vb = 15001 + Math.floor(rng() * 50000);
+    txs.push({ vbytes: vb });
+  }
+  return txs;
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ height: string }> }
@@ -91,6 +141,21 @@ export async function GET(
     // DB unavailable — render on the fly
   }
 
+  // Recently-failed height: serve a deterministic estimated skeleton without
+  // hitting mempool, and let the client retry after the negative window expires.
+  if (isNegativelyCached(height)) {
+    const png = renderBitmapThumbnail(estimateTxs(height), 256);
+    return new NextResponse(new Uint8Array(png), {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/png',
+        // Short TTL so a later real render replaces this estimate.
+        'Cache-Control': 'public, max-age=60',
+        'X-Thumbnail-Source': 'estimated',
+      },
+    });
+  }
+
   // Generate
   try {
     const txs = await fetchBlockTxs(height);
@@ -114,10 +179,21 @@ export async function GET(
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': `public, max-age=${maxAge}${epoch <= 4 ? ', immutable' : ''}`,
+        'X-Thumbnail-Source': 'live',
       },
     });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Failed to render';
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    // Live fetch failed — negative-cache the height and serve an estimated
+    // skeleton so the map tile is populated (and we stop hammering mempool).
+    negativeCache.set(height, Date.now() + NEGATIVE_TTL_MS);
+    const png = renderBitmapThumbnail(estimateTxs(height), 256);
+    return new NextResponse(new Uint8Array(png), {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/png',
+        'Cache-Control': 'public, max-age=60',
+        'X-Thumbnail-Source': 'estimated',
+      },
+    });
   }
 }

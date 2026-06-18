@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import CrownShield from '@/components/CrownShield';
+import CrownShield, { ShieldTier } from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 import LightningPayModal from '@/components/LightningPayModal';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
@@ -20,7 +20,7 @@ interface Listing {
   active: boolean;
   welcomeMessage?: string | null;
   createdAt: string;
-  owner: { walletAddress: string; handle: string | null; tier: number };
+  owner: { walletAddress: string; handle: string | null; tier: number; resolvedTier?: number };
   block: { height: number; label: string | null };
 }
 
@@ -80,7 +80,7 @@ function ListingCard({ listing, onPay }: { listing: Listing; onPay: (listing: Li
             </span>
           </div>
           <div className="flex items-center gap-1.5 mt-1">
-            <CrownShield tier={listing.owner.tier as 1 | 2 | 3} size={18} />
+            <CrownShield tier={(listing.owner.resolvedTier ?? 0) as ShieldTier} size={18} />
             {listing.owner.handle ? (
               <Link href={`/agent/${listing.owner.handle}`} className="text-xs text-gray-400 truncate hover:text-orange-400 transition-colors">
                 @{listing.owner.handle}

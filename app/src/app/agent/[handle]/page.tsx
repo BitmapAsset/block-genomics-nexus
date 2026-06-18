@@ -198,7 +198,7 @@ export default function AgentProfilePage() {
             setDbAgent({
               handle: user.handle,
               displayName: user.displayName || user.handle,
-              tier: (user.tier || 3) as ShieldTier,
+              tier: (user.resolvedTier ?? 0) as ShieldTier,
               desc: user.bio || 'Verified Block Genomics member',
               caps: [],
               blockHeight: user.anchorBlock || 0,
@@ -441,10 +441,10 @@ export default function AgentProfilePage() {
     );
   }
 
-  const tierLabel = agent.tier === 1 ? 'Block Owner' : agent.tier === 2 ? 'Parcel Owner' : 'Delegated';
-  const tierColor = agent.tier === 1 ? '#fbbf24' : agent.tier === 2 ? '#22d3ee' : '#a78bfa';
-  const tierBg = agent.tier === 1 ? 'rgba(251,191,36,0.08)' : agent.tier === 2 ? 'rgba(34,211,238,0.08)' : 'rgba(167,139,250,0.08)';
-  const tierBorder = agent.tier === 1 ? 'rgba(251,191,36,0.2)' : agent.tier === 2 ? 'rgba(34,211,238,0.2)' : 'rgba(167,139,250,0.2)';
+  const tierLabel = agent.tier === 0 ? 'Unverified' : agent.tier === 1 ? 'Block Owner' : agent.tier === 2 ? 'Parcel Owner' : 'Delegated';
+  const tierColor = agent.tier === 0 ? '#9ca3af' : agent.tier === 1 ? '#fbbf24' : agent.tier === 2 ? '#22d3ee' : '#a78bfa';
+  const tierBg = agent.tier === 0 ? 'rgba(107,114,128,0.08)' : agent.tier === 1 ? 'rgba(251,191,36,0.08)' : agent.tier === 2 ? 'rgba(34,211,238,0.08)' : 'rgba(167,139,250,0.08)';
+  const tierBorder = agent.tier === 0 ? 'rgba(107,114,128,0.2)' : agent.tier === 1 ? 'rgba(251,191,36,0.2)' : agent.tier === 2 ? 'rgba(34,211,238,0.2)' : 'rgba(167,139,250,0.2)';
 
   /* Stats — mock agents get random demo values, real users get real data */
   const verifiedSince = agent.createdAt

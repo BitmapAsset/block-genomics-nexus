@@ -7,6 +7,7 @@ import {
 } from './NexusBlockData';
 import type { Visitor } from './NexusSocial';
 import { getLandmark } from './NexusLandmarks';
+import { packSquares } from '@/lib/square-packing';
 
 /**
  * PROTOCOL RULE: Each Bitcoin block (Bitmap) = 2.1km × 2.1km in real-world scale.
@@ -78,14 +79,21 @@ export class NexusCanvasEngine {
   private visitorCounts = new Map<number, number>();
   private hoveredVisitorId: string | null = null;
 
-  // Parcel preview cache (LRU)
+  // Parcel preview cache (LRU). Bounded: ~64KB per 128px OffscreenCanvas, so
+  // 1200 ≈ ~75MB worst case. Keeps more real textures resident across pans (less
+  // reload flicker) while staying bounded; the lightweight numeric realLoadedHeights
+  // set provides the durable "this height has a real bitmap" memory across eviction.
   private parcelCache = new Map<number, HTMLCanvasElement | OffscreenCanvas>();
   private parcelCacheOrder: number[] = [];
-  private static readonly PARCEL_CACHE_MAX = 500;
+  private static readonly PARCEL_CACHE_MAX = 1200;
   private static readonly PARCEL_TEX_SIZE = 128;
 
   // Async texture generation budget — lower on mobile for smooth scrolling
   private static readonly TEX_BUDGET_PER_FRAME = typeof window !== 'undefined' && window.innerWidth < 768 ? 1 : 3;
+  // Real-thumbnail load budget per frame. Higher than procedural because, once the
+  // server thumbnail is warm/DB-cached, the load is just a browser-cached image
+  // decode. Lower on mobile to keep scrolling smooth.
+  private static readonly REAL_LOAD_BUDGET_PER_FRAME = typeof window !== 'undefined' && window.innerWidth < 768 ? 1 : 4;
   private texGenQueue: number[] = []; // blocks waiting for texture generation
   private texGenSet = new Set<number>(); // fast lookup for queue membership
 
@@ -150,27 +158,51 @@ export class NexusCanvasEngine {
     return null;
   }
 
-  // Track which blocks are using real thumbnails vs procedural
+  // Track which blocks currently hold a REAL texture in the live cache.
   private realThumbnailBlocks = new Set<number>();
+  // Permanent record of heights whose real thumbnail HAS been loaded at least once.
+  // Survives LRU texture eviction so a re-entering tile reloads the real bitmap
+  // (browser-HTTP-cached) instead of falling back to the procedural skeleton.
+  // Bounded by the number of distinct on-screen-visited blocks; stores numbers only.
+  private realLoadedHeights = new Set<number>();
   private thumbnailLoadQueue: number[] = [];
+  private thumbnailLoadSet = new Set<number>(); // fast membership for thumbnailLoadQueue
   private loadingThumbnails = new Set<number>();
-  private prefetchSet = new Set<number>();
 
-  /** Generate instant procedural fallback, then load real thumbnail async */
-  private generateParcelTexture(height: number): void {
-    if (this.parcelCache.has(height)) return;
-    
-    // INSTANT: Create procedural fallback immediately (no lag)
-    this.generateProceduralTexture(height);
-    
-    // ASYNC: Queue real thumbnail load (will swap when ready)
-    if (!this.loadingThumbnails.has(height) && !this.realThumbnailBlocks.has(height)) {
-      this.thumbnailLoadQueue.push(height);
-      this.loadingThumbnails.add(height);
-    }
+  /** Enqueue a real-thumbnail load for an on-screen block (deduped). */
+  private enqueueRealThumbnail(height: number): void {
+    if (this.realThumbnailBlocks.has(height)) return;
+    if (this.loadingThumbnails.has(height)) return;
+    if (this.thumbnailLoadSet.has(height)) return;
+    this.thumbnailLoadQueue.push(height);
+    this.thumbnailLoadSet.add(height);
   }
 
-  /** Fast procedural texture for instant display (fallback) */
+  /**
+   * Provide a texture for an on-screen tile. Queues the real canonical thumbnail
+   * to swap in. For a tile whose real thumbnail was already loaded once and then
+   * evicted (tracked in `realLoadedHeights`), skip the procedural skeleton — the
+   * reload is near-instant from the browser HTTP cache, and the render loop shows
+   * a brief shimmer placeholder meanwhile, avoiding a procedural-fake flash on
+   * re-entry. Otherwise draw the transient skeleton now (no lag) as the placeholder.
+   */
+  private generateParcelTexture(height: number): void {
+    if (this.parcelCache.has(height)) return;
+    if (!this.realLoadedHeights.has(height)) {
+      this.generateProceduralTexture(height); // transient skeleton placeholder
+    }
+    this.enqueueRealThumbnail(height);         // async real thumbnail (swaps in)
+  }
+
+  /**
+   * Fast procedural texture — a TRANSIENT SKELETON shown only until the real
+   * canonical thumbnail loads. Uses the SHARED `packSquares` packer (same as the
+   * server thumbnail route, the 2D bitmap, and the inside-3D parcels) so the
+   * skeleton arrangement already matches the real bitmap; tx vbytes here are PRNG
+   * estimates (real per-tx data is not fetched for off-screen map tiles at 880k
+   * scale). Rendered in the bitfeed palette so the swap to the real thumbnail is
+   * visually seamless.
+   */
   private generateProceduralTexture(height: number): void {
     const size = NexusCanvasEngine.PARCEL_TEX_SIZE;
     const tex = typeof OffscreenCanvas !== 'undefined'
@@ -180,82 +212,57 @@ export class NexusCanvasEngine {
     if (!tctx) return;
 
     const block = generateBlock(height);
-    const txCount = Math.min(block.txCount, 500); // Limit for speed
-    
-    // Fast deterministic RNG
+    const txCount = Math.min(block.txCount, 1500); // cap for skeleton speed
+
+    // Fast deterministic RNG for estimated tx vbytes
     let rngState = height * 7919;
-    const nextR = () => { 
-      rngState = (rngState * 1664525 + 1013904223) & 0xffffffff; 
-      return (rngState >>> 0) / 0xffffffff; 
+    const nextR = () => {
+      rngState = (rngState * 1664525 + 1013904223) & 0xffffffff;
+      return (rngState >>> 0) / 0xffffffff;
     };
 
-    // Estimate tx sizes quickly
-    const txBytes: number[] = [];
+    const items: { index: number; vbytes: number }[] = [];
     for (let i = 0; i < txCount; i++) {
-      txBytes.push(i === 0 ? 300 : Math.floor(150 + Math.pow(nextR(), 3) * 10000));
+      items.push({ index: i, vbytes: i === 0 ? 300 : Math.floor(150 + Math.pow(nextR(), 3) * 10000) });
     }
 
-    // White background
-    tctx.fillStyle = '#ffffff';
+    // Bitfeed dark background (matches the real thumbnail so the swap is seamless)
+    tctx.fillStyle = '#1d1f31';
     tctx.fillRect(0, 0, size, size);
 
-    // Simplified Mondrian packing (faster)
-    const squares = txBytes.map((b, i) => ({ 
-      idx: i, 
-      gridSize: Math.max(1, Math.ceil(Math.sqrt(b / 256)))
-    }));
-    
-    const totalGridArea = squares.reduce((s, sq) => s + sq.gridSize * sq.gridSize, 0);
-    const gridW = Math.ceil(Math.sqrt(totalGridArea));
-    const pxPerGrid = size / gridW;
-    const cellGap = Math.max(pxPerGrid * 0.06, 0.8);
+    // Canonical bitfeed packing — IDENTICAL algorithm + framing to the real
+    // thumbnail (renderBitmapThumbnail): scale by gridWidth, pad = pxPerGrid/4.
+    // Only the per-tx vbytes differ (estimated here vs real on the server), so
+    // the canvas footprint/density stay consistent through the real swap.
+    const { squares, gridWidth } = packSquares(items);
+    if (squares.length === 0) { this.cacheTexture(height, tex); return; }
 
-    // Occupancy grid
-    const occ = new Set<string>();
-    
+    const pxPerGrid = size / Math.max(gridWidth, 1);
+    const pad = pxPerGrid / 4; // bitfeed unitPadding
+
     for (const sq of squares) {
-      const gs = sq.gridSize;
-      let placed = false;
-      
-      for (let row = 0; row < gridW - gs + 1 && !placed; row++) {
-        for (let col = 0; col <= gridW - gs && !placed; col++) {
-          let fits = true;
-          for (let dr = 0; dr < gs && fits; dr++) {
-            for (let dc = 0; dc < gs && fits; dc++) {
-              if (occ.has(`${row + dr},${col + dc}`)) fits = false;
-            }
-          }
-          if (fits) {
-            for (let dr = 0; dr < gs; dr++) {
-              for (let dc = 0; dc < gs; dc++) {
-                occ.add(`${row + dr},${col + dc}`);
-              }
-            }
-            // Draw instantly
-            tctx.fillStyle = sq.idx === 0 ? '#f7931a' : '#ff9500';
-            tctx.fillRect(
-              col * pxPerGrid + cellGap / 2,
-              row * pxPerGrid + cellGap / 2,
-              Math.max(0.5, gs * pxPerGrid - cellGap),
-              Math.max(0.5, gs * pxPerGrid - cellGap)
-            );
-            placed = true;
-          }
-        }
-      }
+      const x = sq.x * pxPerGrid + pad;
+      const y = sq.y * pxPerGrid + pad;
+      const w = sq.size * pxPerGrid - pad * 2;
+      const h = sq.size * pxPerGrid - pad * 2;
+      if (w <= 0 || h <= 0) continue;
+      tctx.fillStyle = sq.index === 0 ? '#fdb04e' : '#fd931e';
+      tctx.fillRect(x, y, Math.max(0.5, w), Math.max(0.5, h));
     }
 
     this.cacheTexture(height, tex);
   }
 
-  /** Load real thumbnail from API with clever prefetching */
+  /** Load the canonical server thumbnail and swap it in for the skeleton. */
   private async loadRealThumbnail(height: number): Promise<void> {
-    if (this.realThumbnailBlocks.has(height) || !this.loadingThumbnails.has(height)) return;
+    if (this.realThumbnailBlocks.has(height)) return;
+    this.loadingThumbnails.add(height);
+    this.thumbnailLoadSet.delete(height);
 
     try {
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      
+
       // Create promise that resolves when image loads
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
@@ -269,35 +276,42 @@ export class NexusCanvasEngine {
         ? new OffscreenCanvas(size, size)
         : (() => { const c = document.createElement('canvas'); c.width = size; c.height = size; return c; })();
       const tctx = tex.getContext('2d');
-      if (!tctx) return;
+      if (!tctx) { this.loadingThumbnails.delete(height); return; }
 
       // Draw thumbnail (scaled to fit)
       tctx.drawImage(img, 0, 0, size, size);
 
-      // Swap procedural with real thumbnail
-      this.parcelCache.set(height, tex);
+      // Swap skeleton with the real thumbnail (replace existing cache entry).
+      // Route through cacheTexture for bounded LRU; delete any stale entry first.
+      this.parcelCache.delete(height);
+      const orderIdx = this.parcelCacheOrder.indexOf(height);
+      if (orderIdx !== -1) this.parcelCacheOrder.splice(orderIdx, 1);
+      this.cacheTexture(height, tex);
       this.realThumbnailBlocks.add(height);
+      this.realLoadedHeights.add(height); // permanent: survives future eviction
       this.loadingThumbnails.delete(height);
-      
+
       // Trigger redraw
       this.invalidateBlock(height);
-      
-    } catch (err) {
-      // Keep procedural fallback on error
+
+    } catch {
+      // Keep the procedural skeleton on error; allow a later retry.
       this.loadingThumbnails.delete(height);
     }
   }
 
-  /** Cache texture with LRU eviction */
+  /** Cache texture with bounded LRU eviction. */
   private cacheTexture(height: number, tex: HTMLCanvasElement | OffscreenCanvas): void {
     if (this.parcelCache.has(height)) return;
-    
+
     if (this.parcelCacheOrder.length >= NexusCanvasEngine.PARCEL_CACHE_MAX) {
       const evict = this.parcelCacheOrder.shift()!;
       this.parcelCache.delete(evict);
+      // Drop the live-texture flag, but KEEP realLoadedHeights so the tile reloads
+      // the real bitmap (not the skeleton) when it scrolls back into view.
       this.realThumbnailBlocks.delete(evict);
     }
-    
+
     this.parcelCache.set(height, tex);
     this.parcelCacheOrder.push(height);
   }
@@ -308,98 +322,43 @@ export class NexusCanvasEngine {
     this.texGenSet.delete(height);
   }
 
-  /** Prefetch thumbnails for blocks likely to be viewed soon */
-  private prefetchThumbnails(): void {
-    const visibleBlocks = this.getVisibleBlockRange();
-    const zoom = getZoomLevel(this.camera.zoom);
-    
-    // Only prefetch at region/block zoom levels
-    if (zoom === 'galaxy') return;
-    
-    // Prefetch blocks around visible area ( lookahead )
-    const prefetchRadius = zoom === 'block' ? 2 : 5;
-    
-    for (let row = visibleBlocks.minRow - prefetchRadius; row <= visibleBlocks.maxRow + prefetchRadius; row++) {
-      for (let col = visibleBlocks.minCol - prefetchRadius; col <= visibleBlocks.maxCol + prefetchRadius; col++) {
-        if (row >= 0 && col >= 0 && col < COLS) {
-          const h = gridToHeight(col, row);
-          if (h !== null && h >= 0 && h < TOTAL_BLOCKS && !this.realThumbnailBlocks.has(h) && !this.loadingThumbnails.has(h)) {
-            this.prefetchSet.add(h);
-          }
-        }
-      }
-    }
-  }
-
-  /** Get visible block range for prefetching */
-  private getVisibleBlockRange(): { minCol: number; maxCol: number; minRow: number; maxRow: number } {
-    const canvasW = this.canvas.width;
-    const canvasH = this.canvas.height;
-    
-    // Transform screen corners to world coordinates
-    const toWorld = (sx: number, sy: number) => ({
-      x: (sx - canvasW / 2) / this.camera.zoom + this.camera.x,
-      y: (sy - canvasH / 2) / this.camera.zoom + this.camera.y,
-    });
-    
-    const tl = toWorld(0, 0);
-    const br = toWorld(canvasW, canvasH);
-    
-    const minCol = Math.max(0, Math.floor(tl.x / UNIT) - 1);
-    const maxCol = Math.min(COLS - 1, Math.ceil(br.x / UNIT) + 1);
-    const minRow = Math.max(0, Math.floor(tl.y / UNIT) - 1);
-    const maxRow = Math.min(Math.ceil(TOTAL_BLOCKS / COLS), Math.ceil(br.y / UNIT) + 1);
-    
-    return { minCol, maxCol, minRow, maxRow };
-  }
-
-  /** Process texture queues - procedural instant + async real thumbnails */
+  /** Process texture queues — transient skeleton, then on-screen real thumbnails. */
   private processTextureQueue(): void {
-    // 1. Process procedural generation queue (instant fallback)
+    const camCol = Math.round(this.camera.x / UNIT);
+    const camRow = Math.round(this.camera.y / UNIT);
+    const distTo = (h: number) => {
+      const col = h % COLS, row = Math.floor(h / COLS);
+      return (col - camCol) ** 2 + (row - camRow) ** 2;
+    };
+
+    // 1. Procedural skeleton queue (fed by render() for on-screen, block-zoom tiles).
     if (this.texGenQueue.length > 0) {
-      const camCol = Math.round(this.camera.x / UNIT);
-      const camRow = Math.round(this.camera.y / UNIT);
-      
-      // Sort by distance to camera center (prioritize visible)
-      this.texGenQueue.sort((a, b) => {
-        const aCol = a % COLS, aRow = Math.floor(a / COLS);
-        const bCol = b % COLS, bRow = Math.floor(b / COLS);
-        const aDist = (aCol - camCol) ** 2 + (aRow - camRow) ** 2;
-        const bDist = (bCol - camCol) ** 2 + (bRow - camRow) ** 2;
-        return aDist - bDist;
-      });
+      // Prioritize tiles closest to the camera center.
+      this.texGenQueue.sort((a, b) => distTo(a) - distTo(b));
 
       let generated = 0;
       while (generated < NexusCanvasEngine.TEX_BUDGET_PER_FRAME && this.texGenQueue.length > 0) {
         const h = this.texGenQueue.shift()!;
         this.texGenSet.delete(h);
         if (!this.parcelCache.has(h)) {
-          this.generateParcelTexture(h); // Instant procedural + queue real thumbnail
+          this.generateParcelTexture(h); // skeleton + queue real thumbnail
           generated++;
         }
       }
     }
 
-    // 2. Process async real thumbnail loads (1 per frame to avoid jank)
+    // 2. Real canonical thumbnails — only blocks already enqueued by an on-screen
+    // tile (never off-screen). Distance-sorted; budgeted per frame. At 880k scale
+    // this guarantees no live fan-out for tiles outside the viewport.
     if (this.thumbnailLoadQueue.length > 0) {
-      const h = this.thumbnailLoadQueue.shift()!;
-      // Fire and forget - async load won't block rendering
-      this.loadRealThumbnail(h);
-    }
-
-    // 3. Prefetch thumbnails for blocks coming into view
-    this.prefetchThumbnails();
-    
-    // 4. Load prefetched thumbnails (low priority, 1 per frame)
-    if (this.prefetchSet.size > 0) {
-      const iter = this.prefetchSet.values();
-      const h = iter.next().value;
-      if (h !== undefined) {
-        this.prefetchSet.delete(h);
-        if (!this.realThumbnailBlocks.has(h) && !this.loadingThumbnails.has(h)) {
-          this.loadingThumbnails.add(h);
-          this.loadRealThumbnail(h);
-        }
+      this.thumbnailLoadQueue.sort((a, b) => distTo(a) - distTo(b));
+      let loaded = 0;
+      while (loaded < NexusCanvasEngine.REAL_LOAD_BUDGET_PER_FRAME && this.thumbnailLoadQueue.length > 0) {
+        const h = this.thumbnailLoadQueue.shift()!;
+        this.thumbnailLoadSet.delete(h);
+        if (this.realThumbnailBlocks.has(h) || this.loadingThumbnails.has(h)) continue;
+        this.loadRealThumbnail(h); // fire-and-forget; won't block rendering
+        loaded++;
       }
     }
   }
@@ -542,10 +501,14 @@ export class NexusCanvasEngine {
     this.targetCamera.y = wy - (wy - this.targetCamera.y) / ratio;
     this.targetCamera.zoom = newZoom;
 
-    // When zooming out past block level, flush pending texture queue
+    // When zooming out past block level, flush pending texture + thumbnail queues
+    // (those tiles are no longer on-screen at block detail). realLoadedHeights is
+    // preserved so re-entering block zoom reloads real bitmaps, not skeletons.
     if (getZoomLevel(newZoom) !== 'block') {
       this.texGenQueue.length = 0;
       this.texGenSet.clear();
+      this.thumbnailLoadQueue.length = 0;
+      this.thumbnailLoadSet.clear();
     }
 
     // Auto-enter block when zoomed deep enough on a hovered block
