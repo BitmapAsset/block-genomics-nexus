@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { decryptApiKey } from '@/lib/key-encryption';
-import { callLLM } from '@/lib/llm-proxy';
+import { callLLM, checkGuardianRateLimit } from '@/lib/llm-proxy';
 import { verifyWalletSignature } from '@/lib/api-helpers';
+import { notifyEscalation } from '@/lib/escalation-notify';
 
 /** Strip control characters to mitigate prompt injection */
 function stripControlChars(str: string): string {
@@ -68,6 +69,15 @@ export async function POST(req: NextRequest) {
 
     // Try LLM
     if (guardian.llmApiKey && guardian.llmProvider && guardian.llmModel) {
+      // RATE LIMIT: DB-backed (serverless-safe) so the public can't burn the
+      // guardian owner's LLM budget. Fail-closed 429 when over or unknowable.
+      if (!(await checkGuardianRateLimit(guardian.id))) {
+        return NextResponse.json(
+          { error: 'Rate limit exceeded — max 60 messages/hour for this guardian. Please try again later.' },
+          { status: 429 }
+        );
+      }
+
       const apiKey = decryptApiKey(guardian.llmApiKey);
       const systemPrompt = buildSystemPrompt(guardian);
 
@@ -150,6 +160,10 @@ export async function POST(req: NextRequest) {
         data: JSON.stringify({ visitorAddress, visitorHandle, message }),
       },
     });
+
+    // Deliver to the owner's configured Telegram/email (best-effort, no-ops if
+    // env keys or escalation channels aren't configured)
+    await notifyEscalation(guardian.id, guardian.blockHeight, message, visitorHandle || visitorAddress);
 
     const fallback = "I'll forward your message to the block owner. They'll get back to you soon! 📨";
     await storeMessage(guardian.id, visitorAddress, visitorHandle, conversationId, message, fallback);

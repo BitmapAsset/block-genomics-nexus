@@ -2,11 +2,10 @@
  * LLM Proxy — Unified router for Guardian AI calls.
  *
  * Routes to OpenAI, Anthropic, xAI/Grok, Google/Gemini, or custom endpoints.
- * Includes per-guardian rate limiting (60 calls/hour) and 30s timeout.
+ * Includes per-guardian rate limiting (60 messages/hour) and 30s timeout.
  */
 
-// Rate limiter: guardianId -> { count, resetAt }
-const rateLimits = new Map<string, { count: number; resetAt: number }>();
+import prisma from '@/lib/prisma';
 
 const MAX_CALLS_PER_HOUR = 60;
 const TIMEOUT_MS = 30000;
@@ -23,16 +22,37 @@ interface LLMConfig {
   temperature?: number;
 }
 
-function checkRateLimit(guardianId: string): boolean {
-  const now = Date.now();
-  const entry = rateLimits.get(guardianId);
-  if (!entry || now > entry.resetAt) {
-    rateLimits.set(guardianId, { count: 1, resetAt: now + 3600000 });
-    return true;
+/**
+ * DB-backed per-guardian rate limit (serverless-safe).
+ *
+ * The previous in-memory Map was per-lambda on Vercel, so it never accumulated
+ * across requests and the public could burn a guardian owner's LLM budget.
+ * Instead, count the user messages persisted in GuardianConversation rows
+ * (guardianId is indexed) updated within the last hour. FAIL CLOSED: if the
+ * count cannot be computed, treat the guardian as rate-limited.
+ *
+ * @returns true if the guardian is under the hourly limit.
+ */
+export async function checkGuardianRateLimit(guardianId: string): Promise<boolean> {
+  try {
+    const hourAgo = Date.now() - 3600000;
+    const conversations = await prisma.guardianConversation.findMany({
+      where: { guardianId, updatedAt: { gte: new Date(hourAgo) } },
+      select: { messages: true },
+    });
+    let count = 0;
+    for (const conv of conversations) {
+      try {
+        const msgs = JSON.parse(conv.messages) as { role?: string; ts?: number }[];
+        count += msgs.filter(m => m.role === 'user' && typeof m.ts === 'number' && m.ts >= hourAgo).length;
+      } catch { /* unparseable conversation — skip */ }
+      if (count >= MAX_CALLS_PER_HOUR) return false;
+    }
+    return count < MAX_CALLS_PER_HOUR;
+  } catch (err) {
+    console.error('[LLM Proxy] Rate limit check failed — failing closed:', err);
+    return false;
   }
-  if (entry.count >= MAX_CALLS_PER_HOUR) return false;
-  entry.count++;
-  return true;
 }
 
 async function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
@@ -55,7 +75,7 @@ async function fetchWithTimeout(url: string, options: RequestInit): Promise<Resp
  * @returns AI response text, or a bracketed error message on failure
  */
 export async function callLLM(config: LLMConfig): Promise<string> {
-  if (config.guardianId && !checkRateLimit(config.guardianId)) {
+  if (config.guardianId && !(await checkGuardianRateLimit(config.guardianId))) {
     return '[Rate limit exceeded — max 60 calls/hour. Please try again later.]';
   }
 

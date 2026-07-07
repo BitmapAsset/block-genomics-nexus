@@ -28,6 +28,13 @@ if (!BRAIN_SECRET) console.warn('[brain/scan] BRAIN_SCAN_SECRET not set — scan
 export async function POST(req: Request) {
   try {
     // Auth check — only authorized callers can trigger scans
+    // FAIL CLOSED: if the secret is unset, an unauthenticated request would
+    // compare undefined !== undefined and pass. Refuse instead.
+    if (!BRAIN_SECRET) {
+      console.error('[brain/scan] BRAIN_SCAN_SECRET not set — refusing request');
+      return NextResponse.json({ error: 'Scan endpoint disabled: secret not configured' }, { status: 503 });
+    }
+
     const authHeader = req.headers.get('authorization');
     const body = await req.json().catch(() => ({}));
     const token = authHeader?.replace('Bearer ', '') || body.secret;

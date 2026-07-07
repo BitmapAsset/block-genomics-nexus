@@ -7,12 +7,26 @@
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
+// In-memory stand-in for prisma.guardianConversation so the DB-backed rate
+// limiter can be exercised without a live database.
+const mockFindMany = jest.fn();
+jest.mock('@/lib/prisma', () => ({
+  __esModule: true,
+  default: {
+    guardianConversation: {
+      findMany: (...args: unknown[]) => mockFindMany(...args),
+    },
+  },
+}));
+
 import { callLLM } from '@/lib/llm-proxy';
 import { MOCK_LLM_CONFIG } from '../fixtures';
 
 describe('llm-proxy', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default: no recent conversations — guardian is under the rate limit
+    mockFindMany.mockResolvedValue([]);
   });
 
   describe('callLLM() — provider routing', () => {
@@ -136,24 +150,44 @@ describe('llm-proxy', () => {
 
   describe('callLLM() — rate limiting', () => {
     it('returns rate limit message when exceeded', async () => {
-      // Exhaust rate limit: call 60 times rapidly
+      // DB reports 60 user messages stored in the last hour for this guardian
+      const now = Date.now();
+      const messages = [];
       for (let i = 0; i < 60; i++) {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ choices: [{ message: { content: `call-${i}` } }] }),
-        });
+        messages.push({ role: 'user', content: `msg-${i}`, ts: now - i * 1000 });
+        messages.push({ role: 'assistant', content: `reply-${i}`, ts: now - i * 1000 });
       }
+      mockFindMany.mockResolvedValue([{ messages: JSON.stringify(messages) }]);
 
       const config = { ...MOCK_LLM_CONFIG, guardianId: `rate-test-${Date.now()}` };
-
-      // First 60 calls should succeed
-      for (let i = 0; i < 60; i++) {
-        await callLLM(config);
-      }
-
-      // 61st call should be rate limited
       const result = await callLLM(config);
       expect(result).toContain('Rate limit exceeded');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('allows calls under the limit and ignores stale messages', async () => {
+      const now = Date.now();
+      const messages = [
+        { role: 'user', content: 'recent', ts: now - 1000 },
+        // Older than an hour — must not count toward the limit
+        ...Array.from({ length: 100 }, (_, i) => ({ role: 'user', content: `old-${i}`, ts: now - 3700000 - i })),
+      ];
+      mockFindMany.mockResolvedValue([{ messages: JSON.stringify(messages) }]);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'ok' } }] }),
+      });
+
+      const result = await callLLM({ ...MOCK_LLM_CONFIG, guardianId: 'under-limit' });
+      expect(result).toBe('ok');
+    });
+
+    it('fails closed when the rate-limit query errors', async () => {
+      mockFindMany.mockRejectedValue(new Error('db down'));
+
+      const result = await callLLM({ ...MOCK_LLM_CONFIG, guardianId: 'db-error' });
+      expect(result).toContain('Rate limit exceeded');
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it('does not rate limit without guardianId', async () => {

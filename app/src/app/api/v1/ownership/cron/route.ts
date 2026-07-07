@@ -13,7 +13,13 @@ if (!OWNERSHIP_SYNC_SECRET) console.warn('[ownership/cron] OWNERSHIP_SYNC_SECRET
  */
 export async function GET(req: NextRequest) {
   try {
-    // Verify cron secret
+    // Verify cron secret — FAIL CLOSED: if the secret is unset, an unauthenticated
+    // request would compare undefined !== undefined and pass. Refuse instead.
+    if (!OWNERSHIP_SYNC_SECRET) {
+      console.error('[ownership-cron] OWNERSHIP_SYNC_SECRET not set — refusing request');
+      return error('Cron endpoint disabled: secret not configured', 503);
+    }
+
     const authHeader = req.headers.get('authorization');
     const cronSecret = req.nextUrl.searchParams.get('secret');
     const providedSecret = authHeader?.replace('Bearer ', '') || cronSecret;

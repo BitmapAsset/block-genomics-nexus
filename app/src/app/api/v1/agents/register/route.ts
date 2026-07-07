@@ -7,6 +7,7 @@ import {
   REGISTRATION_COOLDOWN_MS,
   verifyAgentSignature,
 } from '@/lib/agent-protocol';
+import { consumeChallengeFromMessage } from '@/lib/challenges';
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,6 +36,27 @@ export async function POST(req: NextRequest) {
     /* BIP-322 wallet signature verification */
     if (!verifyAgentSignature(walletAddress, challenge, signature)) {
       return error('Invalid wallet signature', 401);
+    }
+
+    // REPLAY PROTECTION: the challenge must be server-issued (via /api/v1/challenge
+    // with purpose 'agent-register') and is atomically consumed — a self-supplied
+    // or replayed challenge is rejected.
+    if (!(await consumeChallengeFromMessage(walletAddress, challenge, { purpose: 'agent-register' }))) {
+      return error('Invalid, expired, or already-used challenge — request one from /api/v1/challenge', 401);
+    }
+
+    // OWNERSHIP: only the block owner can register an agent on it. The Block row
+    // is kept fresh by the ownership-sync cron; the verified User record covers
+    // wallet-scan-discovered blocks.
+    const [block, user] = await Promise.all([
+      prisma.block.findUnique({ where: { height: blockHeight }, select: { ownerAddress: true } }),
+      prisma.user.findUnique({ where: { walletAddress }, select: { verified: true, anchorBlock: true, ownedBlocks: true } }),
+    ]);
+    const ownsBlock =
+      block?.ownerAddress === walletAddress ||
+      (user?.verified === true && (user.anchorBlock === blockHeight || user.ownedBlocks.includes(blockHeight)));
+    if (!ownsBlock) {
+      return error('Wallet does not own this block — only the block owner can register an agent', 403);
     }
 
     // Validate permissions

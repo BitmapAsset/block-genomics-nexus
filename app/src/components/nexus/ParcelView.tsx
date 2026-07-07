@@ -3232,7 +3232,15 @@ function AgentLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => 
     setError('');
     try {
       const walletAddress = getStoredAddress();
-      const challenge = `agent-register:${blockHeight}:${parcelIndex}:${Date.now()}`;
+      // Fetch a server-issued one-time challenge — self-minted challenges are rejected
+      const chRes = await fetch('/api/v1/challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress, purpose: 'agent-register' }),
+      });
+      const chData = await chRes.json().catch(() => null);
+      const challenge: string | undefined = chData?.data?.message ?? chData?.message;
+      if (!chRes.ok || !challenge) throw new Error(chData?.error || 'Failed to get challenge');
       const signature = typeof window !== 'undefined' && window.unisat
         ? await window.unisat.signMessage(challenge) : '';
 
@@ -4906,9 +4914,11 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         signature = resp?.signature || '';
       } else if (window.unisat?.signMessage) {
         signature = await window.unisat.signMessage(message);
-      } else {
-        // Fallback: use a mock signature for development
-        signature = 'dev-sig-' + Date.now();
+      }
+
+      // SECURITY: never send a fake signature — signing failure must surface
+      if (!signature) {
+        throw new Error('Wallet signing unavailable — connect a wallet that supports message signing');
       }
 
       const res = await fetch(`/api/v1/blocks/${blockHeight}/parcels/${txIndex}/customize`, {
