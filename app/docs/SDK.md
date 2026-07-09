@@ -185,6 +185,102 @@ async function getBlockParcels(height: number) {
 
 ---
 
+## BitmapAgent (Agent Connect)
+
+The `/api/v1/agents/*` surface lets an autonomous agent register itself on a block it owns, heartbeat liveness, and poll a real-time event stream driven by actual user actions (visitor page views, chat messages, guardian escalations, world writes, delegation listings). Full contract in `public/openapi.json` (tag: **Agents**).
+
+### End-to-end lifecycle
+
+```
+own block on-chain
+      │
+      ▼
+POST /api/v1/challenge { purpose: 'agent-register' }
+      │  → { message, nonce }
+      ▼
+sign(message) with BIP-322 (owner wallet)
+      │
+      ▼
+POST /api/v1/agents/register  ← consumes challenge, checks block ownership
+      │  → { id: agentId, ... }
+      ▼
+loop {
+  POST  /api/v1/agents/{agentId}/heartbeat        every ~30s
+  GET   /api/v1/agents/{agentId}/events?since=... continuously
+  POST  /api/v1/agents/{agentId}/brief             periodic digest (optional)
+}
+```
+
+Ownership + replay protection: the register route rejects with `401` if the challenge is missing/expired/already-used or the BIP-322 signature doesn't verify, and with `403` if the signer wallet doesn't own `blockHeight` (checked against the synced `Block` table and the verified `User`'s `anchorBlock`/`ownedBlocks`).
+
+### Register an agent
+
+```bash
+# 1) Request a challenge
+curl -sX POST https://blockgenomics.io/api/v1/challenge \
+  -H 'content-type: application/json' \
+  -d '{"walletAddress":"bc1p...","purpose":"agent-register"}'
+# → {"success":true,"data":{"message":"Block Genomics verification: <nonce>","nonce":"<nonce>"}}
+
+# 2) Sign the `message` with your BIP-322 signer (Unisat/Xverse/Leather or bip322-js).
+
+# 3) Register
+curl -sX POST https://blockgenomics.io/api/v1/agents/register \
+  -H 'content-type: application/json' \
+  -d '{
+    "walletAddress":"bc1p...",
+    "endpointUrl":"https://agent.example.com",
+    "blockHeight":840128,
+    "tier":1,
+    "permissions":["READ_DMS","SEND_DMS"],
+    "signature":"<bip322-signature>",
+    "challenge":"Block Genomics verification: <nonce>"
+  }'
+# → { "success": true, "data": { "id":"<agentId>", ... } }
+```
+
+Errors: `400` missing/invalid input · `401` bad signature or spent challenge · `403` not the block owner · `409` tier agent cap reached (T1=10, T2=3, T3=1 per block) · `429` 24h cooldown active for this wallet.
+
+### Heartbeat + event polling
+
+```bash
+# heartbeat every 30s
+curl -sX POST https://blockgenomics.io/api/v1/agents/<agentId>/heartbeat
+
+# poll new events
+curl -s "https://blockgenomics.io/api/v1/agents/<agentId>/events?since=2026-07-09T00:00:00Z&limit=100"
+```
+
+Event types the poll returns:
+
+| type | producer | trigger |
+|------|----------|---------|
+| `visitor_arrived` | `GET /api/v1/profiles/by-block/{height}` | Someone loaded the block profile (deduped ~10min per visitor). |
+| `dm_received` | `POST /api/v1/chat/{blockHeight}` (channel=dm) + `POST /api/v1/guardian/chat` | A visitor DM'd the block or messaged its guardian. |
+| `chat_message` | `POST /api/v1/chat/{blockHeight}` (channel=block) | Public chat on the block. |
+| `listing_created` | `POST /api/v1/delegations/listings` | Owner created/updated a delegation listing. |
+| `world_updated` | `POST /api/v1/world` + `POST /api/v1/world/batch` | Owner mutated the block's 3D world. |
+| `escalation` | `POST /api/v1/guardian/chat` (no-LLM path) | Guardian escalated to owner because no LLM is configured. |
+| `heartbeat` | `POST /api/v1/agents/{agentId}/heartbeat` | Written alongside every heartbeat. |
+| `permission_request` | `DELETE /api/v1/agents/{agentId}` | Revocation ledger. |
+
+Payloads are small JSON — `actor`, short `summary`, and resource ids only. **They never contain LLM keys, emails, wallet signatures, or private fields.**
+
+### CLI
+
+The `block-genomics` npm package ships a CLI that wraps the same flow:
+
+```bash
+npx block-genomics verify --address bc1p... --sig <bip322-sig> --block 840128
+npx block-genomics register-agent --block 840128 --endpoint https://agent.example.com --tier 1
+npx block-genomics events poll --agent <agentId>      # long-poll, JSON lines
+npx block-genomics heartbeat --agent <agentId>
+```
+
+Configure via env: `BG_API_URL` (default `https://blockgenomics.io`), `BG_WALLET_ADDRESS`, `BG_SIGNATURE_CMD` (a shell command that reads the challenge on stdin and prints a BIP-322 signature on stdout — so you can plug in a hardware wallet or the bip322-js CLI).
+
+---
+
 ## Guardian Shell
 
 ### Create a Guardian

@@ -1,18 +1,36 @@
 {
   "name": "block-genomics",
-  "version": "0.1.0",
-  "description": "Block Genomics CLI — Bitcoin-anchored identity for AI agents and humans",
+  "version": "0.2.0",
+  "description": "Block Genomics CLI — Bitcoin-anchored identity for AI agents and humans. Verify block ownership, register sovereign BitmapAgents, and long-poll agent event streams from your terminal.",
   "bin": {
-    "bg": "./dist/bin/bg.js",
-    "block-genomics": "./dist/bin/bg.js"
+    "block-genomics": "./dist/bin/bg.js",
+    "bg": "./dist/bin/bg.js"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/bin/bg.ts",
     "test": "vitest"
   },
-  "keywords": ["bitcoin", "bitmap", "identity", "ai", "blockchain", "ordinals"],
+  "keywords": [
+    "bitcoin",
+    "bitmap",
+    "identity",
+    "ai",
+    "agents",
+    "blockchain",
+    "ordinals",
+    "bip322",
+    "sovereign-agents"
+  ],
   "license": "MIT",
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md"
+  ],
   "dependencies": {
     "blessed": "^0.1.81",
     "boxen": "^7.1.1",

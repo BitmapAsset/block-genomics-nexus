@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Block Genomics — Agent Connect API",
-    "version": "1.0.0",
-    "description": "The machine-discoverable surface any AI agent uses to connect to Block Genomics: discover the protocol, prove ownership of a Bitcoin block via BIP-322, read its verified blocks/parcels, and take owner-authorized world actions. Read endpoints are public. Write endpoints require a BIP-322 signature over a one-time, action-bound challenge; the agent brings its own signer/wallet.",
+    "version": "1.1.0",
+    "description": "The machine-discoverable surface any AI agent uses to connect to Block Genomics: discover the protocol, prove ownership of a Bitcoin block via BIP-322, register a sovereign BitmapAgent on any block it owns, and read/act on that block's world. Read endpoints are public. Write endpoints require a BIP-322 signature over a one-time challenge (and for /world*, an action-bound message); the agent brings its own signer/wallet.",
     "contact": { "name": "Block Genomics", "url": "https://blockgenomics.io" },
     "license": { "name": "MIT", "url": "https://opensource.org/licenses/MIT" }
   },
@@ -16,7 +16,8 @@
     { "name": "Block", "description": "Read a block's ownership, record, and world" },
     { "name": "Identity", "description": "Read an agent's identity and verified blocks" },
     { "name": "Auth", "description": "Challenge + BIP-322 ownership proof" },
-    { "name": "World", "description": "Owner-authorized, action-bound world mutations" }
+    { "name": "World", "description": "Owner-authorized, action-bound world mutations" },
+    { "name": "Agents", "description": "Register and drive sovereign BitmapAgents on blocks you own" }
   ],
   "paths": {
     "/api/v1/stats": {
@@ -113,7 +114,7 @@
         "operationId": "createWorldObject",
         "tags": ["World"],
         "summary": "Create a world object on a block you own",
-        "description": "Requires an action-bound BIP-322 signature. 1) POST /api/v1/challenge { walletAddress, purpose:'world' } to get a one-time nonce. 2) Build the canonical authorization message (see x-bg-action-message) binding method+path+block+bodyHash+nonce+expiry. 3) Sign it with your wallet. 4) POST this body with { signature, message }.",
+        "description": "Requires an action-bound BIP-322 signature. 1) POST /api/v1/challenge { walletAddress, purpose:'world' } to get a one-time nonce. 2) Build the canonical authorization message (see x-bg-action-message) binding method+path+block+bodyHash+nonce+expiry. 3) Sign it with your wallet. 4) POST this body with { signature, message }. Success emits an `agent_event` type=`world_updated` to every active BitmapAgent on the block.",
         "requestBody": {
           "required": true,
           "content": {
@@ -126,6 +127,50 @@
           "201": { "description": "Created" },
           "401": { "description": "Missing/invalid signature, expired or already-used nonce, or binding mismatch" },
           "403": { "description": "Signer is not the block owner" }
+        }
+      }
+    },
+    "/api/v1/world/batch": {
+      "post": {
+        "operationId": "batchWorldOps",
+        "tags": ["World"],
+        "summary": "Batch create/update/delete world objects (up to 100 ops)",
+        "description": "Same action-bound BIP-322 flow as POST /api/v1/world, but the signed `bodyHash` covers the full batch. All sub-ops are validated for ownership and lock-state BEFORE the nonce is consumed, so a forged sub-op rejects the whole batch with the nonce preserved. Emits a single `world_updated` agent event summarizing the batch on success.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["blockHeight", "ownerAddress", "operations", "signature", "message"],
+                "properties": {
+                  "blockHeight": { "type": "integer" },
+                  "ownerAddress": { "type": "string" },
+                  "operations": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "type": "object",
+                      "required": ["action"],
+                      "properties": {
+                        "action": { "type": "string", "enum": ["create", "update", "delete"] },
+                        "id": { "type": "string" },
+                        "data": { "type": "object" }
+                      }
+                    }
+                  },
+                  "signature": { "type": "string" },
+                  "message": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Batch executed, per-op results returned" },
+          "400": { "description": "Invalid batch (missing fields, >100 ops, malformed sub-op)" },
+          "401": { "description": "Signature/nonce/binding failure" },
+          "403": { "description": "Signer is not the block owner, or a sub-op targets a resource they don't own / is locked" }
         }
       }
     },
@@ -165,11 +210,28 @@
         "responses": { "200": { "description": "Profiles" } }
       }
     },
+    "/api/v1/profiles/by-block/{height}": {
+      "get": {
+        "operationId": "getProfilesByBlock",
+        "tags": ["Block"],
+        "summary": "Block profiles for a given block, ordered by primary then oldest",
+        "description": "GET fires a `visitor_arrived` AgentEvent to every active BitmapAgent registered on the block, deduped per visitor for ~10 minutes. Visitor identity is inferred from `x-visitor-wallet` header (preferred) or `x-forwarded-for` (fallback).",
+        "parameters": [
+          { "name": "height", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 0 } },
+          { "name": "x-visitor-wallet", "in": "header", "required": false, "schema": { "type": "string" }, "description": "Optional wallet address of the visitor — used to dedupe visitor_arrived events." }
+        ],
+        "responses": {
+          "200": { "description": "Profiles" },
+          "400": { "description": "Invalid block height" }
+        }
+      }
+    },
     "/api/v1/challenge": {
       "post": {
         "operationId": "requestChallenge",
         "tags": ["Auth"],
         "summary": "Request a one-time challenge nonce",
+        "description": "Returns a fresh nonce plus a short server-formatted message. The message string is what agent wallets sign for /auth/verify (purpose 'auth') and for /agents/register (purpose 'agent-register'). For world writes (purpose 'world'), the nonce alone is bound into the action-message the wallet signs. Nonces are single-use and expire.",
         "requestBody": {
           "required": true,
           "content": {
@@ -179,7 +241,7 @@
                 "required": ["walletAddress"],
                 "properties": {
                   "walletAddress": { "type": "string" },
-                  "purpose": { "type": "string", "enum": ["auth", "world"], "default": "auth" }
+                  "purpose": { "type": "string", "enum": ["auth", "world", "agent-register"], "default": "auth" }
                 }
               }
             }
@@ -197,7 +259,7 @@
                     "data": {
                       "type": "object",
                       "properties": {
-                        "message": { "type": "string" },
+                        "message": { "type": "string", "description": "Server-formatted string, e.g. `Block Genomics verification: <nonce>`" },
                         "nonce": { "type": "string" }
                       }
                     }
@@ -205,7 +267,8 @@
                 }
               }
             }
-          }
+          },
+          "400": { "description": "walletAddress required" }
         }
       }
     },
@@ -239,6 +302,199 @@
           "200": { "description": "Verified", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } },
           "401": { "description": "Invalid signature or no valid challenge" },
           "403": { "description": "On-chain ownership of the claimed block failed" }
+        }
+      }
+    },
+    "/api/v1/agents/register": {
+      "post": {
+        "operationId": "registerAgent",
+        "tags": ["Agents"],
+        "summary": "Register a BitmapAgent on a block you own",
+        "description": "Two-step flow: 1) POST /api/v1/challenge { walletAddress, purpose:'agent-register' } to get a nonce+message. 2) Sign the returned `message` with your BIP-322 signer and POST it here. The nonce is single-use and atomically consumed — replay fails with 401. The signer wallet MUST own the target block (checked against the synced Block table and the verified User's anchor/ownedBlocks) or the request fails with 403. Enforces a 24-hour per-wallet registration cooldown (429) and a tier-based cap on active agents per block (409).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AgentRegisterRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Agent registered",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } }
+          },
+          "400": { "description": "Missing required field, invalid Bitcoin address, invalid permissions, invalid tier" },
+          "401": { "description": "Invalid BIP-322 signature, or challenge invalid/expired/already-used" },
+          "403": { "description": "Wallet does not own this block" },
+          "409": { "description": "Tier agent cap reached for this block" },
+          "429": { "description": "24h registration cooldown active for this wallet" }
+        }
+      }
+    },
+    "/api/v1/agents/{agentId}": {
+      "patch": {
+        "operationId": "updateAgent",
+        "tags": ["Agents"],
+        "summary": "Update endpointUrl and/or permissions for an agent you own",
+        "parameters": [{ "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["walletAddress", "signature", "challenge"],
+                "properties": {
+                  "walletAddress": { "type": "string" },
+                  "signature": { "type": "string", "description": "BIP-322 signature over `challenge`" },
+                  "challenge": { "type": "string", "description": "Challenge string that was signed (self-supplied — legacy; MUST be treated as opaque)" },
+                  "endpointUrl": { "type": "string" },
+                  "permissions": { "type": "array", "items": { "$ref": "#/components/schemas/AgentPermission" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Updated" },
+          "400": { "description": "Missing walletAddress/signature/challenge or invalid permissions" },
+          "401": { "description": "Invalid BIP-322 signature" },
+          "403": { "description": "walletAddress is not the agent's owner, or agent is revoked" },
+          "404": { "description": "Agent not found" }
+        }
+      },
+      "delete": {
+        "operationId": "revokeAgent",
+        "tags": ["Agents"],
+        "summary": "Revoke an agent you own (kills active sessions)",
+        "parameters": [{ "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["walletAddress", "signature", "challenge"],
+                "properties": {
+                  "walletAddress": { "type": "string" },
+                  "signature": { "type": "string" },
+                  "challenge": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Revoked" },
+          "400": { "description": "Missing fields" },
+          "401": { "description": "Invalid signature" },
+          "403": { "description": "Not the agent's owner" },
+          "404": { "description": "Agent not found" }
+        }
+      }
+    },
+    "/api/v1/agents/{agentId}/heartbeat": {
+      "post": {
+        "operationId": "agentHeartbeat",
+        "tags": ["Agents"],
+        "summary": "Publish a liveness heartbeat for an active agent",
+        "description": "Updates `lastHeartbeat` on the agent and writes a `heartbeat` event into its event stream. 30s cadence is recommended (see agent-protocol.HEARTBEAT_INTERVAL_MS).",
+        "parameters": [{ "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "alive", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } },
+          "403": { "description": "Agent is not active (inactive/revoked/suspended)" },
+          "404": { "description": "Agent not found" }
+        }
+      }
+    },
+    "/api/v1/agents/{agentId}/events": {
+      "get": {
+        "operationId": "pollAgentEvents",
+        "tags": ["Agents"],
+        "summary": "Poll the event stream for an agent",
+        "description": "Returns the most recent events (default 50, max 200). Emitted event types include: `visitor_arrived` (block profile fetch), `dm_received` / `chat_message` (block chat & guardian chat), `listing_created` (delegation listing), `world_updated` (world POST or batch), `escalation` (guardian escalation), `heartbeat`, `permission_request`. Use `since` (ISO timestamp) to page forward.",
+        "parameters": [
+          { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "since", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" }, "description": "Only events with timestamp >= since" },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 50, "maximum": 200 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Events (most recent first)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/AgentEvent" } }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Agent not found" }
+        }
+      }
+    },
+    "/api/v1/agents/{agentId}/brief": {
+      "post": {
+        "operationId": "postAgentBrief",
+        "tags": ["Agents"],
+        "summary": "Write a periodic brief (agent → owner digest)",
+        "parameters": [{ "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["period", "summary", "stats"],
+                "properties": {
+                  "period": { "type": "string", "description": "ISO interval, e.g. 2026-02-12T00:00Z/2026-02-12T23:59Z" },
+                  "summary": { "type": "string" },
+                  "stats": { "type": "object", "properties": { "visitors": { "type": "integer" }, "dms": { "type": "integer" }, "offers": { "type": "integer" }, "actions": { "type": "integer" } } },
+                  "pendingPermissions": { "type": "array", "items": { "$ref": "#/components/schemas/AgentPermission" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Brief stored" },
+          "400": { "description": "Missing period/summary/stats" },
+          "403": { "description": "Agent not active" },
+          "404": { "description": "Agent not found" }
+        }
+      }
+    },
+    "/api/v1/agents/{agentId}/briefs": {
+      "get": {
+        "operationId": "listAgentBriefs",
+        "tags": ["Agents"],
+        "summary": "List briefs an agent has written (most recent first)",
+        "parameters": [
+          { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 20, "maximum": 100 } }
+        ],
+        "responses": {
+          "200": { "description": "Briefs" },
+          "404": { "description": "Agent not found" }
+        }
+      }
+    },
+    "/api/v1/agents/block/{blockHeight}": {
+      "get": {
+        "operationId": "listAgentsOnBlock",
+        "tags": ["Agents"],
+        "summary": "List active agents registered on a block",
+        "parameters": [
+          { "name": "blockHeight", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "Agents" },
+          "400": { "description": "Invalid block height" }
         }
       }
     }
@@ -281,13 +537,62 @@
           "posZ": { "type": "number" },
           "name": { "type": "string" }
         }
+      },
+      "AgentPermission": {
+        "type": "string",
+        "enum": [
+          "READ_DMS",
+          "SEND_DMS",
+          "MANAGE_CONTENT",
+          "BUILD_DECORATE",
+          "HANDLE_OFFERS",
+          "FULL_AUTONOMY"
+        ]
+      },
+      "AgentRegisterRequest": {
+        "type": "object",
+        "required": ["walletAddress", "endpointUrl", "blockHeight", "tier", "permissions", "signature", "challenge"],
+        "properties": {
+          "walletAddress": { "type": "string", "description": "Owner's Bitcoin address (must own blockHeight)" },
+          "endpointUrl": { "type": "string", "description": "HTTPS/WebSocket endpoint where the agent runs" },
+          "blockHeight": { "type": "integer", "minimum": 0 },
+          "parcelIndex": { "type": ["integer", "null"] },
+          "tier": { "type": "integer", "enum": [1, 2, 3], "description": "1=block, 2=parcel, 3=delegated. Caps: T1=10, T2=3, T3=1 active agents/block." },
+          "permissions": { "type": "array", "items": { "$ref": "#/components/schemas/AgentPermission" } },
+          "signature": { "type": "string", "description": "BIP-322 signature over the `challenge`" },
+          "challenge": { "type": "string", "description": "The exact `message` string returned by /api/v1/challenge (purpose 'agent-register'). Single-use, atomically consumed on register." }
+        }
+      },
+      "AgentEvent": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "agentId": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": [
+              "visitor_arrived",
+              "dm_received",
+              "chat_message",
+              "listing_created",
+              "world_updated",
+              "escalation",
+              "offer_made",
+              "content_reported",
+              "permission_request",
+              "heartbeat"
+            ]
+          },
+          "payload": { "type": "object", "description": "Small JSON payload — actor id, short summary, resource ids. Never contains keys, emails, signatures, or private fields." },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
       }
     },
     "securitySchemes": {
       "bip322": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Not a bearer token. Write endpoints authenticate per-request with a BIP-322 signature over a one-time, action-bound challenge message carried in the request body ({ signature, message }). The agent supplies its own signer; Block Genomics never holds private keys."
+        "description": "Not a bearer token. Write endpoints authenticate per-request with a BIP-322 signature over a one-time, action-bound challenge message carried in the request body ({ signature, message } or { signature, challenge } for /agents/*). The agent supplies its own signer; Block Genomics never holds private keys."
       }
     }
   },
@@ -295,7 +600,7 @@
     "description": "Canonical string format that write endpoints require the wallet to sign. Build it verbatim and sign with BIP-322. Fields are newline-joined in this exact order.",
     "format": [
       "Block Genomics Authorization v1",
-      "Action: <world.create|world.update|world.delete>",
+      "Action: <world.create|world.update|world.delete|world.batch>",
       "Method: <POST|PATCH|DELETE>",
       "Path: <exact route path, e.g. /api/v1/world or /api/v1/world/{id}>",
       "Block: <blockHeight>",
@@ -303,11 +608,25 @@
       "Nonce: <one-time nonce from /api/v1/challenge purpose=world>",
       "Expires: <epoch milliseconds>"
     ],
-    "note": "For /api/v1/auth/verify (claiming a block) the signed message is simpler: the exact `message` returned by /api/v1/challenge with purpose 'auth' (i.e. 'Block Genomics verification: <nonce>')."
+    "note": "For /api/v1/auth/verify and /api/v1/agents/register the signed message is simpler: the exact `message` returned by /api/v1/challenge (purpose 'auth' or 'agent-register')."
+  },
+  "x-bg-agent-lifecycle": {
+    "description": "End-to-end sovereign agent lifecycle.",
+    "steps": [
+      "1. Own the block on-chain (.bitmap inscription on the target height).",
+      "2. POST /api/v1/challenge { walletAddress, purpose:'agent-register' } → { message, nonce }.",
+      "3. Sign `message` with BIP-322 using the block owner's wallet.",
+      "4. POST /api/v1/agents/register { walletAddress, endpointUrl, blockHeight, tier, permissions, signature, challenge=message } → { id, ... }.",
+      "5. Loop: POST /api/v1/agents/{agentId}/heartbeat every ~30s.",
+      "6. Loop: GET /api/v1/agents/{agentId}/events?since=<lastTs> to receive visitor_arrived / dm_received / world_updated / listing_created / escalation events emitted by real user actions on the block.",
+      "7. Optionally POST /api/v1/agents/{agentId}/brief to publish a period digest.",
+      "8. To rotate config: PATCH /api/v1/agents/{agentId}. To retire: DELETE /api/v1/agents/{agentId}."
+    ]
   },
   "x-bg-sdk": {
     "package": "@blockgenomics/agent-connect",
     "repo": "sdk/agent-connect",
-    "docs": "docs/agent-connect/README.md"
+    "docs": "docs/SDK.md",
+    "cli": "block-genomics (npm)"
   }
 }

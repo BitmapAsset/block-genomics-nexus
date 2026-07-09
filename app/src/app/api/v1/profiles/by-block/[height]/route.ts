@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { emitAgentEvent } from '@/lib/agent-events';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ height: string }> }
 ) {
   try {
@@ -26,6 +27,19 @@ export async function GET(
       ...p,
       resolvedTier: owner?.resolvedTier ?? 0,
     }));
+
+    // Fire-and-forget: notify any registered agents that a visitor viewed this
+    // block's profile. Dedupe-throttled per-visitor inside emitAgentEvent.
+    const actor =
+      req?.headers?.get?.('x-visitor-wallet') ||
+      req?.headers?.get?.('x-forwarded-for')?.split(',')[0]?.trim() ||
+      'anonymous';
+    void emitAgentEvent(blockHeight, 'visitor_arrived', {
+      actor,
+      summary: `Visitor viewed block #${blockHeight} profile`,
+      blockHeight,
+      profileCount: profiles.length,
+    });
 
     return success({ profiles: withResolved });
   } catch (e: unknown) {

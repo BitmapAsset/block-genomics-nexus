@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api-helpers';
+import { emitAgentEvent } from '@/lib/agent-events';
 
 export async function GET(
   req: NextRequest,
@@ -131,6 +132,21 @@ export async function POST(
         channel: msgChannel,
       },
     });
+
+    // Fire-and-forget: notify agents on this block. DM channel maps to
+    // dm_received; block/global channels are chat_message. Payload carries
+    // actor + short summary + message id — no keys, no signatures.
+    if (msgChannel !== 'global') {
+      const eventType = msgChannel === 'dm' ? 'dm_received' : 'chat_message';
+      const preview = typeof text === 'string' ? text.slice(0, 140) : '';
+      void emitAgentEvent(h, eventType, {
+        actor: senderAddress,
+        actorHandle: senderHandle ? sanitizeString(senderHandle, 50) : 'anon',
+        channel: msgChannel,
+        messageId: chatMsg.id,
+        summary: `${eventType === 'dm_received' ? 'DM' : 'Chat message'} from ${senderHandle || senderAddress.slice(0, 10)}: ${preview}`,
+      });
+    }
 
     return success(chatMsg, 201);
   } catch (e: unknown) {

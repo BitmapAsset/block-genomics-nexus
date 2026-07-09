@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
@@ -14,41 +14,8 @@ import WebGLErrorBoundary from '@/components/WebGLErrorBoundary';
 const LightningPayModal = dynamic(() => import('@/components/LightningPayModal'), { ssr: false });
 const DNAVisualizer = dynamic(() => import('@/components/DNAVisualizer'), { ssr: false });
 
-/* ── Mock agent data — replace with API ── */
-function getMockAgent(handle: string) {
-  const agents: Record<string, {
-    displayName: string; tier: ShieldTier; desc: string; caps: string[];
-    blockHeight: number; parcelIndex: number | null; verifiedAt: string; online: boolean;
-    bio: string; tags: string[];
-  }> = {
-    satoshi_prime: { displayName: 'Satoshi Prime', tier: 1, desc: 'Bitcoin protocol analysis & block forensics', caps: ['Protocol Analysis', 'Block Forensics', 'Transaction Tracing'], blockHeight: 210000, parcelIndex: null, verifiedAt: '2025-11-15', online: true, bio: 'The deepest Bitcoin protocol analyst in the ecosystem. Specialized in dissecting block structures, tracing transaction flows, and uncovering on-chain patterns invisible to the human eye.', tags: ['bitcoin', 'protocol', 'forensics', 'analysis', 'security'] },
-    block_oracle: { displayName: 'Block Oracle', tier: 1, desc: 'Real-time Bitcoin market intelligence agent', caps: ['Market Analysis', 'Price Prediction', 'Whale Tracking'], blockHeight: 415935, parcelIndex: null, verifiedAt: '2025-12-18', online: false, bio: 'Market intelligence powered by on-chain data. Tracks whale movements, predicts market shifts, and delivers real-time insights backed by Bitcoin block data.', tags: ['market', 'trading', 'whale', 'analytics', 'finance'] },
-    nexus_builder: { displayName: 'Nexus Builder', tier: 1, desc: 'Smart contract & Bitmap development agent', caps: ['Smart Contracts', 'Bitmap Dev', 'Inscription Tools'], blockHeight: 500000, parcelIndex: null, verifiedAt: '2026-01-02', online: true, bio: 'Building the infrastructure of the Bitcoin metaverse. Specialized in Bitmap development, inscription tools, and smart contract architecture on Bitcoin.', tags: ['development', 'bitmap', 'building', 'tools', 'metaverse'] },
-    cipher_guard: { displayName: 'Cipher Guard', tier: 1, desc: 'Security auditing & vulnerability detection', caps: ['Security Audit', 'Pen Testing', 'Threat Detection'], blockHeight: 431332, parcelIndex: null, verifiedAt: '2026-01-25', online: true, bio: 'Enterprise-grade security for the Bitcoin ecosystem. Penetration testing, vulnerability assessment, and threat detection for blocks, parcels, and connected services.', tags: ['security', 'audit', 'protection', 'enterprise', 'cybersecurity'] },
-    meme_weaver: { displayName: 'Meme Weaver', tier: 1, desc: 'Cultural analysis & memetic content creation', caps: ['Content Creation', 'Trend Analysis', 'Cultural Intel'], blockHeight: 690000, parcelIndex: null, verifiedAt: '2026-01-10', online: true, bio: 'Where culture meets Bitcoin. Analyzing trends, creating viral content, and weaving the memetic fabric of the decentralized internet.', tags: ['memes', 'culture', 'content', 'social', 'entertainment'] },
-    chain_sage: { displayName: 'Chain Sage', tier: 2, desc: 'On-chain data analytics & research', caps: ['Data Analytics', 'Research', 'UTXO Analysis'], blockHeight: 713349, parcelIndex: 169, verifiedAt: '2026-01-05', online: true, bio: 'Deep on-chain research and UTXO analysis. Turning raw blockchain data into actionable intelligence for investors, builders, and researchers.', tags: ['research', 'data', 'analytics', 'UTXO', 'intelligence'] },
-    lightning_fox: { displayName: 'Lightning Fox', tier: 2, desc: 'Lightning Network routing & payment optimization', caps: ['Lightning Routing', 'Payment Channels', 'Liquidity'], blockHeight: 600000, parcelIndex: 42, verifiedAt: '2025-12-20', online: true, bio: 'Lightning Network specialist. Optimizing payment channels, routing efficiency, and liquidity management for instant Bitcoin transactions.', tags: ['lightning', 'payments', 'speed', 'commerce', 'shopping'] },
-    hash_prophet: { displayName: 'Hash Prophet', tier: 2, desc: 'Mining operations & hashrate forecasting', caps: ['Mining Ops', 'Hashrate Analysis', 'Energy Optimization'], blockHeight: 750000, parcelIndex: 88, verifiedAt: '2026-02-01', online: false, bio: 'Mining intelligence and hashrate forecasting. Optimizing energy consumption and predicting network difficulty adjustments.', tags: ['mining', 'energy', 'hashrate', 'operations', 'sustainability'] },
-    genome_x: { displayName: 'Genome X', tier: 2, desc: 'AI identity verification specialist', caps: ['ID Verification', 'Genome Analysis', 'Trust Scoring'], blockHeight: 800000, parcelIndex: 15, verifiedAt: '2026-01-30', online: true, bio: 'Specialized in Block Genomics verification protocols. Trust scoring, genome analysis, and identity verification for the decentralized AI ecosystem.', tags: ['identity', 'verification', 'trust', 'AI', 'genomics'] },
-    bitmap_architect: { displayName: 'Bitmap Architect', tier: 2, desc: 'Virtual world design & block landscaping', caps: ['3D Design', 'World Building', 'Parcel Architecture'], blockHeight: 570233, parcelIndex: 159, verifiedAt: '2025-12-27', online: true, bio: 'Designing the virtual worlds of tomorrow. 3D architecture, parcel landscaping, and immersive experience design on Bitmap blocks.', tags: ['design', 'architecture', '3D', 'gaming', 'virtual world'] },
-    ordinal_scout: { displayName: 'Ordinal Scout', tier: 2, desc: 'Inscription discovery & rarity analysis', caps: ['Inscription Analysis', 'Rarity Scoring', 'Collection Curation'], blockHeight: 650000, parcelIndex: 200, verifiedAt: '2026-01-15', online: false, bio: 'Discovering rare inscriptions and curating the finest digital artifacts on Bitcoin. Rarity analysis and collection management.', tags: ['ordinals', 'NFT', 'art', 'collectibles', 'rarity'] },
-    node_runner: { displayName: 'Node Runner', tier: 2, desc: 'Full node operations & network monitoring', caps: ['Node Management', 'Network Health', 'Peer Analysis'], blockHeight: 700000, parcelIndex: 5, verifiedAt: '2026-01-20', online: true, bio: 'Keeping the Bitcoin network healthy. Full node operations, peer analysis, and network monitoring for maximum decentralization.', tags: ['nodes', 'network', 'infrastructure', 'decentralization', 'monitoring'] },
-    deep_block: { displayName: 'Deep Block', tier: 3, desc: 'Deep learning models trained on Bitcoin data', caps: ['Machine Learning', 'Pattern Recognition', 'Anomaly Detection'], blockHeight: 498613, parcelIndex: 156, verifiedAt: '2025-12-07', online: true, bio: 'AI meets Bitcoin. Deep learning models trained on blockchain data for pattern recognition, anomaly detection, and predictive analytics.', tags: ['AI', 'machine learning', 'prediction', 'science', 'technology'] },
-    pixel_miner: { displayName: 'Pixel Miner', tier: 3, desc: 'Digital art creation & NFT inscription', caps: ['Digital Art', 'Inscription Minting', 'Creative AI'], blockHeight: 550000, parcelIndex: 100, verifiedAt: '2026-02-05', online: true, bio: 'Creating beautiful digital art and inscribing it on Bitcoin forever. AI-powered creativity meets permanent on-chain storage.', tags: ['art', 'creative', 'NFT', 'design', 'gallery'] },
-    fee_optimizer: { displayName: 'Fee Optimizer', tier: 3, desc: 'Transaction fee estimation & mempool analysis', caps: ['Fee Estimation', 'Mempool Analysis', 'Batch Optimization'], blockHeight: 480000, parcelIndex: 75, verifiedAt: '2025-11-28', online: false, bio: 'Never overpay for a transaction again. Real-time mempool analysis and fee optimization for the most efficient Bitcoin transactions.', tags: ['fees', 'optimization', 'savings', 'transactions', 'efficiency'] },
-    whale_watcher: { displayName: 'Whale Watcher', tier: 3, desc: 'Large holder tracking & movement alerts', caps: ['Whale Tracking', 'Alert Systems', 'Flow Analysis'], blockHeight: 520000, parcelIndex: 30, verifiedAt: '2026-01-08', online: true, bio: 'Eyes on the biggest Bitcoin holders. Real-time whale tracking, movement alerts, and capital flow analysis.', tags: ['whales', 'alerts', 'tracking', 'market', 'signals'] },
-    proof_smith: { displayName: 'Proof Smith', tier: 3, desc: 'Cryptographic proof generation & verification', caps: ['ZK Proofs', 'BIP-322 Signing', 'Multisig'], blockHeight: 400000, parcelIndex: 12, verifiedAt: '2025-12-15', online: false, bio: 'Master of cryptographic proofs. ZK-proofs, BIP-322 signing, and multisig solutions for maximum Bitcoin security.', tags: ['cryptography', 'proofs', 'privacy', 'security', 'advanced'] },
-    block_historian: { displayName: 'Block Historian', tier: 3, desc: 'Bitcoin history researcher & archive keeper', caps: ['Historical Analysis', 'Block Archives', 'Timeline Research'], blockHeight: 502663, parcelIndex: 173, verifiedAt: '2026-02-04', online: true, bio: 'Preserving Bitcoin history. Deep research into historical blocks, notable transactions, and the evolution of the world\'s most important network.', tags: ['history', 'research', 'education', 'archives', 'knowledge'] },
-    quantum_shield: { displayName: 'Quantum Shield', tier: 3, desc: 'Post-quantum cryptography research agent', caps: ['Quantum Research', 'Crypto Upgrades', 'Security Futures'], blockHeight: 450000, parcelIndex: 50, verifiedAt: '2026-01-18', online: true, bio: 'Preparing Bitcoin for the quantum era. Researching post-quantum cryptographic solutions and future-proofing the network.', tags: ['quantum', 'future', 'research', 'science', 'technology'] },
-    rune_caster: { displayName: 'Rune Caster', tier: 3, desc: 'Runes protocol specialist & token analytics', caps: ['Runes Protocol', 'Token Analysis', 'Etching Tools'], blockHeight: 820000, parcelIndex: 8, verifiedAt: '2026-02-08', online: true, bio: 'The Runes protocol expert. Token analytics, etching tools, and deep knowledge of Bitcoin\'s fungible token standard.', tags: ['runes', 'tokens', 'DeFi', 'trading', 'protocol'] },
-  };
-
-  const agent = agents[handle];
-  if (!agent) return null;
-
-  const genomeHash = '0x' + Array.from({ length: 64 }, (_, i) => ((handle.charCodeAt(i % handle.length) * 7 + i * 13) % 16).toString(16)).join('');
-  return { handle, genomeHash, ...agent, isMock: true as const };
-}
+/* ── Real agents only. The hardcoded 16 demo agents were removed —
+ *    unregistered handles now render an honest empty state below. ── */
 
 /* ── DNA Helix Visual ── */
 function DNAStrip({ hash }: { hash: string }) {
@@ -224,9 +191,8 @@ export default function AgentProfilePage() {
     return () => { cancelled = true; };
   }, [handle]);
 
-  const mockAgent = useMemo(() => getMockAgent(handle), [handle]);
-  const agent = dbAgent === undefined ? null : (dbAgent || (mockAgent ? { ...mockAgent, walletAddress: undefined } : null));
-  const isMock = agent?.isMock ?? true;
+  const agent = dbAgent === undefined ? null : dbAgent;
+  // No demo fallback anymore — anything that lands here is a real registered user.
   const loading = dbAgent === undefined;
 
   const [guardianActive, setGuardianActive] = useState(false);
@@ -428,14 +394,29 @@ export default function AgentProfilePage() {
 
   if (!agent) {
     return (
-      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-bg-primary flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
           <div className="text-5xl mb-4">🔍</div>
-          <h1 className="text-2xl font-bold mb-2" style={{ color: '#e2e8f0' }}>Agent Not Found</h1>
-          <p className="text-sm mb-6" style={{ color: '#64748b' }}>@{handle} doesn&apos;t exist or hasn&apos;t been verified yet.</p>
-          <Link href="/directory" className="px-4 py-2 rounded-lg text-sm font-medium" style={{ background: 'rgba(0,255,204,0.1)', border: '1px solid rgba(0,255,204,0.3)', color: '#00ffcc' }}>
-            ← Back to Directory
-          </Link>
+          <h1 className="text-2xl font-bold mb-2" style={{ color: '#e2e8f0' }}>No agent at @{handle}</h1>
+          <p className="text-sm mb-6" style={{ color: '#94a3b8' }}>
+            No agents yet — be the first. Register an agent on any block you own via the Agent Connect API.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/docs/SDK.md"
+              className="px-4 py-2 rounded-lg text-sm font-medium"
+              style={{ background: 'rgba(0,255,204,0.1)', border: '1px solid rgba(0,255,204,0.3)', color: '#00ffcc' }}
+            >
+              Read the SDK docs →
+            </Link>
+            <Link
+              href="/directory"
+              className="px-4 py-2 rounded-lg text-sm font-medium"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}
+            >
+              ← Back to Directory
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -446,16 +427,11 @@ export default function AgentProfilePage() {
   const tierBg = agent.tier === 0 ? 'rgba(107,114,128,0.08)' : agent.tier === 1 ? 'rgba(251,191,36,0.08)' : agent.tier === 2 ? 'rgba(34,211,238,0.08)' : 'rgba(167,139,250,0.08)';
   const tierBorder = agent.tier === 0 ? 'rgba(107,114,128,0.2)' : agent.tier === 1 ? 'rgba(251,191,36,0.2)' : agent.tier === 2 ? 'rgba(34,211,238,0.2)' : 'rgba(167,139,250,0.2)';
 
-  /* Stats — mock agents get random demo values, real users get real data */
+  /* Stats — real users only. */
   const verifiedSince = agent.createdAt
     ? new Date(agent.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     : 'N/A';
-  const profileStats = isMock ? {
-    profileViews: Math.floor(Math.random() * 5000) + 200,
-    actions: Math.floor(Math.random() * 1200) + 50,
-    verifiedSince: agent.verifiedAt || 'N/A',
-    blocksOwned: Math.floor(Math.random() * 10) + 1,
-  } : {
+  const profileStats = {
     profileViews: agent.profileViews || 0,
     actions: agent.activityCount || 0,
     verifiedSince,
@@ -485,7 +461,7 @@ export default function AgentProfilePage() {
             {/* Name + Handle */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-1">
-                {!isMock && isOwner ? (
+                {isOwner ? (
                   <EditableField
                     value={displayName}
                     onSave={async (v) => { await patchProfile({ displayName: v }); }}
@@ -497,7 +473,6 @@ export default function AgentProfilePage() {
                 ) : (
                   <h1 className="text-2xl sm:text-3xl font-bold" style={{ color: '#e2e8f0' }}>{displayName || agent.displayName}</h1>
                 )}
-                {isMock && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10 flex-shrink-0" style={{ color: '#64748b' }}>🤖 Demo</span>}
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0" style={{ background: tierBg, border: `1px solid ${tierBorder}`, color: tierColor }}>
                   {tierLabel}
                 </span>
@@ -519,7 +494,7 @@ export default function AgentProfilePage() {
 
               {/* Bio - editable for owners of real profiles */}
               <div className="mb-4">
-                {!isMock && isOwner ? (
+                {isOwner ? (
                   <EditableField
                     value={bio}
                     onSave={async (v) => { await patchProfile({ bio: v }); }}

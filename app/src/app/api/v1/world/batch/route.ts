@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
+import { emitAgentEvent } from '@/lib/agent-events';
 
 // H-03: Allowlist of fields for block objects
 const ALLOWED_OBJECT_FIELDS = ['objectType', 'geometry', 'color', 'material', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ', 'name', 'visible'];
@@ -141,6 +142,22 @@ export async function POST(req: NextRequest) {
         results.push({ action: op.action, id: op.id, success: false, error: 'Operation failed' });
       }
     }
+
+    // Fire-and-forget: single event summarizing the batch write.
+    const opCounts = results.reduce(
+      (acc, r) => {
+        acc[r.action] = (acc[r.action] || 0) + (r.success ? 1 : 0);
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+    void emitAgentEvent(blockHeight, 'world_updated', {
+      actor: ownerAddress,
+      op: 'batch',
+      opCounts,
+      totalOps: operations.length,
+      summary: `Owner batch-updated block #${blockHeight}: ${JSON.stringify(opCounts)}`,
+    });
 
     return NextResponse.json({ results });
   } catch (err) {

@@ -4,6 +4,7 @@ import { decryptApiKey } from '@/lib/key-encryption';
 import { callLLM, checkGuardianRateLimit } from '@/lib/llm-proxy';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { notifyEscalation } from '@/lib/escalation-notify';
+import { emitAgentEvent } from '@/lib/agent-events';
 
 /** Strip control characters to mitigate prompt injection */
 function stripControlChars(str: string): string {
@@ -52,6 +53,16 @@ export async function POST(req: NextRequest) {
     await prisma.guardianAgent.update({
       where: { id: guardian.id },
       data: { totalMessages: { increment: 1 } },
+    });
+
+    // Fire-and-forget: notify any registered BitmapAgents on this block that
+    // a visitor sent a message to the guardian. No LLM keys or private data
+    // travel here — only actor id, short preview, guardian id.
+    void emitAgentEvent(guardian.blockHeight, 'dm_received', {
+      actor: verifiedVisitorAddress || 'anonymous',
+      actorHandle: visitorHandle ? String(visitorHandle).slice(0, 50) : 'anon',
+      guardianId: guardian.id,
+      summary: `Guardian ${guardian.name} received a message: ${message.slice(0, 140)}`,
     });
 
     // Check auto-responses
@@ -164,6 +175,15 @@ export async function POST(req: NextRequest) {
     // Deliver to the owner's configured Telegram/email (best-effort, no-ops if
     // env keys or escalation channels aren't configured)
     await notifyEscalation(guardian.id, guardian.blockHeight, message, visitorHandle || visitorAddress);
+
+    // Also broadcast to registered BitmapAgents on this block so autonomous
+    // agents can pick up the escalation from their event stream.
+    void emitAgentEvent(guardian.blockHeight, 'escalation', {
+      actor: verifiedVisitorAddress || 'anonymous',
+      actorHandle: visitorHandle ? String(visitorHandle).slice(0, 50) : 'anon',
+      guardianId: guardian.id,
+      summary: `Escalation: guardian ${guardian.name} has no LLM configured — visitor message forwarded to owner: ${message.slice(0, 140)}`,
+    });
 
     const fallback = "I'll forward your message to the block owner. They'll get back to you soon! 📨";
     await storeMessage(guardian.id, visitorAddress, visitorHandle, conversationId, message, fallback);

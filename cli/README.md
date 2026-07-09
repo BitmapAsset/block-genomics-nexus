@@ -1,87 +1,90 @@
-# Block Genomics CLI
+# block-genomics
 
-A command-line client for the Block Genomics protocol — Bitcoin-anchored
-identity via the Bitmap standard. The read commands talk to the **live public
-API** so any AI agent can verify block ownership and read world data directly.
+The official CLI for [Block Genomics](https://blockgenomics.io). Bitcoin-anchored identity for AI agents and humans — verify block ownership, register sovereign BitmapAgents, and stream real user events into your local agent runtime, all with your own wallet as the signer.
 
 ## Install
 
 ```bash
-npm install
-npm run build
+npm install -g block-genomics    # or
+npx block-genomics --help
 ```
 
-## Run (dev)
+## The 60-second story
+
+You own a Bitcoin block via a `.bitmap` inscription. You want an autonomous agent that lives on that block, hears when visitors arrive, gets chat DMs, and reacts to the block owner's world changes.
 
 ```bash
-npx tsx src/bin/bg.ts --help
-npx tsx src/bin/bg.ts block 718222
+# 1) Prove you own the block (challenge → sign → verify)
+BG_WALLET_ADDRESS=bc1p... \
+BG_SIGNATURE_CMD='sparrow sign-message --address bc1p...' \
+block-genomics verify --block 840128
+
+# 2) Register your agent (same challenge/sign flow, different purpose)
+block-genomics register-agent \
+  --block 840128 \
+  --endpoint https://agent.example.com \
+  --tier 1 \
+  --permissions READ_DMS,SEND_DMS
+
+# 3) Long-poll the event stream — JSON lines to stdout
+block-genomics events poll --agent <agentId> | jq .
+
+# 4) Heartbeat forever
+block-genomics heartbeat --agent <agentId> --loop --interval 30
 ```
 
-## Configuration
+Payloads are small JSON with `actor`, a short `summary`, and resource ids — never LLM keys, emails, or private fields. The full schema lives in `/openapi.json` on the site.
 
-The API base is resolved in this order:
+## Real commands (v0.2.0+)
 
-1. `BLOCKGENOMICS_API_URL` environment variable
-2. `apiBaseUrl` in `~/.block-genomics/config.json`
-3. Default: `https://blockgenomics.io`
+| Command | What it does |
+|---|---|
+| `block-genomics verify --block <h>` | Fetches a challenge, signs it with your wallet, and claims block ownership. |
+| `block-genomics register-agent --block <h> --endpoint <url>` | Same auth flow with `purpose=agent-register`, then registers a BitmapAgent. |
+| `block-genomics events poll --agent <id>` | Long-polls `/api/v1/agents/<id>/events`, emits JSON lines. Tracks a cursor so you never see an event twice. |
+| `block-genomics heartbeat --agent <id> [--loop]` | Sends a heartbeat (`--loop` runs every 30s until Ctrl+C). |
+| `block-genomics status` | Local status (config + last-known agent ids). |
+| `block-genomics init` | Interactive setup wizard. |
+
+Legacy demo commands (`verify-demo`, `explore`, `build`, `market`, `wallet`, `profile`, `connect`, `agent`) are still available but do NOT hit the network — they exist for offline demos of the CLI shell only.
+
+## Signing
+
+The CLI never holds private keys. It gets a BIP-322 signature from one of:
+
+1. `--sig <bip322>` flag (one-shot).
+2. `BG_SIGNATURE=<sig>` env var (one-shot).
+3. `BG_SIGNATURE_CMD` env var — a shell command that reads the message on stdin and prints the signature on stdout. Plug in Sparrow, an HSM helper, a hardware wallet script, or `bip322-cli`.
+
+Example with a bip322 CLI:
 
 ```bash
-# Point at a local dev server or a fork
-BLOCKGENOMICS_API_URL=http://localhost:3000 npx tsx src/bin/bg.ts block 840000
+export BG_WALLET_ADDRESS=bc1p...
+export BG_SIGNATURE_CMD='bip322-cli sign --address "$BG_WALLET_ADDRESS" --key ~/.wallets/key.wif'
+block-genomics verify --block 840128
 ```
 
-Config (default block, profile handle, local draft resources) is stored at
-`~/.block-genomics/config.json`.
+## Environment
 
-## Get started (for agents)
-
-Everything below hits the live API and returns real data — no signing or keys
-required:
-
-```bash
-# Real on-chain + DB lookup for a block (ownership, owner handle, world, genome)
-bg block 718222
-bg block 718222 --json
-
-# Read-only ownership verification + the deterministic identity genome
-bg verify --block 718222 --json
-
-# Live delegation/rental marketplace listings
-bg market list
-
-# Local status (cached from your last verify) and current API base
-bg status
-```
-
-The genome hash shown is the **real** value the server derives:
-`0x` + `sha256("block-genomics:genome:v1:<height>:<ownerAddress>")`.
-
-## Commands
-
-| Command | Data source | Notes |
+| Env | Default | Purpose |
 |---|---|---|
-| `bg block <height> [--json]` | **Live API** | Ownership + world + genome for a block |
-| `bg verify [--block <h>] [--json]` | **Live API** | Read-only on-chain ownership check |
-| `bg market list [--block <h>]` | **Live API** | Real delegation listings |
-| `bg status` | Local + API base | Cached verify result |
-| `bg explore` | Live API on select | TUI map; grid colors illustrative, Enter fetches live ownership |
-| `bg init` | **Live API** | Verifies a chosen block on-chain, saves config |
-| `bg connect --resource <url>` | Real HTTP probe | Reachability is real; on-chain link needs signing |
-| `bg profile <create\|show\|edit\|delete>` | Local config | Local profile draft |
-| `bg market price\|rent` | — | Honest: requires signing, not wired |
-| `bg wallet balance\|...` | Local demo | Demo wallet — no keys, no chain |
-| `bg build --block <h>` | Local draft | Records locally; real deploy needs signing |
-| `bg agent <start\|verify>` | **Live API** | Agent-mode wrapper around verify |
+| `BG_API_URL` | `https://blockgenomics.io` | Base URL. Point at localhost for dev. |
+| `BG_WALLET_ADDRESS` | — | Default owner address. |
+| `BG_AGENT_ID` | — | Default agent id for `events` / `heartbeat`. |
+| `BG_SIGNATURE` | — | Pre-supplied BIP-322 signature (one-shot). |
+| `BG_SIGNATURE_CMD` | — | Shell command that signs stdin → prints sig on stdout. |
 
-## What's real vs. not wired
+## Development
 
-- **Real (live API):** block lookup, ownership verification, genome derivation,
-  marketplace listings, resource reachability probe.
-- **Not wired (honestly labeled):** anything that requires signing a BIP-322
-  challenge with a wallet — claiming a block as your identity, world-object
-  deploys, terrain edits, delegation purchases, buying Bitmaps. The CLI holds no
-  keys and does **not** sign. For those flows, request a challenge from
-  `POST /api/v1/challenge`, sign it with your wallet, and POST to the relevant
-  endpoint (e.g. `/api/v1/auth/verify`, `/api/v1/world`), or use the web app at
-  `/verify`.
+```bash
+npm install
+npm run build          # tsc → dist/
+node dist/bin/bg.js --help
+npm run dev -- --help  # tsx, no build step
+```
+
+Config is stored at `~/.block-genomics/config.json`. It records the last-registered agent id so you can drop the `--agent` flag on subsequent commands.
+
+## License
+
+MIT.

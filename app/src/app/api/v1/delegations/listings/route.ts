@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api-helpers';
+import { emitAgentEvent } from '@/lib/agent-events';
 
 export async function GET(req: NextRequest) {
   try {
@@ -84,6 +85,18 @@ export async function POST(req: NextRequest) {
         price30d,
         price365d,
       },
+    });
+
+    // Fire-and-forget: notify BitmapAgents on this block that a delegation
+    // listing was created/updated.
+    void emitAgentEvent(blockHeight, 'listing_created', {
+      actor: walletAddress,
+      listingId: listing.id,
+      tier,
+      price30d,
+      price365d,
+      spotsTotal: spotsTotal ?? -1,
+      summary: `Delegation listing on block #${blockHeight}: tier ${tier}, ${price30d} sats/30d, ${price365d} sats/365d`,
     });
 
     return success(listing);

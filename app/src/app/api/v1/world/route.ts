@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
+import { emitAgentEvent } from '@/lib/agent-events';
 
 export async function GET(req: NextRequest) {
   try {
@@ -74,6 +75,15 @@ export async function POST(req: NextRequest) {
 
     const object = await prisma.blockObject.create({
       data: { blockHeight, ownerAddress, objectType, ...safeData },
+    });
+
+    // Fire-and-forget: notify BitmapAgents on this block of the world write.
+    void emitAgentEvent(blockHeight, 'world_updated', {
+      actor: ownerAddress,
+      op: 'create',
+      objectId: object.id,
+      objectType,
+      summary: `Owner placed a ${objectType} on block #${blockHeight}`,
     });
 
     return NextResponse.json({ object }, { status: 201 });
