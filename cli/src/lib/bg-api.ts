@@ -58,7 +58,7 @@ async function request<T>(
 export type Challenge = { message: string; nonce: string };
 export async function requestChallenge(
   walletAddress: string,
-  purpose: "auth" | "agent-register" | "world" = "auth",
+  purpose: "auth" | "agent-register" | "agent-manage" | "world" = "auth",
 ): Promise<Challenge> {
   return request<Challenge>("/api/v1/challenge", {
     method: "POST",
@@ -107,6 +107,43 @@ export async function registerAgent(input: RegisterAgentInput): Promise<AgentRec
 
 export async function heartbeatAgent(agentId: string): Promise<{ alive: boolean; lastHeartbeat: string }> {
   return request(`/api/v1/agents/${encodeURIComponent(agentId)}/heartbeat`, { method: "POST" });
+}
+
+export interface UpdateAgentInput {
+  walletAddress: string;
+  signature: string;
+  /** The exact `message` returned by /api/v1/challenge (purpose 'agent-manage'). */
+  challenge: string;
+  endpointUrl?: string;
+  permissions?: AgentPermission[];
+}
+
+/** PATCH an agent you own (endpoint and/or permissions). Requires an agent-manage challenge. */
+export async function updateAgent(agentId: string, input: UpdateAgentInput): Promise<AgentRecord> {
+  return request<AgentRecord>(`/api/v1/agents/${encodeURIComponent(agentId)}`, { method: "PATCH", body: input });
+}
+
+/** DELETE (revoke) an agent you own. Requires an agent-manage challenge. */
+export async function revokeAgent(
+  agentId: string,
+  input: { walletAddress: string; signature: string; challenge: string },
+): Promise<{ revoked: boolean }> {
+  return request(`/api/v1/agents/${encodeURIComponent(agentId)}`, { method: "DELETE", body: input });
+}
+
+export interface WalletProfile {
+  walletAddress: string;
+  handle: string | null;
+  displayName: string | null;
+  tier: number;
+  verified: boolean;
+  anchorBlock: number | null;
+  ownedBlocks: number[];
+}
+
+/** Public read: resolve a wallet's verified profile + the blocks it owns. */
+export async function getWalletProfile(address: string): Promise<WalletProfile> {
+  return request<WalletProfile>(`/api/v1/users/by-wallet/${encodeURIComponent(address)}`);
 }
 
 export interface AgentEventRecord {

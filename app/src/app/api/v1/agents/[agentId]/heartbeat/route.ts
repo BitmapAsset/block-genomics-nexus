@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(
   req: NextRequest,
@@ -8,6 +9,12 @@ export async function POST(
 ) {
   try {
     const { agentId } = await params;
+
+    // Heartbeat is keyed only by the (non-public) agent id; cap the cadence so a
+    // leaked id can't be used to flood liveness pings / heartbeat event rows.
+    if (!rateLimit(`hb:${agentId}`, 30, 60_000)) {
+      return error('Too many heartbeats — slow down', 429);
+    }
 
     const agent = await prisma.bitmapAgent.findUnique({ where: { id: agentId } });
     if (!agent) return error('Agent not found', 404);

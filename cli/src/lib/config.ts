@@ -25,6 +25,7 @@ export type Config = {
     onChainMatch?: boolean;
   };
   resources?: Array<{ type: string; value: string; block: number; createdAt: string }>;
+  agents?: Array<{ id: string; blockHeight: number; walletAddress: string; createdAt: string }>;
 };
 
 const CONFIG_DIR = path.join(os.homedir(), ".block-genomics");

@@ -35,7 +35,7 @@ block-genomics heartbeat --agent <agentId> --loop --interval 30
 
 Payloads are small JSON with `actor`, a short `summary`, and resource ids — never LLM keys, emails, or private fields. The full schema lives in `/openapi.json` on the site.
 
-## Real commands (v0.2.0+)
+## Real commands (v0.2.1+)
 
 | Command | What it does |
 |---|---|
@@ -43,10 +43,17 @@ Payloads are small JSON with `actor`, a short `summary`, and resource ids — ne
 | `block-genomics register-agent --block <h> --endpoint <url>` | Same auth flow with `purpose=agent-register`, then registers a BitmapAgent. |
 | `block-genomics events poll --agent <id>` | Long-polls `/api/v1/agents/<id>/events`, emits JSON lines. Tracks a cursor so you never see an event twice. |
 | `block-genomics heartbeat --agent <id> [--loop]` | Sends a heartbeat (`--loop` runs every 30s until Ctrl+C). |
+| `block-genomics my-blocks` | Lists the blocks your wallet owns (public read; no signature needed). |
+| `block-genomics whoami` | Shows your configured wallet, verified tier, and the agents registered from this machine. |
+| `block-genomics agent list` | Lists agents you registered from this machine. |
+| `block-genomics agent update --agent <id> --endpoint <url> [--permissions csv]` | Rotates an agent's endpoint/permissions. Ownership-scoped: fetches a `purpose=agent-manage` challenge, signs it (single-use), and the server verifies you own the agent. |
+| `block-genomics agent revoke --agent <id>` | Retires an agent you own (same `agent-manage` challenge flow, kills active sessions). |
 | `block-genomics status` | Local status (config + last-known agent ids). |
 | `block-genomics init` | Interactive setup wizard. |
 
-Legacy demo commands (`verify-demo`, `explore`, `build`, `market`, `wallet`, `profile`, `connect`, `agent`) are still available but do NOT hit the network — they exist for offline demos of the CLI shell only.
+`agent update` / `agent revoke` / `my-blocks` / `whoami` all require `--address` (or `BG_WALLET_ADDRESS`) and use the same signer as `verify`. Because the manage challenge is single-use, a captured signature cannot be replayed against your agents.
+
+Legacy demo commands (`verify-demo`, `explore`, `build`, `market`, `wallet`, `profile`, `connect`, and `agent verify` / `agent start`) are still available but do NOT hit the network — they exist for offline demos of the CLI shell only.
 
 ## Signing
 

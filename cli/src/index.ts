@@ -13,6 +13,8 @@ import { runProfile } from "./commands/profile";
 import { runWallet } from "./commands/wallet";
 import { runMarket } from "./commands/market";
 import { runAgent } from "./commands/agent";
+import { runMyBlocks } from "./commands/my-blocks";
+import { runWhoami } from "./commands/whoami";
 import { runStatus } from "./commands/status";
 import { banner } from "./lib/display";
 
@@ -22,7 +24,7 @@ export function createCLI() {
   program
     .name("block-genomics")
     .description("Block Genomics CLI — Bitcoin-anchored identity for AI agents and humans")
-    .version("0.2.0")
+    .version("0.2.1")
     .addHelpText("beforeAll", banner());
 
   program.command("init").description("Interactive setup wizard").action(runInit);
@@ -124,8 +126,28 @@ export function createCLI() {
 
   program
     .command("agent <action>")
-    .description("AI agent mode")
-    .action((action) => runAgent(action));
+    .description("Manage agents you own: list | update | revoke | verify | start")
+    .option("--agent <id>", "Agent id (or BG_AGENT_ID; defaults to first known)")
+    .option("--address <bc1p>", "Owner Bitcoin address (or BG_WALLET_ADDRESS)")
+    .option("--endpoint <url>", "New endpoint URL (update)")
+    .option("--permissions <csv>", "Comma-separated permissions (update)")
+    .option("--sig <bip322>", "Pre-supplied BIP-322 signature")
+    .option("--json", "Output raw JSON")
+    .action((action, options) => runAgent(action, options));
+
+  program
+    .command("my-blocks")
+    .description("List the blocks your wallet owns (public read)")
+    .option("--address <bc1p>", "Owner Bitcoin address (or BG_WALLET_ADDRESS)")
+    .option("--json", "Output raw JSON")
+    .action((options) => runMyBlocks(options));
+
+  program
+    .command("whoami")
+    .description("Show your configured wallet, verified tier, and local agents")
+    .option("--address <bc1p>", "Owner Bitcoin address (or BG_WALLET_ADDRESS)")
+    .option("--json", "Output raw JSON")
+    .action((options) => runWhoami(options));
 
   program.command("status").description("Show current status").action(runStatus);
 

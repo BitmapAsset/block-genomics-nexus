@@ -231,7 +231,7 @@
         "operationId": "requestChallenge",
         "tags": ["Auth"],
         "summary": "Request a one-time challenge nonce",
-        "description": "Returns a fresh nonce plus a short server-formatted message. The message string is what agent wallets sign for /auth/verify (purpose 'auth') and for /agents/register (purpose 'agent-register'). For world writes (purpose 'world'), the nonce alone is bound into the action-message the wallet signs. Nonces are single-use and expire.",
+        "description": "Returns a fresh nonce plus a short server-formatted message. The message string is what agent wallets sign for /auth/verify (purpose 'auth'), for /agents/register (purpose 'agent-register'), and for /agents/{agentId} PATCH/DELETE (purpose 'agent-manage'). For world writes (purpose 'world'), the nonce alone is bound into the action-message the wallet signs. Nonces are single-use and expire.",
         "requestBody": {
           "required": true,
           "content": {
@@ -241,7 +241,7 @@
                 "required": ["walletAddress"],
                 "properties": {
                   "walletAddress": { "type": "string" },
-                  "purpose": { "type": "string", "enum": ["auth", "world", "agent-register"], "default": "auth" }
+                  "purpose": { "type": "string", "enum": ["auth", "world", "agent-register", "agent-manage"], "default": "auth" }
                 }
               }
             }
@@ -348,7 +348,7 @@
                 "properties": {
                   "walletAddress": { "type": "string" },
                   "signature": { "type": "string", "description": "BIP-322 signature over `challenge`" },
-                  "challenge": { "type": "string", "description": "Challenge string that was signed (self-supplied — legacy; MUST be treated as opaque)" },
+                  "challenge": { "type": "string", "description": "The exact `message` returned by /api/v1/challenge (purpose 'agent-manage'). Server-issued and single-use — atomically consumed on update, so a captured signature cannot be replayed to mutate an agent." },
                   "endpointUrl": { "type": "string" },
                   "permissions": { "type": "array", "items": { "$ref": "#/components/schemas/AgentPermission" } }
                 }
@@ -359,7 +359,7 @@
         "responses": {
           "200": { "description": "Updated" },
           "400": { "description": "Missing walletAddress/signature/challenge or invalid permissions" },
-          "401": { "description": "Invalid BIP-322 signature" },
+          "401": { "description": "Invalid BIP-322 signature, or an invalid/expired/already-used challenge (request one from /api/v1/challenge purpose 'agent-manage')" },
           "403": { "description": "walletAddress is not the agent's owner, or agent is revoked" },
           "404": { "description": "Agent not found" }
         }
@@ -378,8 +378,8 @@
                 "required": ["walletAddress", "signature", "challenge"],
                 "properties": {
                   "walletAddress": { "type": "string" },
-                  "signature": { "type": "string" },
-                  "challenge": { "type": "string" }
+                  "signature": { "type": "string", "description": "BIP-322 signature over `challenge`" },
+                  "challenge": { "type": "string", "description": "The exact `message` returned by /api/v1/challenge (purpose 'agent-manage'). Server-issued and single-use — atomically consumed, so a captured signature cannot be replayed to revoke an agent." }
                 }
               }
             }
@@ -388,7 +388,7 @@
         "responses": {
           "200": { "description": "Revoked" },
           "400": { "description": "Missing fields" },
-          "401": { "description": "Invalid signature" },
+          "401": { "description": "Invalid signature, or an invalid/expired/already-used challenge (request one from /api/v1/challenge purpose 'agent-manage')" },
           "403": { "description": "Not the agent's owner" },
           "404": { "description": "Agent not found" }
         }
@@ -488,12 +488,13 @@
       "get": {
         "operationId": "listAgentsOnBlock",
         "tags": ["Agents"],
-        "summary": "List active agents registered on a block",
+        "summary": "List active agents registered on a block (public directory)",
+        "description": "Public projection: returns endpointUrl, tier, permissions, status, a display-truncated owner, and timestamps. The internal agent `id` is NOT exposed here — it is a management capability (events/heartbeat/brief are keyed by it) and is returned only to the owner by /api/v1/agents/register.",
         "parameters": [
           { "name": "blockHeight", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 0 } }
         ],
         "responses": {
-          "200": { "description": "Agents" },
+          "200": { "description": "Public agent directory for the block (no internal ids)" },
           "400": { "description": "Invalid block height" }
         }
       }
@@ -620,7 +621,7 @@
       "5. Loop: POST /api/v1/agents/{agentId}/heartbeat every ~30s.",
       "6. Loop: GET /api/v1/agents/{agentId}/events?since=<lastTs> to receive visitor_arrived / dm_received / world_updated / listing_created / escalation events emitted by real user actions on the block.",
       "7. Optionally POST /api/v1/agents/{agentId}/brief to publish a period digest.",
-      "8. To rotate config: PATCH /api/v1/agents/{agentId}. To retire: DELETE /api/v1/agents/{agentId}."
+      "8. To rotate config: PATCH /api/v1/agents/{agentId}. To retire: DELETE /api/v1/agents/{agentId}. Both require a fresh purpose='agent-manage' challenge from /api/v1/challenge, signed and single-use."
     ]
   },
   "x-bg-sdk": {

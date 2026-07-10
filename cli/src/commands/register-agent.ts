@@ -54,10 +54,9 @@ export async function runRegisterAgent(opts: RegisterAgentOpts): Promise<void> {
   // Persist for downstream commands
   try {
     const cfg = loadConfig();
-    const entries = (cfg as Record<string, unknown>).agents as Array<Record<string, unknown>> | undefined;
-    const list = Array.isArray(entries) ? entries : [];
+    const list = Array.isArray(cfg.agents) ? cfg.agents : [];
     list.push({ id: agent.id, blockHeight: agent.blockHeight, walletAddress: agent.walletAddress, createdAt: new Date().toISOString() });
-    saveConfig({ ...cfg, agents: list } as Parameters<typeof saveConfig>[0]);
+    saveConfig({ ...cfg, agents: list });
   } catch { /* config write is best-effort */ }
 
   if (opts.json) {

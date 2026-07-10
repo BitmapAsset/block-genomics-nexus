@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(
   req: NextRequest,
@@ -8,6 +9,13 @@ export async function POST(
 ) {
   try {
     const { agentId } = await params;
+
+    // Briefs are ~daily; cap hard so a leaked agent id can't be used to inject a
+    // stream of fabricated briefs the owner might read and act on.
+    if (!rateLimit(`brief:${agentId}`, 5, 60_000)) {
+      return error('Too many briefs — slow down', 429);
+    }
+
     const body = await req.json();
     const { period, summary, stats, pendingPermissions } = body;
 

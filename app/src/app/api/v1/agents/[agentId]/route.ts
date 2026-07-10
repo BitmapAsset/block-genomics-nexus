@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { validatePermissions, verifyAgentSignature } from '@/lib/agent-protocol';
+import { consumeChallengeFromMessage } from '@/lib/challenges';
 
 export async function PATCH(
   req: NextRequest,
@@ -19,6 +20,13 @@ export async function PATCH(
     /* BIP-322 wallet signature verification */
     if (!verifyAgentSignature(walletAddress, challenge, signature)) {
       return error('Invalid wallet signature', 401);
+    }
+
+    // REPLAY PROTECTION: require a server-issued, single-use challenge (purpose
+    // 'agent-manage'). Without this an observed signature (e.g. one captured from
+    // the register flow) could be replayed to mutate the owner's agents.
+    if (!(await consumeChallengeFromMessage(walletAddress, challenge, { purpose: 'agent-manage' }))) {
+      return error('Invalid, expired, or already-used challenge — request one from /api/v1/challenge (purpose "agent-manage")', 401);
     }
 
     const agent = await prisma.bitmapAgent.findUnique({ where: { id: agentId } });
@@ -62,6 +70,12 @@ export async function DELETE(
     /* BIP-322 wallet signature verification */
     if (!verifyAgentSignature(walletAddress, challenge, signature)) {
       return error('Invalid wallet signature', 401);
+    }
+
+    // REPLAY PROTECTION: require a server-issued, single-use challenge (purpose
+    // 'agent-manage') so a captured signature cannot be replayed to revoke agents.
+    if (!(await consumeChallengeFromMessage(walletAddress, challenge, { purpose: 'agent-manage' }))) {
+      return error('Invalid, expired, or already-used challenge — request one from /api/v1/challenge (purpose "agent-manage")', 401);
     }
 
     const agent = await prisma.bitmapAgent.findUnique({ where: { id: agentId } });

@@ -25,17 +25,36 @@ export async function POST(
       return error('Invalid signature', 401);
     }
 
-    // Verify ownership or delegation
+    // OWNERSHIP SCOPING: a parcel is a subdivision of a block. The on-chain BLOCK
+    // owner may customize any parcel on it; a wallet that already owns THIS parcel
+    // may re-customize it; a wallet with an active delegation may customize an
+    // EXISTING parcel. Initializing (claiming) a not-yet-existing parcel is
+    // restricted to the block owner. This closes a first-writer takeover where the
+    // old create path trusted whoever signed first as the parcel owner, with no
+    // on-chain check at all.
     const parcel = await prisma.parcel.findUnique({
       where: { blockHeight_txIndex: { blockHeight: h, txIndex: tx } },
     });
 
-    if (parcel && parcel.ownerAddress !== walletAddress) {
-      // Check for active delegation
-      const delegation = await prisma.delegation.findFirst({
+    const [block, user, delegation] = await Promise.all([
+      prisma.block.findUnique({ where: { height: h }, select: { ownerAddress: true } }),
+      prisma.user.findUnique({ where: { walletAddress }, select: { verified: true, anchorBlock: true, ownedBlocks: true } }),
+      prisma.delegation.findFirst({
         where: { blockHeight: h, delegateeAddress: walletAddress, active: true, endDate: { gte: new Date() } },
-      });
-      if (!delegation) return error('Not authorized to customize this parcel', 403);
+      }),
+    ]);
+    const ownsBlock =
+      block?.ownerAddress === walletAddress ||
+      (user?.verified === true && (user.anchorBlock === h || user.ownedBlocks.includes(h)));
+    const isParcelOwner = !!parcel && parcel.ownerAddress === walletAddress;
+
+    if (parcel) {
+      if (!isParcelOwner && !ownsBlock && !delegation) {
+        return error('Not authorized to customize this parcel', 403);
+      }
+    } else if (!ownsBlock) {
+      // Delegation lets you customize existing parcels, not claim new ownership.
+      return error('Only the block owner can initialize a parcel — verified block ownership required', 403);
     }
 
     const updated = await prisma.parcel.upsert({
