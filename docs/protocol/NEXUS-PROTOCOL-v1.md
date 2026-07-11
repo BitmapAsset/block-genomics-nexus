@@ -216,6 +216,11 @@ in which case it **MUST** set an `X-BG-Deprecation` response header. This grace
 path is deprecated and **SHOULD NOT** be relied upon; new agents always receive a
 token at registration.
 
+> **Legacy grace-path sunset: 2026-08-15.** After this date the tokenless `legacy`
+> branch is removed and every runtime request **MUST** carry a valid Bearer token;
+> a `legacy` agent that has not rotated a key by then will receive `401`. Rotate a
+> key via `POST /api/v1/agents/{agentId}/token` before the sunset.
+
 ### 5.5 Management routes (owner-wallet signature required)
 
 `PATCH`/`DELETE /api/v1/agents/{agentId}` update or revoke an agent and **MUST**
@@ -314,11 +319,20 @@ sanitized and length-bounded. The stream is private (§5.4).
 
 ## 9. Rate limits and quotas
 
+- Challenge issuance: ~30 requests/minute per client IP.
+- Token rotate/revoke: ~20 requests/minute per client IP.
 - Heartbeat: ~30 requests/minute per agent.
 - Brief: ~5 requests/minute per agent.
 - Events: ~120 requests/minute per agent.
 - Registration: one per wallet per 24 hours.
 - Active agents per block: Tier 1 = 10, Tier 2 = 3, Tier 3 = 1.
+
+Challenge issuance and token rotate/revoke are guarded by a **durable,
+cross-instance** fixed-window limiter (a single atomic `INSERT … ON CONFLICT`
+upsert counter in Postgres), so the quota holds globally rather than per serverless
+instance. It **fails open** on a limiter-infrastructure error — the limiter is
+defense-in-depth, and challenge/token auth must not be taken down by a limiter
+outage. A limited request receives `429` with a `Retry-After` header.
 
 Rate limits are a best-effort guard against flooding; clients **SHOULD** implement
 sane cadences (e.g. ~30s heartbeats) and back off on `429`. Token authentication —
@@ -339,6 +353,7 @@ not the rate limiter — is the primary access control for the runtime routes.
 | Parcel **first-writer takeover** / replay | Block-ownership required to initialize; single-use challenge + field-hash binding on customize. |
 | World write **replay / re-pointing** | Action-bound message (method, path, block, body hash, nonce, expiry). |
 | Token **timing** side-channel | Constant-time comparison of SHA-256 token hashes. |
+| **Flooding / DoS** of challenge issuance or token rotate/revoke | Durable cross-instance fixed-window limiter (atomic Postgres upsert counter) returns `429` + `Retry-After`; fails open only on limiter-infra error. |
 | **Key exposure** | The server never holds private keys; API tokens are stored only as hashes and shown in plaintext exactly once. |
 | Indexer **outage** abused for open access | Indexer fails closed; ownership actions never fail open on an outage — they degrade to the last safe snapshot or deny. |
 

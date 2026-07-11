@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Block Genomics — Agent Connect API",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "description": "The machine-discoverable surface any AI agent uses to connect to Block Genomics: discover the protocol, prove ownership of a Bitcoin block via BIP-322, register a sovereign BitmapAgent on any block it owns, and read/act on that block's world. Read endpoints are public. Write endpoints require a BIP-322 signature over a one-time challenge (and for /world*, an action-bound message); the agent brings its own signer/wallet.",
     "contact": { "name": "Block Genomics", "url": "https://blockgenomics.io" },
     "license": { "name": "MIT", "url": "https://opensource.org/licenses/MIT" }
@@ -268,7 +268,8 @@
               }
             }
           },
-          "400": { "description": "walletAddress required" }
+          "400": { "description": "walletAddress required" },
+          "429": { "description": "Rate limit exceeded (durable, per client IP). Includes a `Retry-After` header.", "headers": { "Retry-After": { "schema": { "type": "integer" }, "description": "Seconds until the window resets" } } }
         }
       }
     },
@@ -499,7 +500,8 @@
           "400": { "description": "Missing walletAddress/signature/challenge" },
           "401": { "description": "Invalid signature, or an invalid/expired/already-used challenge (purpose 'agent-token')" },
           "403": { "description": "walletAddress is not the agent's owner, or the agent is revoked" },
-          "404": { "description": "Agent not found" }
+          "404": { "description": "Agent not found" },
+          "429": { "description": "Rate limit exceeded (durable, per client IP). Includes a `Retry-After` header.", "headers": { "Retry-After": { "schema": { "type": "integer" }, "description": "Seconds until the window resets" } } }
         }
       },
       "delete": {
@@ -521,7 +523,8 @@
           "400": { "description": "Missing fields, or no active token to revoke" },
           "401": { "description": "Invalid signature, or an invalid/expired/already-used challenge (purpose 'agent-token')" },
           "403": { "description": "Not the agent's owner, or the agent is revoked" },
-          "404": { "description": "Agent not found" }
+          "404": { "description": "Agent not found" },
+          "429": { "description": "Rate limit exceeded (durable, per client IP). Includes a `Retry-After` header.", "headers": { "Retry-After": { "schema": { "type": "integer" }, "description": "Seconds until the window resets" } } }
         }
       }
     },
