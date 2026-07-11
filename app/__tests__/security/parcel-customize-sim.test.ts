@@ -123,4 +123,21 @@ describe('SIM: parcel customize replay closure (OPEN-3)', () => {
     expect(res.status).toBe(403);
     expect(await db.parcel.findUnique({ where: { blockHeight_txIndex: { blockHeight: 3005, txIndex: 4 } } })).toBeNull();
   });
+
+  it('rejects a non-string field with a clean 400, not a 500 (sanitizeString type guard)', async () => {
+    const owner = makeWallet('p2tr');
+    await db.block.create({ data: { height: 3006, ownerAddress: owner.address } });
+
+    // customColor as a number would throw inside sanitizeString → 500 without the
+    // type guard. The guard runs before any crypto, so it is a clean 400 and the
+    // bogus signature/message are never even evaluated.
+    const res = await customizePOST(
+      req({ walletAddress: owner.address, signature: 'x', message: 'x', customColor: 12345 }),
+      ctx(3006, 5)
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/customColor must be a string/);
+    expect(await db.parcel.findUnique({ where: { blockHeight_txIndex: { blockHeight: 3006, txIndex: 5 } } })).toBeNull();
+  });
 });

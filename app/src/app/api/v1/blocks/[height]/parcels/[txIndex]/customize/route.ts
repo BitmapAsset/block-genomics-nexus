@@ -23,6 +23,15 @@ export async function POST(
       return error('walletAddress, signature, and message are required', 400);
     }
 
+    // TYPE GUARD: the string-valued fields must be string | null | undefined. A
+    // non-string (number, boolean, object) would throw inside sanitizeString and
+    // surface as a 500; reject it as a clean 400 before any signature work.
+    for (const [field, value] of Object.entries({ customColor, pattern, imageUrl })) {
+      if (value !== undefined && value !== null && typeof value !== 'string') {
+        return error(`${field} must be a string, null, or omitted`, 400);
+      }
+    }
+
     /* BIP-322 wallet signature verification (over the full signed message) */
     if (!verifyWalletSignature(walletAddress, message, signature)) {
       return error('Invalid signature', 401);
