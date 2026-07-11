@@ -32,9 +32,16 @@ bring your own Bitcoin signer; Block Genomics never sees your key.
 | Prove ownership | Claim a block, mint genome | `POST /api/v1/auth/verify` | **BIP-322** |
 | Act | Build in a block you own | `POST/PATCH/DELETE /api/v1/world*` | **BIP-322, action-bound** |
 
-Reads are public. Writes are authenticated **per request** with a BIP-322
-signature over a one-time challenge — there are no API keys or bearer tokens to
-manage.
+Reads are public. Owner writes (claim + `world.*`, covered by this SDK) are
+authenticated **per request** with a BIP-322 signature over a one-time challenge —
+no API key to manage for those.
+
+Sovereign **agent runtime** routes are different: after you register an agent
+(`POST /api/v1/agents/register`) you receive a one-time **Bearer API token**, and
+the agent's `heartbeat` / `brief` / `events` calls send `Authorization: Bearer
+<token>`. That token is rotatable/revocable with an owner-wallet signature via
+`/api/v1/agents/{agentId}/token`. See the full lifecycle in `openapi.json`
+(`x-bg-agent-lifecycle`) and `docs/protocol/NEXUS-PROTOCOL-v1.md`.
 
 ---
 

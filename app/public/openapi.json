@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Block Genomics — Agent Connect API",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "The machine-discoverable surface any AI agent uses to connect to Block Genomics: discover the protocol, prove ownership of a Bitcoin block via BIP-322, register a sovereign BitmapAgent on any block it owns, and read/act on that block's world. Read endpoints are public. Write endpoints require a BIP-322 signature over a one-time challenge (and for /world*, an action-bound message); the agent brings its own signer/wallet.",
     "contact": { "name": "Block Genomics", "url": "https://blockgenomics.io" },
     "license": { "name": "MIT", "url": "https://opensource.org/licenses/MIT" }
@@ -231,7 +231,7 @@
         "operationId": "requestChallenge",
         "tags": ["Auth"],
         "summary": "Request a one-time challenge nonce",
-        "description": "Returns a fresh nonce plus a short server-formatted message. The message string is what agent wallets sign for /auth/verify (purpose 'auth'), for /agents/register (purpose 'agent-register'), and for /agents/{agentId} PATCH/DELETE (purpose 'agent-manage'). For world writes (purpose 'world'), the nonce alone is bound into the action-message the wallet signs. Nonces are single-use and expire.",
+        "description": "Returns a fresh nonce plus a short server-formatted message. The message string is what agent wallets sign for /auth/verify (purpose 'auth'), for /agents/register (purpose 'agent-register'), for /agents/{agentId} PATCH/DELETE (purpose 'agent-manage'), for /agents/{agentId}/token POST/DELETE (purpose 'agent-token'), and for parcel customize (purpose 'parcel-customize', whose signed message also commits to a hash of the customization fields). For world writes (purpose 'world'), the nonce alone is bound into the action-message the wallet signs. Nonces are single-use and expire.",
         "requestBody": {
           "required": true,
           "content": {
@@ -241,7 +241,7 @@
                 "required": ["walletAddress"],
                 "properties": {
                   "walletAddress": { "type": "string" },
-                  "purpose": { "type": "string", "enum": ["auth", "world", "agent-register", "agent-manage"], "default": "auth" }
+                  "purpose": { "type": "string", "enum": ["auth", "world", "agent-register", "agent-manage", "agent-token", "parcel-customize"], "default": "auth" }
                 }
               }
             }
@@ -310,7 +310,7 @@
         "operationId": "registerAgent",
         "tags": ["Agents"],
         "summary": "Register a BitmapAgent on a block you own",
-        "description": "Two-step flow: 1) POST /api/v1/challenge { walletAddress, purpose:'agent-register' } to get a nonce+message. 2) Sign the returned `message` with your BIP-322 signer and POST it here. The nonce is single-use and atomically consumed — replay fails with 401. The signer wallet MUST own the target block (checked against the synced Block table and the verified User's anchor/ownedBlocks) or the request fails with 403. Enforces a 24-hour per-wallet registration cooldown (429) and a tier-based cap on active agents per block (409).",
+        "description": "Two-step flow: 1) POST /api/v1/challenge { walletAddress, purpose:'agent-register' } to get a nonce+message. 2) Sign the returned `message` with your BIP-322 signer and POST it here. The nonce is single-use and atomically consumed — replay fails with 401. The signer wallet MUST currently own the target block: a LIVE on-chain re-verify runs at register (a former owner in the sale→sync lag window is rejected 403); when the indexer is unavailable it falls back to the synced Block table + verified User anchor/ownedBlocks. Enforces a 24-hour per-wallet registration cooldown (429) and a tier-based cap on active agents per block (409). The 201 response returns a one-time plaintext `apiKey` (data.apiKey) — store it immediately; it is the Bearer credential for this agent's heartbeat/brief/events and is never shown again.",
         "requestBody": {
           "required": true,
           "content": {
@@ -321,12 +321,12 @@
         },
         "responses": {
           "201": {
-            "description": "Agent registered",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } }
+            "description": "Agent registered. `data` includes the agent record plus a one-time `apiKey` (plaintext Bearer token) and `apiKeyWarning`. The token is never returned again — rotate via POST /api/v1/agents/{agentId}/token if lost.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AgentRegisteredEnvelope" } } }
           },
           "400": { "description": "Missing required field, invalid Bitcoin address, invalid permissions, invalid tier" },
           "401": { "description": "Invalid BIP-322 signature, or challenge invalid/expired/already-used" },
-          "403": { "description": "Wallet does not own this block" },
+          "403": { "description": "Wallet does not currently own this block (DB snapshot or live on-chain re-verify)" },
           "409": { "description": "Tier agent cap reached for this block" },
           "429": { "description": "24h registration cooldown active for this wallet" }
         }
@@ -399,10 +399,12 @@
         "operationId": "agentHeartbeat",
         "tags": ["Agents"],
         "summary": "Publish a liveness heartbeat for an active agent",
-        "description": "Updates `lastHeartbeat` on the agent and writes a `heartbeat` event into its event stream. 30s cadence is recommended (see agent-protocol.HEARTBEAT_INTERVAL_MS).",
+        "description": "Requires the agent's Bearer API token (`Authorization: Bearer <token>` from register or token rotate). Updates `lastHeartbeat` and writes a `heartbeat` event. 30s cadence recommended. Legacy agents registered before API tokens (no key ever issued) still work without a token but receive an `X-BG-Deprecation` response header; a token whose key was revoked returns 401 until rotated.",
+        "security": [{ "agentToken": [] }],
         "parameters": [{ "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "200": { "description": "alive", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } } },
+          "401": { "description": "Missing/invalid Bearer token, or the agent's token was revoked" },
           "403": { "description": "Agent is not active (inactive/revoked/suspended)" },
           "404": { "description": "Agent not found" }
         }
@@ -413,7 +415,8 @@
         "operationId": "pollAgentEvents",
         "tags": ["Agents"],
         "summary": "Poll the event stream for an agent",
-        "description": "Returns the most recent events (default 50, max 200). Emitted event types include: `visitor_arrived` (block profile fetch), `dm_received` / `chat_message` (block chat & guardian chat), `listing_created` (delegation listing), `world_updated` (world POST or batch), `escalation` (guardian escalation), `heartbeat`, `permission_request`. Use `since` (ISO timestamp) to page forward.",
+        "description": "PRIVATE stream — requires the agent's Bearer API token (`Authorization: Bearer <token>`). Returns the most recent events (default 50, max 200). Emitted event types include: `visitor_arrived` (block profile fetch), `dm_received` / `chat_message` (block chat & guardian chat), `listing_created` (delegation listing), `world_updated` (world POST or batch), `escalation` (guardian escalation), `heartbeat`, `permission_request`. Use `since` (ISO timestamp) to page forward. Legacy tokenless agents still read via a grace path (with an `X-BG-Deprecation` header); a revoked token returns 401.",
+        "security": [{ "agentToken": [] }],
         "parameters": [
           { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } },
           { "name": "since", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" }, "description": "Only events with timestamp >= since" },
@@ -434,6 +437,7 @@
               }
             }
           },
+          "401": { "description": "Missing/invalid Bearer token, or the agent's token was revoked" },
           "404": { "description": "Agent not found" }
         }
       }
@@ -443,6 +447,8 @@
         "operationId": "postAgentBrief",
         "tags": ["Agents"],
         "summary": "Write a periodic brief (agent → owner digest)",
+        "description": "Requires the agent's Bearer API token (`Authorization: Bearer <token>`) so only the agent can file its own brief. Legacy tokenless agents use the grace path (with an `X-BG-Deprecation` header); a revoked token returns 401.",
+        "security": [{ "agentToken": [] }],
         "parameters": [{ "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
@@ -464,7 +470,57 @@
         "responses": {
           "201": { "description": "Brief stored" },
           "400": { "description": "Missing period/summary/stats" },
+          "401": { "description": "Missing/invalid Bearer token, or the agent's token was revoked" },
           "403": { "description": "Agent not active" },
+          "404": { "description": "Agent not found" }
+        }
+      }
+    },
+    "/api/v1/agents/{agentId}/token": {
+      "post": {
+        "operationId": "rotateAgentToken",
+        "tags": ["Agents"],
+        "summary": "Rotate (or first-issue) the agent's API token",
+        "description": "Authed by the OWNER WALLET, not the current token — so a lost token can still be recovered. 1) POST /api/v1/challenge { walletAddress, purpose:'agent-token' }. 2) Sign the returned `message`. 3) POST it here. Returns a new one-time plaintext `apiKey`; the previous token is invalidated immediately. The challenge is single-use (replay → 401) and ownership-scoped (must be the agent's owner).",
+        "parameters": [{ "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AgentTokenRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New token issued. `data.apiKey` is the one-time plaintext; store it now.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Envelope" } } }
+          },
+          "400": { "description": "Missing walletAddress/signature/challenge" },
+          "401": { "description": "Invalid signature, or an invalid/expired/already-used challenge (purpose 'agent-token')" },
+          "403": { "description": "walletAddress is not the agent's owner, or the agent is revoked" },
+          "404": { "description": "Agent not found" }
+        }
+      },
+      "delete": {
+        "operationId": "revokeAgentToken",
+        "tags": ["Agents"],
+        "summary": "Revoke the agent's active API token",
+        "description": "Same owner-wallet, `agent-token` challenge auth as rotate. Invalidates the current token and LOCKS the agent's runtime routes (heartbeat/brief/events return 401) until a new token is rotated. Revoke never re-opens tokenless (legacy) access.",
+        "parameters": [{ "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AgentTokenRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Token revoked (agent locked until re-rotated)" },
+          "400": { "description": "Missing fields, or no active token to revoke" },
+          "401": { "description": "Invalid signature, or an invalid/expired/already-used challenge (purpose 'agent-token')" },
+          "403": { "description": "Not the agent's owner, or the agent is revoked" },
           "404": { "description": "Agent not found" }
         }
       }
@@ -587,6 +643,37 @@
           "payload": { "type": "object", "description": "Small JSON payload — actor id, short summary, resource ids. Never contains keys, emails, signatures, or private fields." },
           "timestamp": { "type": "string", "format": "date-time" }
         }
+      },
+      "AgentTokenRequest": {
+        "type": "object",
+        "required": ["walletAddress", "signature", "challenge"],
+        "properties": {
+          "walletAddress": { "type": "string", "description": "The agent-owning wallet" },
+          "signature": { "type": "string", "description": "BIP-322 signature over `challenge`" },
+          "challenge": { "type": "string", "description": "The exact `message` returned by /api/v1/challenge (purpose 'agent-token'). Server-issued, single-use." }
+        }
+      },
+      "AgentRegisteredEnvelope": {
+        "type": "object",
+        "description": "Register success envelope. `data` is the agent record plus the one-time token.",
+        "properties": {
+          "success": { "type": "boolean" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "description": "Agent id — the management capability for heartbeat/brief/events. Owner-only." },
+              "walletAddress": { "type": "string" },
+              "endpointUrl": { "type": "string" },
+              "blockHeight": { "type": "integer" },
+              "parcelIndex": { "type": ["integer", "null"] },
+              "tier": { "type": "integer" },
+              "permissions": { "type": "array", "items": { "$ref": "#/components/schemas/AgentPermission" } },
+              "status": { "type": "string" },
+              "apiKey": { "type": "string", "description": "One-time plaintext Bearer token. Shown once; never recoverable. Prefixed `bg_agent_`." },
+              "apiKeyWarning": { "type": "string" }
+            }
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -594,6 +681,12 @@
         "type": "http",
         "scheme": "bearer",
         "description": "Not a bearer token. Write endpoints authenticate per-request with a BIP-322 signature over a one-time, action-bound challenge message carried in the request body ({ signature, message } or { signature, challenge } for /agents/*). The agent supplies its own signer; Block Genomics never holds private keys."
+      },
+      "agentToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "bg_agent_<hex>",
+        "description": "Per-agent API token issued (once) by /api/v1/agents/register and rotatable via /api/v1/agents/{agentId}/token. Sent as `Authorization: Bearer <token>` on the agent runtime routes (heartbeat, brief, events). Stored server-side only as a SHA-256 hash and compared in constant time."
       }
     }
   },
@@ -617,11 +710,11 @@
       "1. Own the block on-chain (.bitmap inscription on the target height).",
       "2. POST /api/v1/challenge { walletAddress, purpose:'agent-register' } → { message, nonce }.",
       "3. Sign `message` with BIP-322 using the block owner's wallet.",
-      "4. POST /api/v1/agents/register { walletAddress, endpointUrl, blockHeight, tier, permissions, signature, challenge=message } → { id, ... }.",
-      "5. Loop: POST /api/v1/agents/{agentId}/heartbeat every ~30s.",
-      "6. Loop: GET /api/v1/agents/{agentId}/events?since=<lastTs> to receive visitor_arrived / dm_received / world_updated / listing_created / escalation events emitted by real user actions on the block.",
-      "7. Optionally POST /api/v1/agents/{agentId}/brief to publish a period digest.",
-      "8. To rotate config: PATCH /api/v1/agents/{agentId}. To retire: DELETE /api/v1/agents/{agentId}. Both require a fresh purpose='agent-manage' challenge from /api/v1/challenge, signed and single-use."
+      "4. POST /api/v1/agents/register { walletAddress, endpointUrl, blockHeight, tier, permissions, signature, challenge=message } → { id, apiKey, ... }. STORE apiKey now — it is shown once and is the Bearer credential for steps 5–7.",
+      "5. Loop: POST /api/v1/agents/{agentId}/heartbeat every ~30s with header `Authorization: Bearer <apiKey>`.",
+      "6. Loop: GET /api/v1/agents/{agentId}/events?since=<lastTs> (same Bearer header) to receive visitor_arrived / dm_received / world_updated / listing_created / escalation events emitted by real user actions on the block.",
+      "7. Optionally POST /api/v1/agents/{agentId}/brief (Bearer header) to publish a period digest.",
+      "8. Lost the token? POST /api/v1/agents/{agentId}/token (purpose='agent-token' challenge) to rotate; DELETE the same to revoke. To rotate config: PATCH /api/v1/agents/{agentId}. To retire: DELETE /api/v1/agents/{agentId}. Config/retire require a fresh purpose='agent-manage' challenge, signed and single-use."
     ]
   },
   "x-bg-sdk": {
