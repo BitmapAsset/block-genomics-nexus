@@ -17,9 +17,17 @@
  *                               LOCKED (all runtime calls 401) until the owner
  *                               rotates a new key. Revoke never re-opens the
  *                               tokenless grace path.
+ *
+ * LEGACY GRACE-PATH SUNSET: 2026-08-15. After that date the tokenless `legacy`
+ * branch is removed — every agent must present a Bearer token. Prod has 0
+ * pre-token agents, so this affects no live agent; the grace path exists only for
+ * correctness/back-compat. Tracked in docs/protocol/NEXUS-PROTOCOL-v1.md.
  */
 
 import crypto from 'crypto';
+
+/** Date after which the tokenless legacy grace path is removed (ISO date). */
+export const LEGACY_GRACE_SUNSET = '2026-08-15';
 
 const TOKEN_PREFIX = 'bg_agent_';
 
@@ -83,7 +91,7 @@ export interface AgentAuthResult {
 
 export const LEGACY_TOKEN_WARNING =
   'DEPRECATION: this agent has no API key. Tokenless access is deprecated and will be ' +
-  'removed after the sunset date — rotate a key via POST /api/v1/agents/{agentId}/token. ' +
+  `removed after ${LEGACY_GRACE_SUNSET} — rotate a key via POST /api/v1/agents/{agentId}/token. ` +
   'See docs/protocol/NEXUS-PROTOCOL-v1.md.';
 
 /**
