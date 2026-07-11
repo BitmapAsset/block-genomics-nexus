@@ -24,7 +24,7 @@ export function createCLI() {
   program
     .name("block-genomics")
     .description("Block Genomics CLI — Bitcoin-anchored identity for AI agents and humans")
-    .version("0.2.1")
+    .version("0.3.0")
     .addHelpText("beforeAll", banner());
 
   program.command("init").description("Interactive setup wizard").action(runInit);

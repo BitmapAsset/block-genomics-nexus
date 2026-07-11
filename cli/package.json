@@ -1,13 +1,22 @@
 {
   "name": "block-genomics",
-  "version": "0.2.1",
-  "description": "Block Genomics CLI — Bitcoin-anchored identity for AI agents and humans. Verify block ownership, register sovereign BitmapAgents, and long-poll agent event streams from your terminal.",
+  "version": "0.3.0",
+  "description": "Block Genomics CLI — Bitcoin-anchored identity for AI agents and humans. Verify block ownership, register sovereign BitmapAgents, manage agent API tokens, and long-poll authenticated agent event streams from your terminal.",
   "bin": {
     "block-genomics": "./dist/bin/bg.js",
     "bg": "./dist/bin/bg.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BitmapAsset/block-genomics-nexus.git",
+    "directory": "cli"
+  },
+  "homepage": "https://github.com/BitmapAsset/block-genomics-nexus/tree/main/cli#readme",
+  "bugs": {
+    "url": "https://github.com/BitmapAsset/block-genomics-nexus/issues"
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "dev": "tsx src/bin/bg.ts",
     "test": "vitest"
   },
@@ -29,7 +38,8 @@
   "files": [
     "dist",
     "bin",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "dependencies": {
     "blessed": "^0.1.81",
