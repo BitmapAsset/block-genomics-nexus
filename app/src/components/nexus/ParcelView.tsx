@@ -13,6 +13,7 @@ import Helix from '../dna/Helix';
 import CrownShield, { type ShieldTier } from '../CrownShield';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { getStoredAddress, getStoredType } from '@/lib/wallet-utils';
+import { parcelCustomizeBindingString, parcelCustomizeBindingLine } from '@/lib/parcel-customize';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import dynamic from 'next/dynamic';
@@ -4902,10 +4903,38 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     setCustomizeSaveMsg(null);
 
     try {
-      // Sign message with wallet
-      const message = `Customize parcel ${txIndex} on block ${blockHeight} at ${Date.now()}`;
-      let signature = '';
+      // The exact fields we will send — hashed into the signed message so the
+      // signature is bound to this payload (a captured signature cannot be
+      // re-applied with different values).
+      const payload = {
+        customColor: custom.color || null,
+        pattern: custom.pattern || null,
+        imageUrl: custom.imageUrl || null,
+        rotation: custom.rotation ?? 0,
+        facing: custom.facing || 'north',
+        emissive: custom.emissive || false,
+      };
 
+      // 1) Fetch a server-issued, single-use challenge (anti-replay). Self-minted
+      //    messages are rejected by the API.
+      const chRes = await fetch('/api/v1/challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress, purpose: 'parcel-customize' }),
+      });
+      const chData = await chRes.json().catch(() => null);
+      const challenge: string | undefined = chData?.data?.message ?? chData?.message;
+      if (!chRes.ok || !challenge) throw new Error(chData?.error || 'Failed to get challenge');
+
+      // 2) Bind the payload: message = challenge + a line committing to SHA-256 of
+      //    the exact fields.
+      const bindingString = parcelCustomizeBindingString(blockHeight, txIndex, payload);
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(bindingString));
+      const bindingHash = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+      const message = `${challenge}\n${parcelCustomizeBindingLine(bindingHash, blockHeight, txIndex)}`;
+
+      // 3) Sign the composed message with the wallet.
+      let signature = '';
       const walletType = getStoredType();
       if (walletType === 'unisat' && window.unisat?.signMessage) {
         signature = await window.unisat.signMessage(message);
@@ -4924,17 +4953,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
       const res = await fetch(`/api/v1/blocks/${blockHeight}/parcels/${txIndex}/customize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress,
-          signature,
-          message,
-          customColor: custom.color || null,
-          pattern: custom.pattern || null,
-          imageUrl: custom.imageUrl || null,
-          rotation: custom.rotation ?? 0,
-          facing: custom.facing || 'north',
-          emissive: custom.emissive || false,
-        }),
+        body: JSON.stringify({ walletAddress, signature, message, ...payload }),
       });
 
       if (!res.ok) {

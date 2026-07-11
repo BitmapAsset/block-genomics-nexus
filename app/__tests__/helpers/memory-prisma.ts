@@ -33,6 +33,16 @@ function matchWhere(row: Row, where: any): boolean {
       continue;
     }
     if (typeof cond === 'object') {
+      const opKeys = ['equals', 'not', 'in', 'gt', 'gte', 'lt', 'lte'];
+      const hasOp = opKeys.some((k) => k in cond);
+      if (!hasOp) {
+        // Compound-unique selector, e.g. { blockHeight_txIndex: { blockHeight, txIndex } }
+        // — the sub-fields are top-level row fields that must all match.
+        for (const [sk, sv] of Object.entries<any>(cond)) {
+          if (row[sk] !== sv) return false;
+        }
+        continue;
+      }
       if ('equals' in cond && val !== cond.equals) return false;
       if ('not' in cond && val === cond.not) return false;
       if ('in' in cond && !cond.in.includes(val)) return false;
@@ -112,6 +122,15 @@ export function createMemoryPrisma() {
       return { count };
     },
     count: async ({ where }: any = {}) => rowsOf(model).filter((r) => matchWhere(r, where)).length,
+    upsert: async ({ where, create, update }: any) => {
+      const existing = rowsOf(model).find((r) => matchWhere(r, where));
+      if (existing) { Object.assign(existing, update); return existing; }
+      const row: Row = { ...create };
+      if (!('createdAt' in row)) row.createdAt = new Date();
+      if (!('updatedAt' in row)) row.updatedAt = new Date();
+      rowsOf(model).push(row);
+      return row;
+    },
   });
 
   const models = [
