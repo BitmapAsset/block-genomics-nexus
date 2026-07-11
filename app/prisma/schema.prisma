@@ -188,20 +188,22 @@ model Estate {
 }
 
 model BitmapAgent {
-  id            String         @id @default(cuid())
-  walletAddress String
-  endpointUrl   String
-  blockHeight   Int
-  parcelIndex   Int?
-  tier          Int            @default(3)
-  permissions   String
-  status        String         @default("active")
-  createdAt     DateTime       @default(now())
-  lastHeartbeat DateTime       @default(now())
-  graceDeadline DateTime?
-  briefs        AgentBrief[]
-  events        AgentEvent[]
-  sessions      AgentSession[]
+  id              String         @id @default(cuid())
+  walletAddress   String
+  endpointUrl     String
+  blockHeight     Int
+  parcelIndex     Int?
+  tier            Int            @default(3)
+  permissions     String
+  status          String         @default("active")
+  createdAt       DateTime       @default(now())
+  lastHeartbeat   DateTime       @default(now())
+  graceDeadline   DateTime?
+  apiKeyHash      String?
+  apiKeyCreatedAt DateTime?
+  briefs          AgentBrief[]
+  events          AgentEvent[]
+  sessions        AgentSession[]
 
   @@index([walletAddress])
   @@index([blockHeight])

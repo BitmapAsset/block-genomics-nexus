@@ -15,7 +15,15 @@
 import chalk from "chalk";
 import inquirer from "inquirer";
 import { runVerify } from "./verify";
-import { requestChallenge, updateAgent, revokeAgent, apiBase, AgentPermission } from "../lib/bg-api";
+import {
+  requestChallenge,
+  updateAgent,
+  revokeAgent,
+  rotateAgentToken,
+  revokeAgentToken,
+  apiBase,
+  AgentPermission,
+} from "../lib/bg-api";
 import { signMessage } from "../lib/signer";
 import { loadConfig } from "../lib/config";
 
@@ -28,16 +36,17 @@ export interface AgentOpts {
   json?: boolean;
 }
 
-export async function runAgent(action: string, opts: AgentOpts = {}): Promise<void> {
+export async function runAgent(action: string, opts: AgentOpts = {}, sub?: string): Promise<void> {
   switch (action) {
     case "list": return listAgents(opts);
     case "update": return updateAgentCmd(opts);
     case "revoke": return revokeAgentCmd(opts);
+    case "token": return tokenCmd(sub, opts);
     case "verify": await runVerify(undefined, true); return;
     case "start": return startRepl();
     default:
       console.log(chalk.red(`Unknown agent action: ${action}`));
-      console.log("Try: bg agent list | update | revoke | verify");
+      console.log("Try: bg agent list | update | revoke | token rotate|revoke | verify");
   }
 }
 
@@ -117,6 +126,42 @@ async function revokeAgentCmd(opts: AgentOpts): Promise<void> {
     return;
   }
   process.stdout.write(`✅ agent ${agentId} revoked\n`);
+}
+
+async function tokenCmd(sub: string | undefined, opts: AgentOpts): Promise<void> {
+  const action = (sub || "").toLowerCase();
+  if (action !== "rotate" && action !== "revoke") {
+    fail("Usage: bg agent token rotate|revoke --agent <id> --address <bc1p>");
+  }
+  const walletAddress = opts.address || process.env.BG_WALLET_ADDRESS;
+  if (!walletAddress) fail("--address <bc1p…> (or BG_WALLET_ADDRESS) is required");
+  const agentId = resolveAgentId(opts);
+
+  process.stderr.write(`[bg] challenge (purpose=agent-token) from ${apiBase()}\n`);
+  const { message, nonce } = await requestChallenge(walletAddress!, "agent-token");
+  process.stderr.write(`[bg] signing challenge (nonce=${nonce.slice(0, 12)}…)\n`);
+  const signature = await signMessage(message, { signatureFlag: opts.sig });
+
+  if (action === "rotate") {
+    const res = await rotateAgentToken(agentId, { walletAddress: walletAddress!, signature, challenge: message });
+    if (opts.json) {
+      process.stdout.write(JSON.stringify(res, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`✅ token rotated for agent ${agentId}\n`);
+    process.stdout.write(`\n  ┌─ NEW API TOKEN (store now — shown only once) ─────────────\n`);
+    process.stdout.write(`  │  ${res.apiKey}\n`);
+    process.stdout.write(`  └───────────────────────────────────────────────────────────\n`);
+    process.stdout.write(`  The previous token is now invalid.\n`);
+    return;
+  }
+
+  const res = await revokeAgentToken(agentId, { walletAddress: walletAddress!, signature, challenge: message });
+  if (opts.json) {
+    process.stdout.write(JSON.stringify(res, null, 2) + "\n");
+    return;
+  }
+  process.stdout.write(`✅ token revoked for agent ${agentId} — runtime calls will 401 until you rotate a new key.\n`);
 }
 
 async function startRepl(): Promise<void> {

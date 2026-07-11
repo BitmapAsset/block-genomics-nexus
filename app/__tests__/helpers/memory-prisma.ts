@@ -115,7 +115,7 @@ export function createMemoryPrisma() {
   });
 
   const models = [
-    'challenge', 'bitmapAgent', 'block', 'user', 'agentEvent', 'agentSession',
+    'challenge', 'bitmapAgent', 'block', 'user', 'agentEvent', 'agentBrief', 'agentSession',
     'blockProfile', 'guardianAgent', 'guardianConversation', 'guardianEvent',
     'vPSLink', 'delegation', 'delegationListing', 'ownershipTransfer', 'handleHistory', 'parcel',
   ] as const;

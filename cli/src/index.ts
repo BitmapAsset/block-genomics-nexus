@@ -72,6 +72,7 @@ export function createCLI() {
     .command("events [subcommand]")
     .description("Poll an agent's event stream (JSON lines). Usage: bg events poll --agent <id>")
     .option("--agent <id>", "Agent id (or BG_AGENT_ID)")
+    .option("--token <token>", "Agent API token (or BG_AGENT_TOKEN) — required unless the agent is legacy")
     .option("--since <iso>", "Only events after this ISO timestamp")
     .option("--limit <n>", "Max events per poll", (v) => Number(v))
     .option("--interval <sec>", "Poll interval seconds", (v) => Number(v))
@@ -83,6 +84,7 @@ export function createCLI() {
     .command("heartbeat")
     .description("Send a heartbeat (single shot; --loop keeps it alive)")
     .option("--agent <id>", "Agent id (or BG_AGENT_ID)")
+    .option("--token <token>", "Agent API token (or BG_AGENT_TOKEN) — required unless the agent is legacy")
     .option("--interval <sec>", "Loop interval (default 30)", (v) => Number(v))
     .option("--loop", "Send repeatedly until Ctrl+C")
     .option("--json", "JSON output")
@@ -125,15 +127,15 @@ export function createCLI() {
     .action((action, options) => runMarket(action, options));
 
   program
-    .command("agent <action>")
-    .description("Manage agents you own: list | update | revoke | verify | start")
+    .command("agent <action> [sub]")
+    .description("Manage agents you own: list | update | revoke | token rotate|revoke | verify | start")
     .option("--agent <id>", "Agent id (or BG_AGENT_ID; defaults to first known)")
     .option("--address <bc1p>", "Owner Bitcoin address (or BG_WALLET_ADDRESS)")
     .option("--endpoint <url>", "New endpoint URL (update)")
     .option("--permissions <csv>", "Comma-separated permissions (update)")
     .option("--sig <bip322>", "Pre-supplied BIP-322 signature")
     .option("--json", "Output raw JSON")
-    .action((action, options) => runAgent(action, options));
+    .action((action, sub, options) => runAgent(action, options, sub));
 
   program
     .command("my-blocks")

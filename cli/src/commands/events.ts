@@ -10,6 +10,7 @@ import { pollAgentEvents, AgentEventRecord, apiBase } from "../lib/bg-api";
 
 interface EventsOpts {
   agent?: string;
+  token?: string;
   since?: string;
   limit?: number;
   interval?: number; // seconds
@@ -21,6 +22,7 @@ export async function runEventsPoll(subcommand: string | undefined, opts: Events
 
   const agentId = opts.agent || process.env.BG_AGENT_ID;
   if (!agentId) fail("--agent <agentId> (or BG_AGENT_ID) is required");
+  const token = opts.token || process.env.BG_AGENT_TOKEN;
 
   const limit = opts.limit ?? 50;
   const intervalMs = Math.max(1_000, (opts.interval ?? 5) * 1000);
@@ -31,7 +33,7 @@ export async function runEventsPoll(subcommand: string | undefined, opts: Events
 
   const tick = async () => {
     try {
-      const events: AgentEventRecord[] = await pollAgentEvents(agentId!, { since: cursor, limit });
+      const events: AgentEventRecord[] = await pollAgentEvents(agentId!, { since: cursor, limit, token });
       // API returns most-recent first; print oldest-first so JSON lines are ordered forward.
       const ordered = [...events].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
       for (const ev of ordered) {

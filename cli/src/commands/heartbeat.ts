@@ -8,6 +8,7 @@ import { heartbeatAgent, apiBase } from "../lib/bg-api";
 
 interface HeartbeatOpts {
   agent?: string;
+  token?: string;
   interval?: number; // seconds, only used with --loop
   loop?: boolean;
   json?: boolean;
@@ -16,9 +17,10 @@ interface HeartbeatOpts {
 export async function runHeartbeat(opts: HeartbeatOpts): Promise<void> {
   const agentId = opts.agent || process.env.BG_AGENT_ID;
   if (!agentId) fail("--agent <agentId> (or BG_AGENT_ID) is required");
+  const token = opts.token || process.env.BG_AGENT_TOKEN;
 
   const tick = async () => {
-    const r = await heartbeatAgent(agentId!);
+    const r = await heartbeatAgent(agentId!, token);
     if (opts.json) {
       process.stdout.write(JSON.stringify(r) + "\n");
     } else {

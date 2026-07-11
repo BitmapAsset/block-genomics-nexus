@@ -8,6 +8,7 @@ import {
   verifyAgentSignature,
 } from '@/lib/agent-protocol';
 import { consumeChallengeFromMessage } from '@/lib/challenges';
+import { mintAgentToken } from '@/lib/agent-tokens';
 
 export async function POST(req: NextRequest) {
   try {
@@ -87,6 +88,11 @@ export async function POST(req: NextRequest) {
       return error('Registration cooldown: 24 hours between registrations per wallet', 429);
     }
 
+    // Mint the agent's API token INLINE with the create so the row is never
+    // persisted without a key (no tokenless window for a freshly-registered
+    // agent). Only the SHA-256 hash is stored; the plaintext is returned once.
+    const minted = mintAgentToken();
+
     const agent = await prisma.bitmapAgent.create({
       data: {
         walletAddress,
@@ -96,10 +102,26 @@ export async function POST(req: NextRequest) {
         tier,
         permissions: JSON.stringify(permissions),
         status: 'active',
+        apiKeyHash: minted.apiKeyHash,
+        apiKeyCreatedAt: minted.apiKeyCreatedAt,
       },
     });
 
-    return success({ ...agent, permissions: JSON.parse(agent.permissions) }, 201);
+    // Never echo the stored hash. Return the one-time plaintext token separately.
+    const { apiKeyHash: _hash, ...safeAgent } = agent;
+    void _hash;
+    return success(
+      {
+        ...safeAgent,
+        permissions: JSON.parse(agent.permissions),
+        apiKey: minted.token,
+        apiKeyWarning:
+          'Store this token now — it is shown only once and cannot be recovered. ' +
+          'Send it as `Authorization: Bearer <token>` on heartbeat, brief, and events calls. ' +
+          'Lost it? Rotate a new one with the owner wallet via POST /api/v1/agents/{agentId}/token.',
+      },
+      201
+    );
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return error(message, 500);

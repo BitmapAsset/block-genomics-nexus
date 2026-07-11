@@ -60,6 +60,8 @@ export async function runRegisterAgent(opts: RegisterAgentOpts): Promise<void> {
   } catch { /* config write is best-effort */ }
 
   if (opts.json) {
+    // Includes `apiKey` — the caller asked for machine output, so we surface it,
+    // but it is still shown exactly once (never stored to disk by the CLI).
     process.stdout.write(JSON.stringify(agent, null, 2) + "\n");
   } else {
     process.stdout.write(`✅ agent registered\n`);
@@ -68,6 +70,13 @@ export async function runRegisterAgent(opts: RegisterAgentOpts): Promise<void> {
     process.stdout.write(`  endpointUrl: ${agent.endpointUrl}\n`);
     process.stdout.write(`  tier:        ${agent.tier}\n`);
     process.stdout.write(`  status:      ${agent.status}\n`);
+    process.stdout.write(`\n`);
+    process.stdout.write(`  ┌─ API TOKEN (store this now — shown only once) ────────────\n`);
+    process.stdout.write(`  │  ${agent.apiKey}\n`);
+    process.stdout.write(`  └───────────────────────────────────────────────────────────\n`);
+    process.stdout.write(`  Use it as: Authorization: Bearer <token>  (heartbeat / brief / events)\n`);
+    process.stdout.write(`  Or export: BG_AGENT_TOKEN=${agent.apiKey.slice(0, 12)}…\n`);
+    process.stdout.write(`  Lost it? Rotate with: bg agent token rotate --agent ${agent.id} --address ${agent.walletAddress}\n`);
   }
 }
 

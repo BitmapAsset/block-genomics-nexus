@@ -58,7 +58,7 @@ async function request<T>(
 export type Challenge = { message: string; nonce: string };
 export async function requestChallenge(
   walletAddress: string,
-  purpose: "auth" | "agent-register" | "agent-manage" | "world" = "auth",
+  purpose: "auth" | "agent-register" | "agent-manage" | "agent-token" | "parcel-customize" | "world" = "auth",
 ): Promise<Challenge> {
   return request<Challenge>("/api/v1/challenge", {
     method: "POST",
@@ -101,12 +101,53 @@ export interface AgentRecord {
   lastHeartbeat: string;
 }
 
-export async function registerAgent(input: RegisterAgentInput): Promise<AgentRecord> {
-  return request<AgentRecord>("/api/v1/agents/register", { method: "POST", body: input });
+/** Register response carries the one-time plaintext API token. */
+export interface RegisteredAgent extends AgentRecord {
+  apiKey: string;
+  apiKeyWarning: string;
 }
 
-export async function heartbeatAgent(agentId: string): Promise<{ alive: boolean; lastHeartbeat: string }> {
-  return request(`/api/v1/agents/${encodeURIComponent(agentId)}/heartbeat`, { method: "POST" });
+export async function registerAgent(input: RegisterAgentInput): Promise<RegisteredAgent> {
+  return request<RegisteredAgent>("/api/v1/agents/register", { method: "POST", body: input });
+}
+
+function bearer(token?: string): Record<string, string> {
+  return token ? { authorization: `Bearer ${token}` } : {};
+}
+
+export async function heartbeatAgent(
+  agentId: string,
+  token?: string,
+): Promise<{ alive: boolean; lastHeartbeat: string }> {
+  return request(`/api/v1/agents/${encodeURIComponent(agentId)}/heartbeat`, {
+    method: "POST",
+    headers: bearer(token),
+  });
+}
+
+// ─── Agent API token rotate / revoke (owner-wallet authed) ────────────────
+
+export interface TokenChallengeInput {
+  walletAddress: string;
+  signature: string;
+  /** The exact `message` returned by /api/v1/challenge (purpose 'agent-token'). */
+  challenge: string;
+}
+
+/** Rotate (or first-issue) an agent's API token. Returns the plaintext once. */
+export async function rotateAgentToken(
+  agentId: string,
+  input: TokenChallengeInput,
+): Promise<{ agentId: string; apiKey: string; apiKeyCreatedAt: string; apiKeyWarning: string }> {
+  return request(`/api/v1/agents/${encodeURIComponent(agentId)}/token`, { method: "POST", body: input });
+}
+
+/** Revoke an agent's active API token (locks runtime access until re-rotated). */
+export async function revokeAgentToken(
+  agentId: string,
+  input: TokenChallengeInput,
+): Promise<{ agentId: string; tokenRevoked: boolean }> {
+  return request(`/api/v1/agents/${encodeURIComponent(agentId)}/token`, { method: "DELETE", body: input });
 }
 
 export interface UpdateAgentInput {
@@ -156,14 +197,14 @@ export interface AgentEventRecord {
 
 export async function pollAgentEvents(
   agentId: string,
-  opts: { since?: string; limit?: number } = {},
+  opts: { since?: string; limit?: number; token?: string } = {},
 ): Promise<AgentEventRecord[]> {
   const q = new URLSearchParams();
   if (opts.since) q.set("since", opts.since);
   if (opts.limit) q.set("limit", String(opts.limit));
   const qs = q.toString();
   const path = `/api/v1/agents/${encodeURIComponent(agentId)}/events${qs ? `?${qs}` : ""}`;
-  return request<AgentEventRecord[]>(path);
+  return request<AgentEventRecord[]>(path, { headers: bearer(opts.token) });
 }
 
 // ─── Auth verify (block claim) ────────────────────────────────────────────
