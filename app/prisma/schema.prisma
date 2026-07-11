@@ -717,3 +717,16 @@ model Challenge {
   @@index([address])
   @@index([expiresAt])
 }
+
+// ─── Durable rate-limit counters (cross-instance fixed-window) ───
+// One row per limiter key. Updated via an atomic INSERT ... ON CONFLICT upsert
+// (see lib/rate-limit-db.ts) so concurrent hits across all lambdas serialize on
+// the row lock. `expiresAt` marks the end of the current window for cleanup.
+model ApiRateLimit {
+  key         String   @id
+  windowStart DateTime
+  count       Int
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+}

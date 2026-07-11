@@ -1,9 +1,27 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { verifyAgentSignature } from '@/lib/agent-protocol';
 import { consumeChallengeFromMessage } from '@/lib/challenges';
 import { mintAgentToken } from '@/lib/agent-tokens';
+import { rateLimitDurable, clientIpFrom } from '@/lib/rate-limit-db';
+
+// Durable, cross-instance limit on token rotate/revoke (each does a BIP-322
+// verify). Keyed by client IP; fail-open so a limiter outage can't lock out an
+// owner recovering a lost key.
+const TOKEN_RL_LIMIT = 20;
+const TOKEN_RL_WINDOW_MS = 60_000;
+
+/** Shared 429 guard for the token endpoints. Returns a response when limited, else null. */
+async function tokenRateLimit(req: NextRequest): Promise<NextResponse | null> {
+  const ip = clientIpFrom(req);
+  const rl = await rateLimitDurable(`agent-token:${ip}`, TOKEN_RL_LIMIT, TOKEN_RL_WINDOW_MS);
+  if (rl.allowed) return null;
+  return NextResponse.json(
+    { success: false, error: 'Rate limit exceeded — slow down and retry shortly' },
+    { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+  );
+}
 
 /**
  * Agent API-token management — authed by the OWNER WALLET, not by the current
@@ -60,6 +78,8 @@ async function authorizeOwner(
 /** Rotate (or first-issue) the agent's API token. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ agentId: string }> }) {
   try {
+    const limited = await tokenRateLimit(req);
+    if (limited) return limited;
     const { agentId } = await params;
     const auth = await authorizeOwner(agentId, await req.json());
     if (!auth.ok) return error(auth.message, auth.status);
@@ -86,6 +106,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ age
 /** Revoke the agent's active API token (locks runtime access until re-rotated). */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ agentId: string }> }) {
   try {
+    const limited = await tokenRateLimit(req);
+    if (limited) return limited;
     const { agentId } = await params;
     const auth = await authorizeOwner(agentId, await req.json());
     if (!auth.ok) return error(auth.message, auth.status);

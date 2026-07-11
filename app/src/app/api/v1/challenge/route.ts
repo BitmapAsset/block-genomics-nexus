@@ -1,11 +1,26 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { success, error } from '@/lib/api-helpers';
 import { issueChallenge, cleanupChallenges } from '@/lib/challenges';
 import crypto from 'crypto';
 import { logActivity } from '@/lib/activity';
+import { rateLimitDurable, clientIpFrom } from '@/lib/rate-limit-db';
+
+// Durable, cross-instance limit on challenge issuance (the unauthenticated auth
+// entry point). Keyed by client IP; fail-open so a limiter outage can't block auth.
+const CHALLENGE_RL_LIMIT = 30;
+const CHALLENGE_RL_WINDOW_MS = 60_000;
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = clientIpFrom(req);
+    const rl = await rateLimitDurable(`challenge:${ip}`, CHALLENGE_RL_LIMIT, CHALLENGE_RL_WINDOW_MS);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Rate limit exceeded — slow down and retry shortly' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+      );
+    }
+
     await cleanupChallenges();
     const { walletAddress, purpose } = await req.json();
     if (!walletAddress) return error('walletAddress required', 400);
