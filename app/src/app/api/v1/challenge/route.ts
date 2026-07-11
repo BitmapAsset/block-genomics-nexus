@@ -3,7 +3,7 @@ import { success, error } from '@/lib/api-helpers';
 import { issueChallenge, cleanupChallenges } from '@/lib/challenges';
 import crypto from 'crypto';
 import { logActivity } from '@/lib/activity';
-import { rateLimitDurable, clientIpFrom } from '@/lib/rate-limit-db';
+import { rateLimitDurable, clientIpFrom, cleanupRateLimits } from '@/lib/rate-limit-db';
 
 // Durable, cross-instance limit on challenge issuance (the unauthenticated auth
 // entry point). Keyed by client IP; fail-open so a limiter outage can't block auth.
@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     await cleanupChallenges();
+    void cleanupRateLimits(); // best-effort; drop rate-limit rows whose window expired
     const { walletAddress, purpose } = await req.json();
     if (!walletAddress) return error('walletAddress required', 400);
 

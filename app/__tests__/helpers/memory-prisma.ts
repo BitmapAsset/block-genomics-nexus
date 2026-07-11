@@ -137,6 +137,7 @@ export function createMemoryPrisma() {
     'challenge', 'bitmapAgent', 'block', 'user', 'agentEvent', 'agentBrief', 'agentSession',
     'blockProfile', 'guardianAgent', 'guardianConversation', 'guardianEvent',
     'vPSLink', 'delegation', 'delegationListing', 'ownershipTransfer', 'handleHistory', 'parcel',
+    'apiRateLimit',
   ] as const;
 
   const client: any = {
