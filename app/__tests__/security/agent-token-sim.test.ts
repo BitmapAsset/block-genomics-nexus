@@ -43,6 +43,7 @@ import { GET as eventsGET } from '@/app/api/v1/agents/[agentId]/events/route';
 import { POST as heartbeatPOST } from '@/app/api/v1/agents/[agentId]/heartbeat/route';
 import { POST as briefPOST } from '@/app/api/v1/agents/[agentId]/brief/route';
 import { POST as tokenPOST, DELETE as tokenDELETE } from '@/app/api/v1/agents/[agentId]/token/route';
+import { PATCH as agentPATCH } from '@/app/api/v1/agents/[agentId]/route';
 import { makeWallet, sign, freshNonce, challengeMessage } from '../helpers/wallet-sim';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -183,6 +184,22 @@ describe('SIM: agent API-token auth (OPEN-1)', () => {
     expect(rotated.status).toBe(200);
     const fresh = (rotated.body as any).data.apiKey as string;
     expect((await heartbeatPOST(req({}, { auth: `Bearer ${fresh}` }), ctx(agentId))).status).toBe(200);
+  });
+
+  it('no response ever leaks the stored apiKeyHash (register + PATCH)', async () => {
+    const { owner, agentId, registerData } = await registerAgent(1008);
+    expect(registerData.apiKeyHash).toBeUndefined();
+
+    // PATCH the agent (owner-signed agent-manage challenge) and assert no hash leaks.
+    const mMsg = await issue(owner.address, 'agent-manage');
+    const mSig = sign(owner.wif, owner.address, mMsg);
+    const patched = await agentPATCH(
+      req({ walletAddress: owner.address, signature: mSig, challenge: mMsg, endpointUrl: 'https://updated.example' }),
+      ctx(agentId),
+    );
+    expect(patched.status).toBe(200);
+    expect((patched.body as any).data.apiKeyHash).toBeUndefined();
+    expect((patched.body as any).data.endpointUrl).toBe('https://updated.example');
   });
 
   it('legacy grace: an agent with no key (null hash + null createdAt) still works, with a deprecation header', async () => {

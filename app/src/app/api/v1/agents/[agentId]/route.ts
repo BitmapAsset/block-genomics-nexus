@@ -47,7 +47,10 @@ export async function PATCH(
       data,
     });
 
-    return success({ ...updated, permissions: JSON.parse(updated.permissions) });
+    // Never expose the stored API-key hash in a response.
+    const { apiKeyHash: _hash, ...safe } = updated;
+    void _hash;
+    return success({ ...safe, permissions: JSON.parse(updated.permissions) });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return error(message, 500);
