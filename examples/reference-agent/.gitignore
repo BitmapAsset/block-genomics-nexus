@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.env
+# The agent persists its one-time API token here — never commit it.
+*.creds.json

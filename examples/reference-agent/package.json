@@ -1,0 +1,24 @@
+{
+  "name": "nexus-reference-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The hello-world Nexus agent: load a keypair, prove block ownership (BIP-322), register, heartbeat, long-poll the event stream, and revoke gracefully on shutdown — built on the block-genomics-connect SDK.",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "keygen": "tsx src/keygen.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bitcoinerlab/secp256k1": "^1.2.0",
+    "bip322-js": "^3.0.0",
+    "block-genomics-connect": "^0.2.0",
+    "ecpair": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.3"
+  },
+  "license": "MIT"
+}
