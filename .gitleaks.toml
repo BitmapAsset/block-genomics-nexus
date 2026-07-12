@@ -1,0 +1,12 @@
+# gitleaks configuration for block-genomics-nexus.
+# Extends the default ruleset; adds a narrow allowlist for DOCUMENTATION
+# placeholders that are not, and can never be, real secrets.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation placeholders. Real agent tokens are 'bg_agent_' + 64 hex chars; the literal 'bg_agent_...' (with an ellipsis) only ever appears in copy-paste examples showing where a user pastes their own token. Matching literal dots can never match a real token."
+regexes = [
+  '''bg_agent_\.\.\.''',
+]

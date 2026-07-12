@@ -46,7 +46,7 @@ const navLinks: NavLinkItem[] = [
   { href: "/history", label: "History" },
   { href: "/runebolt", label: "RuneBolt", isRuneBolt: true },
   { href: "/verify", label: "Verify" },
-  { href: "/whitepaper", label: "White Paper" },
+  { href: "/docs", label: "Docs" },
   { href: "/brain", label: "Brain", isBrain: true },
 ];
 

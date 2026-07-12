@@ -86,8 +86,10 @@ export default function Footer({ className }: { className?: string }) {
             </h3>
             <ul className="space-y-2">
               {[
-                { href: "/whitepaper", label: "Documentation", external: false },
-                { href: "https://github.com/BitmapAsset/block-genomics-nexus/blob/main/docs/sdk/api-reference.md", label: "API Reference", external: true },
+                { href: "/docs", label: "Developer Docs", external: false },
+                { href: "/protocol", label: "Protocol Spec", external: false },
+                { href: "/whitepaper", label: "White Paper", external: false },
+                { href: "https://www.npmjs.com/package/block-genomics-connect", label: "SDK (npm)", external: true },
                 { href: "https://github.com/BitmapAsset/block-genomics-nexus", label: "GitHub", external: true },
               ].map((link) => (
                 <li key={link.href}>
