@@ -16,8 +16,18 @@ import type {
   Identity,
   BlockProfile,
   Challenge,
+  ChallengePurpose,
   VerifyResult,
   SearchResult,
+  AgentPermission,
+  AgentRecord,
+  RegisteredAgent,
+  AgentEvent,
+  HeartbeatResult,
+  AgentBriefInput,
+  AgentBrief,
+  TokenRotateResult,
+  BlockAgent,
 } from './types.js';
 
 export const DEFAULT_BASE_URL = 'https://blockgenomics.io';
@@ -53,6 +63,24 @@ export interface ClaimBlockOptions {
   displayName?: string;
   /** Optional specific .bitmap inscription id to verify on-chain. */
   inscriptionId?: string;
+}
+
+export interface RegisterAgentOptions {
+  /** The block this agent operates on. The signer MUST currently own it on-chain. */
+  blockHeight: number;
+  /** Where the agent runs (its callback/serving URL). */
+  endpointUrl: string;
+  /** Tier caps how many agents a block may run (1 = 10, 2 = 3, 3 = 1). */
+  tier: 1 | 2 | 3;
+  /** Capability classes to grant. */
+  permissions: AgentPermission[];
+  /** Optional parcel this agent is scoped to. */
+  parcelIndex?: number | null;
+}
+
+export interface UpdateAgentOptions {
+  endpointUrl?: string;
+  permissions?: AgentPermission[];
 }
 
 export interface WorldObjectInput {
@@ -204,7 +232,7 @@ export class BlockGenomicsClient {
   // ─── write: identity (claim a block) ───────────────────────────────
 
   /** Request a one-time challenge nonce. POST /api/v1/challenge */
-  requestChallenge(walletAddress: string, purpose: 'auth' | 'world' = 'auth'): Promise<Challenge> {
+  requestChallenge(walletAddress: string, purpose: ChallengePurpose = 'auth'): Promise<Challenge> {
     return this.request<Challenge>('/api/v1/challenge', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -318,5 +346,184 @@ export class BlockGenomicsClient {
       blockHeight,
       body: {},
     });
+  }
+
+  // ─── agents: registration (owner-wallet signature) ─────────────────
+
+  private bearer(token: string): Record<string, string> {
+    return { Authorization: `Bearer ${token}` };
+  }
+
+  /**
+   * Register a sovereign agent on a block you own.
+   *
+   * Flow: request an `agent-register` challenge → sign it (BIP-322) → POST
+   * `/api/v1/agents/register`. The signer MUST currently own `blockHeight`
+   * on-chain (the server does a live re-verify and fails closed on a mismatch).
+   *
+   * The `201` response carries a **one-time** plaintext Bearer token as
+   * `apiKey`. Store it immediately — it is shown exactly once and cannot be
+   * recovered (rotate a new one with {@link rotateAgentToken} if lost). Requires
+   * a signer.
+   */
+  async registerAgent(opts: RegisterAgentOptions): Promise<RegisteredAgent> {
+    const signer = this.requireSigner();
+    const challenge = await this.requestChallenge(signer.address, 'agent-register');
+    const signature = await signer.signMessage(challenge.message);
+    return this.request<RegisteredAgent>('/api/v1/agents/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress: signer.address,
+        endpointUrl: opts.endpointUrl,
+        blockHeight: opts.blockHeight,
+        parcelIndex: opts.parcelIndex ?? null,
+        tier: opts.tier,
+        permissions: opts.permissions,
+        signature,
+        challenge: challenge.message,
+      }),
+    });
+  }
+
+  // ─── agents: token lifecycle (owner-wallet signature) ──────────────
+
+  /**
+   * Rotate (or first-issue) an agent's API token. Authenticated by the OWNER
+   * WALLET via an `agent-token` challenge — not by the current token — so a lost
+   * or leaked token is recoverable. Returns a new one-time `apiKey`; any prior
+   * token is invalidated immediately. Requires a signer.
+   */
+  async rotateAgentToken(agentId: string): Promise<TokenRotateResult> {
+    const body = await this.signAgentToken();
+    return this.request<TokenRotateResult>(`/api/v1/agents/${encodeURIComponent(agentId)}/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /**
+   * Revoke an agent's active API token. The agent is then LOCKED (runtime routes
+   * return `401`) until the owner rotates a new key; revoke never re-opens
+   * tokenless access. Owner-wallet authenticated. Requires a signer.
+   */
+  async revokeAgentToken(agentId: string): Promise<{ agentId: string; tokenRevoked: boolean }> {
+    const body = await this.signAgentToken();
+    return this.request<{ agentId: string; tokenRevoked: boolean }>(
+      `/api/v1/agents/${encodeURIComponent(agentId)}/token`,
+      {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+  }
+
+  /** Sign a fresh single-use `agent-token` challenge with the owner wallet. */
+  private async signAgentToken(): Promise<{ walletAddress: string; signature: string; challenge: string }> {
+    const signer = this.requireSigner();
+    const challenge = await this.requestChallenge(signer.address, 'agent-token');
+    const signature = await signer.signMessage(challenge.message);
+    return { walletAddress: signer.address, signature, challenge: challenge.message };
+  }
+
+  // ─── agents: management (owner-wallet signature) ───────────────────
+
+  /**
+   * Update an agent you own (endpoint and/or permissions). Consumes a single-use
+   * `agent-manage` challenge signed by the owner wallet. Requires a signer.
+   */
+  async updateAgent(agentId: string, changes: UpdateAgentOptions): Promise<AgentRecord> {
+    const signer = this.requireSigner();
+    const challenge = await this.requestChallenge(signer.address, 'agent-manage');
+    const signature = await signer.signMessage(challenge.message);
+    return this.request<AgentRecord>(`/api/v1/agents/${encodeURIComponent(agentId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress: signer.address,
+        signature,
+        challenge: challenge.message,
+        ...(changes.endpointUrl !== undefined ? { endpointUrl: changes.endpointUrl } : {}),
+        ...(changes.permissions !== undefined ? { permissions: changes.permissions } : {}),
+      }),
+    });
+  }
+
+  /**
+   * Revoke (deactivate) an agent you own. Consumes a single-use `agent-manage`
+   * challenge signed by the owner wallet. Requires a signer.
+   */
+  async revokeAgent(agentId: string): Promise<{ revoked: boolean }> {
+    const signer = this.requireSigner();
+    const challenge = await this.requestChallenge(signer.address, 'agent-manage');
+    const signature = await signer.signMessage(challenge.message);
+    return this.request<{ revoked: boolean }>(`/api/v1/agents/${encodeURIComponent(agentId)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletAddress: signer.address, signature, challenge: challenge.message }),
+    });
+  }
+
+  // ─── agents: runtime (Bearer token — no signer needed) ─────────────
+
+  /**
+   * Assert an agent's liveness. Runtime route: authenticated by the agent's
+   * Bearer `token` (from registration/rotation), NOT the owner signer. Recommend
+   * a ~30s cadence.
+   */
+  heartbeat(agentId: string, token: string): Promise<HeartbeatResult> {
+    return this.request<HeartbeatResult>(`/api/v1/agents/${encodeURIComponent(agentId)}/heartbeat`, {
+      method: 'POST',
+      headers: this.bearer(token),
+    });
+  }
+
+  /**
+   * File an owner-facing digest (brief). Runtime route: authenticated by the
+   * agent's Bearer `token`.
+   */
+  submitBrief(agentId: string, token: string, brief: AgentBriefInput): Promise<AgentBrief> {
+    return this.request<AgentBrief>(`/api/v1/agents/${encodeURIComponent(agentId)}/brief`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.bearer(token) },
+      body: JSON.stringify({
+        period: brief.period,
+        summary: brief.summary,
+        stats: brief.stats,
+        pendingPermissions: brief.pendingPermissions ?? [],
+      }),
+    });
+  }
+
+  /**
+   * Read the agent's PRIVATE event stream (most-recent first). Runtime route:
+   * authenticated by the agent's Bearer `token`. Pass `since` (ISO timestamp) as
+   * a cursor to page forward without re-reading; `limit` caps the batch
+   * (server max 200).
+   */
+  getAgentEvents(
+    agentId: string,
+    token: string,
+    opts: { since?: string; limit?: number } = {},
+  ): Promise<AgentEvent[]> {
+    const q = new URLSearchParams();
+    if (opts.since) q.set('since', opts.since);
+    if (opts.limit != null) q.set('limit', String(opts.limit));
+    const qs = q.toString();
+    const path = `/api/v1/agents/${encodeURIComponent(agentId)}/events${qs ? `?${qs}` : ''}`;
+    return this.request<AgentEvent[]>(path, { headers: this.bearer(token) });
+  }
+
+  // ─── agents: public directory (no auth) ────────────────────────────
+
+  /**
+   * List the active agents registered on a block. Public projection: the
+   * internal agent `id` is never exposed and the owner address is truncated.
+   * GET /api/v1/agents/block/{blockHeight}
+   */
+  getBlockAgents(blockHeight: number): Promise<BlockAgent[]> {
+    return this.request<BlockAgent[]>(`/api/v1/agents/block/${blockHeight}`);
   }
 }

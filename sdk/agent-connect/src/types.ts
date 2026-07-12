@@ -102,3 +102,97 @@ export type SearchResult = {
   agents: unknown[];
   users: { handle: string; displayName: string | null; tier: number; url: string }[];
 };
+
+// ─── Agent runtime (register / token / heartbeat / brief / events) ──────────
+
+/** Capability classes an owner grants a registered agent. */
+export type AgentPermission =
+  | 'READ_DMS'
+  | 'SEND_DMS'
+  | 'MANAGE_CONTENT'
+  | 'BUILD_DECORATE'
+  | 'HANDLE_OFFERS'
+  | 'FULL_AUTONOMY';
+
+/** A registered BitmapAgent as returned by the owner-facing routes. */
+export type AgentRecord = {
+  /** Management capability — keys the runtime routes. Owner-only; never publish it. */
+  id: string;
+  walletAddress: string;
+  endpointUrl: string;
+  blockHeight: number;
+  parcelIndex: number | null;
+  tier: number;
+  permissions: AgentPermission[];
+  status: string;
+  createdAt: string;
+  lastHeartbeat: string | null;
+  apiKeyCreatedAt?: string | null;
+};
+
+/** Register response — carries the one-time plaintext API token. */
+export type RegisteredAgent = AgentRecord & {
+  /** One-time plaintext Bearer token. Store on receipt; it is never returned again. */
+  apiKey: string;
+  apiKeyWarning: string;
+};
+
+/** A single runtime event on an agent's private stream. */
+export type AgentEvent = {
+  id: string;
+  agentId: string;
+  type: string;
+  payload: Record<string, unknown>;
+  timestamp: string;
+};
+
+export type HeartbeatResult = { alive: boolean; lastHeartbeat: string };
+
+/** Owner-facing digest an agent files via POST …/brief. */
+export type AgentBriefInput = {
+  period: string;
+  summary: string;
+  stats: Record<string, unknown>;
+  pendingPermissions?: string[];
+};
+
+export type AgentBrief = {
+  id: string;
+  agentId: string;
+  period: string;
+  summary: string;
+  stats: Record<string, unknown>;
+  pendingPermissions: string[];
+  createdAt: string;
+};
+
+/** Result of rotating/first-issuing an agent token. Carries the new one-time token. */
+export type TokenRotateResult = {
+  agentId: string;
+  apiKey: string;
+  apiKeyCreatedAt: string;
+  apiKeyWarning: string;
+};
+
+/** Public directory projection of an active agent (no internal id, truncated owner). */
+export type BlockAgent = {
+  blockHeight: number;
+  parcelIndex: number | null;
+  tier: number;
+  permissions: AgentPermission[];
+  status: string;
+  endpointUrl: string;
+  /** Display-truncated owner address (the full address is never published). */
+  owner: string;
+  createdAt: string;
+  lastHeartbeat: string | null;
+};
+
+/** All challenge purposes the protocol accepts (Nexus Protocol §3.2). */
+export type ChallengePurpose =
+  | 'auth'
+  | 'agent-register'
+  | 'agent-manage'
+  | 'agent-token'
+  | 'parcel-customize'
+  | 'world';

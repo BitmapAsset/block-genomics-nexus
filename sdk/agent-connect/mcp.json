@@ -1,11 +1,11 @@
 {
   "$schema": "https://modelcontextprotocol.io/schema/manifest.json",
   "name": "block-genomics",
-  "version": "0.1.0",
-  "description": "Connect an AI agent to Block Genomics — discover the protocol, prove ownership of a Bitcoin block (BIP-322), read its verified blocks/parcels, and take owner-authorized world actions. The agent supplies its own Bitcoin signer.",
+  "version": "0.2.0",
+  "description": "Connect an AI agent to Block Genomics (Nexus Protocol) — discover the protocol, prove ownership of a Bitcoin block (BIP-322), read verified blocks/parcels, register a sovereign agent, and run it (Bearer-token heartbeat / brief / events). The agent supplies its own Bitcoin signer.",
   "homepage": "https://blockgenomics.io",
   "openapi": "https://blockgenomics.io/openapi.json",
-  "instructions": "Read tools are public. Write tools (claim_block, world_create) require a BIP-322 signature: the host must provide a signer for the block's owning wallet. Use the @blockgenomics/agent-connect SDK (sdk/agent-connect) to back these tools.",
+  "instructions": "Read tools are public. Ownership tools (claim_block, world_create, register_agent, rotate_agent_token, revoke_agent_token) require a BIP-322 signature: the host must provide a signer for the block's owning wallet. Runtime tools (agent_heartbeat, agent_brief, agent_events) require the agent's one-time Bearer token from register_agent/rotate_agent_token — not the signer. Use the block-genomics-connect SDK (sdk/agent-connect) to back these tools. See https://blockgenomics.io/docs and the normative spec at https://blockgenomics.io/protocol.",
   "tools": [
     {
       "name": "get_stats",
@@ -63,6 +63,15 @@
       }
     },
     {
+      "name": "get_block_agents",
+      "description": "List the active agents registered on a block (public directory projection; internal id never exposed).",
+      "inputSchema": {
+        "type": "object",
+        "required": ["blockHeight"],
+        "properties": { "blockHeight": { "type": "integer" } }
+      }
+    },
+    {
       "name": "claim_block",
       "description": "Prove ownership of a block and mint/return its genome. Requires a BIP-322 signer that owns the block's .bitmap inscription.",
       "requiresSigner": true,
@@ -91,6 +100,83 @@
           "posX": { "type": "number" },
           "posY": { "type": "number" },
           "posZ": { "type": "number" }
+        }
+      }
+    },
+    {
+      "name": "register_agent",
+      "description": "Register a sovereign agent on a block you own. Live on-chain ownership re-verify; returns a one-time Bearer token. Requires a BIP-322 signer.",
+      "requiresSigner": true,
+      "inputSchema": {
+        "type": "object",
+        "required": ["blockHeight", "endpointUrl", "tier", "permissions"],
+        "properties": {
+          "blockHeight": { "type": "integer" },
+          "endpointUrl": { "type": "string" },
+          "tier": { "type": "integer", "enum": [1, 2, 3] },
+          "permissions": { "type": "array", "items": { "type": "string" } },
+          "parcelIndex": { "type": "integer" }
+        }
+      }
+    },
+    {
+      "name": "rotate_agent_token",
+      "description": "Rotate (or first-issue) an agent's API token. Owner-wallet authed (agent-token challenge); returns a new one-time token. Requires a BIP-322 signer.",
+      "requiresSigner": true,
+      "inputSchema": {
+        "type": "object",
+        "required": ["agentId"],
+        "properties": { "agentId": { "type": "string" } }
+      }
+    },
+    {
+      "name": "revoke_agent_token",
+      "description": "Revoke an agent's active API token (locks runtime access until re-rotated). Owner-wallet authed. Requires a BIP-322 signer.",
+      "requiresSigner": true,
+      "inputSchema": {
+        "type": "object",
+        "required": ["agentId"],
+        "properties": { "agentId": { "type": "string" } }
+      }
+    },
+    {
+      "name": "agent_heartbeat",
+      "description": "Assert an agent's liveness. Runtime route authed by the agent's Bearer token (not the signer).",
+      "requiresToken": true,
+      "inputSchema": {
+        "type": "object",
+        "required": ["agentId", "token"],
+        "properties": { "agentId": { "type": "string" }, "token": { "type": "string" } }
+      }
+    },
+    {
+      "name": "agent_brief",
+      "description": "File an owner-facing digest. Runtime route authed by the agent's Bearer token.",
+      "requiresToken": true,
+      "inputSchema": {
+        "type": "object",
+        "required": ["agentId", "token", "period", "summary", "stats"],
+        "properties": {
+          "agentId": { "type": "string" },
+          "token": { "type": "string" },
+          "period": { "type": "string" },
+          "summary": { "type": "string" },
+          "stats": { "type": "object" }
+        }
+      }
+    },
+    {
+      "name": "agent_events",
+      "description": "Read the agent's private event stream (most-recent first). Runtime route authed by the agent's Bearer token.",
+      "requiresToken": true,
+      "inputSchema": {
+        "type": "object",
+        "required": ["agentId", "token"],
+        "properties": {
+          "agentId": { "type": "string" },
+          "token": { "type": "string" },
+          "since": { "type": "string" },
+          "limit": { "type": "integer" }
         }
       }
     }

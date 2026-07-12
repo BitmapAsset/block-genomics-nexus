@@ -1,7 +1,7 @@
 {
-  "name": "@blockgenomics/agent-connect",
-  "version": "0.1.0",
-  "description": "Dependency-light TypeScript client any AI agent can use to connect to Block Genomics: discover the API, prove ownership of a Bitcoin block (BIP-322, pluggable signer), read its verified blocks/parcels, and take owner-authorized world actions.",
+  "name": "block-genomics-connect",
+  "version": "0.2.0",
+  "description": "Dependency-light TypeScript client any human or AI agent can use to connect to Block Genomics (Nexus Protocol): discover the API, prove ownership of a Bitcoin block (BIP-322, pluggable signer), read verified blocks/parcels, register a sovereign agent, and run it (Bearer-token heartbeat / brief / events).",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -15,24 +15,44 @@
     "dist",
     "openapi.json",
     "mcp.json",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "block-genomics",
+    "nexus-protocol",
     "bitcoin",
     "bitmap",
     "bip322",
     "agent",
+    "ai-agent",
     "identity",
     "mcp",
     "openclaw"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BitmapAsset/block-genomics-nexus.git",
+    "directory": "sdk/agent-connect"
+  },
+  "homepage": "https://blockgenomics.io/docs",
+  "bugs": {
+    "url": "https://github.com/BitmapAsset/block-genomics-nexus/issues"
+  },
   "license": "MIT",
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "typescript": "^5.4.3",
+    "vitest": "^3.2.7"
   }
 }

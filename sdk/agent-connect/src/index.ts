@@ -9,6 +9,8 @@ export type {
   ClientOptions,
   ClaimBlockOptions,
   WorldObjectInput,
+  RegisterAgentOptions,
+  UpdateAgentOptions,
 } from './client.js';
 export type { BitcoinSigner } from './signer.js';
 export { makeSigner } from './signer.js';
@@ -29,6 +31,16 @@ export type {
   Identity,
   BlockProfile,
   Challenge,
+  ChallengePurpose,
   VerifyResult,
   SearchResult,
+  AgentPermission,
+  AgentRecord,
+  RegisteredAgent,
+  AgentEvent,
+  HeartbeatResult,
+  AgentBriefInput,
+  AgentBrief,
+  TokenRotateResult,
+  BlockAgent,
 } from './types.js';
