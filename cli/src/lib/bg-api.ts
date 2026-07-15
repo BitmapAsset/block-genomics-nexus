@@ -58,7 +58,15 @@ async function request<T>(
 export type Challenge = { message: string; nonce: string };
 export async function requestChallenge(
   walletAddress: string,
-  purpose: "auth" | "agent-register" | "agent-manage" | "agent-token" | "parcel-customize" | "world" = "auth",
+  purpose:
+    | "auth"
+    | "agent-register"
+    | "agent-manage"
+    | "agent-token"
+    | "parcel-customize"
+    | "world"
+    | "experience-register"
+    | "experience-manage" = "auth",
 ): Promise<Challenge> {
   return request<Challenge>("/api/v1/challenge", {
     method: "POST",
@@ -221,4 +229,89 @@ export interface AuthVerifyInput {
 
 export async function authVerify(input: AuthVerifyInput): Promise<Record<string, unknown>> {
   return request<Record<string, unknown>>("/api/v1/auth/verify", { method: "POST", body: input });
+}
+
+// ─── Experience hosting (self-hosted worlds on a block) ────────────────────
+
+export type ExperienceType = "web" | "unreal" | "unity" | "godot" | "minecraft" | "vr" | "custom";
+export type ExperienceTransport = "https" | "wss" | "webrtc" | "custom";
+export type ExperienceStatus = "live" | "degraded" | "unreachable" | "pending";
+export type ContentRating = "everyone" | "teen" | "mature";
+
+/** Owner-authored manifest. This is the exact shape a `manifest.json` file holds. */
+export interface ExperienceManifest {
+  blockHeight: number;
+  parcelIndex?: number;
+  name: string;
+  description?: string;
+  experienceType: ExperienceType;
+  entryUrl: string;
+  transport: ExperienceTransport;
+  healthUrl?: string;
+  clientRequirements?: { platform?: string; minVersion?: string; downloadUrl?: string };
+  capabilities?: string[];
+  contentRating?: ContentRating;
+  version: string;
+}
+
+export interface ExperienceRecord extends ExperienceManifest {
+  id: string;
+  walletAddress: string;
+  status: ExperienceStatus;
+  lastProbedAt: string | null;
+  probeLatencyMs: number | null;
+  soulJudged: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExperienceListResult {
+  experiences: ExperienceRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface RegisterExperienceInput extends ExperienceManifest {
+  walletAddress: string;
+  signature: string;
+  /** The exact `message` returned by /api/v1/challenge (purpose 'experience-register'). */
+  challenge: string;
+}
+
+/** Register a self-hosted experience on a block you own. */
+export async function registerExperience(input: RegisterExperienceInput): Promise<ExperienceRecord> {
+  return request<ExperienceRecord>("/api/v1/experiences", { method: "POST", body: input });
+}
+
+/** Public discovery: list experiences, filtered + paginated. */
+export async function listExperiences(
+  query: { blockHeight?: number; type?: ExperienceType; status?: ExperienceStatus; limit?: number; offset?: number } = {},
+): Promise<ExperienceListResult> {
+  const q = new URLSearchParams();
+  if (query.blockHeight != null) q.set("blockHeight", String(query.blockHeight));
+  if (query.type) q.set("type", query.type);
+  if (query.status) q.set("status", query.status);
+  if (query.limit != null) q.set("limit", String(query.limit));
+  if (query.offset != null) q.set("offset", String(query.offset));
+  const qs = q.toString();
+  return request<ExperienceListResult>(`/api/v1/experiences${qs ? `?${qs}` : ""}`);
+}
+
+/** Public read: fetch a single experience (includes current probed status). */
+export async function getExperience(id: string): Promise<ExperienceRecord> {
+  return request<ExperienceRecord>(`/api/v1/experiences/${encodeURIComponent(id)}`);
+}
+
+/** Trigger a fresh server-side health probe (rate-limited 1/min). */
+export async function probeExperience(id: string): Promise<ExperienceRecord> {
+  return request<ExperienceRecord>(`/api/v1/experiences/${encodeURIComponent(id)}/probe`, { method: "POST" });
+}
+
+/** Terminally remove an experience you own. Requires an experience-manage challenge. */
+export async function removeExperience(
+  id: string,
+  input: { walletAddress: string; signature: string; challenge: string },
+): Promise<{ id: string; removed: boolean }> {
+  return request(`/api/v1/experiences/${encodeURIComponent(id)}`, { method: "DELETE", body: input });
 }

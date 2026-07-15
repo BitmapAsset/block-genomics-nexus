@@ -5,6 +5,25 @@ All notable changes to the `block-genomics` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-07-15
+
+Experience hosting — attach a self-hosted world (web / unreal / unity / godot /
+minecraft / vr / custom) to a block you own. Nexus registers, discovers, and
+probes health; it never hosts your world.
+
+### Added
+- `bg experience register [--manifest ./manifest.json] --address <bc1p>` — reads
+  the manifest, fetches a single-use `experience-register` challenge, signs it
+  (BIP-322), and registers the experience. Same fail-closed ownership path as
+  `bg register-agent` (live on-chain re-verify server-side). The CLI never holds
+  a key — signature comes from `--sig` / `BG_SIGNATURE` / `BG_SIGNATURE_CMD`.
+- `bg experience list [--block <h>] [--type <t>] [--status <s>] [--limit <n>]` —
+  public discovery, paginated.
+- `bg experience status --id <expId> [--probe]` — show an experience's manifest
+  and last probed health; `--probe` triggers a fresh server-side health probe.
+- `bg experience remove --id <expId> --address <bc1p>` — terminally remove an
+  experience you own (single-use `experience-manage` challenge).
+
 ## [0.3.0] — 2026-07-11
 
 Agent API token lifecycle. Runtime calls are now authenticated with a per-agent

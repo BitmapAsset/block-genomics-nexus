@@ -13,6 +13,7 @@ import { runProfile } from "./commands/profile";
 import { runWallet } from "./commands/wallet";
 import { runMarket } from "./commands/market";
 import { runAgent } from "./commands/agent";
+import { runExperience } from "./commands/experience";
 import { runMyBlocks } from "./commands/my-blocks";
 import { runWhoami } from "./commands/whoami";
 import { runStatus } from "./commands/status";
@@ -24,7 +25,7 @@ export function createCLI() {
   program
     .name("block-genomics")
     .description("Block Genomics CLI — Bitcoin-anchored identity for AI agents and humans")
-    .version("0.3.0")
+    .version("0.4.0")
     .addHelpText("beforeAll", banner());
 
   program.command("init").description("Interactive setup wizard").action(runInit);
@@ -136,6 +137,22 @@ export function createCLI() {
     .option("--sig <bip322>", "Pre-supplied BIP-322 signature")
     .option("--json", "Output raw JSON")
     .action((action, sub, options) => runAgent(action, options, sub));
+
+  // Attach & manage self-hosted experiences (worlds) on a block you own
+  program
+    .command("experience <action>")
+    .description("Attach & manage self-hosted worlds on a block: register | list | status | remove")
+    .option("--manifest <path>", "Path to the experience manifest.json (register; default ./manifest.json)")
+    .option("--address <bc1p>", "Owner Bitcoin address (or BG_WALLET_ADDRESS)")
+    .option("--block <height>", "Filter by block height (list)", (v) => Number(v))
+    .option("--type <type>", "Filter by experience type (list): web|unreal|unity|godot|minecraft|vr|custom")
+    .option("--status <status>", "Filter by status (list): live|degraded|unreachable|pending")
+    .option("--id <experienceId>", "Experience id (status | remove)")
+    .option("--limit <n>", "Max results (list)", (v) => Number(v))
+    .option("--probe", "Trigger a fresh health probe before showing status")
+    .option("--sig <bip322>", "Pre-supplied BIP-322 signature")
+    .option("--json", "Output raw JSON")
+    .action((action, options) => runExperience(action, options));
 
   program
     .command("my-blocks")

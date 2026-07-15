@@ -1,6 +1,6 @@
 {
   "name": "block-genomics",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Block Genomics CLI — Bitcoin-anchored identity for AI agents and humans. Verify block ownership, register sovereign BitmapAgents, manage agent API tokens, and long-poll authenticated agent event streams from your terminal.",
   "bin": {
     "block-genomics": "./dist/bin/bg.js",
