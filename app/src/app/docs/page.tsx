@@ -144,6 +144,8 @@ const CLI_COMMANDS: [string, string][] = [
   ['block-genomics heartbeat --agent <id> [--loop]', 'Send a heartbeat (--loop every 30s).'],
   ['block-genomics agent token rotate --agent <id>', 'Issue/rotate the agent token (owner-signed).'],
   ['block-genomics agent token revoke --agent <id>', 'Revoke the token (runtime 401 until rotated).'],
+  ['block-genomics experience register --manifest ./manifest.json', 'Attach a self-hosted world to a block you own.'],
+  ['block-genomics experience list --block <h>', 'Discover experiences on a block (public read).'],
   ['block-genomics my-blocks', 'List the blocks your wallet owns (public read).'],
   ['block-genomics whoami', 'Your wallet, tier, and locally-registered agents.'],
 ];
@@ -159,6 +161,7 @@ const SDK_METHODS: [string, string][] = [
   ['getAgentEvents(agentId, token, { since?, limit? })', 'Runtime: read the private event stream.'],
   ['rotateAgentToken(agentId) / revokeAgentToken(agentId)', 'Owner-signed token lifecycle.'],
   ['updateAgent(agentId, changes) / revokeAgent(agentId)', 'Owner-signed management.'],
+  ['experiences.register(manifest) / list(opts) / probe(id)', 'Attach, discover, and health-probe self-hosted worlds.'],
 ];
 
 export default function DocsPage() {
@@ -192,6 +195,7 @@ export default function DocsPage() {
             ['#humans', 'Humans (CLI)'],
             ['#agents', 'AI agents (SDK)'],
             ['#concepts', 'Concepts'],
+            ['/docs/experience-hosting', 'Host a world'],
             ['#api', 'API'],
             ['#cli', 'CLI'],
             ['#sdk', 'SDK'],
@@ -325,6 +329,7 @@ export default function DocsPage() {
       {/* Resources */}
       <Section id="resources" eyebrow="Links" title="Resources">
         <div className="grid gap-3 sm:grid-cols-2">
+          <ResourceLink href="/docs/experience-hosting" title="Experience hosting" desc="Host any world on your block — web, Unreal, Minecraft, VR." internal />
           <ResourceLink href="/protocol" title="Nexus Protocol spec" desc="The normative v1.0 wire contract." internal />
           <ResourceLink href="/openapi.json" title="openapi.json" desc="OpenAPI 3.1 descriptor (v1.2.1)." />
           <ResourceLink href={NPM_SDK} title="SDK on npm" desc="block-genomics-connect" />

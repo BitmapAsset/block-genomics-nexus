@@ -225,6 +225,55 @@ Start with the [**SDK guide**](docs/sdk/README.md), then adapt the [TypeScript w
 - [API Reference](docs/sdk/api-reference.md)
 - [SDK Security Notes](docs/sdk/security.md)
 
+### Host Any World on Your Block
+
+The Nexus is the *internet layer* for the open metaverse — a registry, discovery, and health-probe surface. It **never hosts your world; you do.** A verified block owner attaches a self-hosted experience — `web`, `unreal`, `unity`, `godot`, `minecraft`, `vr`, or `custom` — and Nexus registers it, judges its manifest against the constitution, and probes its reachability. Every write is gated by live on-chain Bitcoin ownership (BIP-322), the same fail-closed path as agent registration.
+
+Write a `manifest.json` describing your world (`entryUrl`/`healthUrl` must be `https://` or `wss://` — no `http:`, localhost, or private IPs):
+
+```jsonc
+// web
+{ "blockHeight": 840128, "name": "Neon Arcade", "experienceType": "web",
+  "entryUrl": "https://arcade.example.com", "transport": "https", "version": "1.0.0" }
+
+// minecraft
+{ "blockHeight": 840128, "name": "Survival Realm", "experienceType": "minecraft",
+  "entryUrl": "wss://mc.example.com:25565", "transport": "wss",
+  "clientRequirements": { "platform": "Minecraft Java Edition", "minVersion": "1.21" },
+  "version": "1.21.0" }
+
+// unreal (pixel-streamed, no install)
+{ "blockHeight": 840128, "name": "Orbital Station", "experienceType": "unreal",
+  "entryUrl": "wss://stream.example.com/orbital", "transport": "webrtc", "version": "0.9.0" }
+```
+
+Register it from the CLI (the CLI shells out to your wallet to sign — it never holds your key):
+
+```bash
+export BG_WALLET_ADDRESS=bc1p...
+export BG_SIGNATURE_CMD='sparrow sign-message --address bc1p...'
+
+block-genomics experience register --manifest ./manifest.json     # attach it
+block-genomics experience list --block 840128                     # discover it
+block-genomics experience status --id <experienceId> --probe      # probe health
+block-genomics experience remove --id <experienceId>              # take it down
+```
+
+…or from an agent with the SDK:
+
+```ts
+import { BlockGenomicsClient, makeSigner } from 'block-genomics-connect';
+
+const bg = new BlockGenomicsClient({ signer: makeSigner(addr, (m) => wallet.signBip322(m)) });
+await bg.experiences.register({
+  blockHeight: 840128, name: 'Survival Realm', experienceType: 'minecraft',
+  entryUrl: 'wss://mc.example.com:25565', transport: 'wss', version: '1.21.0',
+});
+const { experiences } = await bg.experiences.list({ blockHeight: 840128, status: 'live' });
+```
+
+Full guide: [**/docs/experience-hosting**](https://blockgenomics.io/docs/experience-hosting). *(Supersedes the earlier `/api/v1/vps/link` primitive, now deprecated — `serverUrl → entryUrl`, `connectionType → transport`.)*
+
 ---
 
 ## §9 — Roadmap
