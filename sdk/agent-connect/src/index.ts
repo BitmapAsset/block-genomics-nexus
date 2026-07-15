@@ -11,6 +11,7 @@ export type {
   WorldObjectInput,
   RegisterAgentOptions,
   UpdateAgentOptions,
+  ExperiencesApi,
 } from './client.js';
 export type { BitcoinSigner } from './signer.js';
 export { makeSigner } from './signer.js';
@@ -43,4 +44,14 @@ export type {
   AgentBrief,
   TokenRotateResult,
   BlockAgent,
+  ExperienceType,
+  ExperienceTransport,
+  ExperienceStatus,
+  ContentRating,
+  ClientRequirements,
+  ExperienceManifest,
+  ExperienceRecord,
+  ExperienceListOptions,
+  ExperienceListResult,
+  ExperienceRemoveResult,
 } from './types.js';

@@ -28,6 +28,11 @@ import type {
   AgentBrief,
   TokenRotateResult,
   BlockAgent,
+  ExperienceManifest,
+  ExperienceRecord,
+  ExperienceListOptions,
+  ExperienceListResult,
+  ExperienceRemoveResult,
 } from './types.js';
 
 export const DEFAULT_BASE_URL = 'https://blockgenomics.io';
@@ -103,10 +108,30 @@ export interface WorldObjectInput {
   locked?: boolean;
 }
 
+/**
+ * The `experiences.*` surface: attach, discover, and manage self-hosted worlds
+ * on a block. Nexus is the registry + discovery + health layer, never the host.
+ */
+export interface ExperiencesApi {
+  /** Attach a self-hosted experience to a block you own. Requires a signer. */
+  register(manifest: ExperienceManifest): Promise<ExperienceRecord>;
+  /** Fetch one experience by id. Public read. */
+  get(id: string): Promise<ExperienceRecord>;
+  /** Discover experiences (filter by block/type/status, paginated). Public read. */
+  list(opts?: ExperienceListOptions): Promise<ExperienceListResult>;
+  /** Update an experience you own (partial manifest). Re-probes + re-judges. Requires a signer. */
+  update(id: string, changes: Partial<ExperienceManifest>): Promise<ExperienceRecord>;
+  /** Terminally remove an experience you own. Requires a signer. */
+  remove(id: string): Promise<ExperienceRemoveResult>;
+  /** Trigger a fresh server-side health probe (rate-limited 1/min). Public. */
+  probe(id: string): Promise<ExperienceRecord>;
+}
+
 export class BlockGenomicsClient {
   readonly baseUrl: string;
   private readonly signer?: BitcoinSigner;
   private readonly _fetch: typeof fetch;
+  private _experiences?: ExperiencesApi;
 
   constructor(opts: ClientOptions = {}) {
     this.baseUrl = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
@@ -525,5 +550,96 @@ export class BlockGenomicsClient {
    */
   getBlockAgents(blockHeight: number): Promise<BlockAgent[]> {
     return this.request<BlockAgent[]>(`/api/v1/agents/block/${blockHeight}`);
+  }
+
+  // ─── experiences: self-hosted worlds on a block ────────────────────────
+
+  /**
+   * The experience-hosting surface. A verified block owner attaches a
+   * self-hosted world (web / unreal / unity / godot / minecraft / vr / custom);
+   * Nexus registers it, judges the manifest text against the constitution, and
+   * probes its health. Writes reuse the same fail-closed BIP-322 + single-use
+   * challenge + live on-chain re-verify path as agent registration.
+   */
+  get experiences(): ExperiencesApi {
+    return (this._experiences ??= {
+      register: (manifest) => this.registerExperience(manifest),
+      get: (id) => this.getExperience(id),
+      list: (opts) => this.listExperiences(opts),
+      update: (id, changes) => this.updateExperience(id, changes),
+      remove: (id) => this.removeExperience(id),
+      probe: (id) => this.probeExperience(id),
+    });
+  }
+
+  private async registerExperience(manifest: ExperienceManifest): Promise<ExperienceRecord> {
+    const signer = this.requireSigner();
+    const challenge = await this.requestChallenge(signer.address, 'experience-register');
+    const signature = await signer.signMessage(challenge.message);
+    return this.request<ExperienceRecord>('/api/v1/experiences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...manifest,
+        walletAddress: signer.address,
+        signature,
+        challenge: challenge.message,
+      }),
+    });
+  }
+
+  private getExperience(id: string): Promise<ExperienceRecord> {
+    return this.request<ExperienceRecord>(`/api/v1/experiences/${encodeURIComponent(id)}`);
+  }
+
+  private listExperiences(opts: ExperienceListOptions = {}): Promise<ExperienceListResult> {
+    const q = new URLSearchParams();
+    if (opts.blockHeight != null) q.set('blockHeight', String(opts.blockHeight));
+    if (opts.type) q.set('type', opts.type);
+    if (opts.status) q.set('status', opts.status);
+    if (opts.limit != null) q.set('limit', String(opts.limit));
+    if (opts.offset != null) q.set('offset', String(opts.offset));
+    const qs = q.toString();
+    return this.request<ExperienceListResult>(`/api/v1/experiences${qs ? `?${qs}` : ''}`);
+  }
+
+  private async updateExperience(
+    id: string,
+    changes: Partial<ExperienceManifest>,
+  ): Promise<ExperienceRecord> {
+    const signer = this.requireSigner();
+    const challenge = await this.requestChallenge(signer.address, 'experience-manage');
+    const signature = await signer.signMessage(challenge.message);
+    return this.request<ExperienceRecord>(`/api/v1/experiences/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...changes,
+        walletAddress: signer.address,
+        signature,
+        challenge: challenge.message,
+      }),
+    });
+  }
+
+  private async removeExperience(id: string): Promise<ExperienceRemoveResult> {
+    const signer = this.requireSigner();
+    const challenge = await this.requestChallenge(signer.address, 'experience-manage');
+    const signature = await signer.signMessage(challenge.message);
+    return this.request<ExperienceRemoveResult>(`/api/v1/experiences/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress: signer.address,
+        signature,
+        challenge: challenge.message,
+      }),
+    });
+  }
+
+  private probeExperience(id: string): Promise<ExperienceRecord> {
+    return this.request<ExperienceRecord>(`/api/v1/experiences/${encodeURIComponent(id)}/probe`, {
+      method: 'POST',
+    });
   }
 }

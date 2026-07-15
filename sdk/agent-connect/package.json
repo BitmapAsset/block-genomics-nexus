@@ -1,6 +1,6 @@
 {
   "name": "block-genomics-connect",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Dependency-light TypeScript client any human or AI agent can use to connect to Block Genomics (Nexus Protocol): discover the API, prove ownership of a Bitcoin block (BIP-322, pluggable signer), read verified blocks/parcels, register a sovereign agent, and run it (Bearer-token heartbeat / brief / events).",
   "type": "module",
   "main": "dist/index.js",

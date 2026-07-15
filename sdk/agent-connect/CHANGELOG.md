@@ -4,6 +4,33 @@ All notable changes to `block-genomics-connect` are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-07-15
+
+### Added — experience hosting (Nexus Protocol v1 — Experience Hosting)
+
+- `client.experiences` surface for attaching self-hosted worlds to a block:
+  - `experiences.register(manifest)` — attach a `web` / `unreal` / `unity` /
+    `godot` / `minecraft` / `vr` / `custom` experience. Signs an
+    `experience-register` challenge; the server re-verifies on-chain ownership,
+    judges the manifest text against the constitution, and probes health.
+  - `experiences.get(id)` / `experiences.list({ blockHeight?, type?, status?,
+    limit?, offset? })` — public discovery (paginated).
+  - `experiences.update(id, changes)` / `experiences.remove(id)` —
+    owner-wallet-authed via an `experience-manage` challenge; update re-probes
+    and re-judges, remove is terminal.
+  - `experiences.probe(id)` — trigger a fresh server-side health probe.
+- Types: `ExperienceManifest`, `ExperienceRecord`, `ExperienceType`,
+  `ExperienceTransport`, `ExperienceStatus`, `ContentRating`,
+  `ClientRequirements`, `ExperienceListOptions`, `ExperienceListResult`,
+  `ExperienceRemoveResult`, and the `ExperiencesApi` interface.
+
+### Changed
+
+- `requestChallenge()` / `ChallengePurpose` now also accept
+  `experience-register` and `experience-manage`.
+- `mcp.json` adds `experience_register`, `experience_list`, and
+  `experience_status` tools.
+
 ## [0.2.0] — 2026-07-12
 
 First published release. Renamed from the in-repo `@blockgenomics/agent-connect`

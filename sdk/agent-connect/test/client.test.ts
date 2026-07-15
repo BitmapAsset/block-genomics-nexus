@@ -301,3 +301,163 @@ describe('base URL', () => {
     expect(calls[0].url).toBe('https://staging.blockgenomics.io/api/v1/agents/block/1');
   });
 });
+
+// ─── experiences (self-hosted worlds) ────────────────────────────────────────
+
+const MANIFEST = {
+  blockHeight: 840128,
+  name: 'My Minecraft Realm',
+  description: 'A survival server on my block.',
+  experienceType: 'minecraft' as const,
+  entryUrl: 'wss://realm.example.com',
+  transport: 'wss' as const,
+  version: '1.0.0',
+};
+
+const experienceRecord = (over: Record<string, unknown> = {}) => ({
+  id: 'exp_00000000000000000000000',
+  walletAddress: 'bc1powner',
+  status: 'pending',
+  lastProbedAt: null,
+  probeLatencyMs: null,
+  soulJudged: true,
+  createdAt: '2026-07-15T00:00:00.000Z',
+  updatedAt: '2026-07-15T00:00:00.000Z',
+  ...MANIFEST,
+  ...over,
+});
+
+describe('experiences.register', () => {
+  it('signs an experience-register challenge and posts the manifest + auth envelope', async () => {
+    const { calls, fetchImpl } = harness((rec) => {
+      if (rec.url.endsWith('/challenge')) {
+        return { body: env({ message: `M_${rec.body.purpose}`, nonce: 'n' }) };
+      }
+      return { status: 201, body: env(experienceRecord({ status: 'live' })) };
+    });
+    const bg = new BlockGenomicsClient({ signer: testSigner('bc1powner'), fetch: fetchImpl });
+    const exp = await bg.experiences.register(MANIFEST);
+
+    expect(calls.find((c) => c.url.endsWith('/challenge'))!.body).toEqual({
+      walletAddress: 'bc1powner',
+      purpose: 'experience-register',
+    });
+    const post = calls.find((c) => c.url.endsWith('/api/v1/experiences'))!;
+    expect(post.method).toBe('POST');
+    expect(post.body).toEqual({
+      ...MANIFEST,
+      walletAddress: 'bc1powner',
+      signature: 'SIG(M_experience-register)',
+      challenge: 'M_experience-register',
+    });
+    expect(exp.id).toBe('exp_00000000000000000000000');
+    expect(exp.status).toBe('live');
+  });
+
+  it('throws (401) without a signer', async () => {
+    const { fetchImpl } = harness(() => ({ body: env({}) }));
+    const bg = new BlockGenomicsClient({ fetch: fetchImpl });
+    await expect(bg.experiences.register(MANIFEST)).rejects.toMatchObject({ status: 401 });
+  });
+
+  it('surfaces a 422 constitution rejection as BlockGenomicsError', async () => {
+    const { fetchImpl } = harness((rec) =>
+      rec.url.endsWith('/challenge')
+        ? { body: env({ message: 'm', nonce: 'n' }) }
+        : errEnv('Manifest text flagged by the constitution', 422),
+    );
+    const bg = new BlockGenomicsClient({ signer: testSigner(), fetch: fetchImpl });
+    await expect(bg.experiences.register(MANIFEST)).rejects.toMatchObject({ status: 422 });
+  });
+});
+
+describe('experiences reads (public, no signer)', () => {
+  it('get GETs the experience by id with no Authorization header', async () => {
+    const { calls, fetchImpl } = harness(() => ({ body: env(experienceRecord()) }));
+    const bg = new BlockGenomicsClient({ fetch: fetchImpl });
+    const exp = await bg.experiences.get('exp_abc');
+    expect(exp.name).toBe('My Minecraft Realm');
+    expect(calls[0].method).toBe('GET');
+    expect(calls[0].url).toBe('https://blockgenomics.io/api/v1/experiences/exp_abc');
+    expect(calls[0].headers.Authorization).toBeUndefined();
+  });
+
+  it('list builds the block/type/status/limit/offset query and returns the page', async () => {
+    const { calls, fetchImpl } = harness(() => ({
+      body: env({ experiences: [experienceRecord()], total: 1, limit: 20, offset: 0 }),
+    }));
+    const bg = new BlockGenomicsClient({ fetch: fetchImpl });
+    const page = await bg.experiences.list({ blockHeight: 840128, type: 'minecraft', status: 'live', limit: 20 });
+    expect(page.total).toBe(1);
+    expect(page.experiences).toHaveLength(1);
+    const url = calls[0].url;
+    expect(url).toContain('blockHeight=840128');
+    expect(url).toContain('type=minecraft');
+    expect(url).toContain('status=live');
+    expect(url).toContain('limit=20');
+  });
+
+  it('list omits the query string entirely when no filters are given', async () => {
+    const { calls, fetchImpl } = harness(() => ({ body: env({ experiences: [], total: 0, limit: 50, offset: 0 }) }));
+    const bg = new BlockGenomicsClient({ fetch: fetchImpl });
+    await bg.experiences.list();
+    expect(calls[0].url).toBe('https://blockgenomics.io/api/v1/experiences');
+  });
+
+  it('probe POSTs to the probe route with no signer', async () => {
+    const { calls, fetchImpl } = harness(() => ({
+      body: env(experienceRecord({ status: 'degraded', probeLatencyMs: 3200, lastProbedAt: '2026-07-15T00:05:00.000Z' })),
+    }));
+    const bg = new BlockGenomicsClient({ fetch: fetchImpl });
+    const exp = await bg.experiences.probe('exp_abc');
+    expect(exp.status).toBe('degraded');
+    expect(calls[0].method).toBe('POST');
+    expect(calls[0].url).toBe('https://blockgenomics.io/api/v1/experiences/exp_abc/probe');
+    expect(calls[0].headers.Authorization).toBeUndefined();
+  });
+});
+
+describe('experiences writes (owner-wallet signature)', () => {
+  it('update signs an experience-manage challenge and PATCHes only the given fields', async () => {
+    const { calls, fetchImpl } = harness((rec) =>
+      rec.url.endsWith('/challenge')
+        ? { body: env({ message: `M_${rec.body.purpose}`, nonce: 'n' }) }
+        : { body: env(experienceRecord({ version: '1.1.0' })) },
+    );
+    const bg = new BlockGenomicsClient({ signer: testSigner('bc1powner'), fetch: fetchImpl });
+    await bg.experiences.update('exp_abc', { version: '1.1.0' });
+    expect(calls.find((c) => c.url.endsWith('/challenge'))!.body.purpose).toBe('experience-manage');
+    const patch = calls.find((c) => c.method === 'PATCH')!;
+    expect(patch.url).toBe('https://blockgenomics.io/api/v1/experiences/exp_abc');
+    expect(patch.body).toEqual({
+      version: '1.1.0',
+      walletAddress: 'bc1powner',
+      signature: 'SIG(M_experience-manage)',
+      challenge: 'M_experience-manage',
+    });
+  });
+
+  it('remove signs an experience-manage challenge and DELETEs the experience', async () => {
+    const { calls, fetchImpl } = harness((rec) =>
+      rec.url.endsWith('/challenge')
+        ? { body: env({ message: `M_${rec.body.purpose}`, nonce: 'n' }) }
+        : { body: env({ id: 'exp_abc', removed: true }) },
+    );
+    const bg = new BlockGenomicsClient({ signer: testSigner('bc1powner'), fetch: fetchImpl });
+    const res = await bg.experiences.remove('exp_abc');
+    expect(res).toEqual({ id: 'exp_abc', removed: true });
+    const del = calls.find((c) => c.method === 'DELETE')!;
+    expect(del.url).toBe('https://blockgenomics.io/api/v1/experiences/exp_abc');
+    expect(del.body).toEqual({
+      walletAddress: 'bc1powner',
+      signature: 'SIG(M_experience-manage)',
+      challenge: 'M_experience-manage',
+    });
+  });
+
+  it('update throws (401) without a signer', async () => {
+    const { fetchImpl } = harness(() => ({ body: env({}) }));
+    const bg = new BlockGenomicsClient({ fetch: fetchImpl });
+    await expect(bg.experiences.update('exp_abc', { version: '2.0.0' })).rejects.toMatchObject({ status: 401 });
+  });
+});

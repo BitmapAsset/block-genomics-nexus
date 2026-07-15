@@ -195,4 +195,107 @@ export type ChallengePurpose =
   | 'agent-manage'
   | 'agent-token'
   | 'parcel-customize'
-  | 'world';
+  | 'world'
+  | 'experience-register'
+  | 'experience-manage';
+
+// ─── Experience hosting (Nexus Protocol v1 — Experience Hosting) ─────────────
+
+/** The kind of self-hosted world an owner attaches to a block. */
+export type ExperienceType =
+  | 'web'
+  | 'unreal'
+  | 'unity'
+  | 'godot'
+  | 'minecraft'
+  | 'vr'
+  | 'custom';
+
+/** How a client reaches the experience's entry point. */
+export type ExperienceTransport = 'https' | 'wss' | 'webrtc' | 'custom';
+
+/** Server-probed reachability of the experience's healthUrl. */
+export type ExperienceStatus = 'live' | 'degraded' | 'unreachable' | 'pending';
+
+/** Suggested audience rating for the experience. */
+export type ContentRating = 'everyone' | 'teen' | 'mature';
+
+/** Optional client the visitor needs to enter a non-web experience. */
+export type ClientRequirements = {
+  platform?: string;
+  minVersion?: string;
+  downloadUrl?: string;
+};
+
+/**
+ * The owner-authored manifest describing a self-hosted experience. This is the
+ * exact input the SDK sends on register (and, partially, on update). Nexus is
+ * the registry + discovery + health layer — it never hosts the experience.
+ *
+ * `entryUrl`/`healthUrl` MUST be `https://` or `wss://` (the server rejects
+ * `http:`, localhost, and private IP ranges as an SSRF guard).
+ */
+export type ExperienceManifest = {
+  /** The Bitcoin block this experience is attached to. Required. */
+  blockHeight: number;
+  /** Optional parcel within the block. */
+  parcelIndex?: number;
+  /** Human-readable name (1..64 chars). */
+  name: string;
+  /** Optional description (..512 chars). Brain-judged on register/update. */
+  description?: string;
+  experienceType: ExperienceType;
+  /** Where a client connects. https:// or wss:// only. */
+  entryUrl: string;
+  transport: ExperienceTransport;
+  /** URL the server probes for health. Defaults to `entryUrl`. Same URL rules. */
+  healthUrl?: string;
+  clientRequirements?: ClientRequirements;
+  /** Free-form capability tags (max 16). */
+  capabilities?: string[];
+  contentRating?: ContentRating;
+  /** Semver-ish version string for the experience. */
+  version: string;
+};
+
+/**
+ * A registered experience as returned by the API: the owner's manifest plus the
+ * server-added identity, ownership, probed-health, and moderation fields.
+ */
+export type ExperienceRecord = ExperienceManifest & {
+  id: string;
+  /** The verified owning wallet (server-derived from the BIP-322 signature). */
+  walletAddress: string;
+  /** Last server-probed reachability of `healthUrl`. */
+  status: ExperienceStatus;
+  /** ISO timestamp of the last health probe (null before the first probe). */
+  lastProbedAt: string | null;
+  /** Round-trip latency of the last probe, in ms (null if never reached). */
+  probeLatencyMs: number | null;
+  /** Whether the manifest text passed the Brain's constitution judgment. */
+  soulJudged: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Filters + pagination for {@link BlockGenomicsClient.experiences}.list. */
+export type ExperienceListOptions = {
+  blockHeight?: number;
+  type?: ExperienceType;
+  status?: ExperienceStatus;
+  /** Page size (server default 50, max 100). */
+  limit?: number;
+  /** Row offset for pagination (default 0). */
+  offset?: number;
+};
+
+/** Paginated discovery result. Mirrors the protocol's list envelope. */
+export type ExperienceListResult = {
+  experiences: ExperienceRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+/** Result of a terminal experience removal. */
+export type ExperienceRemoveResult = { id: string; removed: boolean };
