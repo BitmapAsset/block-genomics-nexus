@@ -80,7 +80,7 @@ export function createMemoryPrisma() {
       const row: Row = { ...data };
       if (row.id === undefined && data.height === undefined && data.walletAddress === undefined) {
         row.id = `mock_${model}_${++counter}`;
-      } else if (row.id === undefined && model === 'bitmapAgent') {
+      } else if (row.id === undefined && (model === 'bitmapAgent' || model === 'experience')) {
         row.id = `mock_${model}_${++counter}`;
       }
       if (row.id === undefined && !('height' in data) && !('walletAddress' in data)) row.id = `mock_${model}_${++counter}`;
@@ -99,8 +99,9 @@ export function createMemoryPrisma() {
       const res = sortRows(rowsOf(model).filter((r) => matchWhere(r, where)), orderBy);
       return res[0] ?? null;
     },
-    findMany: async ({ where, orderBy, take }: any = {}) => {
+    findMany: async ({ where, orderBy, take, skip }: any = {}) => {
       let res = sortRows(rowsOf(model).filter((r) => matchWhere(r, where)), orderBy);
+      if (skip) res = res.slice(skip);
       if (take) res = res.slice(0, take);
       return res;
     },
@@ -121,6 +122,12 @@ export function createMemoryPrisma() {
       for (let i = rows.length - 1; i >= 0; i--) if (matchWhere(rows[i], where)) { rows.splice(i, 1); count++; }
       return { count };
     },
+    delete: async ({ where }: any) => {
+      const rows = rowsOf(model);
+      const idx = rows.findIndex((r) => matchWhere(r, where));
+      if (idx === -1) throw new Error(`[memory-prisma] ${model}.delete: no row for ${JSON.stringify(where)}`);
+      return rows.splice(idx, 1)[0];
+    },
     count: async ({ where }: any = {}) => rowsOf(model).filter((r) => matchWhere(r, where)).length,
     upsert: async ({ where, create, update }: any) => {
       const existing = rowsOf(model).find((r) => matchWhere(r, where));
@@ -137,7 +144,7 @@ export function createMemoryPrisma() {
     'challenge', 'bitmapAgent', 'block', 'user', 'agentEvent', 'agentBrief', 'agentSession',
     'blockProfile', 'guardianAgent', 'guardianConversation', 'guardianEvent',
     'vPSLink', 'delegation', 'delegationListing', 'ownershipTransfer', 'handleHistory', 'parcel',
-    'apiRateLimit',
+    'apiRateLimit', 'experience', 'contentFlag', 'contentVerdict', 'brainAction',
   ] as const;
 
   const client: any = {
