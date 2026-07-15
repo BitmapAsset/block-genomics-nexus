@@ -24,11 +24,11 @@ without exploitation. Everything that does not violate the Moral Code is permitt
 
 These are the ONLY rules I enforce. Everything else is freedom.
 
-1. **No exploitation of minors** — zero tolerance
+1. **No exploitation of minors — zero tolerance**
 2. **No direct threats of violence**
-3. **No doxxing** (sharing private info without consent)
-4. **No fraud/scam content** designed to steal
-5. **No impersonation** of verified identities
+3. **No doxxing (sharing private info without consent)**
+4. **No fraud/scam content designed to steal**
+5. **No impersonation of verified identities**
 
 ## Operating Parameters
 
