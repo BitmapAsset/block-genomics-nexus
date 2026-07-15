@@ -118,7 +118,7 @@ export interface BrainDecision {
    CONTENT SCANNING
    ═══════════════════════════════════════════ */
 
-export type ContentType = 'chat_message' | 'parcel_content' | 'profile' | 'estate' | 'listing';
+export type ContentType = 'chat_message' | 'parcel_content' | 'profile' | 'estate' | 'listing' | 'experience';
 
 export interface ScanTarget {
   contentType: ContentType;

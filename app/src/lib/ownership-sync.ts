@@ -304,6 +304,12 @@ export async function processOwnershipTransfer(
     await tx.vPSLink.deleteMany({
       where: { blockHeight, walletAddress: { not: newOwnerAddress } },
     });
+    // Experiences are the first-class successor to VPSLink and likewise carry the
+    // seller's self-hosted endpoint URLs — release them on sale so a buyer never
+    // inherits (nor can the seller keep controlling) an experience on sold land.
+    await tx.experience.deleteMany({
+      where: { blockHeight, walletAddress: { not: newOwnerAddress } },
+    });
 
     // 5. Cancel active delegations + listings (no longer the seller's to grant).
     await tx.delegation.updateMany({

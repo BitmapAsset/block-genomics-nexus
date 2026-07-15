@@ -254,6 +254,42 @@ model VPSLink {
   @@index([status])
 }
 
+// ─── Hosted Experiences (self-hosted worlds attached to a block/parcel) ───
+// First-class successor to VPSLink: a verified owner attaches a self-hosted
+// experience (web/unreal/unity/godot/minecraft/vr/custom) to their land. The
+// Nexus is the internet layer (registry + discovery + probed health), never a
+// host. Ownership is Bitcoin-anchored and re-verified on every write.
+//   clientRequirements: JSON string { platform?, minVersion?, downloadUrl? }
+//   capabilities:       native string[] (freeform tags, <=16)
+//   status:             live | degraded | unreachable | pending
+model Experience {
+  id                 String    @id @default(cuid())
+  walletAddress      String
+  blockHeight        Int
+  parcelIndex        Int?
+  name               String
+  description        String?
+  experienceType     String
+  entryUrl           String
+  transport          String
+  healthUrl          String?
+  clientRequirements String?
+  capabilities       String[]  @default([])
+  contentRating      String?
+  version            String
+  status             String    @default("pending")
+  lastProbedAt       DateTime?
+  probeLatencyMs     Int?
+  soulJudged         Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([walletAddress])
+  @@index([blockHeight])
+  @@index([status])
+  @@index([experienceType])
+}
+
 model AgentSession {
   id          String      @id @default(cuid())
   agentId     String
