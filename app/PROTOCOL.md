@@ -531,6 +531,67 @@ When a bitmap inscription is transferred on-chain:
 5. Active delegations cancelled
 6. Delegation listings deactivated
 7. New owner's `anchorBlock` set if no existing profile
+8. Attached experiences released (deleted) alongside agents and VPS links
+
+---
+
+## Experience Hosting
+
+A verified block/parcel owner can attach a **self-hosted experience** — a web,
+Unreal, Unity, Godot, Minecraft, VR, or custom world — to their land. The Nexus is
+the internet layer (registry, discovery, probed health, constitution); it never
+hosts the experience. This is the first-class successor to the legacy VPS-link
+primitive. The normative contract is **§8 of the Nexus Protocol v1.0 spec**
+(`docs/protocol/NEXUS-PROTOCOL-v1.md`).
+
+### Manifest (v1)
+
+| Field | Req | Notes |
+|-------|-----|-------|
+| `blockHeight` | ✓ | Block the experience is attached to |
+| `parcelIndex` | — | Optional; omit for block-level |
+| `name` | ✓ | 1–64 chars |
+| `description` | — | ≤512 chars |
+| `experienceType` | ✓ | `web`\|`unreal`\|`unity`\|`godot`\|`minecraft`\|`vr`\|`custom` |
+| `entryUrl` | ✓ | `https://` or `wss://` only (SSRF-guarded) |
+| `transport` | ✓ | `https`\|`wss`\|`webrtc`\|`custom` |
+| `healthUrl` | — | Same URL rules; defaults to `entryUrl` |
+| `clientRequirements` | — | `{ platform?, minVersion?, downloadUrl? }` |
+| `capabilities` | — | ≤16 tags |
+| `contentRating` | — | `everyone`\|`teen`\|`mature` |
+| `version` | ✓ | semver-ish |
+
+Server-owned fields: `id`, `walletAddress`, `status`
+(`live`\|`degraded`\|`unreachable`\|`pending`), `lastProbedAt`, `probeLatencyMs`,
+`soulJudged`, timestamps.
+
+### Endpoints
+
+| Endpoint | Auth |
+|----------|------|
+| `POST /api/v1/experiences` | Owner (BIP-322 + `experience-register` challenge + live on-chain re-verify) |
+| `GET /api/v1/experiences?blockHeight=&type=&status=` | Public, paginated |
+| `GET /api/v1/experiences/{id}` | Public |
+| `PATCH /api/v1/experiences/{id}` | Owner (`experience-manage`) |
+| `DELETE /api/v1/experiences/{id}` | Owner (`experience-manage`), terminal |
+| `POST /api/v1/experiences/{id}/probe` | Public, 1/min per experience |
+
+### Security & health
+
+- **Ownership** is gated by the same fail-closed path as agent registration: a
+  single-use, purpose-bound BIP-322 challenge plus a live on-chain re-verify. A
+  definitive on-chain mismatch is denied `403` even if the DB snapshot is stale.
+- **SSRF:** entry/health/download URLs must be `https`/`wss`; `http`, embedded
+  credentials, `localhost`, `*.local`, and any host that is (or resolves to) a
+  loopback/private/link-local/CGNAT address are rejected — including across probe
+  redirects.
+- **Probe:** server-side `GET`/`HEAD`, 5s timeout, no redirects into private
+  ranges. `live` < 2s; `degraded` 2–5s or HTTP 5xx; `unreachable` on timeout /
+  failure / SSRF block. Probed on register, on update, on demand, and lazily when
+  a read is >15 min stale.
+- **Constitution:** the Nexus Brain judges the manifest text (`name`,
+  `description`) on register and on text changes; a violation is a hard `422` and
+  records a Brain `ContentFlag`.
 
 ---
 
@@ -545,6 +606,9 @@ When a bitmap inscription is transferred on-chain:
 | Max chat message | 4,000 characters |
 | Challenge TTL | 5 minutes |
 | Agent registration cooldown | 24 hours |
+| Experience probe timeout | 5 seconds |
+| Experience probe rate limit | 1/min per experience |
+| Experience stale-read re-probe | 15 minutes |
 | LLM rate limit | 60 calls/hour/guardian |
 | LLM timeout | 30 seconds |
 | Heartbeat cooldown | 30 seconds |

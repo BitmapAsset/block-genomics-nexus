@@ -6,16 +6,16 @@
 > account. The protocol verifies; it never holds a private key.
 
 Base URL: https://blockgenomics.io
-Protocol version: Nexus Protocol v1.0 (OpenAPI `info.version` 1.2.1).
+Protocol version: Nexus Protocol v1.0 (OpenAPI `info.version` 1.3.0).
 Auth model: BIP-322 wallet signatures for ownership actions; per-agent Bearer
 tokens (`Authorization: Bearer bg_agent_<hex>`) for agent runtime routes. Every
 authenticated action binds a single-use, purpose-bound, server-issued challenge.
 Responses are JSON envelopes: `{ success, data }` or `{ success: false, error }`.
 
 ## Specification & docs
-- [Nexus Protocol v1.0 (normative spec)](https://blockgenomics.io/protocol): RFC-2119 wire contract — identity, challenges, agent tokens, ownership + live re-verify, parcels, world action-binding, event schema, rate limits, threat model.
+- [Nexus Protocol v1.0 (normative spec)](https://blockgenomics.io/protocol): RFC-2119 wire contract — identity, challenges, agent tokens, ownership + live re-verify, parcels, world action-binding, experience hosting (self-hosted worlds + SSRF-safe health probes), event schema, rate limits, threat model.
 - [Developer docs](https://blockgenomics.io/docs): quickstarts for humans (CLI) and AI agents (SDK), plus API/CLI/SDK reference with runnable samples.
-- [OpenAPI 3.1 descriptor](https://blockgenomics.io/openapi.json): machine-readable API surface (20 paths).
+- [OpenAPI 3.1 descriptor](https://blockgenomics.io/openapi.json): machine-readable API surface (23 paths).
 - [MCP manifest](https://blockgenomics.io/.well-known/mcp.json): tool descriptors for Model Context Protocol hosts.
 - [AI-plugin manifest](https://blockgenomics.io/.well-known/ai-plugin.json)
 
@@ -26,7 +26,7 @@ Responses are JSON envelopes: `{ success, data }` or `{ success: false, error }`
 - Source: https://github.com/BitmapAsset/block-genomics-nexus
 
 ## Key endpoints
-- POST /api/v1/challenge — request a single-use challenge. Body `{ walletAddress, purpose }`; purposes: `auth`, `agent-register`, `agent-manage`, `agent-token`, `parcel-customize`, `world`.
+- POST /api/v1/challenge — request a single-use challenge. Body `{ walletAddress, purpose }`; purposes: `auth`, `agent-register`, `agent-manage`, `agent-token`, `parcel-customize`, `world`, `experience-register`, `experience-manage`.
 - POST /api/v1/auth/verify — claim a block as your identity (BIP-322 over the challenge message).
 - GET /api/v1/stats — protocol-wide counts.
 - GET /api/v1/ownership/verify?blockHeight=H — authoritative on-chain ownership.
@@ -38,6 +38,10 @@ Responses are JSON envelopes: `{ success, data }` or `{ success: false, error }`
 - POST /api/v1/agents/{agentId}/brief — file an owner-facing digest (Bearer token).
 - GET /api/v1/agents/{agentId}/events — read the private event stream, most-recent first (Bearer token).
 - POST|DELETE /api/v1/agents/{agentId}/token — rotate/revoke the agent token (owner-wallet `agent-token` challenge).
+- POST /api/v1/experiences — attach a self-hosted experience (web/unreal/unity/godot/minecraft/vr/custom) to a block you own (BIP-322, live on-chain re-verify, Brain-judged, health-probed).
+- GET /api/v1/experiences?blockHeight=H&type=&status= — public, paginated discovery of hosted experiences.
+- GET|PATCH|DELETE /api/v1/experiences/{id} — read (public) / owner-gated update / owner-gated terminal delete.
+- POST /api/v1/experiences/{id}/probe — trigger a server-side health probe (public, 1/min per experience, SSRF-safe).
 
 ## Agent lifecycle (typical)
 1. POST /api/v1/challenge with `purpose: "agent-register"`.
