@@ -43,6 +43,18 @@ import { analyzeContent, createDecision, resolveAppeal, shouldIssueStrike, shoul
 let brainState: BrainState | null = null;
 
 /**
+ * Tracks whether the last soul fetch was a real inscription verification.
+ * True only when fetchSoulFromInscription returned source='inscription' AND
+ * verified=true (i.e., the soul was fetched from the Bitcoin inscription AND
+ * passed verifySoulIntegrity/verifySoulContent). Any degraded boot or
+ * failed re-verification resets this to false.
+ *
+ * Consumed by getBrainStatus().soulVerified so the transparency dashboard
+ * never claims a verified soul in DEGRADED mode.
+ */
+let lastSoulInscriptionVerified = false;
+
+/**
  * Get current Brain state (or null if not booted).
  */
 export function getBrainState(): BrainState | null {
@@ -69,7 +81,9 @@ export async function bootBrain(
   console.log('[NexusBrain] Fetching soul from Bitcoin inscription...');
 
   const { soul, source, verified } = await fetchSoulFromInscription(config);
-  
+  const inscriptionVerified = source === 'inscription' && verified;
+  lastSoulInscriptionVerified = inscriptionVerified;
+
   console.log(`[NexusBrain] Soul loaded from: ${source} | Verified: ${verified}`);
   console.log(`[NexusBrain] Moral code: ${soul.moralCode.length} rules`);
   console.log(`[NexusBrain] Constraints: ${soul.constraints.length} immutable constraints`);
@@ -87,7 +101,7 @@ export async function bootBrain(
   }
 
   brainState = {
-    status: source === 'inscription' && verified ? 'online' : 'degraded',
+    status: inscriptionVerified ? 'online' : 'degraded',
     soul,
     soulInscriptionId: soul.integrityHash || 'unknown',
     lastSoulVerification: new Date(),
@@ -270,6 +284,11 @@ export async function verifySoul(
   const wasOnline = brainState.status === 'online';
   const nowOnline = source === 'inscription' && verified;
 
+  // Keep the inscription-verification flag in sync with the current
+  // fetch outcome so getBrainStatus().soulVerified stays truthful when
+  // the soul flips DEGRADED↔ONLINE.
+  lastSoulInscriptionVerified = nowOnline;
+
   brainState.status = nowOnline ? 'online' : 'degraded';
   brainState.soul = soul;
 
@@ -330,10 +349,17 @@ export function getBrainStatus(): {
 } | null {
   if (!brainState?.soul) return null;
 
+  // soulVerified reflects the REAL verification outcome — true only when the
+  // soul was fetched from the Bitcoin inscription AND passed integrity/content
+  // verification on the most recent fetch. Consistent with status === 'online'.
+  // (Previously this was `lastSoulVerification !== null`, which was true after
+  // any boot attempt, including DEGRADED. That was misleading.)
+  const soulVerified = lastSoulInscriptionVerified && brainState.status === 'online';
+
   return {
     status: brainState.status,
     soulSource: brainState.soulInscriptionId,
-    soulVerified: brainState.lastSoulVerification !== null,
+    soulVerified,
     uptime: Date.now() - brainState.bootedAt.getTime(),
     flagsProcessed: brainState.flagsProcessed,
     appealsResolved: brainState.appealsResolved,

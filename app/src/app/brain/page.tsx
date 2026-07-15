@@ -8,6 +8,7 @@ import BrainChat from "@/components/BrainChat";
 /* ─── Types ─── */
 interface BrainData {
   identity: { handle: string; name: string; role: string; tier: number; wallet: string };
+  runtime?: { status: string; soulVerified: boolean; scanCycles: number; uptimeMs: number };
   inscriptions: { moralCode: string; soulText: string; soulFile: string; soulJson?: { id: string; number: number } };
   moralCode: string[];
   parameters: {
@@ -89,13 +90,53 @@ export default function BrainPage() {
           <p className={`${dim} text-lg max-w-xl mx-auto mb-6`}>
             Autonomous Moral Guardian · Soul Inscribed on Bitcoin
           </p>
-          <div className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-400">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
-            </span>
-            {loading ? "CONNECTING..." : "ONLINE"}
-          </div>
+          {(() => {
+            // Real runtime status. Only claim ONLINE when the soul was actually
+            // verified from the Bitcoin inscription this boot. Anything else is
+            // DEGRADED (or NOT BOOTED on a fresh serverless invocation).
+            const rt = data?.runtime;
+            const online = rt?.status === "online" && rt?.soulVerified === true;
+            const degraded = rt?.status === "degraded";
+            const notBooted = !rt || rt.status === "not_booted";
+
+            const label = loading
+              ? "CONNECTING..."
+              : online
+              ? "ONLINE"
+              : degraded
+              ? "DEGRADED"
+              : notBooted
+              ? "NOT BOOTED"
+              : (rt?.status ?? "UNKNOWN").toUpperCase();
+
+            const color = online
+              ? "text-emerald-400"
+              : degraded
+              ? "text-amber-400"
+              : "text-[#8888aa]";
+            const dot = online
+              ? "bg-emerald-500"
+              : degraded
+              ? "bg-amber-400"
+              : "bg-[#8888aa]";
+            const ping = online
+              ? "bg-emerald-400"
+              : degraded
+              ? "bg-amber-400"
+              : "bg-[#8888aa]";
+
+            return (
+              <div className={`inline-flex items-center gap-2 text-sm font-semibold ${color}`}>
+                <span className="relative flex h-3 w-3">
+                  {online && (
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${ping} opacity-75`} />
+                  )}
+                  <span className={`relative inline-flex h-3 w-3 rounded-full ${dot}`} />
+                </span>
+                {label}
+              </div>
+            );
+          })()}
         </section>
 
         {/* ═══ INSCRIPTION VERIFICATION ═══ */}
@@ -384,7 +425,16 @@ export default function BrainPage() {
             <div className="space-y-3 text-sm">
               {[
                 { k: "Tier", v: "👑 1 — Gold Crown Shield" },
-                { k: "Status", v: "🟢 Online" },
+                {
+                  k: "Status",
+                  v: (() => {
+                    const rt = data?.runtime;
+                    if (!rt || rt.status === "not_booted") return "⚪ Not booted";
+                    if (rt.status === "online" && rt.soulVerified) return "🟢 Online";
+                    if (rt.status === "degraded") return "🟡 Degraded";
+                    return `⚪ ${rt.status}`;
+                  })(),
+                },
                 { k: "Moral Code", v: `Inscription #${data?.inscriptions?.moralCode || "119366628"}` },
                 { k: "Soul (text)", v: `Inscription #${data?.inscriptions?.soulText || "119366684"}` },
                 { k: "SOUL.md", v: `Inscription #${data?.inscriptions?.soulFile || "119366692"}` },

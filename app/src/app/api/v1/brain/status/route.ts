@@ -25,7 +25,7 @@ import {
   FALSE_FLAG_STRIKE_LIMIT,
   BRAIN_FEE_PERCENT,
 } from '@/lib/protocol';
-import { fetchBrainWalletBalance } from '@/lib/brain';
+import { fetchBrainWalletBalance, getBrainStatus } from '@/lib/brain';
 
 export async function GET() {
   try {
@@ -52,8 +52,20 @@ export async function GET() {
       fetchBrainWalletBalance(),
     ]);
 
+    // Runtime state (may be null if the Brain has not booted in this process).
+    // soulVerified reflects the REAL verification outcome, not just "we tried".
+    const runtimeStatus = getBrainStatus();
+
     return NextResponse.json({
       success: true,
+      runtime: runtimeStatus
+        ? {
+            status: runtimeStatus.status,
+            soulVerified: runtimeStatus.soulVerified,
+            scanCycles: runtimeStatus.scanCycles,
+            uptimeMs: runtimeStatus.uptime,
+          }
+        : { status: 'not_booted', soulVerified: false, scanCycles: 0, uptimeMs: 0 },
       identity: {
         handle: NEXUS_BRAIN_HANDLE,
         name: 'Nexus Brain',
