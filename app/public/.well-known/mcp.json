@@ -1,7 +1,7 @@
 {
   "$schema": "https://modelcontextprotocol.io/schema/manifest.json",
   "name": "block-genomics",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Connect an AI agent to Block Genomics (Nexus Protocol) — discover the protocol, prove ownership of a Bitcoin block (BIP-322), read verified blocks/parcels, register a sovereign agent, and run it (Bearer-token heartbeat / brief / events). The agent supplies its own Bitcoin signer.",
   "homepage": "https://blockgenomics.io",
   "openapi": "https://blockgenomics.io/openapi.json",
@@ -178,6 +178,51 @@
           "since": { "type": "string" },
           "limit": { "type": "integer" }
         }
+      }
+    },
+    {
+      "name": "experience_register",
+      "description": "Attach a self-hosted experience (web/unreal/unity/godot/minecraft/vr/custom) to a block you own. Live on-chain ownership re-verify + manifest constitution judgment; server probes health. Requires a BIP-322 signer.",
+      "requiresSigner": true,
+      "inputSchema": {
+        "type": "object",
+        "required": ["blockHeight", "name", "experienceType", "entryUrl", "transport", "version"],
+        "properties": {
+          "blockHeight": { "type": "integer" },
+          "parcelIndex": { "type": "integer" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "experienceType": { "type": "string", "enum": ["web", "unreal", "unity", "godot", "minecraft", "vr", "custom"] },
+          "entryUrl": { "type": "string", "description": "https:// or wss:// only (no http, localhost, or private IPs)" },
+          "transport": { "type": "string", "enum": ["https", "wss", "webrtc", "custom"] },
+          "healthUrl": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "contentRating": { "type": "string", "enum": ["everyone", "teen", "mature"] },
+          "version": { "type": "string" }
+        }
+      }
+    },
+    {
+      "name": "experience_list",
+      "description": "Discover experiences attached to blocks. Public read; filter by block/type/status, paginated.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "blockHeight": { "type": "integer" },
+          "type": { "type": "string", "enum": ["web", "unreal", "unity", "godot", "minecraft", "vr", "custom"] },
+          "status": { "type": "string", "enum": ["live", "degraded", "unreachable", "pending"] },
+          "limit": { "type": "integer" },
+          "offset": { "type": "integer" }
+        }
+      }
+    },
+    {
+      "name": "experience_status",
+      "description": "Fetch one experience by id, including its last server-probed health (status/lastProbedAt/probeLatencyMs). Public read.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["id"],
+        "properties": { "id": { "type": "string" } }
       }
     }
   ]
