@@ -65,11 +65,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
     if (!gate.ok) return error(gate.error, gate.status);
 
-    // Re-judge only when the human-readable text changes.
-    if (patch.name !== undefined || patch.description !== undefined) {
+    // Re-judge only when the human-readable text changes (name/description/entryUrl).
+    if (patch.name !== undefined || patch.description !== undefined || patch.entryUrl !== undefined) {
       const judgement = await judgeExperienceManifest({
         name: patch.name ?? exp.name,
         description: patch.description ?? exp.description,
+        entryUrl: patch.entryUrl ?? exp.entryUrl,
         walletAddress,
         blockHeight: exp.blockHeight,
       });

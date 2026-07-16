@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
     const judgement = await judgeExperienceManifest({
       name: m.name,
       description: m.description,
+      entryUrl: m.entryUrl,
       walletAddress,
       blockHeight: m.blockHeight,
     });

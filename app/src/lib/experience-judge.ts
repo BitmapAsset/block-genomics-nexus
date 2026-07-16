@@ -13,7 +13,7 @@
  * status so callers can log whether the soul was inscription-verified.
  */
 
-import { bootBrain, getBrainState, analyzeContent } from './brain';
+import { bootBrain, getBrainState, getContentScanner } from './brain';
 import type { BrainStatus } from './brain';
 
 export interface ManifestJudgement {
@@ -26,13 +26,16 @@ export interface ManifestJudgement {
 export async function judgeExperienceManifest(input: {
   name: string;
   description?: string | null;
+  entryUrl?: string | null;
   walletAddress: string;
   blockHeight: number;
 }): Promise<ManifestJudgement> {
   const state = getBrainState() ?? (await bootBrain());
-  const text = [input.name, input.description].filter(Boolean).join('\n');
+  // The entry URL is a public, human-visible field surfaced in discovery, so it
+  // is judged alongside the name/description text.
+  const text = [input.name, input.description, input.entryUrl].filter(Boolean).join('\n');
 
-  const result = analyzeContent(
+  const result = await getContentScanner().analyze(
     {
       contentType: 'experience',
       contentId: 'pending',
