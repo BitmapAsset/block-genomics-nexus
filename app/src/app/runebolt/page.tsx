@@ -53,9 +53,9 @@ function Navbar({ connected, address, onConnect }: { connected: boolean; address
             <a href="#how-it-works" className="text-sm text-gray-400 hover:text-white transition-colors">How it Works</a>
             <a href="#transfer" className="text-sm text-gray-400 hover:text-white transition-colors">Transfer</a>
           </div>
-          <button onClick={onConnect} className={cn("flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all", connected ? "bg-green-500/20 text-green-400 border border-green-500/30" : "btn-primary")}>
+          <button disabled className={cn("flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all opacity-60 cursor-not-allowed", connected ? "bg-green-500/20 text-green-400 border border-green-500/30" : "btn-primary")}>
             <Wallet className="w-4 h-4" />
-            {connected ? truncateAddress(address || "") : "Connect Wallet"}
+            {connected ? truncateAddress(address || "") : "Launching Soon"}
           </button>
         </div>
       </div>

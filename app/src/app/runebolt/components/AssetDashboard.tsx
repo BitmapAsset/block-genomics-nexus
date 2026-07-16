@@ -55,7 +55,8 @@ export function AssetDashboard({ connected, address, onConnect }: { connected: b
         <div className="w-20 h-20 rounded-full bg-[#F7931A]/10 flex items-center justify-center mx-auto mb-6"><Wallet className="w-10 h-10 text-[#F7931A]" /></div>
         <h3 className="text-2xl font-bold mb-2">Connect Your Wallet</h3>
         <p className="text-gray-400 mb-6 max-w-md mx-auto">Connect your Bitcoin wallet to view your Runes, Ordinals, and Bitmap assets</p>
-        <button onClick={onConnect} className="btn-primary">Connect Wallet</button>
+        <button disabled className="btn-primary opacity-60 cursor-not-allowed">Launching Soon</button>
+        <p className="text-sm text-gray-500 mt-3">Wallet connect coming soon</p>
       </div>
     );
   }

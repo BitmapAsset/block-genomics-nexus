@@ -20,9 +20,12 @@ export default function RuneBoltMotion({ onConnect }: { onConnect: () => void })
         Transfer Runes, Ordinals, and Bitmap instantly over Lightning Network. No custodial risk. Pure Bitcoin script magic.
       </motion.p>
       <motion.div variants={fadeIn} className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-        <button onClick={onConnect} className="btn-primary flex items-center justify-center gap-2 text-lg px-8 py-4">
-          <Wallet className="w-5 h-5" /> Connect Wallet <ChevronRight className="w-5 h-5" />
-        </button>
+        <div className="flex flex-col items-center gap-2">
+          <button disabled className="btn-primary flex items-center justify-center gap-2 text-lg px-8 py-4 opacity-60 cursor-not-allowed">
+            <Wallet className="w-5 h-5" /> Launching Soon <ChevronRight className="w-5 h-5" />
+          </button>
+          <span className="text-sm text-gray-400">Wallet connect coming soon</span>
+        </div>
       </motion.div>
       <motion.div variants={fadeIn} className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl mx-auto">
         {[{ icon: Clock, label: "Transfer Time", value: "< 1 second" }, { icon: Shield, label: "Security", value: "Non-custodial" }, { icon: Bitcoin, label: "Assets", value: "Runes, Ordinals, Bitmap" }].map((stat) => (
