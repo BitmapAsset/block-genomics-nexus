@@ -118,7 +118,15 @@ export interface BrainDecision {
    CONTENT SCANNING
    ═══════════════════════════════════════════ */
 
-export type ContentType = 'chat_message' | 'parcel_content' | 'profile' | 'estate' | 'listing' | 'experience';
+export type ContentType =
+  | 'chat_message'
+  | 'parcel_content'
+  | 'profile'
+  | 'estate'
+  | 'listing'
+  | 'experience'
+  | 'brief'
+  | 'world_object';
 
 export interface ScanTarget {
   contentType: ContentType;

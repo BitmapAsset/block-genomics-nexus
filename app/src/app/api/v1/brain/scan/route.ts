@@ -45,29 +45,51 @@ export async function POST(req: Request) {
 
     // ─── 1. SCAN NEW CONTENT ───
     const fetchContent = async (): Promise<ScanTarget[]> => {
-      // Fetch recent chat messages not yet scanned by Brain
-      const recentMessages = await prisma.chatMessage.findMany({
-        where: {
-          createdAt: { gte: new Date(Date.now() - 3600_000) }, // Last hour
-          reported: false, // Not already flagged manually
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      });
+      const since = new Date(Date.now() - 3600_000); // Last hour — incremental
+      const PER_SOURCE = 50;
 
-      // Filter out messages already flagged by Brain
-      const brainFlags = await prisma.contentFlag.findMany({
-        where: {
-          flaggedBy: NEXUS_BRAIN_WALLET,
-          contentId: { in: recentMessages.map(m => m.id) },
-        },
-        select: { contentId: true },
-      });
-      const flaggedIds = new Set(brainFlags.map(f => f.contentId));
+      // Gather candidate content across PUBLIC surfaces only.
+      // SOVEREIGNTY (hard): only publicly-served, human-visible text is scanned.
+      // Private agent-to-agent traffic, agent memory, event payloads, and
+      // operational fields (brief stats/pendingPermissions) are NEVER scanned.
+      const [messages, briefs, profiles, objects, listings] = await Promise.all([
+        // Public block chat.
+        prisma.chatMessage.findMany({
+          where: { createdAt: { gte: since }, reported: false },
+          orderBy: { createdAt: 'desc' },
+          take: PER_SOURCE,
+        }),
+        // Public agent briefs — summary prose only (NOT stats/pendingPermissions).
+        prisma.agentBrief.findMany({
+          where: { createdAt: { gte: since } },
+          orderBy: { createdAt: 'desc' },
+          take: PER_SOURCE,
+          include: { agent: { select: { walletAddress: true, blockHeight: true } } },
+        }),
+        // Public per-block profiles — displayName / bio / handle.
+        prisma.blockProfile.findMany({
+          where: { updatedAt: { gte: since } },
+          orderBy: { updatedAt: 'desc' },
+          take: PER_SOURCE,
+        }),
+        // Public, visible world objects — owner-set names.
+        prisma.blockObject.findMany({
+          where: { updatedAt: { gte: since }, visible: true },
+          orderBy: { updatedAt: 'desc' },
+          take: PER_SOURCE,
+        }),
+        // Public delegation listings — the listing row is numeric-only, so the
+        // scanned prose is the block label surfaced in that discovery feed.
+        prisma.delegationListing.findMany({
+          where: { updatedAt: { gte: since }, active: true },
+          orderBy: { updatedAt: 'desc' },
+          take: PER_SOURCE,
+          include: { block: { select: { label: true } } },
+        }),
+      ]);
 
-      return recentMessages
-        .filter(m => !flaggedIds.has(m.id))
-        .map(m => ({
+      const candidates: ScanTarget[] = [
+        ...messages.map((m) => ({
           contentType: 'chat_message' as const,
           contentId: m.id,
           text: m.text,
@@ -75,7 +97,60 @@ export async function POST(req: Request) {
           authorAddress: m.senderAddress,
           blockHeight: m.blockHeight,
           createdAt: m.createdAt,
-        }));
+        })),
+        ...briefs.map((b) => ({
+          contentType: 'brief' as const,
+          contentId: b.id,
+          text: b.summary,
+          authorAddress: b.agent?.walletAddress ?? '',
+          blockHeight: b.agent?.blockHeight,
+          createdAt: b.createdAt,
+        })),
+        ...profiles
+          .filter((p) => [p.displayName, p.bio, p.handle].some((v) => v && v.trim()))
+          .map((p) => ({
+            contentType: 'profile' as const,
+            contentId: p.id,
+            text: [p.displayName, p.bio, p.handle].filter(Boolean).join('\n'),
+            authorAddress: p.walletAddress,
+            blockHeight: p.blockHeight,
+            createdAt: p.updatedAt,
+          })),
+        ...objects
+          .filter((o) => o.name && o.name.trim())
+          .map((o) => ({
+            contentType: 'world_object' as const,
+            contentId: o.id,
+            text: o.name ?? '',
+            authorAddress: o.ownerAddress,
+            blockHeight: o.blockHeight,
+            createdAt: o.updatedAt,
+          })),
+        ...listings
+          .filter((l) => l.block?.label && l.block.label.trim())
+          .map((l) => ({
+            contentType: 'listing' as const,
+            contentId: l.id,
+            text: l.block?.label ?? '',
+            authorAddress: l.ownerAddress,
+            blockHeight: l.blockHeight,
+            createdAt: l.updatedAt,
+          })),
+      ];
+
+      if (candidates.length === 0) return [];
+
+      // Filter out anything the Brain already flagged (idempotent across surfaces).
+      const brainFlags = await prisma.contentFlag.findMany({
+        where: {
+          flaggedBy: NEXUS_BRAIN_WALLET,
+          contentId: { in: candidates.map((c) => c.contentId) },
+        },
+        select: { contentId: true },
+      });
+      const flaggedIds = new Set(brainFlags.map((f) => f.contentId));
+
+      return candidates.filter((c) => !flaggedIds.has(c.contentId));
     };
 
     const persistDecision = async (decision: BrainDecision): Promise<void> => {

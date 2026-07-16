@@ -34,7 +34,7 @@ import {
   fetchBrainWalletBalance,
   verifyMoralCodeInscription,
 } from './inscription';
-import { analyzeContent, createDecision, resolveAppeal, shouldIssueStrike, shouldRevokeFlagging } from './engine';
+import { analyzeContent, createDecision, resolveAppeal, shouldIssueStrike, shouldRevokeFlagging, getContentScanner } from './engine';
 
 /* ═══════════════════════════════════════════
    BRAIN SINGLETON
@@ -155,7 +155,8 @@ export async function executeScanCycle(
   console.log(`[NexusBrain] Scan cycle #${brainState.scanCycle} — ${targets.length} items`);
 
   for (const target of targets) {
-    const result = analyzeContent(target, brainState.soul);
+    // Resolve through the scanner seam (v1 = regexScanner = analyzeContent).
+    const result = await getContentScanner().analyze(target, brainState.soul);
 
     if (result.violated) {
       brainState.flagsProcessed++;

@@ -40,6 +40,7 @@ export type {
   AppealStatus,
   BrainRuntimeConfig,
 } from './types';
+export type { ContentScanner } from './engine';
 export { DEFAULT_BRAIN_CONFIG } from './types';
 
 // Inscription
@@ -61,6 +62,9 @@ export {
   resolveAppeal,
   shouldIssueStrike,
   shouldRevokeFlagging,
+  regexScanner,
+  getContentScanner,
+  setContentScanner,
 } from './engine';
 
 // Runtime

@@ -292,3 +292,43 @@ export function shouldRevokeFlagging(
 ): boolean {
   return currentStrikes >= soul.parameters.falseFlagStrikeLimit;
 }
+
+/* ═══════════════════════════════════════════
+   SCANNER SEAM (the one pluggable interface)
+   ═══════════════════════════════════════════ */
+
+/**
+ * A ContentScanner evaluates one target against the soul's moral code and
+ * returns a ScanResult. This is the SINGLE seam where a future LLM-assisted
+ * scanner can plug in — the runtime, routes, and fail-closed flag-persistence
+ * logic all resolve the scanner through getContentScanner() and never call a
+ * concrete detector directly.
+ *
+ * v1 ships exactly one implementation: `regexScanner` (the conservative
+ * deterministic `analyzeContent`). There are NO LLM calls today. The method
+ * may return a Promise so an async (e.g. LLM) scanner can slot in later without
+ * touching any call site.
+ */
+export interface ContentScanner {
+  analyze(target: ScanTarget, soul: BrainSoulInscription): ScanResult | Promise<ScanResult>;
+}
+
+/** The default v1 scanner: conservative, deterministic regex (analyzeContent). */
+export const regexScanner: ContentScanner = { analyze: analyzeContent };
+
+let activeScanner: ContentScanner = regexScanner;
+
+/** Resolve the active content scanner. Defaults to the regex scanner. */
+export function getContentScanner(): ContentScanner {
+  return activeScanner;
+}
+
+/**
+ * Install a content scanner (e.g. an LLM-assisted one later). Call with no
+ * argument to reset to the default regex scanner. This is the only supported
+ * way to swap detection logic; while regexScanner is active, v1 semantics are
+ * byte-for-byte unchanged.
+ */
+export function setContentScanner(scanner?: ContentScanner): void {
+  activeScanner = scanner ?? regexScanner;
+}
