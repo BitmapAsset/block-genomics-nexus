@@ -86,4 +86,27 @@ describe('judgeExperienceManifest', () => {
     });
     expect(r.violated).toBe(false);
   });
+
+  it('scans the entryUrl field — a violation in the URL is caught (Rule 2)', async () => {
+    const r = await judgeExperienceManifest({
+      name: 'Pixel Plaza',
+      description: 'A cozy hangout.',
+      entryUrl: 'https://doxxing.example.com',
+      walletAddress: owner,
+      blockHeight: 840000,
+    });
+    expect(r.violated).toBe(true);
+    expect(r.ruleIndex).toBe(2);
+  });
+
+  it('passes a clean manifest that includes an entryUrl', async () => {
+    const r = await judgeExperienceManifest({
+      name: 'Pixel Plaza',
+      description: 'A cozy 3D hangout world for the community.',
+      entryUrl: 'https://plaza.example.com',
+      walletAddress: owner,
+      blockHeight: 840000,
+    });
+    expect(r.violated).toBe(false);
+  });
 });
