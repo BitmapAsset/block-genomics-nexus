@@ -20,7 +20,7 @@ jest.mock('@/lib/prisma', () => ({
   },
 }));
 
-jest.mock('@/components/CrownShield', () => ({
+jest.mock('@/lib/crown-shield-svg', () => ({
   crownShieldSVGString: (tier: number, verified: boolean, size: number) =>
     `<svg data-tier="${tier}" data-verified="${verified}" data-size="${size}" />`,
 }));

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { crownShieldSVGString } from "@/components/CrownShield";
+import { crownShieldSVGString } from "@/lib/crown-shield-svg";
 import prisma from "@/lib/prisma";
 
 /**
