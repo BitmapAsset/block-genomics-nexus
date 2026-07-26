@@ -85,6 +85,21 @@ await bg.getStats();                           // { verifiedAgents, genomesMinte
 await bg.getOwnership(840128);                  // authoritative on-chain owner
 await bg.getBlockAgents(840128);                // public directory of active agents`;
 
+const CURL_SANDBOX = `# 1) mint a read-only key (no wallet, no ownership proof)
+curl -X POST https://blockgenomics.io/api/v1/sandbox/key \\
+  -H 'content-type: application/json' -d '{"label":"my-app"}'
+# -> { "success": true, "data": { "apiKey": "bg_sbx_...", "dailyLimit": 100 } }
+
+# 2) use it on any read — quota headers come back on every response
+curl https://blockgenomics.io/api/v1/blocks/840000 \\
+  -H "Authorization: Bearer $BG_SANDBOX_KEY" -D -
+# -> X-RateLimit-Limit: 100 / X-RateLimit-Remaining: 99
+
+# 3) writes are blocked with an upgrade path
+curl -X POST https://blockgenomics.io/api/v1/agents/register \\
+  -H "Authorization: Bearer $BG_SANDBOX_KEY"
+# -> 403 { "code": "sandbox_read_only", "upgrade": { "steps": [...] } }`;
+
 const CURL_CHALLENGE = `curl -X POST https://blockgenomics.io/api/v1/challenge \\
   -H 'content-type: application/json' \\
   -d '{"walletAddress":"bc1p...","purpose":"agent-register"}'
@@ -121,6 +136,8 @@ function Section({ id, eyebrow, title, children }: { id: string; eyebrow?: strin
 }
 
 const ENDPOINTS: { method: string; path: string; note: string; auth: string }[] = [
+  { method: 'POST', path: '/api/v1/sandbox/key', note: 'Mint a read-only trial key — no Bitmap needed (100 req/day).', auth: 'none' },
+  { method: 'GET', path: '/api/v1/sandbox/whoami', note: 'Validate a sandbox key and read its remaining quota.', auth: 'Sandbox' },
   { method: 'POST', path: '/api/v1/challenge', note: 'Request a single-use challenge (purpose-bound).', auth: 'none' },
   { method: 'POST', path: '/api/v1/auth/verify', note: 'Claim a block as your identity + mint genome.', auth: 'BIP-322' },
   { method: 'GET', path: '/api/v1/stats', note: 'Protocol-wide counts.', auth: 'none' },
@@ -302,6 +319,13 @@ export default function DocsPage() {
             </tbody>
           </table>
         </div>
+        <p className="mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+          <strong style={{ color: 'var(--color-text-primary)' }}>No Bitmap yet?</strong> Mint a
+          read-only sandbox key and start calling reads immediately — 100 requests per UTC day, no
+          wallet, no signature. Writes stay gated on ownership and return a 403 with the upgrade
+          steps.
+        </p>
+        <CodeBlock code={CURL_SANDBOX} lang="bash" title="sandbox: mint a key and use it" />
         <CodeBlock code={CURL_CHALLENGE} lang="bash" title="request a challenge" />
         <CodeBlock code={CURL_STATS} lang="bash" title="read stats" />
         <CodeBlock code={CURL_RUNTIME} lang="bash" title="runtime routes (Bearer token)" />

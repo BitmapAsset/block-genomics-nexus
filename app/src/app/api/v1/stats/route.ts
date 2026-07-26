@@ -1,12 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { countVerifiedAgents } from '@/lib/directory-counts';
+import { sandboxGate } from '@/lib/sandbox-keys';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const gate = await sandboxGate(req);
+    if (gate.response) return gate.response;
+
     const [verifiedAgents, genomesMinted, blocksVerified] = await Promise.all([
       // Verified agents = verified Users + verified BlockProfiles (shared source
       // of truth with /api/v1/users/list so the two endpoints always agree).
@@ -17,7 +21,10 @@ export async function GET() {
       prisma.block.count(),
     ]);
 
-    return NextResponse.json({ verifiedAgents, genomesMinted, blocksVerified });
+    return NextResponse.json(
+      { verifiedAgents, genomesMinted, blocksVerified },
+      { headers: gate.headers }
+    );
   } catch {
     return NextResponse.json({ verifiedAgents: 0, genomesMinted: 0, blocksVerified: 0 });
   }

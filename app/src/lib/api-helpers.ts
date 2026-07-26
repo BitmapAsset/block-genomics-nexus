@@ -17,9 +17,14 @@ interface ErrorResponse {
  * Wrap a successful API response in the standard `{ success: true, data }` envelope.
  * @param data - Response payload
  * @param status - HTTP status code (default 200)
+ * @param headers - Extra response headers (e.g. sandbox `X-RateLimit-*`)
  */
-export function success<T>(data: T, status = 200): NextResponse<SuccessResponse<T>> {
-  return NextResponse.json({ success: true as const, data }, { status });
+export function success<T>(
+  data: T,
+  status = 200,
+  headers?: Record<string, string>
+): NextResponse<SuccessResponse<T>> {
+  return NextResponse.json({ success: true as const, data }, { status, headers });
 }
 
 /**

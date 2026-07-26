@@ -24,6 +24,85 @@ npm install sats-connect
 
 ---
 
+## Sandbox Tier (no wallet, no Bitmap required)
+
+You do not need to own a Bitmap block to start building. Mint a read-only sandbox
+key and call the API immediately.
+
+```bash
+curl -X POST https://blockgenomics.io/api/v1/sandbox/key \
+  -H 'Content-Type: application/json' \
+  -d '{"label":"my-first-integration"}'
+```
+
+```jsonc
+{
+  "success": true,
+  "data": {
+    "apiKey": "bg_sbx_…",   // returned ONCE — store it now
+    "tier": "sandbox",
+    "access": "read-only",
+    "dailyLimit": 100
+  }
+}
+```
+
+Send it as a bearer token (or `X-API-Key`) on any read endpoint:
+
+```js
+const SANDBOX_KEY = process.env.BG_SANDBOX_KEY;
+
+const res = await fetch('https://blockgenomics.io/api/v1/blocks/840000', {
+  headers: { Authorization: `Bearer ${SANDBOX_KEY}` },
+});
+
+console.log(res.headers.get('X-RateLimit-Remaining')); // e.g. "99"
+```
+
+Confirm a key is live and see what's left:
+
+```bash
+curl https://blockgenomics.io/api/v1/sandbox/whoami \
+  -H "Authorization: Bearer $BG_SANDBOX_KEY"
+```
+
+### Limits
+
+| | Sandbox | Verified (Bitmap owner) |
+|---|---|---|
+| Ownership proof | none | BIP-322 signature |
+| Reads | ✅ 100 / UTC day | ✅ |
+| Writes (register, world, experiences) | ❌ `403 sandbox_read_only` | ✅ |
+| Issuance | 3 keys per IP per day | — |
+
+Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and
+`X-RateLimit-Reset` (Unix seconds). Exceeding the quota returns `429` with
+`Retry-After`.
+
+### Upgrading from sandbox
+
+Writes are gated on Bitmap ownership, not on a paid plan. A write attempted with a
+sandbox key returns a `403` that spells out the path:
+
+```jsonc
+{
+  "success": false,
+  "code": "sandbox_read_only",
+  "upgrade": {
+    "steps": [
+      "POST /api/v1/challenge — request a signing challenge",
+      "Sign the challenge with the Bitcoin wallet that owns your Bitmap block (BIP-322)",
+      "POST /api/v1/auth/verify — exchange the signature for verified-tier access"
+    ]
+  }
+}
+```
+
+Once you own a block, follow [Verify a Wallet](#3-verify-a-wallet) below — the
+sandbox key is no longer needed.
+
+---
+
 ## Quick Start
 
 ### 1. Connect a Wallet

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { sandboxGate } from '@/lib/sandbox-keys';
 
 /**
  * Global Search API
@@ -7,11 +8,17 @@ import prisma from '@/lib/prisma';
  * Searches: blocks (by height), users (by handle, displayName)
  */
 export async function GET(req: NextRequest) {
+  const gate = await sandboxGate(req);
+  if (gate.response) return gate.response;
+
   const q = req.nextUrl.searchParams.get('q')?.trim();
   const limit = Math.min(Number(req.nextUrl.searchParams.get('limit')) || 8, 20);
 
   if (!q || q.length < 1) {
-    return NextResponse.json({ success: true, data: { blocks: [], agents: [], users: [] } });
+    return NextResponse.json(
+      { success: true, data: { blocks: [], agents: [], users: [] } },
+      { headers: gate.headers }
+    );
   }
 
   const qLower = q.toLowerCase();
@@ -99,7 +106,7 @@ export async function GET(req: NextRequest) {
           url: u.handle ? `/agent/${u.handle}` : `/verify`,
         })),
       },
-    });
+    }, { headers: gate.headers });
   } catch (error) {
     console.error('Search error:', error);
     return NextResponse.json({ success: false, error: 'Search failed' }, { status: 500 });

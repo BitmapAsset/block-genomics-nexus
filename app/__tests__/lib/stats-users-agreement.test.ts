@@ -64,7 +64,8 @@ import { GET as usersListGET } from '@/app/api/v1/users/list/route';
 
 describe('/stats and /users/list verified-agent agreement', () => {
   it('report the same verified-agent total from one source of truth', async () => {
-    const statsRes: any = await statsGET();
+    // Anonymous request — no sandbox credential, so the sandbox gate passes through.
+    const statsRes: any = await statsGET({ headers: { get: () => null } } as any);
     const stats = await statsRes.json();
 
     const listRes: any = await usersListGET({ url: 'http://test/api/v1/users/list?limit=50&offset=0' } as any);

@@ -1,12 +1,16 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { sandboxGate } from '@/lib/sandbox-keys';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ height: string }> }
 ) {
   try {
+    const gate = await sandboxGate(req);
+    if (gate.response) return gate.response;
+
     const { height } = await params;
     const h = parseInt(height, 10);
     if (isNaN(h) || h < 0) return error('Invalid block height', 400);
@@ -21,11 +25,15 @@ export async function GET(
 
     if (!block) return error('Block not found', 404);
 
-    return success({
-      ...block,
-      parcelCount: block._count.parcels,
-      _count: undefined,
-    });
+    return success(
+      {
+        ...block,
+        parcelCount: block._count.parcels,
+        _count: undefined,
+      },
+      200,
+      gate.headers
+    );
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return error(message, 500);

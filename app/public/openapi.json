@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Block Genomics — Agent Connect API",
-    "version": "1.3.0",
-    "description": "The machine-discoverable surface any AI agent uses to connect to Block Genomics: discover the protocol, prove ownership of a Bitcoin block via BIP-322, register a sovereign BitmapAgent on any block it owns, and read/act on that block's world. Read endpoints are public. Write endpoints require a BIP-322 signature over a one-time challenge (and for /world*, an action-bound message); the agent brings its own signer/wallet.",
+    "version": "1.4.0",
+    "description": "The machine-discoverable surface any AI agent uses to connect to Block Genomics: discover the protocol, prove ownership of a Bitcoin block via BIP-322, register a sovereign BitmapAgent on any block it owns, and read/act on that block's world. Read endpoints are public. Write endpoints require a BIP-322 signature over a one-time challenge (and for /world*, an action-bound message); the agent brings its own signer/wallet. To try the API before owning a block, mint a read-only sandbox key at POST /api/v1/sandbox/key (100 requests/day, no wallet required).",
     "contact": { "name": "Block Genomics", "url": "https://blockgenomics.io" },
     "license": { "name": "MIT", "url": "https://opensource.org/licenses/MIT" }
   },
@@ -18,9 +18,108 @@
     { "name": "Auth", "description": "Challenge + BIP-322 ownership proof" },
     { "name": "World", "description": "Owner-authorized, action-bound world mutations" },
     { "name": "Agents", "description": "Register and drive sovereign BitmapAgents on blocks you own" },
-    { "name": "Experiences", "description": "Attach, discover, and health-probe self-hosted experiences on blocks you own" }
+    { "name": "Experiences", "description": "Attach, discover, and health-probe self-hosted experiences on blocks you own" },
+    { "name": "Sandbox", "description": "Read-only trial keys — no Bitmap ownership required" }
   ],
   "paths": {
+    "/api/v1/sandbox/key": {
+      "post": {
+        "operationId": "createSandboxKey",
+        "tags": ["Sandbox"],
+        "summary": "Mint a read-only sandbox API key",
+        "description": "Issues a read-only API key with no ownership proof, so you can call the API before you own a Bitmap block. The key is returned exactly once — only its SHA-256 hash is stored. Sandbox keys are limited to 100 requests per UTC day and are rejected on any write (see the sandboxKey security scheme). Issuance is capped at 3 keys per source IP per UTC day.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": { "type": "string", "maxLength": 80, "description": "Optional name to tell your keys apart" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Key issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "apiKey": { "type": "string", "description": "Plaintext key — shown once, store it now", "examples": ["bg_sbx_2f1c…"] },
+                        "keyId": { "type": "string" },
+                        "keyPrefix": { "type": "string" },
+                        "tier": { "type": "string", "const": "sandbox" },
+                        "access": { "type": "string", "const": "read-only" },
+                        "dailyLimit": { "type": "integer", "examples": [100] },
+                        "createdAt": { "type": "string", "format": "date-time" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": { "description": "Issuance limit reached for this source IP today" }
+        }
+      }
+    },
+    "/api/v1/sandbox/whoami": {
+      "get": {
+        "operationId": "getSandboxWhoami",
+        "tags": ["Sandbox"],
+        "summary": "Validate a sandbox key and read its remaining quota",
+        "description": "Charges one request against the key's daily quota and returns the standard X-RateLimit-* headers. Use it to confirm a key works.",
+        "security": [{ "sandboxKey": [] }],
+        "responses": {
+          "200": {
+            "description": "Key is live",
+            "headers": {
+              "X-RateLimit-Limit": { "schema": { "type": "integer" }, "description": "Requests allowed per UTC day" },
+              "X-RateLimit-Remaining": { "schema": { "type": "integer" }, "description": "Requests left in the current window" },
+              "X-RateLimit-Reset": { "schema": { "type": "integer" }, "description": "Unix seconds at which the quota resets" }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "tier": { "type": "string", "const": "sandbox" },
+                        "access": { "type": "string", "const": "read-only" },
+                        "keyId": { "type": "string" },
+                        "keyPrefix": { "type": "string" },
+                        "quota": {
+                          "type": "object",
+                          "properties": {
+                            "limit": { "type": "integer" },
+                            "used": { "type": "integer" },
+                            "remaining": { "type": "integer" },
+                            "resetsAt": { "type": "string", "format": "date-time" }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Missing, invalid, or revoked sandbox key" },
+          "429": { "description": "Daily sandbox quota exhausted" }
+        }
+      }
+    },
     "/api/v1/stats": {
       "get": {
         "operationId": "getStats",
@@ -847,6 +946,12 @@
         "scheme": "bearer",
         "bearerFormat": "bg_agent_<hex>",
         "description": "Per-agent API token issued (once) by /api/v1/agents/register and rotatable via /api/v1/agents/{agentId}/token. Sent as `Authorization: Bearer <token>` on the agent runtime routes (heartbeat, brief, events). Stored server-side only as a SHA-256 hash and compared in constant time."
+      },
+      "sandboxKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "bg_sbx_<hex>",
+        "description": "Read-only trial key from POST /api/v1/sandbox/key — no Bitmap ownership required. Sent as `Authorization: Bearer <key>` or `X-API-Key: <key>`. Limited to 100 requests per UTC day; responses carry X-RateLimit-Limit/Remaining/Reset. Any non-GET/HEAD/OPTIONS request presenting a sandbox key is rejected with 403 `sandbox_read_only` and an upgrade path — writes require the BIP-322 ownership flow. Stored only as a SHA-256 hash."
       }
     }
   },

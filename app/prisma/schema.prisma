@@ -766,3 +766,23 @@ model ApiRateLimit {
 
   @@index([expiresAt])
 }
+
+// ─── Sandbox API keys (read-only trial tier, no Bitmap ownership required) ───
+// Only the SHA-256 hash of the key is stored; the plaintext is returned to the
+// caller exactly once at issuance. `ipHash` is a salted hash — never a raw IP —
+// used solely to cap issuance per source. The daily quota is enforced through
+// ApiRateLimit, not `requestCount`; that column is a best-effort lifetime counter.
+model SandboxKey {
+  id           String    @id @default(cuid())
+  keyHash      String    @unique
+  keyPrefix    String
+  label        String?
+  ipHash       String
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+  requestCount Int       @default(0)
+  revokedAt    DateTime?
+
+  @@index([ipHash])
+  @@index([createdAt])
+}

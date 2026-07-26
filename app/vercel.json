@@ -33,7 +33,11 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization"
+          "value": "Content-Type, Authorization, X-API-Key"
+        },
+        {
+          "key": "Access-Control-Expose-Headers",
+          "value": "X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-BG-Tier, Retry-After"
         },
         {
           "key": "Access-Control-Allow-Credentials",
