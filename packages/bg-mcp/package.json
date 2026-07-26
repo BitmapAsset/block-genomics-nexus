@@ -1,0 +1,56 @@
+{
+  "name": "block-genomics-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Block Genomics (Nexus Protocol). Gives any MCP-capable AI agent live access to verified Bitcoin blocks, on-chain ownership, agent directories, guardians, badges, and experiences — plus the authenticated agent runtime (heartbeat / brief / events) when an agent token is supplied.",
+  "type": "module",
+  "bin": {
+    "block-genomics-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json && chmod +x dist/index.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "block-genomics",
+    "nexus-protocol",
+    "bitcoin",
+    "bitmap",
+    "ordinals",
+    "ai-agents",
+    "agent-identity",
+    "bip322"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BitmapAsset/block-genomics-nexus.git",
+    "directory": "packages/bg-mcp"
+  },
+  "homepage": "https://blockgenomics.io/docs",
+  "bugs": {
+    "url": "https://github.com/BitmapAsset/block-genomics-nexus/issues"
+  },
+  "author": "Gravity (BitmapAsset)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "typescript": "^5.4.3"
+  }
+}
