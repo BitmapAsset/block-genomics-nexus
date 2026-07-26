@@ -82,7 +82,9 @@ export async function POST(req: NextRequest) {
           'writes require Bitmap ownership verification.',
         upgrade: SANDBOX_UPGRADE_URL,
       },
-      201
+      201,
+      // The body carries the plaintext key — no intermediary may retain it.
+      { 'Cache-Control': 'private, no-store, max-age=0' }
     );
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';

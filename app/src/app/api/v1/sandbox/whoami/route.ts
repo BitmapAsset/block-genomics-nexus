@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { success, error } from '@/lib/api-helpers';
+import { error } from '@/lib/api-helpers';
 import {
   authenticateSandboxKey,
   touchSandboxKey,
@@ -18,6 +18,16 @@ import {
   SANDBOX_DAILY_LIMIT,
   SANDBOX_UPGRADE_URL,
 } from '@/lib/sandbox-tier';
+
+// Per-key response — never let the shared edge cache serve it to another caller,
+// and never let a cache HIT skip the quota charge below.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_SHARED_CACHE = {
+  Vary: 'Authorization, X-API-Key',
+  'Cache-Control': 'private, no-store, max-age=0',
+};
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,7 +40,7 @@ export async function GET(req: NextRequest) {
           code: 'missing_key',
           hint: 'Mint one with POST /api/v1/sandbox/key (no wallet required).',
         },
-        { status: 401 }
+        { status: 401, headers: NO_SHARED_CACHE }
       );
     }
 
@@ -40,9 +50,12 @@ export async function GET(req: NextRequest) {
         { success: false, error: auth.reason, code: auth.code },
         {
           status: auth.status,
-          headers: auth.quota
-            ? { ...sandboxRateHeaders(auth.quota), 'Retry-After': String(auth.quota.retryAfterSec) }
-            : undefined,
+          headers: {
+            ...NO_SHARED_CACHE,
+            ...(auth.quota
+              ? { ...sandboxRateHeaders(auth.quota), 'Retry-After': String(auth.quota.retryAfterSec) }
+              : {}),
+          },
         }
       );
     }
@@ -70,7 +83,7 @@ export async function GET(req: NextRequest) {
           upgrade: SANDBOX_UPGRADE_URL,
         },
       },
-      { status: 200, headers: sandboxRateHeaders(quota) }
+      { status: 200, headers: { ...NO_SHARED_CACHE, ...sandboxRateHeaders(quota) } }
     );
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';

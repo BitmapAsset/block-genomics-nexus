@@ -6,10 +6,17 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-jest.mock('@/lib/prisma', () => ({
-  __esModule: true,
-  default: { sandboxKey: { findUnique: async () => null, update: async () => ({}) } },
-}));
+// Mutable stand-in for prisma so individual tests can swap the key lookup. The
+// `$queryRaw` counter is deliberately absent: the durable limiter is documented
+// fail-open, so the gate still admits requests when metering is unavailable.
+const prismaMock: any = {
+  sandboxKey: {
+    findUnique: async () => null,
+    update: async () => ({}),
+  },
+};
+
+jest.mock('@/lib/prisma', () => ({ __esModule: true, default: prismaMock }));
 
 import {
   generateSandboxKey,
@@ -21,6 +28,7 @@ import {
   quotaKeyFor,
   issueKeyFor,
   sandboxRateHeaders,
+  sandboxGate,
   type SandboxKeyRecord,
 } from '@/lib/sandbox-keys';
 import {
@@ -258,6 +266,45 @@ describe('read-only enforcement helpers (Edge-safe)', () => {
     expect(body.error).toContain('read-only');
     expect(body.upgrade.steps.length).toBeGreaterThan(0);
     expect(body.upgrade.steps.join(' ')).toContain('/api/v1/challenge');
+  });
+});
+
+describe('CDN cache safety', () => {
+  // Regression: a sandbox-authenticated /api/v1/search response was cached by the
+  // edge (x-vercel-cache: HIT) and served to anonymous callers carrying that key's
+  // quota headers — and a cache HIT skips the route, so the request went unmetered.
+  const headersOf = (h: Record<string, string>) => ({ get: (n: string) => h[n.toLowerCase()] ?? null });
+
+  it('varies anonymous responses on the credential headers', async () => {
+    const gate = await sandboxGate({ headers: headersOf({}) });
+    expect(gate.response).toBeNull();
+    expect(gate.authenticated).toBe(false);
+    expect(gate.headers['Vary']).toContain('Authorization');
+    expect(gate.headers['Vary']).toContain('X-API-Key');
+    // Anonymous responses must stay cacheable — no Cache-Control override.
+    expect(gate.headers['Cache-Control']).toBeUndefined();
+  });
+
+  it('marks an authenticated response private and un-shareable', async () => {
+    const key = generateSandboxKey();
+    prismaMock.sandboxKey.findUnique = async () => record({ keyHash: hashSandboxKey(key) });
+
+    const gate = await sandboxGate({ headers: headersOf({ authorization: `Bearer ${key}` }) });
+    expect(gate.authenticated).toBe(true);
+    expect(gate.headers['Cache-Control']).toContain('no-store');
+    expect(gate.headers['Cache-Control']).toContain('private');
+    expect(gate.headers['Vary']).toContain('Authorization');
+    expect(gate.headers['X-RateLimit-Limit']).toBe(String(SANDBOX_DAILY_LIMIT));
+  });
+
+  it('marks a rejected-key response un-shareable too', async () => {
+    prismaMock.sandboxKey.findUnique = async () => null;
+    const gate = await sandboxGate({
+      headers: headersOf({ authorization: `Bearer ${generateSandboxKey()}` }),
+    });
+    expect(gate.response).not.toBeNull();
+    expect(gate.response!.headers.get('cache-control')).toContain('no-store');
+    expect(gate.response!.status).toBe(401);
   });
 });
 

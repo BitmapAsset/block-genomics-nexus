@@ -207,32 +207,48 @@ export function sandboxRateHeaders(quota: RateLimitResult): Record<string, strin
 export interface SandboxGate {
   /** Non-null when the request must be short-circuited (bad key / quota spent). */
   response: NextResponse | null;
-  /** Headers to merge into the route's success response. Empty for anonymous callers. */
+  /** Headers to merge into the route's response. */
   headers: Record<string, string>;
   /** True when a valid sandbox key was presented and charged. */
   authenticated: boolean;
 }
 
-const PASS_THROUGH: SandboxGate = { response: null, headers: {}, authenticated: false };
+/**
+ * Metered reads are per-caller, but these routes sit behind a shared CDN. Without
+ * this, the edge cache serves one caller's response — quota headers and all — to
+ * everyone else, and a cache HIT skips the route entirely so the request is never
+ * metered. `Vary` splits anonymous traffic from credentialed traffic into separate
+ * cache entries; anonymous responses stay as cacheable as they were before.
+ */
+const VARY_HEADERS = { Vary: 'Authorization, X-API-Key' } as const;
+
+/** A sandbox-authenticated response is caller-specific and must never be shared. */
+const NO_SHARED_CACHE = {
+  ...VARY_HEADERS,
+  'Cache-Control': 'private, no-store, max-age=0',
+} as const;
 
 /**
  * Meter a read endpoint for sandbox callers.
  *
- * If no sandbox credential is present the request passes through completely
- * untouched — anonymous access to public reads keeps working exactly as before.
+ * If no sandbox credential is present the request passes through untouched (bar
+ * the `Vary` header) — anonymous access to public reads behaves exactly as before.
  * If a key IS present it is validated and charged one unit of daily quota.
  */
 export async function sandboxGate(req: {
   headers: { get(name: string): string | null };
 }): Promise<SandboxGate> {
   const key = sandboxKeyFromHeaders(req.headers);
-  if (!key) return PASS_THROUGH;
+  if (!key) return { response: null, headers: { ...VARY_HEADERS }, authenticated: false };
 
   const auth = await authenticateSandboxKey(key);
   if (!auth.ok) {
-    const headers: Record<string, string> = auth.quota
-      ? { ...sandboxRateHeaders(auth.quota), 'Retry-After': String(auth.quota.retryAfterSec) }
-      : {};
+    const headers: Record<string, string> = {
+      ...NO_SHARED_CACHE,
+      ...(auth.quota
+        ? { ...sandboxRateHeaders(auth.quota), 'Retry-After': String(auth.quota.retryAfterSec) }
+        : {}),
+    };
     return {
       response: NextResponse.json(
         { success: false, error: auth.reason, code: auth.code },
@@ -244,5 +260,9 @@ export async function sandboxGate(req: {
   }
 
   void touchSandboxKey(auth.key!.id);
-  return { response: null, headers: sandboxRateHeaders(auth.quota!), authenticated: true };
+  return {
+    response: null,
+    headers: { ...NO_SHARED_CACHE, ...sandboxRateHeaders(auth.quota!) },
+    authenticated: true,
+  };
 }
