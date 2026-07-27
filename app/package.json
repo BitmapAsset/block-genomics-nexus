@@ -58,11 +58,19 @@
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
     "pg": "^8.18.0",
-    "postcss": "^8.5.0",
+    "postcss": "^8.5.18",
     "prisma": "^6.19.2",
     "tailwindcss": "^4.1.0",
     "ts-jest": "^29.4.6",
     "tsx": "^4.21.0",
     "typescript": "^5.8.0"
+  },
+  "overrides": {
+    "axios": "^1.18.0",
+    "brace-expansion": "^5.0.8",
+    "postcss": "^8.5.18",
+    "sharp": "^0.35.0",
+    "esbuild": "^0.28.1",
+    "valibot": "^1.4.2"
   }
 }
