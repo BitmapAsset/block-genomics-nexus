@@ -129,6 +129,18 @@ const nextConfig: NextConfig = {
       ],
     },
     {
+      // Block share cards. Ordered after the blanket rules so its Cache-Control
+      // wins: the `/:path*` s-maxage=60 above would otherwise force a satori
+      // re-render every minute, and unfurlers refetch these on every repost.
+      source: "/og/:path*",
+      headers: [
+        {
+          key: "Cache-Control",
+          value: "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+        },
+      ],
+    },
+    {
       // Remote MCP endpoint. Ordered after the blanket rules so its Cache-Control
       // wins: the `/:path*` s-maxage above would otherwise let the CDN replay one
       // client's tool output — including token-authorized output — to the next

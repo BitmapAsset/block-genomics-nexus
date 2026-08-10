@@ -64,7 +64,9 @@ export function formatNumber(n: number): string {
  */
 export function hexPairToColor(pair: string): string {
   const val = parseInt(pair, 16);
-  const hue = (val / 255) * 360;
+  // Integer hue: browsers accept fractions, but satori (the OG card renderer)
+  // silently drops the colour and paints black.
+  const hue = Math.round((val / 255) * 360);
   return `hsl(${hue}, 80%, 55%)`;
 }
 
