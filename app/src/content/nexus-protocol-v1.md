@@ -92,6 +92,8 @@ POST /api/v1/challenge
 | `agent-token`      | `POST`/`DELETE /agents/{agentId}/token`          | the challenge `message` |
 | `parcel-customize` | `POST /blocks/{h}/parcels/{tx}/customize`        | `message` + a payload-binding line (§6.2) |
 | `world`            | `POST`/`PATCH`/`DELETE /world*`                  | a structured action message (§7.2) |
+| `experience-register` | `POST /experiences`                           | the challenge `message` |
+| `experience-manage`   | `PATCH`/`DELETE /experiences/{id}`            | the challenge `message` |
 
 A challenge issued for one purpose **MUST NOT** satisfy a route expecting another
 purpose. This prevents a signature captured from one flow from being replayed
@@ -297,7 +299,115 @@ and lock state before the nonce is consumed.
 
 ---
 
-## 8. Event schema
+## 8. Experience hosting
+
+An **experience** is a self-hosted world — web, Unreal, Unity, Godot, Minecraft,
+VR, or a custom runtime — that a verified owner attaches to their block or parcel.
+Nexus is the **internet layer** for these worlds: it registers them, makes them
+discoverable, probes their health, and inherits them under the constitution
+(§8.5). Nexus **MUST NOT** host, proxy, or relay the experience itself — the entry
+and health URLs point at infrastructure the owner runs.
+
+Experiences are the first-class successor to the legacy `vps/link` primitive
+(§8.6). Unlike that primitive, an experience carries a typed manifest, is exposed
+in discovery, and has server-verified — not owner-attested — health.
+
+### 8.1 Manifest
+
+A registration body carries the wallet/`signature`/`challenge` (§8.3) plus the
+manifest:
+
+```jsonc
+{
+  "blockHeight":   840000,              // REQUIRED
+  "parcelIndex":   3,                    // OPTIONAL; omit for block-level
+  "name":          "Pixel Plaza",        // REQUIRED, 1..64
+  "description":   "A cozy hangout",      // OPTIONAL, ..512
+  "experienceType":"web",                // web|unreal|unity|godot|minecraft|vr|custom
+  "entryUrl":      "https://plaza.example.com",  // REQUIRED, https|wss only
+  "transport":     "https",              // https|wss|webrtc|custom
+  "healthUrl":     "https://plaza.example.com/health", // OPTIONAL; defaults to entryUrl
+  "clientRequirements": { "platform": "web", "minVersion": "1.0", "downloadUrl": "https://…" },
+  "capabilities":  ["voice", "avatars"], // OPTIONAL, <=16 items
+  "contentRating": "everyone",           // everyone|teen|mature
+  "version":       "1.0.0"               // REQUIRED, semver-ish
+}
+```
+
+The server adds and owns: `id`, `walletAddress`, `status`
+(`live`|`degraded`|`unreachable`|`pending`), `lastProbedAt`, `probeLatencyMs`,
+`soulJudged`, and timestamps. Clients **MUST NOT** set these.
+
+**URL safety (SSRF).** `entryUrl`, `healthUrl`, and `clientRequirements.downloadUrl`
+**MUST** be `https://` or `wss://`. The server **MUST** reject `http://`, embedded
+credentials, `localhost`/`*.local`, and any host that is — or resolves to — a
+loopback, private, link-local, CGNAT, or otherwise non-public address (§8.4).
+
+### 8.2 Endpoints
+
+| Method & path | Auth | Description |
+|---|---|---|
+| `POST /api/v1/experiences` | owner signature (§8.3) | Register. Brain-judged (§8.5) and probed on accept. |
+| `GET /api/v1/experiences?blockHeight=&type=&status=` | public | Paginated discovery. |
+| `GET /api/v1/experiences/{id}` | public | Fetch one; stale reads trigger async re-probe (§8.4). |
+| `PATCH /api/v1/experiences/{id}` | owner signature | Partial manifest update; re-judged + re-probed. |
+| `DELETE /api/v1/experiences/{id}` | owner signature | Terminal removal. |
+| `POST /api/v1/experiences/{id}/probe` | public, rate-limited | On-demand health probe (1/min per experience). |
+
+`blockHeight` and `parcelIndex` are immutable after registration and are ignored
+in a `PATCH` body.
+
+### 8.3 Ownership gate
+
+Every mutating route (`POST`/`PATCH`/`DELETE`) uses the **same fail-closed path as
+agent registration** (§5.1): a BIP-322 signature over a single-use, purpose-bound
+server challenge (`experience-register` or `experience-manage`), followed by a
+**live on-chain ownership re-verify** (§4.2). A definitive on-chain mismatch is
+denied with `403` even if a stale DB snapshot still shows the caller as owner;
+only an indeterminate live result (no inscription linked / indexer outage) falls
+back to the snapshot. The gate **MUST NOT** fail open on a mismatch. On block
+transfer, experiences are released with the rest of the seller's attachments
+(§4.3).
+
+### 8.4 Health probe semantics
+
+The server probes `healthUrl` (defaulting to `entryUrl`; a `wss://` target is
+probed over `https://` on the same authority) with a server-side `GET`/`HEAD`:
+
+- **Timeout** is 5s. Redirects are followed manually, at most 3 hops, and every
+  hop is re-validated for scheme and address safety — a redirect that downgrades
+  to `http://` or points into a private range **MUST** abort the probe.
+- **Status mapping:** reachable in `< 2s` ⇒ `live`; reachable in `2–5s`, or an
+  HTTP `5xx`, ⇒ `degraded`; timeout, DNS/connection failure, or an SSRF-blocked
+  target ⇒ `unreachable`.
+- **When probed:** on register, on `PATCH`, on-demand via the probe route
+  (rate-limited to 1/min per experience), and lazily on read when the last probe
+  is older than 15 minutes (an async refresh; the current read returns the
+  existing snapshot).
+
+### 8.5 Constitution inheritance
+
+Experiences live under the same constitution as all Nexus content. On register and
+on any text change, the Nexus Brain judges the manifest's human-readable text
+(`name`, `description`) against the five immutable moral rules. A clear violation
+is a hard **`422`** and records a Brain `ContentFlag`; the experience is **not**
+created (or updated). `soulJudged` records that the gate ran. The Brain's regex
+detection is deterministic and functions even in DEGRADED mode; the inscription
+supplies the rule text. As elsewhere, the Brain does not censor beyond this
+publication gate — ongoing visibility remains subject to community flags.
+
+### 8.6 VPSLink deprecation
+
+The legacy `POST /api/v1/vps/link` primitive and its `VPSLink` model are
+**DEPRECATED** in favor of experiences and retained only for back-compat. A
+`VPSLink { serverUrl, connectionType }` maps to an experience as
+`{ entryUrl: serverUrl, transport: connectionType==='websocket' ? 'wss' : connectionType, experienceType: 'custom' }`,
+gaining a typed manifest, discovery, server-verified health, and constitution
+inheritance. New integrations **SHOULD** use experiences.
+
+---
+
+## 9. Event schema
 
 Runtime events delivered on the private stream have the shape:
 
@@ -317,7 +427,7 @@ sanitized and length-bounded. The stream is private (§5.4).
 
 ---
 
-## 9. Rate limits and quotas
+## 10. Rate limits and quotas
 
 - Challenge issuance: ~30 requests/minute per client IP.
 - Token rotate/revoke: ~20 requests/minute per client IP.
@@ -326,6 +436,7 @@ sanitized and length-bounded. The stream is private (§5.4).
 - Events: ~120 requests/minute per agent.
 - Registration: one per wallet per 24 hours.
 - Active agents per block: Tier 1 = 10, Tier 2 = 3, Tier 3 = 1.
+- Experience health probe: one per experience per minute (on-demand route).
 
 Challenge issuance and token rotate/revoke are guarded by a **durable,
 cross-instance** fixed-window limiter (a single atomic `INSERT … ON CONFLICT`
@@ -340,7 +451,7 @@ not the rate limiter — is the primary access control for the runtime routes.
 
 ---
 
-## 10. Threat model summary
+## 11. Threat model summary
 
 | Threat | Mitigation |
 |--------|------------|
@@ -352,6 +463,8 @@ not the rate limiter — is the primary access control for the runtime routes.
 | Inherited agents / secrets after **transfer** | Atomic blank-slate release wipes agents, guardian secrets, and detaches identity before flipping ownership. |
 | Parcel **first-writer takeover** / replay | Block-ownership required to initialize; single-use challenge + field-hash binding on customize. |
 | World write **replay / re-pointing** | Action-bound message (method, path, block, body hash, nonce, expiry). |
+| **SSRF** via experience entry/health/download URLs | Scheme restricted to `https`/`wss`; literal + DNS-resolved private/loopback/link-local ranges rejected; probe redirects re-validated per hop; 5s bounded probe. |
+| Former owner keeping a hosted **experience** on sold land | Experiences released in the atomic blank-slate transfer alongside agents and VPS links. |
 | Token **timing** side-channel | Constant-time comparison of SHA-256 token hashes. |
 | **Flooding / DoS** of challenge issuance or token rotate/revoke | Durable cross-instance fixed-window limiter (atomic Postgres upsert counter) returns `429` + `Retry-After`; fails open only on limiter-infra error. |
 | **Key exposure** | The server never holds private keys; API tokens are stored only as hashes and shown in plaintext exactly once. |
@@ -359,7 +472,7 @@ not the rate limiter — is the primary access control for the runtime routes.
 
 ---
 
-## 11. Versioning
+## 12. Versioning
 
 This is Nexus Protocol v1.0. Additive, backward-compatible changes (new optional
 fields, new event types, new endpoints) increment the minor version. Any change
