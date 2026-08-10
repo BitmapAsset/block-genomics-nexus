@@ -1,6 +1,7 @@
 {
   "name": "block-genomics-api",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "description": "Block Genomics API Server - Bitcoin-native genome generation",
   "main": "dist/index.js",
@@ -8,7 +9,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "echo '[block-genomics] this package is a deploy target, not an npm package. Refusing to publish.' && exit 1"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",

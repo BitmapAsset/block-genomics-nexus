@@ -1,6 +1,7 @@
 {
   "name": "@block-genomics/og-images",
   "version": "1.0.0",
+  "private": true,
   "description": "Dynamic OG image generation for Block Genomics social sharing",
   "type": "module",
   "scripts": {
@@ -8,7 +9,8 @@
     "generate:block": "tsx generate-og.ts --type block --height 500000",
     "generate:agent": "tsx generate-og.ts --type agent --id satoshi_spirit",
     "build": "tsc",
-    "preview": "open output/"
+    "preview": "open output/",
+    "prepublishOnly": "echo '[block-genomics] this package is a deploy target, not an npm package. Refusing to publish.' && exit 1"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.0",
