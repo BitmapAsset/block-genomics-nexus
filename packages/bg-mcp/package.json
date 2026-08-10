@@ -1,7 +1,7 @@
 {
   "name": "block-genomics-mcp",
-  "version": "0.1.1",
-  "mcpName": "io.github.bitmapasset/block-genomics-mcp",
+  "version": "0.1.2",
+  "mcpName": "io.github.BitmapAsset/block-genomics-mcp",
   "description": "MCP server for Block Genomics (Nexus Protocol). Gives any MCP-capable AI agent live access to verified Bitcoin blocks, on-chain ownership, agent directories, guardians, badges, and experiences — plus the authenticated agent runtime (heartbeat / brief / events) when an agent token is supplied.",
   "type": "module",
   "bin": {
