@@ -1,11 +1,14 @@
 {
-  "name": "block-genomics",
-  "version": "0.1.0",
+  "name": "@block-genomics/monorepo-root",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
+  "description": "Monorepo root for the Block Genomics Nexus tree. This package is intentionally not publishable — the shippable packages live under cli/, packages/, sdk/, and app/.",
+  "files": [],
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "echo '\\n[block-genomics] refusing to publish the monorepo root. Publish the individual package under cli/, packages/*, or sdk/* instead.\\n' && exit 1"
   },
   "devDependencies": {
     "vitest": "^3.0.0",
