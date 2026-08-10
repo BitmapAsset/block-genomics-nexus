@@ -17,6 +17,9 @@
     "build": "rm -rf dist && tsc -p tsconfig.json && chmod +x dist/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "node dist/index.js",
+    "test": "npm run build && vitest run",
+    "test:watch": "vitest",
+    "test:live": "BG_LIVE_SMOKE=1 npm test",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -51,7 +54,9 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
-    "typescript": "^5.4.3"
+    "ajv": "^8.17.1",
+    "typescript": "^5.4.3",
+    "vitest": "^3.2.7"
   },
   "overrides": {
     "@hono/node-server": "^2.0.5"
