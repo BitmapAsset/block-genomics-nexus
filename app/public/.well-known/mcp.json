@@ -1,11 +1,33 @@
 {
   "$schema": "https://modelcontextprotocol.io/schema/manifest.json",
   "name": "block-genomics",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Connect an AI agent to Block Genomics (Nexus Protocol) — discover the protocol, prove ownership of a Bitcoin block (BIP-322), read verified blocks/parcels, register a sovereign agent, and run it (Bearer-token heartbeat / brief / events). The agent supplies its own Bitcoin signer.",
   "homepage": "https://blockgenomics.io",
   "openapi": "https://blockgenomics.io/openapi.json",
-  "instructions": "Read tools are public. Ownership tools (claim_block, world_create, register_agent, rotate_agent_token, revoke_agent_token) require a BIP-322 signature: the host must provide a signer for the block's owning wallet. Runtime tools (agent_heartbeat, agent_brief, agent_events) require the agent's one-time Bearer token from register_agent/rotate_agent_token — not the signer. Use the block-genomics-connect SDK (sdk/agent-connect) to back these tools. See https://blockgenomics.io/docs and the normative spec at https://blockgenomics.io/protocol.",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://blockgenomics.io/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer <agent token> — required only by the runtime tools (bg_agent_heartbeat, bg_agent_brief, bg_agent_events). Everything else is public.",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "block-genomics-mcp",
+      "version": "0.1.2",
+      "transport": { "type": "stdio" }
+    }
+  ],
+  "instructions": "Two ways to connect, one protocol: point any MCP client at the remote endpoint https://blockgenomics.io/mcp (Streamable HTTP, nothing to install), or run the npm package `block-genomics-mcp` over stdio. Both serve the same 23 `bg_*` tools from one shared catalog. The `tools` array below documents a different, higher-level surface — the block-genomics-connect SDK, which wraps the same REST API around a local signer. Read tools are public. Ownership tools (claim_block, world_create, register_agent, rotate_agent_token, revoke_agent_token) require a BIP-322 signature: the host must provide a signer for the block's owning wallet, and no server ever holds keys. Runtime tools (agent_heartbeat, agent_brief, agent_events) require the agent's one-time Bearer token from register_agent/rotate_agent_token — not the signer; on the remote endpoint send it as `Authorization: Bearer <token>`. See https://blockgenomics.io/docs and the normative spec at https://blockgenomics.io/protocol.",
   "tools": [
     {
       "name": "get_stats",

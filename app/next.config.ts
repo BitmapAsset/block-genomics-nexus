@@ -128,6 +128,19 @@ const nextConfig: NextConfig = {
         },
       ],
     },
+    {
+      // Remote MCP endpoint. Ordered after the blanket rules so its Cache-Control
+      // wins: the `/:path*` s-maxage above would otherwise let the CDN replay one
+      // client's tool output — including token-authorized output — to the next
+      // caller.
+      source: "/mcp",
+      headers: [
+        {
+          key: "Cache-Control",
+          value: "no-store",
+        },
+      ],
+    },
   ],
 };
 

@@ -1,11 +1,14 @@
-import { z } from "zod";
-import { call, AGENT_TOKEN, WRITES_ENABLED, type Query } from "./client.js";
+/**
+ * Tool catalog for the remote MCP endpoint.
+ *
+ * Everything between the SHARED TOOL CATALOG markers below is a verbatim mirror
+ * of packages/bg-mcp/src/tools.ts — that file is canonical, this one is the
+ * copy. Edit there, paste here. __tests__/lib/mcp-catalog-parity.test.ts fails
+ * on any byte of drift.
+ */
 
-/** Issues one request against the Block Genomics API and returns the raw body. */
-export type CallFn = (
-  path: string,
-  opts?: { method?: string; query?: Query; body?: unknown; auth?: boolean },
-) => Promise<string>;
+import { z } from 'zod';
+import type { CallFn, Query } from './client';
 
 export type Tool = {
   name: string;
@@ -276,9 +279,3 @@ export function buildToolCatalog(call: CallFn): {
   return { publicTools, agentTools, writeTools };
 }
 // ===== END SHARED TOOL CATALOG =====
-
-const { publicTools, agentTools, writeTools } = buildToolCatalog(call);
-
-export function activeTools(): Tool[] {
-  return [...publicTools, ...(AGENT_TOKEN ? agentTools : []), ...(WRITES_ENABLED ? writeTools : [])];
-}
