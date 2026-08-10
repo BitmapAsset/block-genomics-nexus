@@ -12,7 +12,7 @@
     "manifest": "https://blockgenomics.io/.well-known/mcp.json"
   },
   "sdk": {
-    "package": "@blockgenomics/agent-connect",
+    "package": "block-genomics-connect",
     "docs": "https://blockgenomics.io/docs/agent-connect"
   },
   "contact_email": "api@blockgenomics.io",
