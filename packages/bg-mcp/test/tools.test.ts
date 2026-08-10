@@ -58,6 +58,10 @@ describe("tool surface", () => {
     expect(optional(byName(tools, "bg_agent_briefs"), "limit")).toBe(true);
     expect(optional(byName(tools, "bg_agent_briefs"), "agentId")).toBe(false);
     expect(optional(byName(tools, "bg_search"), "q")).toBe(false);
+    expect(optional(byName(tools, "bg_search"), "limit")).toBe(true);
+    for (const k of ["visitorAddress", "visitorHandle", "conversationId", "signature", "signedMessage"]) {
+      expect(optional(byName(tools, "bg_guardian_chat"), k), `guardian_chat.${k}`).toBe(true);
+    }
   });
 
   it("constrains enum and length-bounded inputs", async () => {
@@ -80,6 +84,33 @@ describe("tool surface", () => {
     expect(height.safeParse(840000).success).toBe(true);
     expect(height.safeParse(840000.5).success).toBe(false);
     expect(height.safeParse("840000").success).toBe(false);
+
+    // bg_search.limit must match the search route: default 8, hard cap 20.
+    const searchLimit = byName(tools, "bg_search").schema.limit as z.ZodTypeAny;
+    expect(searchLimit.safeParse(1).success).toBe(true);
+    expect(searchLimit.safeParse(20).success).toBe(true);
+    expect(searchLimit.safeParse(21).success).toBe(false);
+    expect(searchLimit.safeParse(0).success).toBe(false);
+    expect(searchLimit.safeParse(1.5).success).toBe(false);
+
+    // bg_challenge.purpose must cover every purpose the API actually accepts.
+    const purpose = byName(tools, "bg_challenge").schema.purpose as z.ZodTypeAny;
+    for (const p of [
+      "auth",
+      "world",
+      "agent-register",
+      "agent-manage",
+      "agent-token",
+      "parcel-customize",
+      "experience-register",
+      "experience-manage",
+      "profile",
+    ]) {
+      expect(purpose.safeParse(p).success, `purpose:${p}`).toBe(true);
+    }
+    for (const p of ["", "unknown", "AUTH", "world-build"]) {
+      expect(purpose.safeParse(p).success, `purpose:${p} rejected`).toBe(false);
+    }
   });
 });
 
@@ -97,6 +128,12 @@ interface Case {
 const CASES: Case[] = [
   { tool: "bg_stats", args: {}, path: "/api/v1/stats" },
   { tool: "bg_search", args: { q: "840000" }, path: "/api/v1/search", query: { q: "840000" } },
+  {
+    tool: "bg_search",
+    args: { q: "gravity", limit: 15 },
+    path: "/api/v1/search",
+    query: { q: "gravity", limit: "15" },
+  },
   { tool: "bg_block", args: { height: 840000 }, path: "/api/v1/blocks/840000" },
   {
     tool: "bg_ownership_verify",
@@ -145,6 +182,29 @@ const CASES: Case[] = [
     method: "POST",
     path: "/api/v1/guardian/chat",
     body: { blockHeight: 840000, message: "gm", visitorHandle: "gravity", conversationId: "c1" },
+  },
+  {
+    // Owner-signed guardian chat: visitorAddress + signature + signedMessage are
+    // required for the API to unlock owner-only world actions.
+    tool: "bg_guardian_chat",
+    args: {
+      blockHeight: 840000,
+      message: "build a fountain at origin",
+      visitorAddress: "bc1powner",
+      visitorHandle: "gravity",
+      signature: "SIG",
+      signedMessage: "Block Genomics verification: abc123",
+    },
+    method: "POST",
+    path: "/api/v1/guardian/chat",
+    body: {
+      blockHeight: 840000,
+      message: "build a fountain at origin",
+      visitorAddress: "bc1powner",
+      visitorHandle: "gravity",
+      signature: "SIG",
+      signedMessage: "Block Genomics verification: abc123",
+    },
   },
   {
     tool: "bg_challenge",

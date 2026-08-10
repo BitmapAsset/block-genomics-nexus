@@ -132,6 +132,17 @@ describe("response handling", () => {
     });
   }
 
+  it("omits the empty statusText on HTTP/2 responses so the error stays clean", async () => {
+    // HTTP/2 drops the reason phrase, so `res.statusText` is "". The error
+    // string must not carry a double-space between the status code and the em
+    // dash — "404 — body", not "404  — body".
+    const { call } = await loadTools();
+    fetchMock(() => ({ status: 404, statusText: "", body: { error: "gone" } }));
+    await expect(call("/api/v1/stats")).rejects.toThrow(
+      new RegExp(`^404 — \\{"error":"gone"\\}$`),
+    );
+  });
+
   it("truncates long error bodies to 600 characters", async () => {
     const { call } = await loadTools();
     fetchMock(() => ({ status: 500, statusText: "Internal Server Error", body: "x".repeat(5000) }));

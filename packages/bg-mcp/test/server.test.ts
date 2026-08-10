@@ -108,12 +108,10 @@ describe("server boot and tool registration", () => {
       const schema = tool.inputSchema as Record<string, any>;
       expect(schema.$schema, tool.name).toBe("http://json-schema.org/draft-07/schema#");
       expect(schema.type, tool.name).toBe("object");
-      expect(schema.additionalProperties, tool.name).not.toBe(true);
-      // zod emits additionalProperties only when the shape declares properties;
-      // the no-arg tools legitimately omit it.
-      if (Object.keys(schema.properties ?? {}).length > 0) {
-        expect(schema.additionalProperties, tool.name).toBe(false);
-      }
+      // Every tool — including the no-arg ones like bg_stats — must lock down
+      // additionalProperties. Otherwise a caller could smuggle undocumented
+      // fields past a permissive empty schema.
+      expect(schema.additionalProperties, tool.name).toBe(false);
       expect(() => ajv.compile(schema), tool.name).not.toThrow();
     }
   });

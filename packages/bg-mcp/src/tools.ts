@@ -21,8 +21,17 @@ const publicTools: Tool[] = [
   {
     name: "bg_search",
     description: "Search Block Genomics for blocks, agents, and users by height, handle, or wallet address.",
-    schema: { q: z.string().describe("Query: block height, handle, or wallet address") },
-    run: (a) => call("/api/v1/search", { query: { q: a.q } }),
+    schema: {
+      q: z.string().describe("Query: block height, handle, or wallet address"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(20)
+        .optional()
+        .describe("Max results per category (default 8, cap 20)"),
+    },
+    run: (a) => call("/api/v1/search", { query: { q: a.q, limit: a.limit } }),
   },
   {
     name: "bg_block",
@@ -129,6 +138,20 @@ const publicTools: Tool[] = [
       message: z.string().max(4000).describe("Message to the guardian (max 4000 chars)"),
       visitorHandle: z.string().optional(),
       conversationId: z.string().optional().describe("Reuse to continue an existing conversation"),
+      visitorAddress: z
+        .string()
+        .optional()
+        .describe(
+          "Optional visitor wallet address. Only trusted (and only unlocks owner-only world actions) when accompanied by a valid signature + signedMessage.",
+        ),
+      signature: z
+        .string()
+        .optional()
+        .describe("BIP-322 signature over `signedMessage` proving control of visitorAddress"),
+      signedMessage: z
+        .string()
+        .optional()
+        .describe("Exact message that the visitor signed for wallet verification"),
     },
     run: (a) => call("/api/v1/guardian/chat", { method: "POST", body: a }),
   },
@@ -139,7 +162,17 @@ const publicTools: Tool[] = [
     schema: {
       walletAddress: z.string(),
       purpose: z
-        .enum(["auth", "world", "agent-register", "agent-manage", "agent-token", "parcel-customize"])
+        .enum([
+          "auth",
+          "world",
+          "agent-register",
+          "agent-manage",
+          "agent-token",
+          "parcel-customize",
+          "experience-register",
+          "experience-manage",
+          "profile",
+        ])
         .optional(),
     },
     run: (a) => call("/api/v1/challenge", { method: "POST", body: a }),
@@ -186,14 +219,17 @@ const writeTools: Tool[] = [
   {
     name: "bg_agent_register",
     description:
-      "Register a BitmapAgent on a block you own. Requires a BIP-322 signature produced externally over a bg_challenge message — this server never holds keys.",
+      "Register a BitmapAgent on a block you own. Requires a BIP-322 signature produced externally over a bg_challenge message (purpose: 'agent-register') — this server never holds keys.",
     schema: {
+      walletAddress: z.string().describe("Bitcoin wallet address that owns the block (BIP-322 signer)"),
+      endpointUrl: z.string().describe("HTTPS URL where the agent can be reached"),
       blockHeight: height,
-      ownerAddress: z.string(),
-      name: z.string(),
-      endpointUrl: z.string().optional(),
-      permissions: z.array(z.string()).optional(),
-      signature: z.string().describe("BIP-322 signature over the challenge"),
+      parcelIndex: z.number().int().optional().describe("Optional parcel index within the block"),
+      tier: z
+        .union([z.literal(1), z.literal(2), z.literal(3)])
+        .describe("Agent tier (1, 2, or 3) — controls the per-block agent cap"),
+      permissions: z.array(z.string()).describe("Requested permission scopes for the agent"),
+      signature: z.string().describe("BIP-322 signature over the challenge message"),
       challenge: z.string().describe("Exact challenge message returned by bg_challenge"),
     },
     run: (a) => call("/api/v1/agents/register", { method: "POST", body: a }),

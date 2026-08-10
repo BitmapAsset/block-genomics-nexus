@@ -30,6 +30,11 @@ export async function call(
   });
 
   const text = await res.text();
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${text.slice(0, 600)}`);
+  if (!res.ok) {
+    // res.statusText is empty on HTTP/2 (spec drops the reason phrase). Compose
+    // the status label so the error string stays clean instead of "404  — body".
+    const status = res.statusText ? `${res.status} ${res.statusText}` : `${res.status}`;
+    throw new Error(`${status} — ${text.slice(0, 600)}`);
+  }
   return text;
 }
