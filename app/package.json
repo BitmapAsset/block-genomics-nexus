@@ -2,6 +2,7 @@
   "name": "block-genomics",
   "version": "21.0.0",
   "private": true,
+  "license": "BUSL-1.1",
   "scripts": {
     "dev": "next dev --turbopack",
     "prebuild": "node scripts/sync-protocol.mjs",

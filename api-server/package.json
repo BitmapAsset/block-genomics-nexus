@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Block Genomics Verification API — challenge-response BIP-322 signature verification for Bitcoin block ownership",
   "private": true,
+  "license": "BUSL-1.1",
   "type": "module",
   "scripts": {
     "dev": "tsx watch server.ts",

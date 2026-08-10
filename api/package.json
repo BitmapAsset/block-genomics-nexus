@@ -2,6 +2,7 @@
   "name": "block-genomics-api",
   "version": "0.1.0",
   "private": true,
+  "license": "BUSL-1.1",
   "type": "module",
   "description": "Block Genomics API Server - Bitcoin-native genome generation",
   "main": "dist/index.js",
