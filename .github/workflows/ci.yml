@@ -1,0 +1,108 @@
+# CI for the Block Genomics Nexus monorepo.
+#
+# This tree is a set of independent npm packages (no npm workspaces), so each
+# job installs from its own package-lock.json. Every suite below was verified
+# green before this workflow was added; jobs run in parallel and finish in ~2 min.
+#
+# Job names double as branch-protection status checks: sdk, mcp, cli, app, secrets.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sdk:
+    name: sdk
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk/agent-connect
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sdk/agent-connect/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+  mcp:
+    name: mcp
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/bg-mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/bg-mcp/package-lock.json
+      - run: npm ci
+      # `npm test` here is `npm run build && vitest run`, so the build is covered.
+      # The live smoke suite stays skipped: it needs BG_LIVE_SMOKE=1 and a real API.
+      - run: npm test
+
+  cli:
+    name: cli
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: cli/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      # `npm test` is bare `vitest`; call `vitest run` so CI can never enter watch mode.
+      - run: npx vitest run
+
+  app:
+    name: app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      # Jest reaches @prisma/client through src/lib; generate the client explicitly
+      # rather than relying on the install postinstall hook firing.
+      - run: npx prisma generate
+      # Verified to pass with DATABASE_URL unset — the suite never opens a connection.
+      - run: npm test
+
+  secrets:
+    name: secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Free for public repositories — no GITLEAKS_LICENSE required.
+      # Honours the repo-root .gitleaks.toml.
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

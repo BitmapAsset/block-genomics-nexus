@@ -1,0 +1,132 @@
+# Tag-triggered npm publish for the two public packages in this tree:
+#   - block-genomics-connect  (sdk/agent-connect)
+#   - block-genomics-mcp      (packages/bg-mcp)
+#
+# ---------------------------------------------------------------------------
+# ONE-TIME SETUP REQUIRED BEFORE THIS WORKFLOW CAN PUBLISH
+# ---------------------------------------------------------------------------
+# This uses npm Trusted Publishing (OIDC). There is no NPM_TOKEN anywhere in
+# this repo, and there should never be one. Instead, npmjs.com must be told to
+# trust this exact workflow. Do this once per package:
+#
+#   npmjs.com -> the package -> Settings -> Publishing access
+#     -> "Trusted publisher" -> GitHub Actions, then enter EXACTLY:
+#
+#       Organization or user:  BitmapAsset
+#       Repository:            block-genomics-nexus
+#       Workflow filename:     release.yml
+#       Environment name:      (leave blank)
+#
+# Repeat for both `block-genomics-connect` and `block-genomics-mcp`.
+# Until that is configured, the publish steps will fail with a 404/403 — that
+# failure means "trusted publisher not set up yet", not "bad workflow".
+#
+# Trusted Publishing also requires npm >= 11.5.1, so each publish job upgrades
+# npm before running `npm publish`. Provenance is attested automatically; the
+# explicit --provenance flag keeps the intent visible.
+#
+# ---------------------------------------------------------------------------
+# TAGGING
+# ---------------------------------------------------------------------------
+# Any `v*` tag runs this workflow. Both packages are considered, but a package
+# is skipped when the version in its package.json is already on the registry —
+# so bumping only one package and tagging `v0.3.2` will not fail the other.
+# Bump the package version, commit, then tag.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: sdk tests
+        working-directory: sdk/agent-connect
+        run: npm ci && npm run build && npm test
+      - name: mcp tests
+        working-directory: packages/bg-mcp
+        run: npm ci && npm test
+
+  publish-connect:
+    name: publish block-genomics-connect
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: sdk/agent-connect
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+      - name: Skip if this version is already published
+        id: check
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already on npm — skipping."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build
+        if: steps.check.outputs.publish == 'true'
+        run: npm ci && npm run build
+      - name: Publish
+        if: steps.check.outputs.publish == 'true'
+        run: npm publish --provenance --access public
+
+  publish-mcp:
+    name: publish block-genomics-mcp
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/bg-mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+      - name: Skip if this version is already published
+        id: check
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already on npm — skipping."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build
+        if: steps.check.outputs.publish == 'true'
+        run: npm ci && npm run build
+      - name: Publish
+        if: steps.check.outputs.publish == 'true'
+        run: npm publish --provenance --access public
