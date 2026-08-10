@@ -1,51 +1,78 @@
 # Block Genomics — Nexus Protocol
 
-> Nexus is an open, Bitcoin-anchored metaverse protocol for humans and autonomous
-> AI agents. Identity and land ownership derive from Bitcoin itself (the block's
-> `.bitmap` inscription), proven with BIP-322 signatures — not from any Nexus
-> account. The protocol verifies; it never holds a private key.
+> An open protocol that lets an AI agent prove it owns a Bitcoin block and act under that identity.
+> Ownership derives from Bitcoin itself — the block's `.bitmap` inscription — proven with a BIP-322
+> signature. There are no Nexus accounts and no passwords. The protocol verifies signatures; it never
+> holds a private key. An agent brings its own signer.
 
-Base URL: https://blockgenomics.io
-Protocol version: Nexus Protocol v1.0 (OpenAPI `info.version` 1.3.0).
-Auth model: BIP-322 wallet signatures for ownership actions; per-agent Bearer
-tokens (`Authorization: Bearer bg_agent_<hex>`) for agent runtime routes. Every
-authenticated action binds a single-use, purpose-bound, server-issued challenge.
-Responses are JSON envelopes: `{ success, data }` or `{ success: false, error }`.
+Base URL: `https://blockgenomics.io`
+API version: OpenAPI `info.version` 1.4.0 (25 paths). Spec: Nexus Protocol v1.0.
+Responses are JSON envelopes: `{ "success": true, "data": ... }` or `{ "success": false, "error": ... }`.
 
-## Specification & docs
-- [Nexus Protocol v1.0 (normative spec)](https://blockgenomics.io/protocol): RFC-2119 wire contract — identity, challenges, agent tokens, ownership + live re-verify, parcels, world action-binding, experience hosting (self-hosted worlds + SSRF-safe health probes), event schema, rate limits, threat model.
-- [Developer docs](https://blockgenomics.io/docs): quickstarts for humans (CLI) and AI agents (SDK), plus API/CLI/SDK reference with runnable samples.
-- [OpenAPI 3.1 descriptor](https://blockgenomics.io/openapi.json): machine-readable API surface (23 paths).
+Four ways to authenticate, in increasing order of privilege:
+1. **Nothing** — all read endpoints are public.
+2. **Sandbox key** — `POST /api/v1/sandbox/key` issues a read-only key in one call, no wallet
+   required, 100 requests/UTC day. Use this to try the API before you own anything.
+3. **BIP-322 signature** — required for every ownership action. Each one binds a single-use,
+   purpose-scoped, server-issued challenge.
+4. **Agent Bearer token** (`Authorization: Bearer bg_agent_<hex>`) — issued once at registration,
+   used for the agent runtime only (heartbeat / brief / events). It is not a signer and cannot claim
+   ownership of anything.
+
+## Start here (agent quickstart, no wallet needed)
+
+```bash
+# 1. Mint a read-only sandbox key — no wallet, no signup
+curl -s -X POST https://blockgenomics.io/api/v1/sandbox/key \
+  -H 'content-type: application/json' -d '{"label":"my-agent"}'
+
+# 2. Check protocol state
+curl -s https://blockgenomics.io/api/v1/stats
+
+# 3. Ask Bitcoin who owns block 840000
+curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
+```
+
+## Machine-readable descriptors
+- [OpenAPI 3.1 descriptor](https://blockgenomics.io/openapi.json): the full API surface, 25 paths.
 - [MCP manifest](https://blockgenomics.io/.well-known/mcp.json): tool descriptors for Model Context Protocol hosts.
 - [AI-plugin manifest](https://blockgenomics.io/.well-known/ai-plugin.json)
+- [Full agent context](https://blockgenomics.io/llms-full.txt): every endpoint, auth flow, and error case in one file.
+
+## Specification & docs
+- [Nexus Protocol v1.0 — normative spec](https://blockgenomics.io/protocol): RFC-2119 wire contract. Identity, challenges, agent tokens, live on-chain re-verification, parcels, action-binding, experience hosting, event schema, rate limits, threat model.
+- [Developer docs](https://blockgenomics.io/docs): quickstarts for humans (CLI) and agents (SDK), with runnable samples.
+- [Source](https://github.com/BitmapAsset/block-genomics-nexus) (MIT)
 
 ## Packages
-- SDK (npm): `block-genomics-connect` — zero-dependency, isomorphic TypeScript client (Node ≥18, Deno, Bun, Workers, browser). https://www.npmjs.com/package/block-genomics-connect
-- CLI (npm): `block-genomics` — `npx block-genomics --help`. https://www.npmjs.com/package/block-genomics
-- Reference agent (open source): https://github.com/BitmapAsset/block-genomics-nexus/tree/main/examples/reference-agent
-- Source: https://github.com/BitmapAsset/block-genomics-nexus
+- MCP server: `npx block-genomics-mcp` — 23 tools, stdio transport. Read tools need no key. https://www.npmjs.com/package/block-genomics-mcp
+- SDK: `npm i block-genomics-connect` — dependency-light isomorphic TypeScript client (Node ≥18, Deno, Bun, Workers, browser), pluggable BIP-322 signer. https://www.npmjs.com/package/block-genomics-connect
+- CLI: `npx block-genomics --help` — https://www.npmjs.com/package/block-genomics
 
-## Key endpoints
-- POST /api/v1/challenge — request a single-use challenge. Body `{ walletAddress, purpose }`; purposes: `auth`, `agent-register`, `agent-manage`, `agent-token`, `parcel-customize`, `world`, `experience-register`, `experience-manage`.
-- POST /api/v1/auth/verify — claim a block as your identity (BIP-322 over the challenge message).
-- GET /api/v1/stats — protocol-wide counts.
-- GET /api/v1/ownership/verify?blockHeight=H — authoritative on-chain ownership.
-- GET /api/v1/blocks/{height} — registered block record.
-- GET /api/v1/world?blockHeight=H — visible world objects + terrain.
-- POST /api/v1/agents/register — register a sovereign agent (BIP-322, live on-chain re-verify). Returns a one-time API token.
-- GET /api/v1/agents/block/{height} — public directory of active agents on a block (no internal id).
-- POST /api/v1/agents/{agentId}/heartbeat — assert liveness (Bearer token).
-- POST /api/v1/agents/{agentId}/brief — file an owner-facing digest (Bearer token).
-- GET /api/v1/agents/{agentId}/events — read the private event stream, most-recent first (Bearer token).
-- POST|DELETE /api/v1/agents/{agentId}/token — rotate/revoke the agent token (owner-wallet `agent-token` challenge).
-- POST /api/v1/experiences — attach a self-hosted experience (web/unreal/unity/godot/minecraft/vr/custom) to a block you own (BIP-322, live on-chain re-verify, Brain-judged, health-probed).
-- GET /api/v1/experiences?blockHeight=H&type=&status= — public, paginated discovery of hosted experiences.
-- GET|PATCH|DELETE /api/v1/experiences/{id} — read (public) / owner-gated update / owner-gated terminal delete.
-- POST /api/v1/experiences/{id}/probe — trigger a server-side health probe (public, 1/min per experience, SSRF-safe).
+## Core endpoints
+- `POST /api/v1/sandbox/key` — mint a read-only key (no wallet). `GET /api/v1/sandbox/whoami` — validate it and read remaining quota.
+- `GET /api/v1/stats` — protocol-wide counts.
+- `GET /api/v1/ownership/verify?blockHeight=H` — authoritative on-chain ownership; compares the stored owner against the live chain.
+- `GET /api/v1/blocks/{height}` — registered block record: owner handle, tier, inscription, parcels.
+- `GET /api/v1/users/by-wallet/{address}` — identity record for a wallet, with its verified blocks.
+- `GET /api/v1/search?q=` — search blocks, agents, users.
+- `POST /api/v1/challenge` — request a single-use nonce. Body `{ walletAddress, purpose }`. Purposes: `auth`, `agent-register`, `agent-manage`, `agent-token`, `world`, `parcel-customize`, `experience-register`, `experience-manage`.
+- `POST /api/v1/auth/verify` — claim a block as your identity (BIP-322 over the challenge message).
+- `POST /api/v1/agents/register` — register a sovereign agent on a block you own. Re-verifies ownership on-chain at call time. Returns a one-time Bearer token.
+- `GET /api/v1/agents/block/{blockHeight}` — public directory of active agents on a block.
+- `POST /api/v1/agents/{agentId}/heartbeat` — assert liveness (Bearer).
+- `POST /api/v1/agents/{agentId}/brief` — file an owner-facing digest (Bearer). `GET .../briefs` to list.
+- `GET /api/v1/agents/{agentId}/events` — read the agent's private event stream (Bearer).
+- `POST|DELETE /api/v1/agents/{agentId}/token` — rotate / revoke the agent token (owner wallet, `agent-token` challenge).
+- `GET|POST /api/v1/world` — read a block's world objects and terrain / create one on a block you own.
+- `GET|POST /api/v1/experiences` — discover hosted experiences / attach a self-hosted one (web, unreal, unity, godot, minecraft, vr, custom) to a block you own.
 
-## Agent lifecycle (typical)
-1. POST /api/v1/challenge with `purpose: "agent-register"`.
-2. Sign the returned `message` with a BIP-322 signature from the block-owning wallet.
-3. POST /api/v1/agents/register — store the one-time `apiKey` from the 201 response.
-4. Heartbeat (~30s) and long-poll events using `Authorization: Bearer <apiKey>`.
-5. Rotate or revoke the token any time with the owner wallet; revoke locks runtime access until re-rotated.
+## Register an agent (the full flow)
+1. `POST /api/v1/challenge` with `{ walletAddress, purpose: "agent-register" }` → returns `message`.
+2. Sign `message` with a BIP-322 signature from the wallet that owns the block. You do this locally; the key never leaves your machine.
+3. `POST /api/v1/agents/register` with the signature. The server re-checks on-chain ownership, consumes the nonce atomically, and returns `apiKey` **once**. Store it now.
+4. Run: heartbeat roughly every 30s, poll events, write briefs — all with `Authorization: Bearer <apiKey>`.
+5. Rotate or revoke any time with the owner wallet. Revoking locks the runtime until you rotate again.
+
+Replaying a consumed nonce returns 401. Ownership is re-verified against the chain at registration
+time, so a transferred block does not leave a stale agent with authority.
