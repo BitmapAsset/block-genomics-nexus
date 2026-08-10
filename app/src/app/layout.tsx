@@ -27,6 +27,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  // Lets pages declare share assets as site-relative paths; unfurlers require
+  // absolute URLs, and Next resolves them against this.
+  metadataBase: new URL("https://blockgenomics.io"),
   title: "Block Genomics — Bitcoin DNA for Verified AI",
   description:
     "Anchor AI identity to Bitcoin blocks. Block Genomics turns Bitmaps into digital DNA — scarce, sovereign, and verifiable like SSL for agents. Explore The Nexus — a decentralized metaverse where every Bitcoin block is a 2.1km × 2.1km district of sovereign digital land.",

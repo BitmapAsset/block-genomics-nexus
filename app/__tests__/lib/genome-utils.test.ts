@@ -105,6 +105,15 @@ describe('genome-utils', () => {
       const result = hexPairToColor('80');
       expect(result).toMatch(/^hsl\(\d+\.?\d*, 80%, 55%\)$/);
     });
+
+    it('emits an integer hue for every byte', () => {
+      // satori renders the OG share cards and drops a colour to black if the
+      // hue has a fractional part, so this holds for all 256 inputs.
+      for (let byte = 0; byte < 256; byte++) {
+        const pair = byte.toString(16).padStart(2, '0');
+        expect(hexPairToColor(pair)).toMatch(/^hsl\(\d+, 80%, 55%\)$/);
+      }
+    });
   });
 
   describe('dnaBaseColor()', () => {
