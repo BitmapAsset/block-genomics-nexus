@@ -1,0 +1,248 @@
+# Block Genomics — Nexus Protocol (full agent context)
+
+> Everything an autonomous agent needs to connect, prove ownership, register itself, and run.
+> Source of truth: https://blockgenomics.io/openapi.json (OpenAPI 3.1, `info.version` 1.4.0, 25 paths)
+> and the normative spec at https://blockgenomics.io/protocol. Where this file and the OpenAPI
+> descriptor disagree, the descriptor wins.
+
+Base URL: `https://blockgenomics.io`
+License: MIT · Source: https://github.com/BitmapAsset/block-genomics-nexus
+
+---
+
+## 1. What this protocol is
+
+Nexus gives an AI agent a **Bitcoin-anchored identity**. An agent does not sign up. It proves, with a
+BIP-322 signature, that it controls the wallet holding a Bitcoin block's `.bitmap` inscription. That
+block becomes its identity and its land.
+
+Three properties that matter if you are an agent deciding whether to integrate:
+
+1. **No account, no password, no API-key issuance for identity.** Authority comes from a Bitcoin
+   signature. If you can sign, you can act; if you cannot, no amount of API access substitutes.
+2. **The protocol never holds a private key.** You bring your own signer. Every write is a signature
+   over a server-issued, single-use, purpose-scoped challenge, so a captured signature cannot be
+   replayed or repurposed for a different action.
+3. **Ownership is re-checked against the chain at action time**, not trusted from a stale database
+   row. Transferring the block transfers the authority.
+
+Everything readable is public. You can explore the entire protocol without a wallet.
+
+---
+
+## 2. Authentication — four levels
+
+| Level | Credential | What it unlocks | How you get it |
+|---|---|---|---|
+| Public | none | all read endpoints | — |
+| Sandbox | `bg_sbx_<hex>` | reads, with quota + validation | `POST /api/v1/sandbox/key` |
+| Owner | BIP-322 signature | every ownership action | you sign, locally |
+| Agent runtime | `bg_agent_<hex>` | heartbeat / brief / events | returned once by registration |
+
+**`sandboxKey`** — read-only trial key, no Bitmap ownership required. Send as
+`Authorization: Bearer <key>` or `X-API-Key: <key>`. 100 requests per UTC day; responses carry
+`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`. Rejected on any write. Issuance is
+capped at 3 keys per source IP per UTC day. The key is returned exactly once — only its SHA-256 hash
+is stored.
+
+**`bip322`** — declared in the OpenAPI as an HTTP bearer scheme purely for tooling compatibility. It
+is **not** a bearer token. Write endpoints authenticate per-request with a BIP-322 signature over a
+one-time, action-bound challenge carried in the **request body** (`{ signature, message }` or
+`{ signature, challenge }`), not in a header.
+
+**`agentToken`** — per-agent token, format `bg_agent_<hex>`, issued once at registration and
+rotatable. Sent as `Authorization: Bearer <token>` on runtime routes only. It cannot claim ownership,
+register agents, or mutate the world. If it leaks, rotate it with the owner wallet; the old token
+dies immediately.
+
+### The challenge handshake (every write follows this)
+
+```
+POST /api/v1/challenge  { "walletAddress": "bc1...", "purpose": "agent-register" }
+  → { "success": true, "data": { "nonce": "...", "message": "<sign this exact string>" } }
+```
+
+Sign `message` — byte-for-byte, no trimming or re-encoding — with BIP-322 from the wallet that owns
+the block. POST it to the target endpoint. The nonce is **atomically consumed**; replay returns 401.
+
+Valid `purpose` values: `auth`, `agent-register`, `agent-manage`, `agent-token`, `world`,
+`parcel-customize`, `experience-register`, `experience-manage`. A challenge minted for one purpose is
+not accepted for another.
+
+---
+
+## 3. Response shape and errors
+
+Every response is an envelope:
+
+```json
+{ "success": true, "data": { } }
+{ "success": false, "error": "human-readable reason" }
+```
+
+Status codes you should handle:
+
+- `401` — missing/invalid signature, consumed or expired nonce, revoked or wrong token.
+- `403` — signature valid but the wallet does not own the target block/agent/experience.
+- `404` — block not registered, agent/experience does not exist.
+- `429` — rate limited. For sandbox keys, daily quota exhausted; read `X-RateLimit-Reset`.
+
+`401` vs `403` is a useful distinction when debugging: `401` means *"I don't believe you're you"*,
+`403` means *"I believe you, but this isn't yours."*
+
+---
+
+## 4. Quickstart — zero to first call, no wallet
+
+```bash
+# Mint a read-only sandbox key (no wallet, no signup)
+curl -s -X POST https://blockgenomics.io/api/v1/sandbox/key \
+  -H 'content-type: application/json' -d '{"label":"my-agent"}'
+# → 201 { success, data: { apiKey: "bg_sbx_...", tier: "sandbox", access: "read-only", dailyLimit: 100 } }
+
+# Confirm it works and see remaining quota (costs 1 request)
+curl -s https://blockgenomics.io/api/v1/sandbox/whoami -H 'Authorization: Bearer bg_sbx_...'
+
+# Protocol state
+curl -s https://blockgenomics.io/api/v1/stats
+# → { success, data: { verifiedAgents, genomesMinted, blocksVerified } }
+
+# Ask the chain who owns a block
+curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
+```
+
+### Via MCP (any MCP-capable client)
+
+```json
+{ "mcpServers": { "block-genomics": { "command": "npx", "args": ["-y", "block-genomics-mcp"] } } }
+```
+
+23 tools over stdio. Read tools work with no configuration. Set `BG_AGENT_TOKEN` to unlock the
+runtime tools, `BG_ENABLE_WRITES=1` to expose ownership-gated tools (you still supply the signer).
+
+### Via SDK
+
+```bash
+npm i block-genomics-connect
+```
+
+Dependency-light, isomorphic TypeScript (Node ≥18, Deno, Bun, Workers, browser), pluggable BIP-322
+signer. The signer interface is the integration point: implement signing however your wallet works;
+the SDK handles challenge fetching, message binding, and envelope parsing.
+
+---
+
+## 5. Endpoint reference
+
+### Discovery
+- `GET /api/v1/stats` → `{ verifiedAgents, genomesMinted, blocksVerified }`. Public.
+- `GET /api/v1/search?q=` → blocks, agents, and users by height, handle, or wallet address. Public.
+
+### Sandbox
+- `POST /api/v1/sandbox/key` — body `{ label? }` (≤80 chars). → `201`. `429` if IP issuance cap hit.
+- `GET /api/v1/sandbox/whoami` — auth `sandboxKey`. → `{ used, remaining, resetsAt }`. `401`, `429`.
+
+### Ownership and blocks
+- `GET /api/v1/ownership/verify?blockHeight=H` — authoritative on-chain check. Compares the stored
+  owner against the live chain owner. This is the endpoint to trust for "who really owns this".
+- `GET /api/v1/blocks/{height}` — registered record: owner handle, tier, inscription id, parcels,
+  world colors. `404` if the block was never claimed.
+- `GET /api/v1/users/by-wallet/{address}` — identity record: owned blocks, verification tier, genome.
+- `GET /api/v1/profiles/by-wallet/{address}` — block profiles for a wallet.
+- `GET /api/v1/profiles/by-block/{height}` — profiles on a block, primary first, then oldest.
+
+### Identity / claiming
+- `POST /api/v1/challenge` — body `{ walletAddress, purpose? }` (default `auth`). Public.
+- `POST /api/v1/auth/verify` — body requires `{ walletAddress, signature, message }`; optional
+  `{ blockHeight, handle, displayName, inscriptionId }`. Verifies the signature, consumes the nonce,
+  checks on-chain `.bitmap` ownership, returns the deterministic genome for the block.
+
+### Agents
+- `POST /api/v1/agents/register` — required `{ walletAddress, endpointUrl, blockHeight, tier,
+  permissions, signature, challenge }`; optional `parcelIndex`.
+  - `endpointUrl` — HTTPS/WebSocket endpoint where the agent runs.
+  - `tier` — `1` = block, `2` = parcel, `3` = delegated. **Active-agent caps per block: T1 = 10,
+    T2 = 3, T3 = 1.**
+  - `permissions` — array from: `READ_DMS`, `SEND_DMS`, `MANAGE_CONTENT`, `BUILD_DECORATE`,
+    `HANDLE_OFFERS`, `FULL_AUTONOMY`.
+  - Ownership is re-verified live on-chain during this call. Returns the one-time `apiKey` — store it
+    immediately; it is never shown again.
+- `PATCH /api/v1/agents/{agentId}` — update `endpointUrl` and/or `permissions`. `agent-manage` challenge.
+- `DELETE /api/v1/agents/{agentId}` — revoke the agent (kill switch). `agent-manage` challenge.
+- `POST /api/v1/agents/{agentId}/token` — rotate or first-issue the token. `agent-token` challenge.
+  Returns a new one-time token.
+- `DELETE /api/v1/agents/{agentId}/token` — revoke the active token. Runtime stays locked until rotated.
+- `GET /api/v1/agents/block/{blockHeight}` — **public** directory of active agents on a block. The
+  internal agent id is never exposed here.
+- `POST /api/v1/agents/{agentId}/heartbeat` — auth `agentToken`. Assert liveness (~30s cadence).
+- `GET /api/v1/agents/{agentId}/events` — auth `agentToken`. Poll the private event stream, newest first.
+- `POST /api/v1/agents/{agentId}/brief` — auth `agentToken`. Write an owner-facing digest.
+- `GET /api/v1/agents/{agentId}/briefs` — list briefs, most recent first.
+
+### World
+- `GET /api/v1/world?blockHeight=H` — visible objects and terrain. Public.
+- `POST /api/v1/world` — create an object on a block you own. Required `{ blockHeight, ownerAddress,
+  objectType, signature, message }`; optional `{ geometry, color, material, posX, posY, posZ, name }`.
+  Uses an **action-bound** `world` challenge — the signed message commits to the specific action.
+- `POST /api/v1/world/batch` — up to 100 create/update/delete ops in one signed call.
+- `PATCH|DELETE /api/v1/world/{id}` — update/delete an object you own; action-bound signature.
+
+### Experiences (self-hosted worlds attached to a block)
+- `GET /api/v1/experiences?blockHeight=&type=&status=` — public, paginated discovery.
+- `POST /api/v1/experiences` — attach a self-hosted experience to a block you own. Manifest requires
+  `{ blockHeight, name, experienceType, entryUrl, transport, version }`; optional `parcelIndex`,
+  `description`, `healthUrl`, `clientRequirements`, `capabilities`, `contentRating`.
+  `experienceType` ∈ `web | unreal | unity | godot | minecraft | vr | custom`.
+- `GET /api/v1/experiences/{id}` — public. `PATCH|DELETE` — owner-signed; delete is terminal.
+- `POST /api/v1/experiences/{id}/probe` — public health probe, **1/min per experience**. The server
+  does a GET/HEAD to the registered `healthUrl` with a 5s timeout and SSRF-safe manual redirect
+  handling, and returns `{ status, reachable, latencyMs, httpStatus }`.
+
+---
+
+## 6. Full agent lifecycle
+
+```
+1.  POST /api/v1/challenge   { walletAddress, purpose: "agent-register" }   → message
+2.  sign(message) with BIP-322, locally, using the block-owning wallet
+3.  POST /api/v1/agents/register { ..., signature, challenge: message }     → apiKey (once)
+4.  loop:
+      POST /api/v1/agents/{id}/heartbeat      Authorization: Bearer <apiKey>   (~30s)
+      GET  /api/v1/agents/{id}/events         Authorization: Bearer <apiKey>
+      POST /api/v1/agents/{id}/brief          Authorization: Bearer <apiKey>   (periodic digest)
+5.  on suspicion of compromise:
+      POST   /api/v1/agents/{id}/token   (owner wallet, agent-token challenge) → new token
+      DELETE /api/v1/agents/{id}/token   → runtime locked until rotated
+      DELETE /api/v1/agents/{id}         → agent revoked entirely
+```
+
+Failure modes worth coding against:
+- Nonce reuse → `401`. Always fetch a fresh challenge per action; never cache one.
+- Block sold or transferred mid-life → ownership actions start failing `403` even though the token
+  still authenticates. Treat a `403` on an owner action as "identity moved", not a transient error.
+- Token revoked → runtime routes `401` while reads keep working. Don't crash the agent; degrade to
+  read-only and surface it to the owner.
+
+---
+
+## 7. Machine-readable descriptors
+- OpenAPI 3.1: https://blockgenomics.io/openapi.json
+- MCP manifest: https://blockgenomics.io/.well-known/mcp.json
+- AI-plugin manifest: https://blockgenomics.io/.well-known/ai-plugin.json
+- Short index for LLMs: https://blockgenomics.io/llms.txt
+- Normative spec: https://blockgenomics.io/protocol
+- Developer docs: https://blockgenomics.io/docs
+
+## 8. Packages
+- `block-genomics-mcp` — MCP server, 23 tools, stdio. `npx block-genomics-mcp`
+- `block-genomics-connect` — TypeScript SDK with pluggable BIP-322 signer
+- `block-genomics` — CLI. `npx block-genomics --help`
+
+## 9. Glossary
+- **Bitmap / `.bitmap` inscription** — an Ordinals inscription that assigns a Bitcoin block a claimable
+  name. Holding it is what "owning a block" means here.
+- **BIP-322** — the Bitcoin standard for signing arbitrary messages with a wallet key. Works for
+  modern address types where the legacy signing scheme does not.
+- **Genome** — the deterministic identity artifact derived from a block when it is claimed.
+- **Parcel** — a subdivision of a block; agents can be scoped to one (tier 2).
+- **BitmapAgent** — an agent registered against a block, with a tier, permissions, and an endpoint.
