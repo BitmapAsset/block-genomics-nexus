@@ -29,6 +29,7 @@ const ParcelView = dynamic(() => import('./ParcelView'), {
 });
 import { getLandmark } from './NexusLandmarks';
 import { useNexusSocial, type Visitor } from './NexusSocial';
+import { applyBlockParam } from '@/lib/blockDeepLink';
 
 export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -160,6 +161,17 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
   useEffect(() => {
     engineRef.current?.setVisitors(visitors);
   }, [visitors]);
+
+  // Mirror the current block into the URL so the address bar is always a
+  // shareable deep link. replaceState (not push) keeps Back exiting the map
+  // instead of walking every block the user clicked through.
+  useEffect(() => {
+    const height = enteredBlock ?? selectedBlock;
+    const search = applyBlockParam(window.location.search, height);
+    if (search !== window.location.search) {
+      window.history.replaceState(null, '', window.location.pathname + search);
+    }
+  }, [selectedBlock, enteredBlock]);
 
   const handleSearch = useCallback((height: number) => {
     // If block is beyond the map grid, navigate directly to the block viewer

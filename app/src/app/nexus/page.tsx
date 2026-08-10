@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
+import { parseBlockParam } from "@/lib/blockDeepLink";
 
 const NexusMap = dynamic(() => import("@/components/nexus/NexusMap"), {
   ssr: false,
@@ -26,8 +27,7 @@ const SESSION_KEY = "nexus_entered";
 
 function NexusContent() {
   const searchParams = useSearchParams();
-  const blockParam = searchParams.get('block');
-  const initialBlock = blockParam ? parseInt(blockParam, 10) : undefined;
+  const initialBlock = parseBlockParam(searchParams.get('block'));
 
   // Show warp intro once per session
   const [showWarp, setShowWarp] = useState(false);
@@ -72,7 +72,7 @@ function NexusContent() {
             fallbackHref="/explore"
             fallbackLinkText="Explore blocks instead"
           >
-            <NexusMap initialBlock={isNaN(initialBlock as number) ? undefined : initialBlock} />
+            <NexusMap initialBlock={initialBlock} />
           </WebGLErrorBoundary>
         )}
       </section>
