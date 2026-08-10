@@ -4,6 +4,18 @@ All notable changes to `block-genomics-connect` are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] — 2026-08-09
+
+### Fixed
+
+- Refreshed the bundled `openapi.json` from 1.2.1 to 1.4.0 so it matches the
+  spec served at `https://blockgenomics.io/openapi.json`. The bundle had drifted
+  since 0.2.0 and was missing the sandbox tier, experience hosting, world batch
+  writes, and agent brief history surfaces. No client code changes — every
+  endpoint the client already called was present in both versions.
+- Ship a `LICENSE` file in the published tarball. The package has always
+  declared `"license": "MIT"` but the license text itself was never included.
+
 ## [0.3.0] — 2026-07-15
 
 ### Added — experience hosting (Nexus Protocol v1 — Experience Hosting)
