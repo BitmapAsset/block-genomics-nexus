@@ -4,7 +4,9 @@ Thank you for contributing. This repository is security-sensitive because it han
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the same terms as the repository. See [LICENSE](LICENSE).
+This repository is dual-licensed: the Nexus Protocol spec, SDK, MCP server, and CLI are MIT; the Nexus platform is [BUSL 1.1](LICENSE) and converts to Apache 2.0 on 2029-08-10. See [LICENSING.md](LICENSING.md) for the component-by-component breakdown.
+
+By contributing, you agree that your contributions are licensed under the same terms as the component you are contributing to.
 
 ## Local Setup
 

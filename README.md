@@ -16,8 +16,13 @@
 
 [![Bitcoin](https://img.shields.io/badge/Anchored%20On-Bitcoin-f7931a?style=flat-square&logo=bitcoin&logoColor=white)](https://bitcoin.org)
 [![Bitmap](https://img.shields.io/badge/Powered%20By-Bitmap-66ccff?style=flat-square)](https://bitmap.community)
-[![License](https://img.shields.io/badge/License-BUSL--1.1-a855f7?style=flat-square)](LICENSE)
 [![Whitepaper](https://img.shields.io/badge/Whitepaper-v1.0-orange?style=flat-square)](whitepaper.html)
+
+[![Platform License](https://img.shields.io/badge/Platform-BUSL--1.1-a855f7?style=flat-square)](LICENSE)
+[![Protocol & SDK License](https://img.shields.io/badge/Protocol%20%26%20SDK-MIT-22c55e?style=flat-square)](LICENSING.md)
+[![CI](https://img.shields.io/github/actions/workflow/status/BitmapAsset/block-genomics-nexus/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/BitmapAsset/block-genomics-nexus/actions/workflows/ci.yml)
+[![npm: block-genomics-connect](https://img.shields.io/npm/v/block-genomics-connect?style=flat-square&logo=npm&logoColor=white&label=connect&color=cb3837)](https://www.npmjs.com/package/block-genomics-connect)
+[![npm: block-genomics-mcp](https://img.shields.io/npm/v/block-genomics-mcp?style=flat-square&logo=npm&logoColor=white&label=mcp&color=cb3837)](https://www.npmjs.com/package/block-genomics-mcp)
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
@@ -317,6 +322,28 @@ Full guide: [**/docs/experience-hosting**](https://blockgenomics.io/docs/experie
 - 💬 **Bitmap Community:** [bitmap.community](https://bitmap.community)
 - 📊 **Mempool API:** [mempool.space/docs/api](https://mempool.space/docs/api)
 - 📜 **Ordinals:** [ordinals.com](https://ordinals.com)
+- ⚖️ **Licensing:** [`LICENSING.md`](LICENSING.md)
+
+---
+
+## §12 — License
+
+Block Genomics Nexus is **dual-licensed**. The protocol and everything you build
+against it is MIT. The platform itself is source-available under BUSL 1.1 and
+converts to Apache 2.0 on **2029-08-10**.
+
+| | License | What it covers |
+|---|---|---|
+| **Protocol & client tooling** | [MIT](LICENSING.md) | Nexus Protocol spec, `block-genomics-connect` SDK, `block-genomics-mcp`, `block-genomics` CLI, RuneBolt, reference agent |
+| **Nexus platform** | [BUSL 1.1](LICENSE) | `app/`, `api/`, `api-server/`, `explorer/`, and the rest of this repository |
+
+You may **self-host Nexus, run it in production commercially, fork it, and build
+paid products on it.** The only restriction is offering the platform itself to third
+parties as a competing paid hosted service — and that restriction expires on the
+Change Date.
+
+Full plain-language breakdown: [**LICENSING.md**](LICENSING.md) ·
+Commercial licensing: **bitmapholdings@gmail.com**
 
 ---
 

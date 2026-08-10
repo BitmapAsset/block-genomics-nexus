@@ -6,12 +6,18 @@ Thanks for your interest in contributing to Block Genomics — the Bitcoin-nativ
 
 ## License
 
-Block Genomics is licensed under the [Business Source License 1.1](LICENSE).
+This app is the Nexus platform and is licensed under the
+[Business Source License 1.1](LICENSE).
 
-- **Non-production use:** Always permitted
-- **Commercial use:** Restricted until February 15, 2030, then Apache 2.0
+- **Production use:** Permitted, including self-hosting and commercial use
+- **Only restriction:** Offering the platform to third parties as a competing paid hosted service
+- **Change Date:** 2029-08-10, then Apache 2.0
 
-By contributing, you agree that your contributions will be licensed under the same terms.
+The Nexus Protocol spec, SDK, MCP server, and CLI are MIT licensed —
+see [`LICENSING.md`](../LICENSING.md).
+
+By contributing, you agree that your contributions will be licensed under the same
+terms as the component you are contributing to.
 
 ---
 

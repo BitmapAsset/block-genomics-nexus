@@ -119,11 +119,15 @@ Current version: **21.0.0** — tribute to Bitcoin's 21M supply cap.
 
 ## License
 
-[Business Source License 1.1](LICENSE)
+This app is the Nexus platform and is licensed under the
+[Business Source License 1.1](LICENSE).
 
-- **Non-production use:** Always permitted
-- **Commercial use:** Restricted until February 15, 2030
-- **After change date:** Apache License 2.0
+- **Production use:** Permitted, including self-hosting and commercial use
+- **Only restriction:** Offering the platform to third parties as a competing paid hosted service
+- **Change Date:** 2029-08-10, after which it becomes Apache License 2.0
+
+The Nexus Protocol spec, SDK, MCP server, and CLI are MIT licensed.
+See [`LICENSING.md`](../LICENSING.md) for the full breakdown.
 
 ## Authors
 
