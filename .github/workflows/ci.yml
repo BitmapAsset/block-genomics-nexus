@@ -4,7 +4,13 @@
 # job installs from its own package-lock.json. Every suite below was verified
 # green before this workflow was added; jobs run in parallel and finish in ~2 min.
 #
-# Job names double as branch-protection status checks: sdk, mcp, cli, app, secrets.
+# Job names double as branch-protection status checks: sdk, mcp, cli, app, lint,
+# build, secrets.
+#
+# `app` (jest), `lint` (eslint) and `build` (next build) are separate jobs rather
+# than steps of one: they are independent failure modes, and as steps a lint
+# failure would mask whether the app still builds. They run in parallel, so the
+# extra `npm ci` costs setup time, not wall-clock.
 
 name: CI
 
@@ -93,6 +99,45 @@ jobs:
       - run: npx prisma generate
       # Verified to pass with DATABASE_URL unset — the suite never opens a connection.
       - run: npm test
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      # `eslint .`, not `next lint` — the latter is removed in Next 16.
+      # Fails on errors only; the pre-existing warning backlog is not a gate.
+      - run: npm run lint
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      # `npm run build` is `prisma generate && next build`, with a prebuild hook
+      # that regenerates the protocol content. Verified to pass with DATABASE_URL
+      # unset — nothing in the build opens a connection. next.config.ts sets
+      # neither `eslint.ignoreDuringBuilds` nor `typescript.ignoreBuildErrors`,
+      # so this also gates type errors.
+      - run: npm run build
 
   secrets:
     name: secrets

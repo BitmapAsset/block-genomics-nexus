@@ -97,7 +97,7 @@ class MondrianLayout {
             const old = ts.r;
             ts.r = slot.y - ts.y;
             if (ts.r <= 0) this.removeSlot(ts);
-            let rem = { x: ts.x + ts.r, y: ts.y, w: old - ts.r, h: ts.r };
+            const rem = { x: ts.x + ts.r, y: ts.y, w: old - ts.r, h: ts.r };
             while (rem.w > 0 && rem.h > 0) {
               if (rem.w <= rem.h) { this.addSlot({ x: rem.x, y: rem.y, r: rem.w }); rem.y += rem.w; rem.h -= rem.w; }
               else { this.addSlot({ x: rem.x, y: rem.y, r: rem.h }); rem.x += rem.h; rem.w -= rem.h; }
