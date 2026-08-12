@@ -42,14 +42,35 @@ describe('MCP catalog app <-> npm package parity', () => {
 });
 
 describe('tool catalog shape', () => {
-  const call = jest.fn(async () => '{}');
-  const { publicTools, agentTools, writeTools } = buildToolCatalog(call);
-  const all = [...publicTools, ...agentTools, ...writeTools];
+  // Typed so `call.mock.calls[i][1]` is the CallOptions the tool passed, rather
+  // than an empty tuple — these assertions are entirely about those options.
+  type CallOpts = { method?: string; auth?: boolean; query?: unknown; body?: unknown };
+  const call = jest.fn<Promise<string>, [string, CallOpts?]>(async () => '{}');
+  const { publicTools, agentTools, ownerTools, writeTools } = buildToolCatalog(call);
+  const all = [...publicTools, ...agentTools, ...ownerTools, ...writeTools];
 
-  it('splits into 18 public, 3 agent-token and 2 signature tools', () => {
-    expect(publicTools).toHaveLength(18);
+  const ARGS = {
+    height: 1,
+    blockHeight: 1,
+    id: 'x',
+    q: 'x',
+    address: 'x',
+    walletAddress: 'x',
+    message: 'm',
+    handle: 'h',
+    agentId: 'a',
+    period: 'p',
+    summary: 's',
+    stats: {},
+    objectType: 'cube',
+  };
+
+  it('splits into 21 public, 3 agent-token, 4 ownership-gated and 2 signature tools', () => {
+    expect(publicTools).toHaveLength(21);
     expect(agentTools).toHaveLength(3);
+    expect(ownerTools).toHaveLength(4);
     expect(writeTools).toHaveLength(2);
+    expect(all).toHaveLength(30);
   });
 
   it('names every tool uniquely under the bg_ prefix', () => {
@@ -58,16 +79,52 @@ describe('tool catalog shape', () => {
     for (const name of names) expect(name).toMatch(/^bg_[a-z0-9_]+$/);
   });
 
-  it('marks exactly the runtime tools as needing a token', async () => {
-    for (const tool of agentTools) {
+  it('marks every credentialed tool as needing a token, and no public one', async () => {
+    for (const tool of [...agentTools, ...ownerTools]) {
       call.mockClear();
-      await tool.run({ agentId: 'a', period: 'p', summary: 's', stats: {} });
+      await tool.run(ARGS);
       expect(call.mock.calls[0][1]).toMatchObject({ auth: true });
     }
     for (const tool of publicTools) {
       call.mockClear();
-      await tool.run({ height: 1, blockHeight: 1, id: 'x', q: 'x', address: 'x', walletAddress: 'x', message: 'm' });
+      await tool.run(ARGS);
       expect(call.mock.calls[0][1]?.auth).toBeUndefined();
     }
+  });
+
+  // The founder rule in executable form: connecting is not a capability. Every
+  // tool that mutates state must sit behind a credential, so a bare anonymous
+  // connection can read and nothing else.
+  it('leaves no anonymous write path — every mutating tool is credentialed or signed', async () => {
+    const signedNames = new Set(writeTools.map((t) => t.name));
+    for (const tool of publicTools) {
+      call.mockClear();
+      await tool.run(ARGS);
+      const opts = call.mock.calls[0][1] ?? {};
+      const method = (opts.method ?? 'GET').toUpperCase();
+      if (method === 'GET') continue;
+      // A public non-GET is only allowed when it is an auth entry point
+      // (obtaining a challenge/credential) or carries its own BIP-322 signature.
+      expect(
+        signedNames.has(tool.name) ||
+          ['bg_challenge', 'bg_verify_start', 'bg_verify_submit', 'bg_guardian_chat'].includes(tool.name),
+      ).toBe(true);
+    }
+
+    for (const tool of ownerTools) {
+      call.mockClear();
+      await tool.run(ARGS);
+      expect(call.mock.calls[0][1]).toMatchObject({ auth: true });
+    }
+  });
+
+  it('routes the ownership-gated build primitive through the gated world endpoint', async () => {
+    const worldCreate = ownerTools.find((t) => t.name === 'bg_world_create');
+    expect(worldCreate).toBeDefined();
+    call.mockClear();
+    await worldCreate!.run({ blockHeight: 12345, objectType: 'cube' });
+    const [path, opts] = call.mock.calls[0];
+    expect(path).toBe('/api/v1/world');
+    expect(opts).toMatchObject({ method: 'POST', auth: true });
   });
 });

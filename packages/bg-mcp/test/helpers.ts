@@ -3,7 +3,7 @@ import { vi } from "vitest";
 /** Base URL every mocked test points at, so assertions never depend on prod. */
 export const TEST_BASE = "https://api.test.invalid";
 
-const BG_ENV_KEYS = ["BG_API_BASE", "BG_AGENT_TOKEN", "BG_API_KEY", "BG_ENABLE_WRITES", "BG_TIMEOUT_MS"] as const;
+const BG_ENV_KEYS = ["BG_API_BASE", "BG_AGENT_TOKEN", "BG_API_KEY", "BG_SESSION_TOKEN", "BG_ENABLE_WRITES", "BG_TIMEOUT_MS"] as const;
 type BgEnv = Partial<Record<(typeof BG_ENV_KEYS)[number], string>>;
 
 export function clearBgEnv(): void {
@@ -99,10 +99,24 @@ export const PUBLIC_TOOL_NAMES = [
   "bg_guardians",
   "bg_guardian_chat",
   "bg_challenge",
+  "bg_verify_start",
+  "bg_verify_submit",
+  "bg_username_available",
 ] as const;
 
 /** Tools unlocked only by BG_AGENT_TOKEN / BG_API_KEY. */
 export const AGENT_TOOL_NAMES = ["bg_agent_events", "bg_agent_heartbeat", "bg_agent_brief"] as const;
+
+/**
+ * Tools unlocked only by BG_SESSION_TOKEN — a `bg_vfy_` credential from
+ * bg_verify_submit, which only exists behind BIP-322 + on-chain bitmap ownership.
+ */
+export const OWNER_TOOL_NAMES = [
+  "bg_my_blocks",
+  "bg_claim_username",
+  "bg_session_revoke",
+  "bg_world_create",
+] as const;
 
 /** Tools unlocked only by BG_ENABLE_WRITES=1. */
 export const WRITE_TOOL_NAMES = ["bg_agent_register", "bg_auth_verify"] as const;

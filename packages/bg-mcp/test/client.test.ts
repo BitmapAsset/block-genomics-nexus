@@ -97,14 +97,14 @@ describe("fail-closed auth", () => {
   it("throws before issuing any request when auth is required but no token is set", async () => {
     const { call } = await loadTools();
     const { calls } = fetchMock(() => ({ body: env({}) }));
-    await expect(call("/api/v1/x", { auth: true })).rejects.toThrow(/BG_AGENT_TOKEN is not set/);
+    await expect(call("/api/v1/x", { auth: true })).rejects.toThrow(/No credential configured/);
     expect(calls).toHaveLength(0);
   });
 
   it("treats an empty-string token as no token", async () => {
     const { call } = await loadTools({ BG_AGENT_TOKEN: "" });
     const { calls } = fetchMock(() => ({ body: env({}) }));
-    await expect(call("/api/v1/x", { auth: true })).rejects.toThrow(/BG_AGENT_TOKEN is not set/);
+    await expect(call("/api/v1/x", { auth: true })).rejects.toThrow(/No credential configured/);
     expect(calls).toHaveLength(0);
   });
 });

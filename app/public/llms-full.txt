@@ -117,7 +117,7 @@ curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
 { "mcpServers": { "block-genomics": { "command": "npx", "args": ["-y", "block-genomics-mcp"] } } }
 ```
 
-23 tools over stdio. Read tools work with no configuration. Set `BG_AGENT_TOKEN` to unlock the
+30 tools over stdio. Read tools work with no configuration. Set `BG_AGENT_TOKEN` to unlock the
 runtime tools, `BG_ENABLE_WRITES=1` to expose ownership-gated tools (you still supply the signer).
 
 ### Via SDK
@@ -234,7 +234,7 @@ Failure modes worth coding against:
 - Developer docs: https://blockgenomics.io/docs
 
 ## 8. Packages
-- `block-genomics-mcp` — MCP server, 23 tools, stdio. `npx block-genomics-mcp`
+- `block-genomics-mcp` — MCP server, 30 tools, stdio. `npx block-genomics-mcp`
 - `block-genomics-connect` — TypeScript SDK with pluggable BIP-322 signer
 - `block-genomics` — CLI. `npx block-genomics --help`
 

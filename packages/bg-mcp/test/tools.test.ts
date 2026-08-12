@@ -213,6 +213,38 @@ const CASES: Case[] = [
     path: "/api/v1/challenge",
     body: { walletAddress: "bc1powner", purpose: "agent-register" },
   },
+  {
+    // Step 1 of the ownership handshake. Public on purpose — this is how a
+    // caller obtains the credential every write tool then demands.
+    tool: "bg_verify_start",
+    args: { walletAddress: "bc1powner" },
+    method: "POST",
+    path: "/api/v1/session/start",
+    body: { walletAddress: "bc1powner" },
+  },
+  {
+    tool: "bg_verify_submit",
+    args: {
+      walletAddress: "bc1powner",
+      message: "Block Genomics verification: abc123",
+      signature: "SIG",
+      blocks: [840000],
+    },
+    method: "POST",
+    path: "/api/v1/session/verify",
+    body: {
+      walletAddress: "bc1powner",
+      message: "Block Genomics verification: abc123",
+      signature: "SIG",
+      blocks: [840000],
+    },
+  },
+  {
+    tool: "bg_username_available",
+    args: { handle: "gravity" },
+    path: "/api/v1/session/username",
+    query: { handle: "gravity" },
+  },
 ];
 
 describe("public tool requests", () => {

@@ -31,6 +31,7 @@ export type Tool = {
 export function buildToolCatalog(call: CallFn): {
   publicTools: Tool[];
   agentTools: Tool[];
+  ownerTools: Tool[];
   writeTools: Tool[];
 } {
   const height = z.number().int().describe("Bitcoin block height (the .bitmap number)");
@@ -193,6 +194,7 @@ export function buildToolCatalog(call: CallFn): {
             "agent-register",
             "agent-manage",
             "agent-token",
+            "session",
             "parcel-customize",
             "experience-register",
             "experience-manage",
@@ -201,6 +203,44 @@ export function buildToolCatalog(call: CallFn): {
           .optional(),
       },
       run: (a) => call("/api/v1/challenge", { method: "POST", body: a }),
+    },
+    {
+      name: "bg_verify_start",
+      description:
+        "Step 1 of Bitcoin-native verification. Returns the exact message to sign with the wallet holding your .bitmap inscription. Connecting to this server grants reads only; every write/build tool requires the session token this flow produces.",
+      schema: {
+        walletAddress: z.string().describe("Bitcoin address holding your <height>.bitmap inscription"),
+      },
+      run: (a) => call("/api/v1/session/start", { method: "POST", body: a }),
+    },
+    {
+      name: "bg_verify_submit",
+      description:
+        "Step 2 of Bitcoin-native verification. Submit the BIP-322 signature over the bg_verify_start message plus the blocks you claim; each claimed block is checked on-chain. Returns a bg_vfy_ session token scoped to the blocks that verified. Send it as `Authorization: Bearer <token>`.",
+      schema: {
+        walletAddress: z.string(),
+        message: z.string().describe("Exact message returned by bg_verify_start"),
+        signature: z
+          .string()
+          .describe("BIP-322 signature over `message`, base64 or hex (Xverse, Unisat, Leather, OKX all work)"),
+        blocks: z
+          .array(z.number().int())
+          .optional()
+          .describe("Block heights to claim. Each is verified against the live chain; unowned ones are rejected."),
+        inscriptionIds: z
+          .record(z.string(), z.string())
+          .optional()
+          .describe("Optional map of blockHeight -> known .bitmap inscription id, which skips the wallet scan"),
+        label: z.string().optional().describe("Human label for this session, shown in your session list"),
+      },
+      run: (a) => call("/api/v1/session/verify", { method: "POST", body: a }),
+    },
+    {
+      name: "bg_username_available",
+      description:
+        "Check whether a username is free. Availability spans both the user and block-profile namespaces.",
+      schema: { handle: z.string().describe("lowercase letters, numbers and underscores, max 30 chars") },
+      run: (a) => call("/api/v1/session/username", { query: { handle: a.handle } }),
     },
   ];
 
@@ -240,6 +280,54 @@ export function buildToolCatalog(call: CallFn): {
     },
   ];
 
+  const ownerTools: Tool[] = [
+    {
+      name: "bg_my_blocks",
+      description:
+        "The blocks this verified session proved it owns, plus its wallet and expiry. Requires a bg_vfy_ session token.",
+      schema: {},
+      run: () => call("/api/v1/session", { auth: true }),
+    },
+    {
+      name: "bg_claim_username",
+      description:
+        "Claim a username for the verified wallet, subject to availability. Requires a bg_vfy_ session token — usernames are not claimable by an unverified connection.",
+      schema: { handle: z.string().describe("lowercase letters, numbers and underscores, max 30 chars") },
+      run: (a) => call("/api/v1/session/username", { method: "POST", body: a, auth: true }),
+    },
+    {
+      name: "bg_session_revoke",
+      description: "Immediately revoke this verified session token.",
+      schema: {},
+      run: () => call("/api/v1/session", { method: "DELETE", auth: true }),
+    },
+    {
+      name: "bg_world_create",
+      description:
+        "Place an object in a block's world. Ownership-gated: the target block must be in this session's verified set AND still held by the signing wallet on-chain at the moment of the call, so a transferred bitmap stops working immediately. Requires a bg_vfy_ session token.",
+      schema: {
+        blockHeight: height,
+        objectType: z.string().describe("e.g. cube, sphere, tree, building"),
+        name: z.string().optional(),
+        geometry: z.string().optional(),
+        color: z.string().optional(),
+        material: z.string().optional(),
+        posX: z.number().optional(),
+        posY: z.number().optional(),
+        posZ: z.number().optional(),
+        rotX: z.number().optional(),
+        rotY: z.number().optional(),
+        rotZ: z.number().optional(),
+        scaleX: z.number().optional(),
+        scaleY: z.number().optional(),
+        scaleZ: z.number().optional(),
+        visible: z.boolean().optional(),
+        locked: z.boolean().optional(),
+      },
+      run: (a) => call("/api/v1/world", { method: "POST", body: a, auth: true }),
+    },
+  ];
+
   const writeTools: Tool[] = [
     {
       name: "bg_agent_register",
@@ -276,6 +364,6 @@ export function buildToolCatalog(call: CallFn): {
     },
   ];
 
-  return { publicTools, agentTools, writeTools };
+  return { publicTools, agentTools, ownerTools, writeTools };
 }
 // ===== END SHARED TOOL CATALOG =====
