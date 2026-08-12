@@ -191,6 +191,7 @@ export type BlockAgent = {
 /** All challenge purposes the protocol accepts (Nexus Protocol §3.2). */
 export type ChallengePurpose =
   | 'auth'
+  | 'session'
   | 'agent-register'
   | 'agent-manage'
   | 'agent-token'
@@ -198,6 +199,79 @@ export type ChallengePurpose =
   | 'world'
   | 'experience-register'
   | 'experience-manage';
+
+// ─── Verified sessions (Bitcoin-native identity + bitmap ownership) ──────────
+
+/**
+ * Step 1 of the ownership handshake: the exact message to sign, plus the
+ * server's own description of what to do with it.
+ */
+export type SessionChallenge = {
+  /** Sign this verbatim (BIP-322) with the wallet holding your .bitmap. */
+  message: string;
+  nonce: string;
+  expiresAt: string;
+  walletAddress: string;
+  next: {
+    sign: string;
+    then: string;
+    steps: readonly string[];
+    maxBlocks: number;
+    sessionTtlSeconds: number;
+  };
+};
+
+/** A claimed block that did NOT verify on-chain during session minting. */
+export type RejectedBlock = {
+  blockHeight: number;
+  reason: string;
+  /** True when the chain was merely unreachable — retry rather than give up. */
+  retryable: boolean;
+};
+
+/**
+ * Step 2 result: the scoped `bg_vfy_` credential.
+ *
+ * `token` is returned exactly once and is never retrievable again. Blocks that
+ * failed their on-chain check arrive in `rejected` rather than being silently
+ * dropped.
+ */
+export type VerifiedSession = {
+  token: string;
+  tokenPrefix: string;
+  walletAddress: string;
+  verifiedBlocks: number[];
+  rejected: RejectedBlock[];
+  expiresAt: string;
+  usage: string;
+  note: string;
+};
+
+/**
+ * The capability surface of the current session.
+ *
+ * `verifiedBlocks` is the scope proven at verification time, NOT a live
+ * ownership claim — every write re-checks the chain.
+ */
+export type SessionInfo = {
+  walletAddress: string;
+  verifiedBlocks: number[];
+  tokenPrefix: string;
+  createdAt: string;
+  expiresAt: string;
+  canWrite: boolean;
+  note: string;
+};
+
+/** Handle availability across both the user and block-profile namespaces. */
+export type UsernameAvailability = { handle: string; available: boolean };
+
+/** A username successfully bound to the verified wallet. */
+export type ClaimedUsername = {
+  handle: string | null;
+  walletAddress: string;
+  displayName: string | null;
+};
 
 // ─── Experience hosting (Nexus Protocol v1 — Experience Hosting) ─────────────
 

@@ -33,6 +33,11 @@ import type {
   ExperienceListOptions,
   ExperienceListResult,
   ExperienceRemoveResult,
+  SessionChallenge,
+  VerifiedSession,
+  SessionInfo,
+  UsernameAvailability,
+  ClaimedUsername,
 } from './types.js';
 
 export const DEFAULT_BASE_URL = 'https://blockgenomics.io';
@@ -60,6 +65,25 @@ export interface ClientOptions {
   signer?: BitcoinSigner;
   /** Override the global fetch (e.g. for tests). */
   fetch?: typeof fetch;
+  /**
+   * An existing `bg_vfy_` verified-session token. Omit it and call
+   * {@link BlockGenomicsClient.verifySession} to mint one.
+   */
+  sessionToken?: string;
+}
+
+/** Options for {@link BlockGenomicsClient.verifySession}. */
+export interface VerifySessionOptions {
+  /**
+   * Block heights to claim. Each is checked against the live chain; unowned
+   * ones come back in `rejected`. Omit (or pass `[]`) to mint a read-scoped
+   * identity session with no write capability.
+   */
+  blocks?: number[];
+  /** Human label for this session, shown when listing sessions. */
+  label?: string;
+  /** Known `.bitmap` inscription id per block height, to skip the wallet scan. */
+  inscriptionIds?: Record<string | number, string>;
 }
 
 export interface ClaimBlockOptions {
@@ -132,10 +156,12 @@ export class BlockGenomicsClient {
   private readonly signer?: BitcoinSigner;
   private readonly _fetch: typeof fetch;
   private _experiences?: ExperiencesApi;
+  private _sessionToken?: string;
 
   constructor(opts: ClientOptions = {}) {
     this.baseUrl = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.signer = opts.signer;
+    this._sessionToken = opts.sessionToken;
     const f = opts.fetch ?? globalThis.fetch;
     if (!f) {
       throw new Error(
@@ -190,6 +216,129 @@ export class BlockGenomicsClient {
       );
     }
     return this.signer;
+  }
+
+  private requireSession(): string {
+    if (!this._sessionToken) {
+      throw new BlockGenomicsError(
+        'This action requires a verified session. Call verifySession() first, or construct the client with { sessionToken } — connecting is not the same as being authorized.',
+        401,
+      );
+    }
+    return this._sessionToken;
+  }
+
+  // ─── verified sessions (BIP-322 + on-chain bitmap ownership) ───────
+
+  /**
+   * The `bg_vfy_` token this client currently presents on ownership-gated
+   * calls, if any.
+   */
+  get sessionToken(): string | undefined {
+    return this._sessionToken;
+  }
+
+  /** Attach an existing session token, or pass `undefined` to clear it. */
+  setSessionToken(token: string | undefined): void {
+    this._sessionToken = token;
+  }
+
+  /**
+   * Step 1 of the ownership handshake: ask for the message to sign.
+   * POST /api/v1/session/start
+   *
+   * Defaults to the signer's address when one is configured.
+   */
+  async startSession(walletAddress?: string): Promise<SessionChallenge> {
+    const address = walletAddress ?? this.requireSigner().address;
+    return this.request<SessionChallenge>('/api/v1/session/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletAddress: address }),
+    });
+  }
+
+  /**
+   * Step 2: sign the challenge and exchange it for a scoped session token.
+   * POST /api/v1/session/verify
+   *
+   * The server verifies the BIP-322 signature, consumes the one-time nonce, and
+   * independently checks on-chain that this wallet holds each claimed block's
+   * `.bitmap` inscription. The returned token is scoped to the blocks that
+   * actually verified and is stored on this client for subsequent gated calls.
+   *
+   * Scope is a ceiling, not a grant: every gated write re-checks the chain, so a
+   * transferred bitmap stops working immediately even while the token is live.
+   *
+   * Requires a signer.
+   */
+  async verifySession(opts: VerifySessionOptions = {}): Promise<VerifiedSession> {
+    const signer = this.requireSigner();
+    const challenge = await this.startSession(signer.address);
+    const signature = await signer.signMessage(challenge.message);
+    const session = await this.request<VerifiedSession>('/api/v1/session/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress: signer.address,
+        message: challenge.message,
+        signature,
+        blocks: opts.blocks ?? [],
+        ...(opts.label !== undefined ? { label: opts.label } : {}),
+        ...(opts.inscriptionIds !== undefined ? { inscriptionIds: opts.inscriptionIds } : {}),
+      }),
+    });
+    this._sessionToken = session.token;
+    return session;
+  }
+
+  /**
+   * What this credential can do: its wallet, proven blocks, and expiry.
+   * GET /api/v1/session
+   */
+  async getSession(): Promise<SessionInfo> {
+    return this.request<SessionInfo>('/api/v1/session', {
+      headers: this.bearer(this.requireSession()),
+    });
+  }
+
+  /**
+   * Revoke the current session immediately. DELETE /api/v1/session
+   *
+   * Idempotent — an already-revoked token reports `revoked: false`. Clears the
+   * token from this client either way.
+   */
+  async revokeSession(): Promise<{ revoked: boolean }> {
+    const token = this.requireSession();
+    try {
+      return await this.request<{ revoked: boolean }>('/api/v1/session', {
+        method: 'DELETE',
+        headers: this.bearer(token),
+      });
+    } finally {
+      this._sessionToken = undefined;
+    }
+  }
+
+  /** Is this handle free? Public read. GET /api/v1/session/username */
+  checkUsername(handle: string): Promise<UsernameAvailability> {
+    return this.request<UsernameAvailability>(
+      `/api/v1/session/username?handle=${encodeURIComponent(handle)}`,
+    );
+  }
+
+  /**
+   * Claim a username for the verified wallet. POST /api/v1/session/username
+   *
+   * Gated on a live session — usernames are not claimable by an unverified
+   * connection, which is what stops anonymous handle squatting.
+   */
+  async claimUsername(handle: string): Promise<ClaimedUsername> {
+    return this.request<ClaimedUsername>('/api/v1/session/username', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.bearer(this.requireSession()) },
+      body: JSON.stringify({ handle }),
+    });
   }
 
   // ─── read: discovery & protocol ────────────────────────────────────
@@ -298,12 +447,16 @@ export class BlockGenomicsClient {
   // ─── write: world (owner-authorized, action-bound) ─────────────────
 
   /**
-   * Perform an action-bound, replay-safe world mutation. Internal: drives all of
-   * createObject / updateObject / deleteObject.
+   * Perform a world mutation over whichever credential this client holds.
+   * Internal: drives all of createObject / updateObject / deleteObject.
    *
-   * Binds the signature to method + exact path + block + body hash + one-time
-   * nonce + expiry (see action-message.ts). Requires a signer that owns the
-   * target block.
+   * SESSION path — when a `bg_vfy_` token is attached, send it as a Bearer. The
+   * server re-checks on-chain ownership of the target block at action time, so
+   * no per-action signature is needed and an agent with no signer can still
+   * build. This is why an agent verifies once instead of signing every call.
+   *
+   * SIGNER path — otherwise bind a BIP-322 signature to method + exact path +
+   * block + body hash + one-time nonce + expiry (see action-message.ts).
    */
   private async signedWorldMutation<T>(args: {
     method: 'POST' | 'PATCH' | 'DELETE';
@@ -313,6 +466,14 @@ export class BlockGenomicsClient {
     body: Record<string, unknown>;
     ttlMs?: number;
   }): Promise<T> {
+    if (this._sessionToken) {
+      return this.request<T>(args.path, {
+        method: args.method,
+        headers: { 'Content-Type': 'application/json', ...this.bearer(this._sessionToken) },
+        body: JSON.stringify({ blockHeight: args.blockHeight, ...args.body }),
+      });
+    }
+
     const signer = this.requireSigner();
     const challenge = await this.requestChallenge(signer.address, 'world');
     const intentBody = { ...args.body, ownerAddress: signer.address };

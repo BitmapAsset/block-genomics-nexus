@@ -4,6 +4,7 @@ import { runInit } from "./commands/init";
 import { runVerify } from "./commands/verify";
 import { runVerifyReal } from "./commands/verify-real";
 import { runRegisterAgent } from "./commands/register-agent";
+import { runSession } from "./commands/session";
 import { runEventsPoll } from "./commands/events";
 import { runHeartbeat } from "./commands/heartbeat";
 import { runExplore } from "./commands/explore";
@@ -53,6 +54,24 @@ export function createCLI() {
       handle: options.handle, displayName: options.displayName,
       sig: options.sig, json: options.json,
     }));
+
+  // Verified sessions: prove bitmap ownership once, then act on that proof.
+  program
+    .command("session <action> [handle]")
+    .description("Verified session: start | status | username <handle> | revoke")
+    .option("--address <bc1p>", "Owner Bitcoin address (or set BG_WALLET_ADDRESS)")
+    .option("--block <height>", "Block to claim (repeatable)", (v, acc: number[]) => [...acc, Number(v)], [])
+    .option("--label <text>", "Human label for this session")
+    .option("--sig <bip322>", "Pre-supplied BIP-322 signature (else uses BG_SIGNATURE / BG_SIGNATURE_CMD)")
+    .option("--json", "Output raw JSON")
+    .action((action, handle, options) =>
+      runSession(action, {
+        address: options.address,
+        block: options.block,
+        label: options.label,
+        sig: options.sig,
+        json: options.json,
+      }, handle));
 
   // Register an agent on a block you own
   program
