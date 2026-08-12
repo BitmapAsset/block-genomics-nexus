@@ -51,7 +51,7 @@ export async function resolveTier(
   const { force = false, baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000' } = options;
 
   // Get or create user
-  let user = await prisma.user.findUnique({ where: { walletAddress } });
+  const user = await prisma.user.findUnique({ where: { walletAddress } });
   const previousTier = user?.resolvedTier ?? null;
 
   // Get active delegations

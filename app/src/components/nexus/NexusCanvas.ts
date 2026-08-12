@@ -24,7 +24,7 @@ const UNIT = CELL_SIZE + GAP;
 
 // Seeded random for deterministic brightness per block
 function seededRand(seed: number): number {
-  let s = (seed * 1664525 + 1013904223) & 0xffffffff;
+  const s = (seed * 1664525 + 1013904223) & 0xffffffff;
   return (s >>> 0) / 0xffffffff;
 }
 
