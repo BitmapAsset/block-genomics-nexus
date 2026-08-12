@@ -1,11 +1,15 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-agents-agentId-briefs' });
+  if (rl.response) return rl.response;
+
   try {
     const { agentId } = await params;
     const url = new URL(req.url);

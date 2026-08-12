@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { success, error } from '@/lib/api-helpers';
 import { getAddressInscriptions as ordGetAddressInscriptions } from '@/lib/onchain/ord';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 interface BitmapResult {
   type: 'block' | 'parcel';
@@ -15,6 +16,9 @@ interface BitmapResult {
  * Server-side .bitmap inscription scanner — avoids CORS issues with Unisat/ordinals APIs
  */
 export async function GET(req: NextRequest) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-inscriptions-scan', limit: 20 });
+  if (rl.response) return rl.response;
+
   try {
     const address = req.nextUrl.searchParams.get('address');
     if (!address) return error('address query param required', 400);

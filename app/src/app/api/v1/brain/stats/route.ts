@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { MORAL_CODE } from '@/lib/protocol';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-brain-stats' });
+  if (rl.response) return rl.response;
+
   try {
     const [totalFlags, totalHidden, totalRestored, totalActions, recentActions] = await Promise.all([
       prisma.contentFlag.count(),

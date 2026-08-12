@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 /* ─── GET: Check if a block has an active stream ─── */
 export async function GET(req: NextRequest) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-livestream' });
+  if (rl.response) return rl.response;
+
   const blockHeight = parseInt(req.nextUrl.searchParams.get('blockHeight') || '');
   if (isNaN(blockHeight)) return NextResponse.json({ error: 'Missing blockHeight' }, { status: 400 });
 

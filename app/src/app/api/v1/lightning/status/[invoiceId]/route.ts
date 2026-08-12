@@ -5,11 +5,15 @@
  */
 import { NextResponse } from 'next/server';
 import { checkInvoiceStatus } from '@/lib/lightning';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ invoiceId: string }> }
 ) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-lightning-status-invoiceId' });
+  if (rl.response) return rl.response;
+
   try {
     const { invoiceId } = await params;
     if (!invoiceId) {

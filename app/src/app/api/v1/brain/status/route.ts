@@ -26,8 +26,12 @@ import {
   BRAIN_FEE_PERCENT,
 } from '@/lib/protocol';
 import { fetchBrainWalletBalance, getBrainStatus } from '@/lib/brain';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-brain-status' });
+  if (rl.response) return rl.response;
+
   try {
     // Fetch all stats in parallel
     const [

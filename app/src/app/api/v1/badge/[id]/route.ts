@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { crownShieldSVGString } from "@/lib/crown-shield-svg";
 import prisma from "@/lib/prisma";
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 /**
  * GET /api/v1/badge/[id].svg
@@ -20,9 +21,12 @@ import prisma from "@/lib/prisma";
  * break); the only 4xx is for truly malformed input.
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const rl = await enforceRateLimit(request, { bucket: 'v1-badge-id' });
+  if (rl.response) return rl.response;
+
   let id: string;
   try {
     ({ id } = await params);

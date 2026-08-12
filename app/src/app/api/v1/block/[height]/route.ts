@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 // Legacy route — redirects to new schema. Use /api/v1/blocks/[height] for new API.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ height: string }> }
 ) {
+  const rl = await enforceRateLimit(request, { bucket: 'v1-block-height' });
+  if (rl.response) return rl.response;
+
   try {
     const { height } = await params;
     const blockHeight = Number.parseInt(height, 10);

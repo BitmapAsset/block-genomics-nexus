@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { APPEAL_DURATION_HOURS } from '@/lib/protocol';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function POST(req: Request) {
   try {
@@ -126,6 +127,9 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-brain-appeal' });
+  if (rl.response) return rl.response;
+
   const url = new URL(req.url);
   const contentId = url.searchParams.get('contentId');
   const appealId = url.searchParams.get('appealId');

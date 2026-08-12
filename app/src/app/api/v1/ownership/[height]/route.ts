@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { success, error } from '@/lib/api-helpers';
 import { verifyBlockOwnership } from '@/lib/ownership-sync';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 /**
  * GET /api/v1/ownership/[height]
@@ -11,9 +12,12 @@ import { verifyBlockOwnership } from '@/lib/ownership-sync';
  * returns JSON so callers never receive the Next.js 404 HTML shell.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ height: string }> }
 ) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-ownership-height' });
+  if (rl.response) return rl.response;
+
   try {
     const { height } = await params;
     if (!/^\d+$/.test(height)) {

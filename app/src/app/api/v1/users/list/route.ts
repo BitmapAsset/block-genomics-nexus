@@ -2,8 +2,12 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { countVerifiedAgents } from '@/lib/directory-counts';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(req: NextRequest) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-users-list' });
+  if (rl.response) return rl.response;
+
   try {
     const url = new URL(req.url);
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100);

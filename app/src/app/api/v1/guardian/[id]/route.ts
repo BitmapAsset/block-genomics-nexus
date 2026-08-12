@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { encryptApiKey, maskApiKey } from '@/lib/key-encryption';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 function sanitizeGuardian(g: Record<string, unknown>) {
   return { ...g, llmApiKey: maskApiKey(g.llmApiKey as string) };
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-guardian-id' });
+  if (rl.response) return rl.response;
+
   try {
     const { id } = await params;
     const row = await prisma.guardianAgent.findUnique({ where: { id } });

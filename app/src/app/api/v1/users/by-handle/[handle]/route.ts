@@ -3,11 +3,15 @@ import prisma from '@/lib/prisma';
 import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
 import { logActivity, logProfileView } from '@/lib/activity';
 import { normalizeHandle } from '@/lib/handle';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ handle: string }> }
 ) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-users-by-handle-handle' });
+  if (rl.response) return rl.response;
+
   try {
     const { handle } = await params;
     const normalizedHandle = normalizeHandle(handle);

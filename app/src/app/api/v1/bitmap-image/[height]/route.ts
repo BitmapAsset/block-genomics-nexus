@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { success, error } from '@/lib/api-helpers';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 /**
  * GET /api/v1/bitmap-image/:height
@@ -67,6 +68,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ height: string }> }
 ) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-bitmap-image-height' });
+  if (rl.response) return rl.response;
+
   try {
     const { height } = await params;
     const h = parseInt(height, 10);
