@@ -786,3 +786,29 @@ model SandboxKey {
   @@index([ipHash])
   @@index([createdAt])
 }
+
+// ─── Verified agent sessions (Bitcoin-native identity + bitmap ownership) ───
+// Minted only after a BIP-322 signature over a live challenge nonce AND an
+// on-chain check that the signing wallet currently holds the claimed
+// `<height>.bitmap` inscription. Only the SHA-256 hash of the token is stored;
+// the plaintext is returned to the caller exactly once.
+//
+// `verifiedBlocks` is the ownership scope captured AT VERIFICATION TIME. It is a
+// necessary condition for a write, never a sufficient one — bitmaps transfer, so
+// every gated action re-checks the chain before acting (see lib/ownership-gate.ts).
+model VerifiedSession {
+  id             String    @id @default(cuid())
+  tokenHash      String    @unique
+  tokenPrefix    String
+  walletAddress  String
+  verifiedBlocks Int[]     @default([])
+  label          String?
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime
+  lastUsedAt     DateTime?
+  requestCount   Int       @default(0)
+  revokedAt      DateTime?
+
+  @@index([walletAddress])
+  @@index([expiresAt])
+}
