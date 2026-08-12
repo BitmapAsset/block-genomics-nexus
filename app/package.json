@@ -8,7 +8,7 @@
     "prebuild": "node scripts/sync-protocol.mjs",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test": "jest --forceExit",
     "test:coverage": "jest --coverage --forceExit",
     "test:watch": "jest --watch",

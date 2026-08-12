@@ -252,7 +252,7 @@ export default function PortfolioPage() {
       const blocks: BlockHolding[] = [];
       const delegations: DelegationIncome[] = [];
       const guardians: GuardianSummary[] = [];
-      let stats = {
+      const stats = {
         totalBlocks: 0,
         profiledBlocks: 0,
         activeGuardians: 0,

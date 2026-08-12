@@ -2645,8 +2645,8 @@ function StreetWalker({ active, parcels, teleportTo }: { active: boolean; parcel
     if (move.lengthSq() > 0) {
       move.normalize().multiplyScalar(speed);
 
-      let newX = camera.position.x + move.x;
-      let newZ = camera.position.z + move.z;
+      const newX = camera.position.x + move.x;
+      const newZ = camera.position.z + move.z;
       const bodyRadius = 0.3 / METERS_PER_UNIT;
 
       // Slide along walls: try full move, then axis-by-axis
@@ -5192,7 +5192,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   useEffect(() => {
     const interval = setInterval(() => {
       setSpatialReactions(prev => {
-        let next = prev.map(r => ({ ...r, y: r.y + 0.02, opacity: r.opacity - 0.008 })).filter(r => r.opacity > 0);
+        const next = prev.map(r => ({ ...r, y: r.y + 0.02, opacity: r.opacity - 0.008 })).filter(r => r.opacity > 0);
         if (next.length < 3 && Math.random() > 0.6) { // max 3 (was 4)
           const rng = seededRandom(Date.now());
           next.push({
@@ -5358,7 +5358,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     setChatInput('');
 
     // Get wallet from localStorage
-    let senderAddress = getStoredAddress() || 'anonymous';
+    const senderAddress = getStoredAddress() || 'anonymous';
     let senderHandle = senderAddress !== 'anonymous' ? senderAddress.slice(0, 8) : 'You';
     try {
       const walletData = localStorage.getItem('bg_wallet');
