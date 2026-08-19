@@ -3,8 +3,12 @@ import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(req: NextRequest) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-game-elements' });
+  if (rl.response) return rl.response;
+
   try {
     const blockHeight = parseInt(req.nextUrl.searchParams.get('blockHeight') || '0');
     if (!blockHeight) return NextResponse.json({ error: 'blockHeight required' }, { status: 400 });

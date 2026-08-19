@@ -7,10 +7,14 @@
 
 import { NextResponse } from 'next/server';
 import { getChainTip } from '@/lib/brain/heartbeat-chain';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-brain-heartbeat-chain-anchor' });
+  if (rl.response) return rl.response;
+
   try {
     const tip = await getChainTip();
 

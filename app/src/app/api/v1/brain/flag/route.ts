@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { FLAG_THRESHOLD_SOFT, FLAG_THRESHOLD_HARD } from '@/lib/protocol';
 import { verifyWalletSignature } from '@/lib/api-helpers';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function POST(req: Request) {
   try {
@@ -53,6 +54,9 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-brain-flag' });
+  if (rl.response) return rl.response;
+
   const url = new URL(req.url);
   const contentId = url.searchParams.get('contentId');
   if (!contentId) return NextResponse.json({ error: 'contentId required' }, { status: 400 });

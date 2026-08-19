@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,10 @@ function getEmbedUrl(url: string): string | null {
   } catch { return null; }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-livestream-active' });
+  if (rl.response) return rl.response;
+
   try {
     const blocks = await prisma.block.findMany({
       where: { streamUrl: { not: null } },

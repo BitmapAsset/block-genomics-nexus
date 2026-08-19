@@ -231,6 +231,92 @@ export async function authVerify(input: AuthVerifyInput): Promise<Record<string,
   return request<Record<string, unknown>>("/api/v1/auth/verify", { method: "POST", body: input });
 }
 
+// ─── Verified sessions (BIP-322 + on-chain bitmap ownership) ──────────────
+//
+// The CLI half of "an open connection is not an open capability". Reads stay
+// public; a write needs a `bg_vfy_` token, which only exists after the server
+// verified a signature from the wallet AND independently confirmed on-chain that
+// the wallet holds the claimed `<height>.bitmap` inscription.
+
+export interface SessionChallenge {
+  message: string;
+  nonce: string;
+  expiresAt: string;
+  walletAddress: string;
+  next: { steps: string[]; maxBlocks: number; sessionTtlSeconds: number };
+}
+
+export interface RejectedBlock {
+  blockHeight: number;
+  reason: string;
+  retryable: boolean;
+}
+
+/** Step 2 result. `token` is shown exactly once and is never retrievable again. */
+export interface VerifiedSession {
+  token: string;
+  tokenPrefix: string;
+  walletAddress: string;
+  verifiedBlocks: number[];
+  rejected: RejectedBlock[];
+  expiresAt: string;
+}
+
+export interface SessionInfo {
+  walletAddress: string;
+  verifiedBlocks: number[];
+  tokenPrefix: string;
+  createdAt: string;
+  expiresAt: string;
+  canWrite: boolean;
+}
+
+/** Step 1: ask for the exact message to sign. */
+export async function sessionStart(walletAddress: string): Promise<SessionChallenge> {
+  return request<SessionChallenge>("/api/v1/session/start", {
+    method: "POST",
+    body: { walletAddress },
+  });
+}
+
+/** Step 2: exchange the signature for a token scoped to the blocks that verified. */
+export async function sessionVerify(input: {
+  walletAddress: string;
+  message: string;
+  signature: string;
+  blocks: number[];
+  label?: string;
+}): Promise<VerifiedSession> {
+  return request<VerifiedSession>("/api/v1/session/verify", { method: "POST", body: input });
+}
+
+/** The caller's own capability surface: wallet, proven blocks, expiry. */
+export async function sessionStatus(token: string): Promise<SessionInfo> {
+  return request<SessionInfo>("/api/v1/session", { headers: bearer(token) });
+}
+
+/** Idempotent — an already-revoked token reports `revoked: false`. */
+export async function sessionRevoke(token: string): Promise<{ revoked: boolean }> {
+  return request<{ revoked: boolean }>("/api/v1/session", { method: "DELETE", headers: bearer(token) });
+}
+
+/** Public availability check across both handle namespaces. */
+export async function checkUsername(handle: string): Promise<{ handle: string; available: boolean }> {
+  return request(`/api/v1/session/username?handle=${encodeURIComponent(handle)}`);
+}
+
+/** Claim a username. Gated — usernames are not claimable by an unverified connection. */
+export async function claimUsername(
+  token: string,
+  handle: string,
+): Promise<{ handle: string | null; walletAddress: string; displayName: string | null }> {
+  return request("/api/v1/session/username", {
+    method: "POST",
+    body: { handle },
+    headers: bearer(token),
+  });
+}
+
 // ─── Experience hosting (self-hosted worlds on a block) ────────────────────
 
 export type ExperienceType = "web" | "unreal" | "unity" | "godot" | "minecraft" | "vr" | "custom";

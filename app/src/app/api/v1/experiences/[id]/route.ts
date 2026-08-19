@@ -6,6 +6,7 @@ import { experienceManifestPatchSchema } from '@/lib/experience-protocol';
 import { verifyExperienceOwnerGate } from '@/lib/experience-ownership';
 import { judgeExperienceManifest } from '@/lib/experience-judge';
 import { serializeExperience, probeAndPersist, maybeReprobeStale, persistBrainRejection } from '@/lib/experience-service';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 function zodMessage(err: z.ZodError): string {
   return err.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; ');
@@ -15,7 +16,10 @@ function zodMessage(err: z.ZodError): string {
  * GET /api/v1/experiences/[id] — public. Stale-on-read (>15min) triggers an
  * async re-probe; the current snapshot is returned immediately.
  */
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-experiences-id' });
+  if (rl.response) return rl.response;
+
   try {
     const { id } = await params;
     const exp = await prisma.experience.findUnique({ where: { id } });

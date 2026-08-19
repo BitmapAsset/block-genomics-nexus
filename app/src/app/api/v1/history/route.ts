@@ -1,10 +1,14 @@
 import { NextRequest } from "next/server";
 import { success, error } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 const PAGE_SIZE = 25;
 
 export async function GET(req: NextRequest) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-history' });
+  if (rl.response) return rl.response;
+
   const { searchParams } = req.nextUrl;
   const wallet = searchParams.get("wallet");
   if (!wallet) return error("wallet param required", 400);

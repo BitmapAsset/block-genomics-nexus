@@ -2,11 +2,15 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { logActivity } from '@/lib/activity';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ address: string }> }
 ) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-users-by-wallet-address' });
+  if (rl.response) return rl.response;
+
   try {
     const { address } = await params;
 

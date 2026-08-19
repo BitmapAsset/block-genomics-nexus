@@ -1,8 +1,8 @@
 {
   "$schema": "https://modelcontextprotocol.io/schema/manifest.json",
   "name": "block-genomics",
-  "version": "0.4.0",
-  "description": "Connect an AI agent to Block Genomics (Nexus Protocol) — discover the protocol, prove ownership of a Bitcoin block (BIP-322), read verified blocks/parcels, register a sovereign agent, and run it (Bearer-token heartbeat / brief / events). The agent supplies its own Bitcoin signer.",
+  "version": "0.5.0",
+  "description": "Connect an AI agent to Block Genomics (Nexus Protocol). Reading is open; building is not. Discover the protocol and read verified blocks/parcels with no credentials, then prove Bitcoin-native identity \u2014 sign a challenge with the wallet holding your .bitmap inscription (BIP-322) \u2014 to receive a session token scoped to the blocks you own. Ownership is re-checked on-chain at the moment of every write. The agent supplies its own Bitcoin signer.",
   "homepage": "https://blockgenomics.io",
   "openapi": "https://blockgenomics.io/openapi.json",
   "remotes": [
@@ -12,7 +12,7 @@
       "headers": [
         {
           "name": "Authorization",
-          "description": "Bearer <agent token> — required only by the runtime tools (bg_agent_heartbeat, bg_agent_brief, bg_agent_events). Everything else is public.",
+          "description": "Bearer <token>. Required by every write/build tool: use a bg_vfy_ session token from bg_verify_submit (ownership-gated tools), or a bg_agent_ token from agent registration (agent runtime tools). Read tools need nothing.",
           "isRequired": false,
           "isSecret": true
         }
@@ -23,24 +23,35 @@
     {
       "registryType": "npm",
       "identifier": "block-genomics-mcp",
-      "version": "0.1.2",
-      "transport": { "type": "stdio" }
+      "version": "0.2.0",
+      "transport": {
+        "type": "stdio"
+      }
     }
   ],
-  "instructions": "Two ways to connect, one protocol: point any MCP client at the remote endpoint https://blockgenomics.io/mcp (Streamable HTTP, nothing to install), or run the npm package `block-genomics-mcp` over stdio. Both serve the same 23 `bg_*` tools from one shared catalog. The `tools` array below documents a different, higher-level surface — the block-genomics-connect SDK, which wraps the same REST API around a local signer. Read tools are public. Ownership tools (claim_block, world_create, register_agent, rotate_agent_token, revoke_agent_token) require a BIP-322 signature: the host must provide a signer for the block's owning wallet, and no server ever holds keys. Runtime tools (agent_heartbeat, agent_brief, agent_events) require the agent's one-time Bearer token from register_agent/rotate_agent_token — not the signer; on the remote endpoint send it as `Authorization: Bearer <token>`. See https://blockgenomics.io/docs and the normative spec at https://blockgenomics.io/protocol.",
+  "instructions": "Two ways to connect, one protocol: point any MCP client at the remote endpoint https://blockgenomics.io/mcp (Streamable HTTP, nothing to install), or run the npm package `block-genomics-mcp` over stdio. Both serve the same 30 `bg_*` tools from one shared catalog.\n\nCONNECTING GRANTS READS, NOT WRITES. To build anything: call bg_verify_start with your wallet address, sign the returned message with the wallet that holds your <height>.bitmap inscription (BIP-322; base64 or hex both work), then call bg_verify_submit with the signature and the block heights you claim. Each claimed block is checked against the live chain, and you get back a bg_vfy_ session token scoped to the ones that verified. Send it as `Authorization: Bearer <token>`. Ownership is re-verified on-chain at action time, so a transferred bitmap stops working immediately even while the token is still valid. bg_my_blocks shows your current scope; bg_claim_username claims a name once verified.\n\nAgent runtime tools (bg_agent_heartbeat, bg_agent_brief, bg_agent_events) use the separate bg_agent_ token issued at agent registration. The `tools` array below documents a different, higher-level surface \u2014 the block-genomics-connect SDK, which wraps the same REST API around a local signer. No server ever holds keys. See https://blockgenomics.io/docs and the normative spec at https://blockgenomics.io/protocol.",
   "tools": [
     {
       "name": "get_stats",
       "description": "Protocol-wide counts (verified agents, genomes minted, blocks verified).",
-      "inputSchema": { "type": "object", "properties": {} }
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "name": "get_ownership",
       "description": "Authoritative on-chain ownership for a block height.",
       "inputSchema": {
         "type": "object",
-        "required": ["blockHeight"],
-        "properties": { "blockHeight": { "type": "integer" } }
+        "required": [
+          "blockHeight"
+        ],
+        "properties": {
+          "blockHeight": {
+            "type": "integer"
+          }
+        }
       }
     },
     {
@@ -48,8 +59,14 @@
       "description": "Registered block record: owner handle, tier, inscription, parcels.",
       "inputSchema": {
         "type": "object",
-        "required": ["blockHeight"],
-        "properties": { "blockHeight": { "type": "integer" } }
+        "required": [
+          "blockHeight"
+        ],
+        "properties": {
+          "blockHeight": {
+            "type": "integer"
+          }
+        }
       }
     },
     {
@@ -57,8 +74,14 @@
       "description": "Visible world objects and terrain for a block.",
       "inputSchema": {
         "type": "object",
-        "required": ["blockHeight"],
-        "properties": { "blockHeight": { "type": "integer" } }
+        "required": [
+          "blockHeight"
+        ],
+        "properties": {
+          "blockHeight": {
+            "type": "integer"
+          }
+        }
       }
     },
     {
@@ -66,22 +89,37 @@
       "description": "An agent's identity record by wallet address, including its verified ownedBlocks and genome.",
       "inputSchema": {
         "type": "object",
-        "required": ["address"],
-        "properties": { "address": { "type": "string" } }
+        "required": [
+          "address"
+        ],
+        "properties": {
+          "address": {
+            "type": "string"
+          }
+        }
       }
     },
     {
       "name": "get_my_verified_blocks",
       "description": "The connected signer's verified blocks, each enriched with its block record. Requires a configured signer address.",
-      "inputSchema": { "type": "object", "properties": {} }
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "name": "search",
       "description": "Search blocks, agents, and users.",
       "inputSchema": {
         "type": "object",
-        "required": ["q"],
-        "properties": { "q": { "type": "string" } }
+        "required": [
+          "q"
+        ],
+        "properties": {
+          "q": {
+            "type": "string"
+          }
+        }
       }
     },
     {
@@ -89,8 +127,14 @@
       "description": "List the active agents registered on a block (public directory projection; internal id never exposed).",
       "inputSchema": {
         "type": "object",
-        "required": ["blockHeight"],
-        "properties": { "blockHeight": { "type": "integer" } }
+        "required": [
+          "blockHeight"
+        ],
+        "properties": {
+          "blockHeight": {
+            "type": "integer"
+          }
+        }
       }
     },
     {
@@ -99,12 +143,22 @@
       "requiresSigner": true,
       "inputSchema": {
         "type": "object",
-        "required": ["blockHeight"],
+        "required": [
+          "blockHeight"
+        ],
         "properties": {
-          "blockHeight": { "type": "integer" },
-          "handle": { "type": "string" },
-          "displayName": { "type": "string" },
-          "inscriptionId": { "type": "string" }
+          "blockHeight": {
+            "type": "integer"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "inscriptionId": {
+            "type": "string"
+          }
         }
       }
     },
@@ -114,14 +168,29 @@
       "requiresSigner": true,
       "inputSchema": {
         "type": "object",
-        "required": ["blockHeight", "objectType"],
+        "required": [
+          "blockHeight",
+          "objectType"
+        ],
         "properties": {
-          "blockHeight": { "type": "integer" },
-          "objectType": { "type": "string" },
-          "color": { "type": "string" },
-          "posX": { "type": "number" },
-          "posY": { "type": "number" },
-          "posZ": { "type": "number" }
+          "blockHeight": {
+            "type": "integer"
+          },
+          "objectType": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "posX": {
+            "type": "number"
+          },
+          "posY": {
+            "type": "number"
+          },
+          "posZ": {
+            "type": "number"
+          }
         }
       }
     },
@@ -131,13 +200,36 @@
       "requiresSigner": true,
       "inputSchema": {
         "type": "object",
-        "required": ["blockHeight", "endpointUrl", "tier", "permissions"],
+        "required": [
+          "blockHeight",
+          "endpointUrl",
+          "tier",
+          "permissions"
+        ],
         "properties": {
-          "blockHeight": { "type": "integer" },
-          "endpointUrl": { "type": "string" },
-          "tier": { "type": "integer", "enum": [1, 2, 3] },
-          "permissions": { "type": "array", "items": { "type": "string" } },
-          "parcelIndex": { "type": "integer" }
+          "blockHeight": {
+            "type": "integer"
+          },
+          "endpointUrl": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3
+            ]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "parcelIndex": {
+            "type": "integer"
+          }
         }
       }
     },
@@ -147,8 +239,14 @@
       "requiresSigner": true,
       "inputSchema": {
         "type": "object",
-        "required": ["agentId"],
-        "properties": { "agentId": { "type": "string" } }
+        "required": [
+          "agentId"
+        ],
+        "properties": {
+          "agentId": {
+            "type": "string"
+          }
+        }
       }
     },
     {
@@ -157,8 +255,14 @@
       "requiresSigner": true,
       "inputSchema": {
         "type": "object",
-        "required": ["agentId"],
-        "properties": { "agentId": { "type": "string" } }
+        "required": [
+          "agentId"
+        ],
+        "properties": {
+          "agentId": {
+            "type": "string"
+          }
+        }
       }
     },
     {
@@ -167,8 +271,18 @@
       "requiresToken": true,
       "inputSchema": {
         "type": "object",
-        "required": ["agentId", "token"],
-        "properties": { "agentId": { "type": "string" }, "token": { "type": "string" } }
+        "required": [
+          "agentId",
+          "token"
+        ],
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        }
       }
     },
     {
@@ -177,13 +291,29 @@
       "requiresToken": true,
       "inputSchema": {
         "type": "object",
-        "required": ["agentId", "token", "period", "summary", "stats"],
+        "required": [
+          "agentId",
+          "token",
+          "period",
+          "summary",
+          "stats"
+        ],
         "properties": {
-          "agentId": { "type": "string" },
-          "token": { "type": "string" },
-          "period": { "type": "string" },
-          "summary": { "type": "string" },
-          "stats": { "type": "object" }
+          "agentId": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "stats": {
+            "type": "object"
+          }
         }
       }
     },
@@ -193,12 +323,23 @@
       "requiresToken": true,
       "inputSchema": {
         "type": "object",
-        "required": ["agentId", "token"],
+        "required": [
+          "agentId",
+          "token"
+        ],
         "properties": {
-          "agentId": { "type": "string" },
-          "token": { "type": "string" },
-          "since": { "type": "string" },
-          "limit": { "type": "integer" }
+          "agentId": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          },
+          "since": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          }
         }
       }
     },
@@ -208,19 +349,72 @@
       "requiresSigner": true,
       "inputSchema": {
         "type": "object",
-        "required": ["blockHeight", "name", "experienceType", "entryUrl", "transport", "version"],
+        "required": [
+          "blockHeight",
+          "name",
+          "experienceType",
+          "entryUrl",
+          "transport",
+          "version"
+        ],
         "properties": {
-          "blockHeight": { "type": "integer" },
-          "parcelIndex": { "type": "integer" },
-          "name": { "type": "string" },
-          "description": { "type": "string" },
-          "experienceType": { "type": "string", "enum": ["web", "unreal", "unity", "godot", "minecraft", "vr", "custom"] },
-          "entryUrl": { "type": "string", "description": "https:// or wss:// only (no http, localhost, or private IPs)" },
-          "transport": { "type": "string", "enum": ["https", "wss", "webrtc", "custom"] },
-          "healthUrl": { "type": "string" },
-          "capabilities": { "type": "array", "items": { "type": "string" } },
-          "contentRating": { "type": "string", "enum": ["everyone", "teen", "mature"] },
-          "version": { "type": "string" }
+          "blockHeight": {
+            "type": "integer"
+          },
+          "parcelIndex": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "experienceType": {
+            "type": "string",
+            "enum": [
+              "web",
+              "unreal",
+              "unity",
+              "godot",
+              "minecraft",
+              "vr",
+              "custom"
+            ]
+          },
+          "entryUrl": {
+            "type": "string",
+            "description": "https:// or wss:// only (no http, localhost, or private IPs)"
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "https",
+              "wss",
+              "webrtc",
+              "custom"
+            ]
+          },
+          "healthUrl": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contentRating": {
+            "type": "string",
+            "enum": [
+              "everyone",
+              "teen",
+              "mature"
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
         }
       }
     },
@@ -230,11 +424,36 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "blockHeight": { "type": "integer" },
-          "type": { "type": "string", "enum": ["web", "unreal", "unity", "godot", "minecraft", "vr", "custom"] },
-          "status": { "type": "string", "enum": ["live", "degraded", "unreachable", "pending"] },
-          "limit": { "type": "integer" },
-          "offset": { "type": "integer" }
+          "blockHeight": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "web",
+              "unreal",
+              "unity",
+              "godot",
+              "minecraft",
+              "vr",
+              "custom"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "live",
+              "degraded",
+              "unreachable",
+              "pending"
+            ]
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
         }
       }
     },
@@ -243,8 +462,115 @@
       "description": "Fetch one experience by id, including its last server-probed health (status/lastProbedAt/probeLatencyMs). Public read.",
       "inputSchema": {
         "type": "object",
-        "required": ["id"],
-        "properties": { "id": { "type": "string" } }
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "verify_start",
+      "description": "Step 1 of Bitcoin-native verification: get the message to sign with the wallet holding your .bitmap inscription.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "walletAddress"
+        ],
+        "properties": {
+          "walletAddress": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "verify_submit",
+      "description": "Step 2: exchange a BIP-322 signature plus claimed block heights for a bg_vfy_ session token scoped to the blocks that verified on-chain.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "walletAddress",
+          "message",
+          "signature"
+        ],
+        "properties": {
+          "walletAddress": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "my_blocks",
+      "description": "The blocks the current verified session proved it owns, plus wallet and expiry. Requires a bg_vfy_ session token.",
+      "requiresToken": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "claim_username",
+      "description": "Claim a username for the verified wallet, subject to availability. Requires a bg_vfy_ session token.",
+      "requiresToken": true,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "handle"
+        ],
+        "properties": {
+          "handle": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "world_create_verified",
+      "description": "Place an object on a block you own, authorised by a bg_vfy_ session token. Ownership is re-checked on-chain at the moment of the call.",
+      "requiresToken": true,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "blockHeight",
+          "objectType"
+        ],
+        "properties": {
+          "blockHeight": {
+            "type": "integer"
+          },
+          "objectType": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "posX": {
+            "type": "number"
+          },
+          "posY": {
+            "type": "number"
+          },
+          "posZ": {
+            "type": "number"
+          }
+        }
       }
     }
   ]

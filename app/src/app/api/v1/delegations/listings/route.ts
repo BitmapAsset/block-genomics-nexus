@@ -2,8 +2,12 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api-helpers';
 import { emitAgentEvent } from '@/lib/agent-events';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(req: NextRequest) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-delegations-listings' });
+  if (rl.response) return rl.response;
+
   try {
     const url = new URL(req.url);
     const blockHeight = url.searchParams.get('blockHeight');

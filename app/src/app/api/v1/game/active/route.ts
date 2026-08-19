@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-game-active' });
+  if (rl.response) return rl.response;
+
   try {
     // Find blocks with active game elements
     const gameBlocks = await prisma.gameElement.groupBy({

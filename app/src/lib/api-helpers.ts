@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const bip322 = require('bip322-js');
+import { verifyBip322 } from '@/lib/bip322';
 
 interface SuccessResponse<T> {
   success: true;
@@ -59,20 +57,11 @@ export function isValidBitcoinAddress(address: string): boolean {
 }
 
 /**
- * Verify BIP-322 wallet signature.
- * Uses bip322-js for real cryptographic verification.
+ * Verify a BIP-322 wallet signature.
+ *
+ * Delegates to `lib/bip322.ts`, which accepts the base64 / base64url / hex
+ * encodings different ordinals wallets emit and fails closed on everything else.
  */
 export function verifyWalletSignature(address: string, message: string, signature: string): boolean {
-  if (!address || !message || !signature) return false;
-  try {
-    return bip322.Verifier.verifySignature(address, message, signature);
-  } catch (e: unknown) {
-    const errMsg = e instanceof Error ? e.message : String(e);
-    console.warn('[auth] BIP-322 verification error:', errMsg);
-    // SECURITY: On any verifier error, reject — never fall back to accepting an
-    // unverified signature. bip322-js@3.0.0 does support single-key P2TR (bc1p)
-    // signatures, so a thrown error here means a genuinely invalid signature or
-    // malformed input, not an unsupported address type.
-    return false;
-  }
+  return verifyBip322(address, message, signature);
 }

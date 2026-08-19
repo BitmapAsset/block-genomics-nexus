@@ -12,6 +12,7 @@ import {
 import { verifyExperienceOwnerGate } from '@/lib/experience-ownership';
 import { judgeExperienceManifest } from '@/lib/experience-judge';
 import { serializeExperience, probeAndPersist, persistBrainRejection } from '@/lib/experience-service';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 function zodMessage(err: z.ZodError): string {
   return err.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; ');
@@ -113,6 +114,9 @@ export async function POST(req: NextRequest) {
  * Public, paginated discovery.
  */
 export async function GET(req: NextRequest) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-experiences' });
+  if (rl.response) return rl.response;
+
   try {
     const { searchParams } = new URL(req.url);
     const where: { blockHeight?: number; experienceType?: ExperienceType; status?: ExperienceStatus } = {};

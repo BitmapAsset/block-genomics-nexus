@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { encryptApiKey, maskApiKey } from '@/lib/key-encryption';
 import { generateGuardianBundle, GUARDIAN_PROTOCOL_VERSION } from '@/lib/guardian-templates';
 import { verifyWalletSignature } from '@/lib/api-helpers';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 const VALID_PROVIDERS = ['openai', 'anthropic', 'google', 'xai', 'custom'];
 
@@ -97,6 +98,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-guardian' });
+  if (rl.response) return rl.response;
+
   try {
     const { searchParams } = new URL(req.url);
     const blockHeight = searchParams.get('blockHeight');

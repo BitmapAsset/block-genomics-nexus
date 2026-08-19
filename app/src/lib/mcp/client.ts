@@ -77,8 +77,10 @@ export function createCall({
     if (opts.body !== undefined) headers['content-type'] = 'application/json';
     if (opts.auth && !token) {
       throw new Error(
-        'This tool needs an agent token. Send it as `Authorization: Bearer <agent token>` on the MCP request ' +
-          '(obtain one by registering an agent on a block you own).',
+        'This tool needs a credential. Send it as `Authorization: Bearer <token>` on the MCP request. ' +
+          'For ownership-gated tools (bg_my_blocks, bg_claim_username, bg_world_create): call bg_verify_start, ' +
+          'sign the returned message with the wallet holding your .bitmap inscription, then bg_verify_submit ' +
+          'to receive a bg_vfy_ token. For agent runtime tools: use the bg_agent_ token from agent registration.',
       );
     }
     // Forwarded on every call, not just `auth` ones: a sandbox key (bg_sbx_)

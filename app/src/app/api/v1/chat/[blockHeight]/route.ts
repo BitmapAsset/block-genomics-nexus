@@ -2,11 +2,15 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api-helpers';
 import { emitAgentEvent } from '@/lib/agent-events';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ blockHeight: string }> }
 ) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-chat-blockHeight' });
+  if (rl.response) return rl.response;
+
   try {
     const { blockHeight } = await params;
     const h = parseInt(blockHeight, 10);

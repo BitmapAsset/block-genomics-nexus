@@ -12,6 +12,7 @@
  */
 
 import { createMcpHandler } from '@modelcontextprotocol/server';
+import { enforceRateLimit, rateLimitIdentity } from '@/lib/api-rate-limit';
 import { rateLimit } from '@/lib/rate-limit';
 import { bearerFrom } from '@/lib/sandbox-tier';
 import { createBgMcpServer } from '@/lib/mcp/server';
@@ -20,7 +21,23 @@ import { resolveApiBase } from '@/lib/mcp/client';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-/** Per-IP ceiling. Generous for agent polling, tight enough to blunt a flood. */
+/**
+ * Per-caller ceiling. Generous for agent polling, tight enough to blunt a flood.
+ *
+ * Enforced in two layers, cheapest first:
+ *
+ *   LOCAL   — the in-memory limiter. One warm lambda only, but it costs nothing
+ *             and needs no database, so a flood hitting a single instance is
+ *             refused without ever touching Postgres. It also keeps working when
+ *             the database does not.
+ *   GLOBAL  — the durable Postgres limiter. This is the honest fleet-wide
+ *             ceiling; the previous in-memory-only limiter multiplied the real
+ *             limit by however many instances were warm and reset on cold start.
+ *
+ * Neither is sufficient alone: local is not a global quota, and global fails
+ * open on a limiter outage. Together they bound both cases. Keyed on the
+ * caller's credential when they present one, falling back to IP.
+ */
 const RATE_LIMIT = 120;
 const RATE_WINDOW_MS = 60_000;
 
@@ -43,11 +60,6 @@ const handler = createMcpHandler(
   { legacy: 'stateless' },
 );
 
-function clientKey(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return forwarded || request.headers.get('x-real-ip') || 'unknown';
-}
-
 /**
  * `next.config.ts` blankets `/(.*)` with a long-lived Cache-Control, so every
  * response has to opt out explicitly — a cached MCP reply would serve one
@@ -60,20 +72,38 @@ function decorate(response: Response): Response {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+/** JSON-RPC shaped refusal — MCP clients parse this, not our REST envelope. */
+function rateLimited(headers: Record<string, string>): Response {
+  return decorate(
+    Response.json(
+      {
+        jsonrpc: '2.0',
+        error: { code: -32000, message: `Rate limit exceeded: ${RATE_LIMIT} requests per minute.` },
+        id: null,
+      },
+      { status: 429, headers },
+    ),
+  );
+}
+
 async function serve(request: Request): Promise<Response> {
-  if (!rateLimit(`mcp:${clientKey(request)}`, RATE_LIMIT, RATE_WINDOW_MS)) {
-    return decorate(
-      Response.json(
-        {
-          jsonrpc: '2.0',
-          error: { code: -32000, message: `Rate limit exceeded: ${RATE_LIMIT} requests per minute.` },
-          id: null,
-        },
-        { status: 429, headers: { 'Retry-After': '60' } },
-      ),
-    );
+  // Layer 1 — local, free, no I/O. Refuses a single-instance flood before it
+  // can turn into database writes.
+  if (!rateLimit(`mcp:${rateLimitIdentity(request)}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+    return rateLimited({ 'Retry-After': '60' });
   }
-  return decorate(await handler.fetch(request));
+
+  // Layer 2 — durable, cross-instance. The real ceiling.
+  const rl = await enforceRateLimit(request, {
+    bucket: 'mcp',
+    limit: RATE_LIMIT,
+    windowMs: RATE_WINDOW_MS,
+  });
+  if (rl.response) return rateLimited(Object.fromEntries(rl.response.headers));
+
+  const response = decorate(await handler.fetch(request));
+  for (const [k, v] of Object.entries(rl.headers)) response.headers.set(k, v);
+  return response;
 }
 
 export async function POST(request: Request): Promise<Response> {

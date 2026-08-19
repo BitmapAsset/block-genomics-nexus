@@ -2,11 +2,15 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { sandboxGate } from '@/lib/sandbox-keys';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ height: string }> }
 ) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-blocks-height' });
+  if (rl.response) return rl.response;
+
   try {
     const gate = await sandboxGate(req);
     if (gate.response) return gate.response;

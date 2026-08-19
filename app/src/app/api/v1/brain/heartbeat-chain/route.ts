@@ -8,10 +8,14 @@
 import { NextResponse } from 'next/server';
 import { getChainForExport, verifyChain, getChainTip } from '@/lib/brain/heartbeat-chain';
 import prisma from '@/lib/prisma';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-brain-heartbeat-chain' });
+  if (rl.response) return rl.response;
+
   try {
     const url = new URL(req.url);
     const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '100', 10) || 100, 1000);

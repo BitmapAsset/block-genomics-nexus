@@ -91,6 +91,14 @@ export function createMemoryPrisma() {
       }
       if (model === 'ownershipTransfer' && !('detectedAt' in row)) row.detectedAt = new Date();
       if (model === 'challenge' && !('consumedAt' in row)) row.consumedAt = null;
+      if (model === 'verifiedSession') {
+        // Keyed by id like the real table — walletAddress is NOT unique, since one
+        // wallet may hold several concurrent sessions.
+        if (row.id === undefined) row.id = `mock_${model}_${++counter}`;
+        if (!('revokedAt' in row)) row.revokedAt = null;
+        if (!('verifiedBlocks' in row)) row.verifiedBlocks = [];
+        if (!('requestCount' in row)) row.requestCount = 0;
+      }
       rowsOf(model).push(row);
       return row;
     },
@@ -145,6 +153,7 @@ export function createMemoryPrisma() {
     'blockProfile', 'guardianAgent', 'guardianConversation', 'guardianEvent',
     'vPSLink', 'delegation', 'delegationListing', 'ownershipTransfer', 'handleHistory', 'parcel',
     'apiRateLimit', 'experience', 'contentFlag', 'contentVerdict', 'brainAction',
+    'verifiedSession', 'blockObject', 'blockTerrain', 'activityLog',
   ] as const;
 
   const client: any = {

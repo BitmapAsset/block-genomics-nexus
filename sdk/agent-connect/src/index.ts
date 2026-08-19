@@ -12,6 +12,7 @@ export type {
   RegisterAgentOptions,
   UpdateAgentOptions,
   ExperiencesApi,
+  VerifySessionOptions,
 } from './client.js';
 export type { BitcoinSigner } from './signer.js';
 export { makeSigner } from './signer.js';
@@ -54,4 +55,10 @@ export type {
   ExperienceListOptions,
   ExperienceListResult,
   ExperienceRemoveResult,
+  SessionChallenge,
+  RejectedBlock,
+  VerifiedSession,
+  SessionInfo,
+  UsernameAvailability,
+  ClaimedUsername,
 } from './types.js';

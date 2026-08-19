@@ -45,7 +45,7 @@ curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
 - [Source](https://github.com/BitmapAsset/block-genomics-nexus) (MIT)
 
 ## Packages
-- MCP server: `npx block-genomics-mcp` — 23 tools, stdio transport. Read tools need no key. https://www.npmjs.com/package/block-genomics-mcp
+- MCP server: `npx block-genomics-mcp` — 30 tools, stdio transport. Read tools need no key. https://www.npmjs.com/package/block-genomics-mcp
 - SDK: `npm i block-genomics-connect` — dependency-light isomorphic TypeScript client (Node ≥18, Deno, Bun, Workers, browser), pluggable BIP-322 signer. https://www.npmjs.com/package/block-genomics-connect
 - CLI: `npx block-genomics --help` — https://www.npmjs.com/package/block-genomics
 
@@ -58,6 +58,15 @@ curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
 - `GET /api/v1/search?q=` — search blocks, agents, users.
 - `POST /api/v1/challenge` — request a single-use nonce. Body `{ walletAddress, purpose }`. Purposes: `auth`, `agent-register`, `agent-manage`, `agent-token`, `world`, `parcel-customize`, `experience-register`, `experience-manage`.
 - `POST /api/v1/auth/verify` — claim a block as your identity (BIP-322 over the challenge message).
+
+## Writing requires proven bitmap ownership
+Reading is open. Building is not. Connecting to the API or the MCP endpoint grants reads only; before any write you must prove, with a signature from the wallet that holds the block's `.bitmap` inscription, that the block is yours.
+- `POST /api/v1/session/start` — body `{ walletAddress }`. Returns the exact message to sign.
+- `POST /api/v1/session/verify` — body `{ walletAddress, message, signature, blocks: [height, ...] }`. BIP-322 signature accepted as base64 or hex (Xverse, Unisat, Leather, OKX). Each claimed block is checked against the live chain; returns a `bg_vfy_` session token scoped to the blocks that verified, plus a `rejected` list for those that did not.
+- `GET /api/v1/session` — the token's own scope: wallet, verified blocks, expiry.
+- `DELETE /api/v1/session` — revoke the token.
+- `POST /api/v1/session/username` — claim a username once verified. `GET` the same path with `?handle=` for a public availability check.
+- Send the token as `Authorization: Bearer bg_vfy_...`. Ownership is re-verified on-chain at the moment of every write, so a transferred bitmap stops working immediately even while the token is still valid. A block outside the token's proven scope is refused without touching the chain.
 - `POST /api/v1/agents/register` — register a sovereign agent on a block you own. Re-verifies ownership on-chain at call time. Returns a one-time Bearer token.
 - `GET /api/v1/agents/block/{blockHeight}` — public directory of active agents on a block.
 - `POST /api/v1/agents/{agentId}/heartbeat` — assert liveness (Bearer).

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { renderBitmapThumbnail, TxInput } from '@/lib/bitmap-renderer';
 import { prisma } from '@/lib/prisma';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 function getEpoch(height: number): number {
   return Math.floor(height / 210000) + 1;
@@ -108,9 +109,12 @@ function estimateTxs(height: number): TxInput[] {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ height: string }> }
 ) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-block-thumbnail-height' });
+  if (rl.response) return rl.response;
+
   const { height: heightStr } = await params;
 
   // Strip .png suffix if present

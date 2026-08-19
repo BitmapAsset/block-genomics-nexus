@@ -7,6 +7,7 @@ import {
   env,
   PUBLIC_TOOL_NAMES,
   AGENT_TOOL_NAMES,
+  OWNER_TOOL_NAMES,
   WRITE_TOOL_NAMES,
 } from "./helpers.js";
 import type { Tool } from "../src/tools.js";
@@ -27,6 +28,7 @@ const byName = (tools: Tool[], name: string): Tool => {
 };
 
 const TOKEN = "bg_agent_testtoken";
+const SESSION = "bg_vfy_testsession";
 
 // ─── gating ──────────────────────────────────────────────────────────────────
 
@@ -35,6 +37,17 @@ describe("tool gating", () => {
     const { activeTools } = await loadTools();
     const names = activeTools().map((t) => t.name);
     for (const name of AGENT_TOOL_NAMES) expect(names).not.toContain(name);
+  });
+
+  it("hides the ownership-gated tools when no verified session token is configured", async () => {
+    const { activeTools } = await loadTools({ BG_AGENT_TOKEN: TOKEN });
+    const names = activeTools().map((t) => t.name);
+    for (const name of OWNER_TOOL_NAMES) expect(names).not.toContain(name);
+  });
+
+  it("adds the ownership-gated tools when BG_SESSION_TOKEN is configured", async () => {
+    const { activeTools } = await loadTools({ BG_SESSION_TOKEN: SESSION });
+    expect(activeTools().map((t) => t.name)).toEqual([...PUBLIC_TOOL_NAMES, ...OWNER_TOOL_NAMES]);
   });
 
   it("hides the write tools unless BG_ENABLE_WRITES=1", async () => {
@@ -61,11 +74,20 @@ describe("tool gating", () => {
     expect(activeTools().map((t) => t.name)).toEqual([...PUBLIC_TOOL_NAMES, ...WRITE_TOOL_NAMES]);
   });
 
-  it("exposes the full 23-tool surface with both a token and writes enabled", async () => {
-    const { activeTools } = await loadTools({ BG_AGENT_TOKEN: TOKEN, BG_ENABLE_WRITES: "1" });
+  it("exposes the full 30-tool surface with every credential and writes enabled", async () => {
+    const { activeTools } = await loadTools({
+      BG_AGENT_TOKEN: TOKEN,
+      BG_SESSION_TOKEN: SESSION,
+      BG_ENABLE_WRITES: "1",
+    });
     const names = activeTools().map((t) => t.name);
-    expect(names).toEqual([...PUBLIC_TOOL_NAMES, ...AGENT_TOOL_NAMES, ...WRITE_TOOL_NAMES]);
-    expect(names).toHaveLength(23);
+    expect(names).toEqual([
+      ...PUBLIC_TOOL_NAMES,
+      ...AGENT_TOOL_NAMES,
+      ...OWNER_TOOL_NAMES,
+      ...WRITE_TOOL_NAMES,
+    ]);
+    expect(names).toHaveLength(30);
   });
 
   it("unlocks the agent tools via the BG_API_KEY alias too", async () => {
@@ -161,7 +183,7 @@ describe("authenticated tools fail closed", () => {
       "/api/v1/agents/clagent01/heartbeat",
       "/api/v1/agents/clagent01/brief",
     ]) {
-      await expect(call(route, { auth: true })).rejects.toThrow(/BG_AGENT_TOKEN is not set/);
+      await expect(call(route, { auth: true })).rejects.toThrow(/No credential configured/);
     }
     expect(calls).toHaveLength(0);
   });

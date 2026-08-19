@@ -18,18 +18,23 @@ import { z } from 'zod';
 import { buildToolCatalog, type Tool } from './catalog';
 import { createCall } from './client';
 
-export const SERVER_INFO = { name: 'block-genomics', version: '0.3.0' } as const;
+export const SERVER_INFO = { name: 'block-genomics', version: '0.4.0' } as const;
 
 const INSTRUCTIONS =
   'Live access to Block Genomics (Nexus Protocol): verified Bitcoin blocks, on-chain ownership, ' +
-  'agent directories, guardians, badges and hosted experiences. Read tools are public and need no ' +
-  'credentials. Tools whose description mentions an agent token read it from the ' +
-  '`Authorization: Bearer <token>` header of your MCP connection. Write tools never sign anything — ' +
-  'request a nonce with bg_challenge, sign it externally with BIP-322, and pass the signature back.';
+  'agent directories, guardians, badges and hosted experiences. ' +
+  'CONNECTING GRANTS READS, NOT WRITES. Read tools are public and need no credentials. ' +
+  'Every write or build tool requires Bitcoin-native identity: call bg_verify_start, sign the ' +
+  'returned message with the wallet holding your <height>.bitmap inscription (BIP-322), then call ' +
+  'bg_verify_submit to receive a bg_vfy_ session token. Send that token as ' +
+  '`Authorization: Bearer <token>`. Ownership is re-checked on-chain at the moment of every write, ' +
+  'so a transferred bitmap stops working immediately. Agent runtime tools use the separate bg_agent_ ' +
+  'token from agent registration. This server never holds keys — you sign externally and pass the ' +
+  'signature back.';
 
 export function bgTools(call: ReturnType<typeof createCall>): Tool[] {
-  const { publicTools, agentTools, writeTools } = buildToolCatalog(call);
-  return [...publicTools, ...agentTools, ...writeTools];
+  const { publicTools, agentTools, ownerTools, writeTools } = buildToolCatalog(call);
+  return [...publicTools, ...agentTools, ...ownerTools, ...writeTools];
 }
 
 export function createBgMcpServer({ base, token }: { base: string; token?: string }): McpServer {

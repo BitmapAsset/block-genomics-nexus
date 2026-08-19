@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { sandboxGate } from '@/lib/sandbox-keys';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 /**
  * Global Search API
@@ -8,6 +9,9 @@ import { sandboxGate } from '@/lib/sandbox-keys';
  * Searches: blocks (by height), users (by handle, displayName)
  */
 export async function GET(req: NextRequest) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-search' });
+  if (rl.response) return rl.response;
+
   const gate = await sandboxGate(req);
   if (gate.response) return gate.response;
 

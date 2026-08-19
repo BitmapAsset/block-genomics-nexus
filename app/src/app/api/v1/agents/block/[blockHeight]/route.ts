@@ -1,11 +1,15 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ blockHeight: string }> }
 ) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-agents-block-blockHeight' });
+  if (rl.response) return rl.response;
+
   try {
     const { blockHeight } = await params;
     const h = parseInt(blockHeight, 10);

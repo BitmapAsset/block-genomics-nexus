@@ -2,7 +2,7 @@
  * Tests for src/app/mcp/route.ts — the remote Streamable HTTP MCP endpoint.
  *
  * Covers the handshake a real client performs (initialize → tools/list →
- * tools/call), that the full 23-tool catalog is advertised anonymously, that a
+ * tools/call), that the full 30-tool catalog is advertised anonymously, that a
  * tool call is proxied to the REST API, and that token-gated tools fail with a
  * usable message instead of leaking or hanging.
  *
@@ -87,14 +87,26 @@ describe('POST /mcp — handshake', () => {
 });
 
 describe('POST /mcp — tools/list', () => {
-  it('advertises the full 23-tool catalog to an anonymous caller', async () => {
+  it('advertises the full 30-tool catalog to an anonymous caller', async () => {
     const res = await post({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
     const body = await readResult(res);
 
     const names: string[] = body.result.tools.map((t: { name: string }) => t.name);
-    expect(names).toHaveLength(23);
-    expect(new Set(names).size).toBe(23);
+    expect(names).toHaveLength(30);
+    expect(new Set(names).size).toBe(30);
     expect(names).toEqual(expect.arrayContaining(['bg_stats', 'bg_block', 'bg_agent_heartbeat', 'bg_auth_verify']));
+    // The ownership-gated surface is DISCOVERABLE anonymously — a remote endpoint
+    // serves every caller, so tools/list must not depend on who is asking — but
+    // each of these refuses to run without a verified session token.
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'bg_verify_start',
+        'bg_verify_submit',
+        'bg_my_blocks',
+        'bg_claim_username',
+        'bg_world_create',
+      ]),
+    );
   });
 
   it('gives every tool a description and an object input schema', async () => {
@@ -224,7 +236,7 @@ describe('POST /mcp — 2026-07-28 era', () => {
 
     const body = await readResult(res);
     expect(body.error).toBeUndefined();
-    expect(body.result.tools).toHaveLength(23);
+    expect(body.result.tools).toHaveLength(30);
   });
 });
 

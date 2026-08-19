@@ -21,6 +21,7 @@ import prisma from '@/lib/prisma';
 import { NEXUS_BRAIN_WALLET, FLAG_THRESHOLD_SOFT, FLAG_THRESHOLD_HARD } from '@/lib/protocol';
 import { runOneShotScan, processExpiredAppeals, getBrainStatus } from '@/lib/brain';
 import type { ScanTarget, BrainDecision } from '@/lib/brain';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 const BRAIN_SECRET = process.env.BRAIN_SCAN_SECRET;
 if (!BRAIN_SECRET) console.warn('[brain/scan] BRAIN_SCAN_SECRET not set — scan endpoint disabled');
@@ -313,7 +314,10 @@ export async function POST(req: Request) {
  * 
  * Returns Brain runtime status (no auth required — transparency).
  */
-export async function GET() {
+export async function GET(req: Request) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-brain-scan', limit: 20 });
+  if (rl.response) return rl.response;
+
   const status = getBrainStatus();
   if (!status) {
     return NextResponse.json({
