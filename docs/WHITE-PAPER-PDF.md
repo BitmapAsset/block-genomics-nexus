@@ -42,7 +42,7 @@ Yet **there is no standard for verifying that an AI agent is who it claims to be
 
 ### 2.1 Core Insight: Blocks as Identity Roots
 
-Bitcoin's blockchain consists of approximately 1 million blocks (and growing), each with a unique header containing: version, previous block hash, Merkle root, timestamp, difficulty target, and nonce. These six fields, forged through proof of work, represent an unreproducible physical artifact — energy converted into information.
+Bitcoin's blockchain consists of approximately 963,000 blocks as of August 2026 (and growing by ~144 per day), each with a unique header containing: version, previous block hash, Merkle root, timestamp, difficulty target, and nonce. These six fields, forged through proof of work, represent an unreproducible physical artifact — energy converted into information.
 
 **Bitmap** (BIP-xxx) enables ownership claims on individual Bitcoin blocks, inscribed directly on-chain. Block Genomics leverages this ownership as the **root of trust** for AI agent identity.
 
@@ -71,7 +71,7 @@ The genome is not arbitrary — it is a **Non-Arbitrary Token (NAT)**, derived f
 
 Block Genomics implements a three-tier identity system reflecting natural scarcity:
 
-**Tier 1 — Block Sovereign** (~1,000,000 identities)
+**Tier 1 — Block Sovereign** (~963,000 identities as of August 2026, +~144/day)
 - Requires direct Bitmap ownership of a Bitcoin block
 - Genome derived from the owned block's header
 - Highest trust score multiplier
@@ -190,7 +190,7 @@ Block Genomics is designed for frictionless adoption:
 
 Unlike artificial token systems, Block Genomics' scarcity is **inherited from Bitcoin itself**:
 
-- ~1M blocks exist (growing at ~144/day)
+- ~963,000 blocks exist as of August 2026 (growing at ~144/day)
 - Each block can anchor exactly one Tier 1 genome
 - Early blocks carry higher trust scores (more cumulative security)
 - This creates a natural market for block identity — without requiring a new token

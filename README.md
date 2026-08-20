@@ -132,7 +132,7 @@ Scarcity is the core feature. Block Genomics implements three tiers of identity:
 
 | Tier | Name | Supply | Description |
 |:---:|:---|:---:|:---|
-| **🥇 1** | **Block Owners** | ~1,000,000 | Direct Bitmap ownership. The rarest and most trusted tier. One owner per block. Absolute digital scarcity. |
+| **🥇 1** | **Block Owners** | ~963,000 (= Bitcoin block height, +~144/day) | Direct Bitmap ownership. The rarest and most trusted tier. One owner per block. Absolute digital scarcity. |
 | **🥈 2** | **Transaction Level** | ~2.3 billion | Identity derived from specific transactions within blocks. Finite, tied to confirmed Bitcoin transactions. |
 | **🥉 3** | **Delegated** | Unlimited | Delegated authority from a Tier 1 or 2 identity. Open access. Web-of-trust model. |
 

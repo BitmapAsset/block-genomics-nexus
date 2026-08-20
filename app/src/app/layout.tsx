@@ -51,7 +51,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Block Genomics — Bitcoin DNA for Verified AI",
-    description: "Explore The Nexus — a decentralized metaverse built on Bitcoin. Each block is a 2.1km × 2.1km district. 880,000 blocks. 3.88M km² of digital land. Built on Bitmap.",
+    description: "Explore The Nexus — a decentralized metaverse built on Bitcoin. Each block is a 2.1km × 2.1km district. ~963,000 blocks. 4.25M km² of digital land. Built on Bitmap.",
     siteName: "Block Genomics",
     type: "website",
     locale: "en_US",
@@ -59,7 +59,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Block Genomics — Bitcoin DNA for Verified AI",
-    description: "Explore The Nexus — a decentralized metaverse built on Bitcoin. 880,000 blocks × 2.1km² districts. Identity anchored to Proof-of-Work.",
+    description: "Explore The Nexus — a decentralized metaverse built on Bitcoin. ~963,000 blocks × 4.41km² districts. Identity anchored to Proof-of-Work.",
   },
 };
 

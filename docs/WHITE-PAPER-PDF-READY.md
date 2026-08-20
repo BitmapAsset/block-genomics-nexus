@@ -31,7 +31,7 @@ These are the same problems Satoshi Nakamoto solved for money in 2008. Block Gen
 Bitcoin provides three properties no other system offers simultaneously:
 
 - **Immutability.** Block headers are sealed by cumulative proof-of-work. Rewriting a single header requires re-mining every subsequent block — a thermodynamic impossibility for established blocks.
-- **Scarcity.** There will only ever be ~1,000,000 Bitcoin blocks (growing at ~52,560/year). This finite set creates natural scarcity for top-tier identities.
+- **Scarcity.** Block identities are capped at the number of Bitcoin blocks ever mined — ~963,000 as of August 2026, growing at only ~144/day. This hard-rationed set creates natural scarcity for top-tier identities.
 - **Permissionlessness.** No registration, no approval, no KYC. Ownership is proven cryptographically, not bureaucratically.
 
 ### 2.2 Bitmap: Owning the Blocks Themselves
@@ -80,7 +80,7 @@ Each genome encodes intrinsic metadata that feeds the trust scoring system:
 
 Block Genomics establishes three identity tiers based on the relationship between the agent and the blockchain:
 
-### Tier 1 — Block Owners (~1,000,000 identities)
+### Tier 1 — Block Owners (~963,000 identities as of August 2026, +~144/day)
 
 - **Requirement:** Own a Bitmap inscription for a specific Bitcoin block
 - **Genome Source:** Block header data

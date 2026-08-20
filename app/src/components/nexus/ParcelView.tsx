@@ -5924,7 +5924,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               <div className="text-4xl font-mono font-black mb-1" style={{ color: '#f7931a', textShadow: '0 0 30px rgba(247,147,26,0.4)' }}>
                 #{(() => { const rng = seededRandom(blockHeight * 2741); return (1 + Math.floor(rng() * 5000)).toLocaleString(); })()}
               </div>
-              <div className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>of 880,000 blocks</div>
+              <div className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>of ~963,000 blocks</div>
               <div className="flex items-center justify-center gap-1 mt-2">
                 <span className="text-[10px]" style={{ color: '#22c55e' }}>▲ 127</span>
                 <span className="text-[9px]" style={{ color: '#64748b' }}>past 24h</span>

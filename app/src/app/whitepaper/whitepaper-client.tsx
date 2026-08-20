@@ -87,7 +87,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
             <p>{s.content.split("\n\n")[0]}</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
               {[
-                { tier: "Tier 1", label: "Block Owners", supply: "~1,000,000", icon: "👑", color: "border-bitcoin/30" },
+                { tier: "Tier 1", label: "Block Owners", supply: "~963,000", icon: "👑", color: "border-bitcoin/30" },
                 { tier: "Tier 2", label: "Transaction Level", supply: "~2,300,000,000", icon: "⭐", color: "border-accent-cyan/30" },
                 { tier: "Tier 3", label: "Delegated", supply: "Unlimited", icon: "🔗", color: "border-accent-purple/30" },
               ].map((t) => (
@@ -467,7 +467,7 @@ function SatoshiView() {
         anchored to Bitcoin&apos;s Proof-of-Work. By deriving 256-bit genome hashes from Bitcoin block data
         and verifying ownership through BIP-322 message signing, the protocol establishes unforgeable,
         scarce, and sovereign identities for both AI agents and humans. Three tiers of scarcity —
-        block-level (~1M), transaction-level (~2.3B), and delegated (unlimited) — create a natural
+        block-level (~963K), transaction-level (~2.3B), and delegated (unlimited) — create a natural
         trust hierarchy. A multi-factor trust score incentivizes honest participation. The result is
         a universal identity layer that requires no central authority, cannot be revoked, and is as
         permanent as the Bitcoin blockchain itself.
@@ -544,14 +544,14 @@ function SatoshiView() {
           <tr><th>Tier</th><th>Source</th><th>Supply</th><th>Trust Weight</th></tr>
         </thead>
         <tbody>
-          <tr><td>1</td><td>Block ownership (Bitmap)</td><td>~1,000,000</td><td>Highest</td></tr>
+          <tr><td>1</td><td>Block ownership (Bitmap)</td><td>~963,000</td><td>Highest</td></tr>
           <tr><td>2</td><td>Transaction reference</td><td>~2,300,000,000</td><td>Medium</td></tr>
           <tr><td>3</td><td>Delegated authority</td><td>Unlimited</td><td>Inherited</td></tr>
         </tbody>
       </table>
       <p>
-        Tier 1 identities are the scarcest and most trusted. With approximately 1 million
-        Bitcoin blocks (and growing by ~52,560 per year), these represent the digital equivalent
+        Tier 1 identities are the scarcest and most trusted. With approximately 963,000
+        Bitcoin blocks as of August 2026 (and growing by ~144 per day), these represent the digital equivalent
         of prime real estate. Tier 2 identities are derived from individual transactions,
         providing a larger but still finite supply. Tier 3 enables unlimited participation
         through delegation from higher-tier identities.
@@ -593,9 +593,14 @@ function SatoshiView() {
 
       <h2>8. Open Protocol</h2>
       <p>
-        Block Genomics is released under the Business Source License (BSL) — open source with a
-        4-year commercial restriction, converting to Apache 2.0 afterward. The protocol specification,
-        reference implementation, SDK, and documentation are publicly available. Independent
+        Block Genomics ships under two licenses. The protocol specification, the SDK, the MCP server,
+        the CLI, the RuneBolt bridge, and the reference agent are MIT licensed — OSI open source,
+        permissive, with no restrictions on commercial or closed-source use. The Nexus platform itself
+        is source-available under the Business Source License 1.1, which expressly grants self-hosting
+        and production use; the sole restriction is offering the platform to third parties as a paid
+        hosted service competing with Block Genomics&apos; own. Every version of the platform converts to
+        Apache 2.0 on its Change Date of 2029-08-10. BUSL is not an OSI open source license and we do
+        not claim otherwise — the protocol and the tooling you build with are. Independent
         implementations are encouraged. The protocol is designed to be permissionless,
         extensible, interoperable across platforms and chains, and fully sovereign — no
         entity can revoke an identity backed by Bitcoin Proof-of-Work.
@@ -635,7 +640,7 @@ function SatoshiView() {
         <tbody>
           <tr><td>Block district size</td><td>2.1 × 2.1 km</td><td>Bitcoin&apos;s 21M cap</td></tr>
           <tr><td>District area</td><td>4.41 km²</td><td>2.1² km</td></tr>
-          <tr><td>Total world area</td><td>~3.88M km²</td><td>880,000 × 4.41</td></tr>
+          <tr><td>Total world area</td><td>~4.25M km²</td><td>~963,000 × 4.41</td></tr>
           <tr><td>Parcel area</td><td>∝ tx byte size</td><td>Deterministic from chain</td></tr>
           <tr><td>Build height</td><td>∝ tx BTC value</td><td>Deterministic from chain</td></tr>
           <tr><td>Central plaza</td><td>Coinbase tx</td><td>First tx in every block</td></tr>
@@ -672,7 +677,7 @@ function SatoshiView() {
       <p>
         A 3% fee on all Tier 3 delegation transactions is collected by the protocol and directed to
         the Block Genomics Protocol Development Fund. This fee is hardcoded into the open-source
-        codebase — transparent, on-chain, and auditable by any participant. The fund sustains
+        protocol — transparent, on-chain, and auditable by any participant. The fund sustains
         long-term protocol maintenance, security audits, infrastructure, and ecosystem development.
       </p>
       <table className="sp-table">

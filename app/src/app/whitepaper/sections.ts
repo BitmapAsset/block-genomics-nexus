@@ -84,7 +84,7 @@ The genome computation is deterministic and reproducible. Given the same block d
     id: "tiers", num: "5", title: "Scarcity Tiers",
     content: `Scarcity is the core feature. Block Genomics implements three tiers of identity, each with different levels of scarcity and trust:
 
-Tier 1: Block Owners (~1,000,000 supply)
+Tier 1: Block Owners (one per mined Bitcoin block — ~963,000 as of August 2026, growing ~144 per day)
 Direct Bitmap ownership of a Bitcoin block. The rarest and most trusted tier. Each block can only have one owner — absolute digital scarcity. A Tier 1 identity carries the full weight of its block's Proof-of-Work.
 
 Tier 2: Transaction Level (~2,300,000,000 supply)
@@ -131,7 +131,7 @@ The trust score is transparent and auditable. Anyone can verify the inputs and r
   },
   {
     id: "openness", num: "8", title: "Open Source & Open Protocol",
-    content: `Block Genomics is open source under the Business Source License (BSL). After a 4-year commercial restriction period, the code converts to Apache 2.0. The protocol is designed to be:
+    content: `Block Genomics ships under two licenses, on purpose. The protocol specification and every client component built against it — the SDK, the MCP server, the CLI, the RuneBolt bridge, and the reference agent — are MIT licensed: OSI open source, permissive, with no restrictions on commercial or closed-source use. The Nexus platform itself is source-available under the Business Source License 1.1, which expressly grants self-hosting and production use; the single restriction is offering the platform to third parties as a paid hosted service competing with Block Genomics' own. Every version of the platform converts to Apache 2.0 on its Change Date of 2029-08-10. BUSL is not an OSI open source license and we do not claim otherwise — the protocol and the tooling you build with are. The protocol is designed to be:
 
 Permissionless — Anyone can verify, anyone can build on top. No API keys, no approval process, no gatekeepers.
 
@@ -164,7 +164,7 @@ The Nexus is not another metaverse built on speculative tokens. It is built on B
 Spatial Specification: The 2.1 km Standard
 Each Bitmap block in The Nexus occupies a 2.1 km × 2.1 km district — 4.41 square kilometers of digital land. The number 2.1 is a direct reference to Bitcoin's 21 million supply cap, embedding Bitcoin's core philosophy of scarcity into the physical dimensions of the metaverse itself.
 
-At this scale, the total Nexus world spans approximately 3.88 million square kilometers — roughly the size of India. This creates a digital planet that is vast enough to explore for a lifetime, yet scarce enough that every block of land has genuine value.
+At this scale, the total Nexus world spans approximately 4.25 million square kilometers as of August 2026, and grows by another ~635 km² with every day of Bitcoin mining. This creates a digital planet that is vast enough to explore for a lifetime, yet scarce enough that every block of land has genuine value.
 
 Within each 2.1 km × 2.1 km district, individual transactions become parcels of land. Parcel dimensions are derived deterministically from Bitcoin transaction data:
 
@@ -182,7 +182,7 @@ A 2.1 km district is fully traversable on foot in approximately 25 minutes — l
     content: `Block Genomics implements a three-tier economic model that provides entry points for every level of participation — from sovereign block ownership to lightweight delegation.
 
 Tier 1: Block Ownership (Bitmap)
-The foundational tier. A user acquires a Bitmap inscription for a specific Bitcoin block, becoming its sole owner. Supply is limited to the number of Bitcoin blocks ever mined (~880,000 and growing by ~144 per day). Tier 1 owners have full sovereignty over their block — they deploy resources, set access rules, accept or reject tenants, and earn the highest trust scores. This is digital real estate at the protocol layer.
+The foundational tier. A user acquires a Bitmap inscription for a specific Bitcoin block, becoming its sole owner. Supply is limited to the number of Bitcoin blocks ever mined — it is exactly the current Bitcoin block height (~963,000 as of August 2026), growing by ~144 per day. Tier 1 owners have full sovereignty over their block — they deploy resources, set access rules, accept or reject tenants, and earn the highest trust scores. This is digital real estate at the protocol layer.
 
 Tier 2: Transaction Parcels
 Each Bitcoin block contains transactions — hundreds or thousands of them. These transactions can be individually claimed as "parcels" within a block, creating a second layer of ownership. With approximately 2.3 billion confirmed transactions on Bitcoin, the supply is large but still finite and tied to real on-chain activity. Parcel owners can build within their transaction's scope, creating a subdivision model analogous to plots within a city block.

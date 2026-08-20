@@ -73,7 +73,7 @@
 
 <h2><span class="section-num">§5</span> Scarcity Tiers</h2>
 <p>Scarcity is the core feature. Block Genomics implements three tiers of identity, each with different levels of scarcity and trust:</p>
-<p><strong>Tier 1: Block Owners (~1,000,000 supply)</strong><br>Direct Bitmap ownership of a Bitcoin block. The rarest and most trusted tier. Each block can only have one owner — absolute digital scarcity. A Tier 1 identity carries the full weight of its block's Proof-of-Work.</p>
+<p><strong>Tier 1: Block Owners (one per mined Bitcoin block — ~963,000 as of August 2026, growing ~144 per day)</strong><br>Direct Bitmap ownership of a Bitcoin block. The rarest and most trusted tier. Each block can only have one owner — absolute digital scarcity. A Tier 1 identity carries the full weight of its block's Proof-of-Work.</p>
 <p><strong>Tier 2: Transaction Level (~2,300,000,000 supply)</strong><br>Identity derived from specific transactions within blocks. Large supply but still finite — tied to real Bitcoin transactions that have been confirmed by the network.</p>
 <p><strong>Tier 3: Delegated (Unlimited supply)</strong><br>Delegated authority from a Tier 1 or Tier 2 identity. Open access for anyone. Trust flows from the delegating entity, creating a web-of-trust model.</p>
 <p>This tiered model ensures that the most valuable identities are naturally scarce — just like Bitcoin itself.</p>
@@ -98,7 +98,7 @@
 <p>The trust score is transparent and auditable. Anyone can verify the inputs and reproduce the calculation.</p>
 
 <h2><span class="section-num">§8</span> Open Source & Open Protocol</h2>
-<p>Block Genomics is open source under the Business Source License (BSL). After a 4-year commercial restriction period, the code converts to Apache 2.0. The protocol is designed to be:</p>
+<p>Block Genomics ships under two licenses, on purpose. The protocol specification and every client component built against it — the SDK, the MCP server, the CLI, the RuneBolt bridge, and the reference agent — are MIT licensed: OSI open source, permissive, with no restrictions on commercial or closed-source use. The Nexus platform itself is source-available under the Business Source License 1.1, which expressly grants self-hosting and production use; the single restriction is offering the platform to third parties as a paid hosted service competing with Block Genomics' own. Every version of the platform converts to Apache 2.0 on its Change Date of 2029-08-10. BUSL is not an OSI open source license and we do not claim otherwise — the protocol and the tooling you build with are. The protocol is designed to be:</p>
 <p><strong>Permissionless</strong> — Anyone can verify, anyone can build on top. No API keys, no approval process, no gatekeepers.</p>
 <p><strong>Extensible</strong> — SDK and API available for developers. The protocol is modular by design.</p>
 <p><strong>Interoperable</strong> — Works across chains, platforms, and agent frameworks. One identity, everywhere.</p>
@@ -115,7 +115,7 @@
 
 <h3>Spatial Specification: The 2.1 km Standard</h3>
 <p>Each Bitmap block in The Nexus occupies a <strong>2.1 km × 2.1 km district</strong> — 4.41 square kilometers of digital land. The number 2.1 is a direct reference to Bitcoin's 21 million supply cap, embedding Bitcoin's core philosophy of scarcity into the physical dimensions of the metaverse itself.</p>
-<p>At this scale, the total Nexus world spans approximately <strong>3.88 million square kilometers</strong> — roughly the size of India. This creates a digital planet that is vast enough to explore for a lifetime, yet scarce enough that every block of land has genuine value.</p>
+<p>At this scale, the total Nexus world spans approximately <strong>4.25 million square kilometers</strong> as of August 2026, and grows by another ~635 km² with every day of Bitcoin mining. This creates a digital planet that is vast enough to explore for a lifetime, yet scarce enough that every block of land has genuine value.</p>
 <p>Within each 2.1 km × 2.1 km district, individual transactions become parcels of land:</p>
 <p>• <strong>Parcel area</strong> is proportional to transaction byte size — larger, more complex transactions occupy more land<br>
 • <strong>Build height</strong> is proportional to transaction value (BTC transferred) — high-value transactions can support taller structures<br>
@@ -125,7 +125,7 @@
 
 <h2><span class="section-num">§10</span> Economic Model</h2>
 <p>Block Genomics implements a three-tier economic model that provides entry points for every level of participation — from sovereign block ownership to lightweight delegation.</p>
-<p><strong>Tier 1: Block Ownership (Bitmap)</strong><br>The foundational tier. A user acquires a Bitmap inscription for a specific Bitcoin block, becoming its sole owner. Supply is limited to the number of Bitcoin blocks ever mined (~880,000 and growing by ~144 per day). Tier 1 owners have full sovereignty over their block — they deploy resources, set access rules, accept or reject tenants, and earn the highest trust scores.</p>
+<p><strong>Tier 1: Block Ownership (Bitmap)</strong><br>The foundational tier. A user acquires a Bitmap inscription for a specific Bitcoin block, becoming its sole owner. Supply is limited to the number of Bitcoin blocks ever mined — it is exactly the current Bitcoin block height (~963,000 as of August 2026), growing by ~144 per day. Tier 1 owners have full sovereignty over their block — they deploy resources, set access rules, accept or reject tenants, and earn the highest trust scores.</p>
 <p><strong>Tier 2: Transaction Parcels</strong><br>Each Bitcoin block contains transactions — hundreds or thousands of them. These transactions can be individually claimed as "parcels" within a block, creating a second layer of ownership. With approximately 2.3 billion confirmed transactions on Bitcoin, the supply is large but still finite and tied to real on-chain activity.</p>
 <p><strong>Tier 3: Delegated Access (Rental)</strong><br>Block owners can delegate verification authority to others. A Tier 3 identity inherits trust from its delegating Tier 1 or Tier 2 owner, creating a web-of-trust model. This is the lowest barrier to entry — pay a delegation fee in Bitcoin to gain access.</p>
 
