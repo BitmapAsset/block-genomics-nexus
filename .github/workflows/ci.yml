@@ -5,7 +5,7 @@
 # green before this workflow was added; jobs run in parallel and finish in ~2 min.
 #
 # Job names double as branch-protection status checks: sdk, mcp, cli, app, lint,
-# build, secrets.
+# example, build, secrets.
 #
 # `app` (jest), `lint` (eslint) and `build` (next build) are separate jobs rather
 # than steps of one: they are independent failure modes, and as steps a lint
@@ -117,6 +117,26 @@ jobs:
       # `eslint .`, not `next lint` — the latter is removed in Next 16.
       # Fails on errors only; the pre-existing warning backlog is not a gate.
       - run: npm run lint
+
+  example:
+    name: example
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/reference-agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: examples/reference-agent/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      # The suite signs with this example's signer and verifies with the app's
+      # own verifier module, so a signer/verifier divergence fails here rather
+      # than in someone's first agent.
+      - run: npm test
 
   build:
     name: build

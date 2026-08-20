@@ -1,6 +1,26 @@
 # Block Genomics — Verification API Server
 
-Server-side challenge-response verification for Bitcoin block ownership using BIP-322 signatures and Bitmap inscriptions.
+> ## ⚠️ SUPERSEDED — do not build on this
+>
+> This is the original MVP verification server. **The `app/` Next.js API replaced
+> it entirely** and is what runs in production. This directory is kept for
+> reference only: it is not deployed, not covered by CI, and not maintained.
+>
+> | | this server | `app/` (current) |
+> |---|---|---|
+> | Signature verification | BIP-137 only, via `bitcoinjs-message` | full BIP-322 — P2PKH, P2SH-P2WPKH, P2WPKH, P2TR (`app/src/lib/bip322-verify.ts`) |
+> | Taproot (`bc1p…`) | **unsupported** — returns `taproot-pending` for manual review | verified (Schnorr / BIP-341) |
+> | Crypto primitives | `elliptic` (unmaintained since 2024-11, open advisories) | `@noble/curves` + `@scure/btc-signer` |
+> | Storage | local SQLite file | Postgres via Prisma |
+> | Replay protection | challenge expiry | one-time nonce bound to method, path, block and body hash (§7.2) |
+> | Live ownership re-check | at verify time only | on every write, against the chain (§4.4) |
+>
+> Use these instead: `POST /api/v1/session/start`, `POST /api/v1/session/verify`,
+> `POST /api/v1/challenge`, `POST /api/v1/verify` in `app/`.
+>
+> `./dev.sh` no longer installs or starts this server. To run it anyway:
+> `BG_LEGACY_API_SERVER=1 ./dev.sh`. Doing so installs `elliptic` into your local
+> tree — it is not in any shipped artifact.
 
 ## Architecture
 

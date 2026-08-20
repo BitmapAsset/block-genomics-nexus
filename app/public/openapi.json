@@ -440,8 +440,8 @@
         "tags": [
           "World"
         ],
-        "summary": "Batch create/update/delete world objects (up to 100 ops)",
-        "description": "Same action-bound BIP-322 flow as POST /api/v1/world, but the signed `bodyHash` covers the full batch. All sub-ops are validated for ownership and lock-state BEFORE the nonce is consumed, so a forged sub-op rejects the whole batch with the nonce preserved. Emits a single `world_updated` agent event summarizing the batch on success.",
+        "summary": "Batch create/update/delete world objects (up to 100 ops, all-or-nothing)",
+        "description": "Create/update/delete up to 100 world objects on a block you own, in ONE call. AUTHORIZATION — either credential path (§4.4): SESSION, an `Authorization: Bearer bg_vfy_...` token covering this block, with no signature, message or nonce, where the write is attributed to the session wallet and `ownerAddress` in the body is ignored; or WALLET, an action-bound BIP-322 signature whose `bodyHash` covers the FULL batch, plus `ownerAddress` (see x-bg-action-message; the action is `world.batch`). ALL-OR-NOTHING (§7.3): the batch applies completely or not at all, so a 2xx means every sub-op landed and a failed sub-op is never reported inside a 2xx; any other status means nothing was applied. ORDERING: sub-ops are validated for shape, ownership, block membership and lock state BEFORE the nonce is consumed, so a rejected batch leaves the nonce spendable and the identical signed request can be re-sent; credentials are checked before any object is looked up, so an uncredentialed caller cannot use validation errors to probe which object ids exist. RETRY: 400/403/503 applied nothing and left the nonce untouched (re-send as is); 500 `batch_failed` applied nothing but DID spend the nonce (re-sign on the wallet path, or re-send unchanged on the session path); retrying a batch that already applied is not idempotent for `create` sub-ops, so reconcile with GET /api/v1/world first if a response was lost. Success emits a single `world_updated` agent event summarizing the batch.",
         "requestBody": {
           "required": true,
           "content": {
@@ -450,10 +450,7 @@
                 "type": "object",
                 "required": [
                   "blockHeight",
-                  "ownerAddress",
-                  "operations",
-                  "signature",
-                  "message"
+                  "operations"
                 ],
                 "properties": {
                   "blockHeight": {
@@ -501,18 +498,35 @@
         },
         "responses": {
           "200": {
-            "description": "Batch executed, per-op results returned"
+            "description": "Batch fully applied. `results` lists every sub-op, all successful."
           },
           "400": {
-            "description": "Invalid batch (missing fields, >100 ops, malformed sub-op)"
+            "description": "Invalid batch (missing fields, >100 ops, malformed or unknown sub-op). Nothing applied."
           },
           "401": {
-            "description": "Signature/nonce/binding failure"
+            "description": "No credential, invalid signature/binding, or an expired/already-used nonce. Nothing applied."
           },
           "403": {
-            "description": "Signer is not the block owner, or a sub-op targets a resource they don't own / is locked"
+            "description": "Caller is not the current block owner, or a sub-op targets an object on another block / a locked object. Nothing applied; nonce preserved."
+          },
+          "429": {
+            "description": "Rate limited — 20 batches/minute per identity. Retry after `Retry-After`."
+          },
+          "500": {
+            "description": "`batch_failed` — the transaction rolled back. Nothing was applied."
+          },
+          "503": {
+            "description": "`onchain_unavailable` — live ownership could not be confirmed. Nothing applied; nonce preserved."
           }
-        }
+        },
+        "security": [
+          {
+            "verifiedSession": []
+          },
+          {
+            "bip322": []
+          }
+        ]
       }
     },
     "/api/v1/world/{id}": {
@@ -2417,6 +2431,12 @@
         "type": "http",
         "scheme": "bearer",
         "description": "Not a bearer token. Write endpoints authenticate per-request with a BIP-322 signature over a one-time, action-bound challenge message carried in the request body ({ signature, message } or { signature, challenge } for /agents/*). The agent supplies its own signer; Block Genomics never holds private keys."
+      },
+      "verifiedSession": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "bg_vfy_<hex>",
+        "description": "Verified-ownership session token from POST /api/v1/session/verify, minted only after a BIP-322 signature over a one-time challenge proved the wallet holds the block's .bitmap inscription. Sent as `Authorization: Bearer <token>` (or `X-BG-Session: <token>`). Scoped to the blocks it proved, and re-checked against the chain on every write, so it fails closed the moment the inscription is transferred. Stored server-side only as a SHA-256 hash."
       },
       "agentToken": {
         "type": "http",
