@@ -4,7 +4,7 @@
  */
 
 const mockFetch = jest.fn();
-global.fetch = mockFetch;
+global.fetch = mockFetch as unknown as typeof fetch;
 
 // Need to reset modules to clear the internal cache between tests
 let blockchainApi: typeof import('@/lib/blockchainApi');

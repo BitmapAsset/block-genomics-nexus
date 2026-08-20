@@ -34,7 +34,6 @@ export type Terrain = {
   fogColor?: string | null;
   skyColor?: string | null;
   weather?: string | null;
-  surfaceType?: string | null;
 };
 
 export type WorldState = {
@@ -69,7 +68,6 @@ export type TerrainInput = SignedMessage & {
   fogColor?: string;
   skyColor?: string;
   weather?: string;
-  surfaceType?: string;
 };
 
 export type WalletAdapter = {
