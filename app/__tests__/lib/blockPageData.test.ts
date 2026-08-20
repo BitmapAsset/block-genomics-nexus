@@ -59,6 +59,7 @@ import {
   creatorLabel,
   type BlockPageData,
 } from '@/lib/blockPageData';
+import { __resetPublicOwnerLookup } from '@/lib/publicOwnerLookup';
 
 const ALICE = 'bc1pseller0000000000000000000000000000000000';
 const BOB = 'bc1pbuyer00000000000000000000000000000000000';
@@ -80,9 +81,24 @@ function emptyBlockFixture(block: unknown) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  __resetPublicOwnerLookup();
   mockFetchOgSummary.mockResolvedValue(null);
   mockGetInscriptionOwner.mockResolvedValue(null);
 });
+
+/** Let a fire-and-forget deed warm settle. */
+const settleWarm = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/**
+ * The render path never awaits the throttled indexer call, so the first render
+ * of a block is always unconfirmed and only a later one can report the deed.
+ * Assertions about a confirmed holder go through here.
+ */
+async function fetchAfterWarm(height: number) {
+  await fetchBlockPageData(height);
+  await settleWarm();
+  return fetchBlockPageData(height);
+}
 
 // ── Pure helpers ────────────────────────────────────────────────────────
 
@@ -141,6 +157,7 @@ describe('resolveOwnership()', () => {
       inscriptionId: null,
       inSync: false,
       indeterminate: true,
+      checkPending: false,
     });
   });
 
@@ -276,7 +293,7 @@ describe('fetchBlockPageData()', () => {
     });
     mockGetInscriptionOwner.mockResolvedValue(BOB);
 
-    const data = await fetchBlockPageData(BLOCK);
+    const data = await fetchAfterWarm(BLOCK);
 
     expect(data.ownership.onChainOwner).toBe(BOB);
     expect(data.ownership.registeredOwner).toBe(ALICE);
@@ -339,7 +356,7 @@ describe('fetchBlockPageData()', () => {
     mockProfileFindMany.mockResolvedValue([]);
     mockGetInscriptionOwner.mockResolvedValue(BOB);
 
-    const data = await fetchBlockPageData(BLOCK);
+    const data = await fetchAfterWarm(BLOCK);
 
     expect(data.objects[0].creator.address).toBe(ALICE);
     expect(data.objects[0].creator.handle).toBe('alice');
@@ -534,6 +551,9 @@ describe('fetchBlockCardFacts()', () => {
     mockBlockFindUnique.mockResolvedValue({ ownerAddress: ALICE, inscriptionId: INSCRIPTION });
     mockObjectCount.mockResolvedValue(7);
     mockGetInscriptionOwner.mockResolvedValue(BOB);
+
+    await fetchBlockCardFacts(BLOCK);
+    await settleWarm();
 
     expect(await fetchBlockCardFacts(BLOCK)).toEqual({
       owner: BOB,

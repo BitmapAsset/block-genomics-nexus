@@ -9,8 +9,9 @@
  *
  * 1. **Read-only.** The page must never mutate. `verifyBlockOwnership()` is the
  *    richer ownership primitive but it stamps `lastOwnerCheck`, which would turn
- *    every crawler hit into a write. The indexer lookup is called directly
- *    instead (cached, fail-closed) and nothing is persisted.
+ *    every crawler hit into a write. The deed is read through
+ *    `publicOwnerLookup` instead, which never blocks on the throttled indexer
+ *    and never persists anything.
  *
  * 2. **Never throw.** A public share target that 500s when the database or the
  *    ordinals indexer blinks is worse than one that renders with a gap in it, so
@@ -26,7 +27,7 @@
  */
 
 import prisma from '@/lib/prisma';
-import { getInscriptionOwner } from '@/lib/ownership-sync';
+import { lookupOwnerForRender } from '@/lib/publicOwnerLookup';
 import { fetchBlockOgSummary, type BlockOgSummary } from '@/lib/blockOgData';
 import { formatBytes, formatNumber } from '@/lib/genome-utils';
 
@@ -56,6 +57,12 @@ export interface BlockOwnership {
    * inscription linked, or the indexer was unreachable). Never means "unowned".
    */
   indeterminate: boolean;
+  /**
+   * True when `indeterminate` is only because the render path declined to wait
+   * for the throttled indexer call. Distinguishes "still checking" from "the
+   * indexer is down" — see `publicOwnerLookup`.
+   */
+  checkPending: boolean;
 }
 
 export interface BlockObjectSummary {
@@ -109,6 +116,7 @@ const UNKNOWN_OWNERSHIP: BlockOwnership = {
   inscriptionId: null,
   inSync: false,
   indeterminate: true,
+  checkPending: false,
 };
 
 /**
@@ -140,6 +148,7 @@ export function creatorLabel(creator: Creator): string {
 export function resolveOwnership(
   record: { ownerAddress: string | null; inscriptionId: string | null } | null,
   onChainOwner: string | null,
+  checkPending = false,
 ): BlockOwnership {
   if (!record) return { ...UNKNOWN_OWNERSHIP };
 
@@ -149,6 +158,7 @@ export function resolveOwnership(
     inscriptionId: record.inscriptionId,
     inSync: onChainOwner !== null && onChainOwner === record.ownerAddress,
     indeterminate: onChainOwner === null,
+    checkPending: onChainOwner === null && checkPending,
   };
 }
 
@@ -262,23 +272,6 @@ async function fetchIdentities(height: number, addresses: string[]): Promise<Map
   }
 }
 
-/**
- * Deed holder for the public block page, or null when there is no inscription
- * or the indexer is down.
- *
- * DISPLAY tier: this renders a page and authorizes nothing, so it shares the
- * cached observation rather than putting every page view on the indexer's
- * throttle. Anything that gates a write must use the auth tier instead — see
- * lib/onchain/owner-freshness.ts.
- */
-async function fetchOnChainOwner(inscriptionId: string | null): Promise<string | null> {
-  if (!inscriptionId) return null;
-  try {
-    return await getInscriptionOwner(inscriptionId, 'display');
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Assemble the full block page payload.
@@ -313,8 +306,10 @@ export async function fetchBlockPageData(height: number): Promise<BlockPageData>
 
   const { block, objects, objectCount, parcels, parcelCount, experiences, experienceCount } = db;
 
-  const onChainOwner = await fetchOnChainOwner(block?.inscriptionId ?? null);
-  const ownership = resolveOwnership(block, onChainOwner);
+  // Never awaited: the ord client throttles to ~1 req/sec process-wide, so
+  // blocking here lets a crawler sweeping distinct blocks serialise the page.
+  const { address: onChainOwner, pending } = lookupOwnerForRender(block?.inscriptionId ?? null);
+  const ownership = resolveOwnership(block, onChainOwner, pending);
 
   const addresses = Array.from(
     new Set(
@@ -424,7 +419,9 @@ export async function fetchBlockCardFacts(height: number): Promise<BlockCardFact
 
     if (!block) return { owner: null, objectCount: 0, claimed: false };
 
-    const onChainOwner = await fetchOnChainOwner(block.inscriptionId);
+    // Same non-blocking rule as the page: unfurlers hit this in bursts and time
+    // out fast, and the recorded owner is an acceptable card-level answer.
+    const { address: onChainOwner } = lookupOwnerForRender(block.inscriptionId);
 
     return {
       owner: onChainOwner ?? block.ownerAddress,

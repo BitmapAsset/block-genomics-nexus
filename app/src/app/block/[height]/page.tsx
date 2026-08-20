@@ -214,7 +214,7 @@ function DeedPanel({ data }: { data: BlockPageData }) {
               : { background: 'rgba(100,116,139,0.12)', color: '#94a3b8' }
           }
         >
-          {verified ? 'Verified on-chain' : 'Unverified'}
+          {verified ? 'Verified on-chain' : ownership.checkPending ? 'Checking' : 'Unverified'}
         </span>
       </div>
 
@@ -225,7 +225,9 @@ function DeedPanel({ data }: { data: BlockPageData }) {
           ? 'Current holder of the .bitmap inscription. Whoever holds the deed controls everything standing on this block.'
           : chainMoved
             ? 'Live holder per the ordinals indexer. This registry still lists a previous owner and has not caught up yet.'
-            : 'Last recorded holder. The ordinals indexer could not be reached, so this is not confirmed against the chain right now.'}
+            : ownership.checkPending
+              ? 'Last recorded holder. The live chain check is still running — reload in a moment to see it confirmed.'
+              : 'Last recorded holder. The ordinals indexer could not be reached, so this is not confirmed against the chain right now.'}
       </p>
 
       {ownership.inscriptionId && (
