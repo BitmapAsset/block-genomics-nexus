@@ -226,10 +226,28 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
 
   if (realBlock && realBlock.txs.length > 0) {
     // ═══ REAL BLOCKCHAIN DATA ═══
+    // `value` drives building height, so every BTC figure here has to come from
+    // the block itself. A zero-fee transaction is a real answer — it renders at
+    // the floor height — and used to be replaced with `0.0001 + rng() * 0.1`,
+    // which grew a random skyline out of nothing on live chain data.
+    //
+    // The coinbase carries the subsidy plus every fee in the block, and the
+    // subsidy halves every 210,000 blocks, so it is derived from the height
+    // being rendered rather than pinned to the current epoch's 3.125 — which
+    // drew block 500,000's 12.5 BTC coinbase at a quarter of its real size.
+    //
+    // Fees are only added when the payload carries real ones. `estimated`
+    // means blockchainApi fetched the first page and synthesised the rest, fee
+    // included, so summing them would hang an invented total on the tallest
+    // building in the block. The subsidy alone is the honest floor there.
+    const subsidyBtc = 50 / Math.pow(2, getEpoch(blockHeight));
+    const totalFeesBtc = realBlock.estimated
+      ? 0
+      : realBlock.txs.reduce((sum, tx) => sum + (tx.fee || 0), 0) / 100_000_000;
     for (const tx of realBlock.txs) {
       const value = tx.isCoinbase
-        ? 3.125 + (tx.fee / 100_000_000)
-        : tx.fee / 100_000_000 || 0.0001 + rng() * 0.1;
+        ? subsidyBtc + totalFeesBtc
+        : (tx.fee || 0) / 100_000_000;
       rawParcels.push({
         txIndex: tx.txIndex,
         bytes: tx.size,
@@ -2087,40 +2105,102 @@ function EstateMiniMap({ allParcels, ownedIndices, selectedParcels, onToggleParc
 }
 
 /* ─── Estate Creation Modal ─── */
+/**
+ * What we know about the wallet's claim on this block, and how we came to know
+ * it. Only `proven` is reachable from a live on-chain answer.
+ */
+type OwnershipProof =
+  | { state: 'unproven' }
+  | { state: 'proving' }
+  | { state: 'proven' }
+  | { state: 'failed'; reason: string; retryable: boolean };
+
 function EstateModal({ onClose, blockHeight, parcels, onCreateEstate }: { onClose: () => void; blockHeight: number; parcels: ParcelData[]; onCreateEstate: (estate: Estate) => void }) {
+  const { walletAddress, signMessage } = useGlobalWallet();
   const [estateName, setEstateName] = useState('');
   const [selectedParcels, setSelectedParcels] = useState<Set<number>>(new Set());
   const [selectedColor, setSelectedColor] = useState(NEON_COLORS[0]);
   const [created, setCreated] = useState(false);
-  const [walletConnected, setWalletConnected] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [selectedBlock, setSelectedBlock] = useState(blockHeight);
+  const [proof, setProof] = useState<OwnershipProof>({ state: 'unproven' });
 
-  const mockOwnedBlocks = useMemo(() => {
-    const rng = seededRandom(blockHeight * 4201);
-    const blocks = [{ height: blockHeight, parcelCount: 12 + Math.floor(rng() * 40) }];
-    if (rng() > 0.4) blocks.push({ height: blockHeight + 1, parcelCount: 5 + Math.floor(rng() * 20) });
-    if (rng() > 0.6) blocks.push({ height: blockHeight - 1, parcelCount: 3 + Math.floor(rng() * 15) });
-    return blocks;
-  }, [blockHeight]);
+  /**
+   * Ownership follows the deed. Holding `<height>.bitmap` means holding every
+   * parcel standing on that block — lib/ownership-gate.ts makes that the only
+   * question the server asks about who may mutate a block, and there is no
+   * per-parcel deed to disagree with it. So a proven block offers all of its
+   * parcels, and an unproven one offers none.
+   *
+   * The set this replaced was `rng() > 0.5` over the real parcels, sized by an
+   * invented per-block count, which is why it could show a stranger's block
+   * "verified" with 37 parcels owned.
+   */
+  const ownedIndices = useMemo(
+    () => (proof.state === 'proven' ? new Set(parcels.map(p => p.txIndex)) : new Set<number>()),
+    [proof.state, parcels]
+  );
 
-  const ownerParcels = useMemo(() => {
-    const block = mockOwnedBlocks.find(b => b.height === selectedBlock);
-    if (!block) return [];
-    const rng = seededRandom(selectedBlock * 7777);
-    const allParcels = selectedBlock === blockHeight ? parcels : generateParcels(selectedBlock);
-    const owned: ParcelData[] = [];
-    for (let i = 0; i < allParcels.length && owned.length < block.parcelCount; i++) {
-      if (!allParcels[i].isCoinbase && rng() > 0.5) owned.push(allParcels[i]);
+  /**
+   * The real handshake, the same one agents and the CLI use:
+   * challenge → BIP-322 signature → live indexer check on this exact block.
+   * A signature alone proves wallet control, never bitmap ownership, so the
+   * server's on-chain step is what this UI is actually waiting on.
+   */
+  const proveOwnership = async () => {
+    if (!walletAddress) {
+      window.dispatchEvent(new Event('open-wallet-modal'));
+      return;
     }
-    return owned;
-  }, [selectedBlock, blockHeight, parcels, mockOwnedBlocks]);
+    setProof({ state: 'proving' });
+    try {
+      const startRes = await fetch('/api/v1/session/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress }),
+      });
+      const startData = await startRes.json().catch(() => null);
+      const message: string | undefined = startData?.data?.message;
+      if (!startRes.ok || !message) {
+        throw new Error(startData?.error || 'Could not start verification');
+      }
 
-  const cols = Math.min(8, Math.ceil(Math.sqrt(ownerParcels.length)));
+      const signature = await signMessage(message);
+      if (!signature) throw new Error('No signature received from wallet');
 
-  const handleConnect = () => {
-    setConnecting(true);
-    setTimeout(() => { setConnecting(false); setWalletConnected(true); }, 1500);
+      const verifyRes = await fetch('/api/v1/session/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress, message, signature, blocks: [blockHeight] }),
+      });
+      const verifyData = await verifyRes.json().catch(() => null);
+
+      if (!verifyRes.ok) {
+        setProof({
+          state: 'failed',
+          reason: verifyData?.error || 'Ownership could not be verified',
+          retryable: verifyRes.status === 503,
+        });
+        return;
+      }
+
+      const verified: number[] = Array.isArray(verifyData?.data?.verifiedBlocks) ? verifyData.data.verifiedBlocks : [];
+      if (!verified.includes(blockHeight)) {
+        setProof({
+          state: 'failed',
+          reason: `This wallet does not hold ${blockHeight.toLocaleString()}.bitmap`,
+          retryable: false,
+        });
+        return;
+      }
+      setProof({ state: 'proven' });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Verification failed';
+      const cancelled = /reject|cancel|denied/i.test(msg);
+      setProof({
+        state: 'failed',
+        reason: cancelled ? 'Signing cancelled' : msg,
+        retryable: true,
+      });
+    }
   };
 
   const toggleParcel = (idx: number) => {
@@ -2134,7 +2214,7 @@ function EstateModal({ onClose, blockHeight, parcels, onCreateEstate }: { onClos
   const handleCreate = () => {
     if (!estateName.trim() || selectedParcels.size < 2) return;
     const newEstate: Estate = {
-      id: `estate-${selectedBlock}-${Date.now()}`,
+      id: `estate-${blockHeight}-${Date.now()}`,
       name: estateName.trim(),
       ownerHandle: 'you',
       ownerTier: 1,
@@ -2156,47 +2236,37 @@ function EstateModal({ onClose, blockHeight, parcels, onCreateEstate }: { onClos
         </div>
 
         <div className="space-y-4">
-          {!walletConnected ? (
+          {proof.state !== 'proven' ? (
             <div className="flex flex-col items-center py-6">
               <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4"
                 style={{ background: 'rgba(247,147,26,0.1)', border: '1px solid rgba(247,147,26,0.25)' }}>
                 <span className="text-2xl">🔗</span>
               </div>
-              <div className="text-[13px] font-bold mb-1" style={{ color: '#e2e8f0' }}>Connect Wallet to View Ownership</div>
-              <div className="text-[10px] text-center mb-4" style={{ color: '#64748b', maxWidth: 280 }}>
-                We&apos;ll scan the blockchain to find all blocks and parcels you own, then show them here for merging.
+              <div className="text-[13px] font-bold mb-1" style={{ color: '#e2e8f0' }}>Prove You Hold This Block</div>
+              <div className="text-[10px] text-center mb-4" style={{ color: '#64748b', maxWidth: 300 }}>
+                Sign a one-time challenge with your wallet. We check on-chain, right now, that it
+                holds <span className="font-mono" style={{ color: '#94a3b8' }}>{blockHeight.toLocaleString()}.bitmap</span>.
               </div>
-              <button onClick={handleConnect} disabled={connecting}
+              <button onClick={proveOwnership} disabled={proof.state === 'proving'}
                 className="px-6 py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-130 active:scale-95"
-                style={{ background: 'rgba(247,147,26,0.2)', border: '1.5px solid rgba(247,147,26,0.4)', color: '#f7931a' }}>
-                {connecting ? '⏳ Scanning blockchain...' : '🔐 Connect Wallet (BIP-322)'}
+                style={{ background: 'rgba(247,147,26,0.2)', border: '1.5px solid rgba(247,147,26,0.4)', color: '#f7931a', opacity: proof.state === 'proving' ? 0.6 : 1 }}>
+                {proof.state === 'proving'
+                  ? '⏳ Checking the chain...'
+                  : proof.state === 'failed' ? '🔁 Try Again' : '🔐 Verify Ownership (BIP-322)'}
               </button>
-              <div className="text-[9px] mt-3" style={{ color: '#334155' }}>🛡️ Read-only scan — no transaction required</div>
+              {proof.state === 'failed' && (
+                <div className="text-[10px] text-center mt-3 px-3 py-2 rounded-lg" style={{ color: '#f87171', background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.15)', maxWidth: 300 }}>
+                  ❌ {proof.reason}
+                  {proof.retryable && <div className="mt-1" style={{ color: '#94a3b8' }}>This one is worth retrying.</div>}
+                </div>
+              )}
+              <div className="text-[9px] mt-3" style={{ color: '#334155' }}>🛡️ Signature only — no transaction, no spend</div>
             </div>
           ) : (
             <>
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(0,255,136,0.06)', border: '1px solid rgba(0,255,136,0.15)' }}>
-                <span className="text-[10px]" style={{ color: '#22c55e' }}>✅ Wallet verified — {mockOwnedBlocks.reduce((s, b) => s + b.parcelCount, 0)} parcels across {mockOwnedBlocks.length} block{mockOwnedBlocks.length > 1 ? 's' : ''}</span>
+                <span className="text-[10px]" style={{ color: '#22c55e' }}>✅ Ownership verified on-chain — block {blockHeight.toLocaleString()}, {parcels.length.toLocaleString()} parcels</span>
               </div>
-
-              {mockOwnedBlocks.length > 1 && (
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider block mb-1.5" style={{ color: '#64748b' }}>Select Block</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {mockOwnedBlocks.map(b => (
-                      <button key={b.height} onClick={() => { setSelectedBlock(b.height); setSelectedParcels(new Set()); }}
-                        className="px-3 py-1.5 rounded-lg text-[11px] font-mono transition-all active:scale-95"
-                        style={{
-                          background: selectedBlock === b.height ? `${selectedColor}22` : 'rgba(255,255,255,0.04)',
-                          border: `1px solid ${selectedBlock === b.height ? selectedColor : 'rgba(255,255,255,0.08)'}`,
-                          color: selectedBlock === b.height ? selectedColor : '#64748b',
-                        }}>
-                        Block {b.height.toLocaleString()} ({b.parcelCount})
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               <div>
                 <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: '#64748b' }}>Estate Name</label>
@@ -2208,12 +2278,12 @@ function EstateModal({ onClose, blockHeight, parcels, onCreateEstate }: { onClos
 
               <div>
                 <label className="text-[10px] uppercase tracking-wider block mb-2" style={{ color: '#64748b' }}>
-                  Bitmap Layout — Block {selectedBlock.toLocaleString()} ({selectedParcels.size} selected)
+                  Bitmap Layout — Block {blockHeight.toLocaleString()} ({selectedParcels.size} selected)
                 </label>
                 {/* Mini Bitmap Map — real Mondrian layout */}
                 <EstateMiniMap
-                  allParcels={selectedBlock === blockHeight ? parcels : generateParcels(selectedBlock)}
-                  ownedIndices={new Set(ownerParcels.map(p => p.txIndex))}
+                  allParcels={parcels}
+                  ownedIndices={ownedIndices}
                   selectedParcels={selectedParcels}
                   onToggleParcel={toggleParcel}
                   selectedColor={selectedColor}
@@ -3561,32 +3631,17 @@ function SendBitcoinModal({ onClose, blockHeight, recipientOwner }: {
 function QrProfileModal({ onClose, owner, blockHeight }: {
   onClose: () => void; owner: OwnerData; blockHeight: number;
 }) {
-  // TODO: depends on parcel-profile work — surface the owner's real receive
-  // address from their verified profile. No genuine address exists yet, so we
-  // show an honest "not available" state instead of fabricating a bc1q... value.
-  const receiveAddress: string | null = null;
-
-  // Generate QR code as SVG (simple visual representation)
-  const qrSize = 200;
-  const qrModules = useMemo(() => {
-    const rng = seededRandom(blockHeight * 3571 + owner.handle.length * 7);
-    const size = 25;
-    const grid: boolean[][] = [];
-    for (let y = 0; y < size; y++) {
-      grid[y] = [];
-      for (let x = 0; x < size; x++) {
-        // QR-like pattern: corners have finder patterns, rest is pseudo-random
-        const isCorner = (x < 7 && y < 7) || (x >= size - 7 && y < 7) || (x < 7 && y >= size - 7);
-        const isBorder = isCorner && (x === 0 || y === 0 || x === 6 || y === 6 || x === size - 1 || y === size - 1 || x === size - 7 || y === size - 7);
-        const isInner = isCorner && x >= 2 && x <= 4 && y >= 2 && y <= 4;
-        const isInnerR = isCorner && x >= size - 5 && x <= size - 3 && y >= 2 && y <= 4;
-        const isInnerB = isCorner && x >= 2 && x <= 4 && y >= size - 5 && y <= size - 3;
-        grid[y][x] = isBorder || isInner || isInnerR || isInnerB || (!isCorner && rng() > 0.5);
-      }
-    }
-    return grid;
-  }, [blockHeight, owner.handle]);
-
+  // No receive address exists yet: sourcing one depends on the parcel-profile
+  // work, and a fabricated bc1q... would burn real sats. So this modal shows an
+  // honest "not linked yet" state and offers nothing to scan or copy.
+  //
+  // The QR that used to sit here was a 25×25 boolean grid from
+  // `seededRandom(blockHeight * 3571 + ...)` with hand-drawn finder patterns —
+  // scannable-looking, encoding nothing. It only stayed invisible because the
+  // address above it was hardcoded null; wiring a real address would have
+  // published a Bitcoin QR that pointed at no one. Whoever lands parcel
+  // profiles should render the real thing — `qrcode.react` is already a
+  // dependency — rather than restoring a drawing of one.
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -3610,57 +3665,13 @@ function QrProfileModal({ onClose, owner, blockHeight }: {
           </div>
         </div>
 
-        {receiveAddress ? (
-          <>
-            {/* QR Code */}
-            <div className="flex justify-center">
-              <div className="p-3 rounded-xl" style={{ background: '#ffffff' }}>
-                <svg width={qrSize} height={qrSize} viewBox={`0 0 ${qrModules.length} ${qrModules.length}`}>
-                  {qrModules.map((row, y) => row.map((cell, x) =>
-                    cell ? <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill="#1a1a2e" /> : null
-                  ))}
-                  {/* Bitcoin logo in center */}
-                  <rect x={qrModules.length / 2 - 2.5} y={qrModules.length / 2 - 2.5} width={5} height={5} fill="#ffffff" rx={0.5} />
-                  <text x={qrModules.length / 2} y={qrModules.length / 2 + 1.5} textAnchor="middle" fill="#f7931a" fontSize="4" fontWeight="bold">₿</text>
-                </svg>
-              </div>
-            </div>
-
-            {/* Address */}
-            <div className="space-y-1.5">
-              <div className="text-[9px] uppercase tracking-wider" style={{ color: '#64748b' }}>Bitcoin Address</div>
-              <div className="px-3 py-2 rounded-lg font-mono text-[10px] break-all cursor-pointer hover:brightness-130 transition-all"
-                onClick={() => { navigator.clipboard.writeText(receiveAddress); }}
-                title="Click to copy"
-                style={{ background: 'rgba(247,147,26,0.06)', border: '1px solid rgba(247,147,26,0.15)', color: '#f7931a' }}>
-                {receiveAddress}
-              </div>
-              <div className="text-[9px]" style={{ color: '#475569' }}>Tap address to copy · Scan QR to send sats</div>
-            </div>
-
-            {/* Quick actions */}
-            <div className="flex gap-2">
-              <button onClick={() => { navigator.clipboard.writeText(receiveAddress); }}
-                className="flex-1 py-2 rounded-lg text-[11px] font-mono font-bold transition-all hover:brightness-130"
-                style={{ background: 'rgba(247,147,26,0.1)', border: '1px solid rgba(247,147,26,0.25)', color: '#f7931a' }}>
-                📋 Copy Address
-              </button>
-              <button onClick={() => { onClose(); }}
-                className="flex-1 py-2 rounded-lg text-[11px] font-mono font-bold transition-all hover:brightness-130"
-                style={{ background: 'rgba(0,255,136,0.08)', border: '1px solid rgba(0,255,136,0.2)', color: '#00ff88' }}>
-                ⚡ Send Sats
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="space-y-3 py-4 text-center">
-            <div className="text-3xl">○</div>
-            <div className="text-[12px] font-mono" style={{ color: '#94a3b8' }}>No Bitcoin address yet</div>
-            <div className="text-[10px]" style={{ color: '#64748b' }}>
-              @{owner.handle} hasn’t linked a receive address to their profile. Check back once they do.
-            </div>
+        <div className="space-y-3 py-4 text-center">
+          <div className="text-3xl">○</div>
+          <div className="text-[12px] font-mono" style={{ color: '#94a3b8' }}>No Bitcoin address yet</div>
+          <div className="text-[10px]" style={{ color: '#64748b' }}>
+            @{owner.handle} hasn’t linked a receive address to their profile. Check back once they do.
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
