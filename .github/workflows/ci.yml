@@ -5,7 +5,7 @@
 # green before this workflow was added; jobs run in parallel and finish in ~2 min.
 #
 # Job names double as branch-protection status checks: sdk, mcp, cli, app, lint,
-# example, build, secrets, migrations.
+# typecheck, example, build, secrets, migrations.
 #
 # `app` (jest), `lint` (eslint) and `build` (next build) are separate jobs rather
 # than steps of one: they are independent failure modes, and as steps a lint
@@ -79,6 +79,31 @@ jobs:
       - run: npm run build
       # `npm test` is bare `vitest`; call `vitest run` so CI can never enter watch mode.
       - run: npx vitest run
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    # `build` type-checks only what `next build` compiles, which excludes
+    # `__tests__`. Type errors in the test tree were therefore invisible to CI
+    # and only visible to whoever ran `tsc` by hand. This job covers the whole
+    # tsconfig, test files included.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      # @prisma/client's types are generated, so tsc cannot resolve model
+      # argument types without this.
+      - run: npx prisma generate
+      # Verified clean both with and without a prior `next build` present, so
+      # this does not depend on `.next/types` having been generated first.
+      - run: npx tsc --noEmit
 
   app:
     name: app

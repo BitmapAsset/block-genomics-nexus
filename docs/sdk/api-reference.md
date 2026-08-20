@@ -127,7 +127,6 @@ Accepted terrain fields:
 - fogColor
 - skyColor
 - weather
-- surfaceType
 
 ## Common Error Shape
 

@@ -5,7 +5,7 @@
 
 // Mock fetch globally
 const mockFetch = jest.fn();
-global.fetch = mockFetch;
+global.fetch = mockFetch as unknown as typeof fetch;
 
 // In-memory stand-in for prisma.guardianConversation so the DB-backed rate
 // limiter can be exercised without a live database.

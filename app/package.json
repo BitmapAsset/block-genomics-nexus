@@ -13,7 +13,7 @@
     "test:coverage": "jest --coverage --forceExit",
     "test:watch": "jest --watch",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push",
+    "db:push": "node scripts/db-push-guard.mjs",
     "db:studio": "prisma studio"
   },
   "dependencies": {

@@ -74,8 +74,7 @@ Keep the exact message string until the API request is submitted. The server ver
         "skyColor": "#05070c",
         "fogEnabled": true,
         "fogColor": "#1d2a3a",
-        "weather": "clear",
-        "surfaceType": "basalt"
+        "weather": "clear"
       }'
 
 ## 7. Render In Your Client

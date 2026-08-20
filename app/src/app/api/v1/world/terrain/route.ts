@@ -6,6 +6,7 @@ import { verifyActionBinding, hashBody } from '@/lib/action-message';
 import { enforceRateLimit, WORLD_WRITE_LIMIT } from '@/lib/api-rate-limit';
 import { requireSignedBlockOwner } from '@/lib/block-write-auth';
 import { gateDenialResponse } from '@/lib/ownership-gate';
+import { TERRAIN_WRITABLE_FIELDS } from '@/lib/world-terrain-fields';
 
 export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-world-terrain' });
@@ -66,9 +67,8 @@ export async function POST(req: NextRequest) {
     }
 
     // H-03: Allowlist terrain fields to prevent mass assignment
-    const allowedFields = ['groundColor', 'fogEnabled', 'fogColor', 'skyColor', 'weather', 'surfaceType'];
     const safeSettings: Record<string, unknown> = {};
-    for (const field of allowedFields) {
+    for (const field of TERRAIN_WRITABLE_FIELDS) {
       if (body[field] !== undefined) safeSettings[field] = body[field];
     }
 

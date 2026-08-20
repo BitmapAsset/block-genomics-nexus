@@ -23,7 +23,6 @@ Accepted terrain fields:
 - fogColor
 - skyColor
 - weather
-- surfaceType
 
 Clients may map these values to WebGL, Three.js, Unity, Unreal, voxel, 2D map, or agent simulation environments.
 
