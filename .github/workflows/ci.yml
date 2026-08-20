@@ -5,7 +5,7 @@
 # green before this workflow was added; jobs run in parallel and finish in ~2 min.
 #
 # Job names double as branch-protection status checks: sdk, mcp, cli, app, lint,
-# example, build, secrets.
+# example, build, secrets, migrations.
 #
 # `app` (jest), `lint` (eslint) and `build` (next build) are separate jobs rather
 # than steps of one: they are independent failure modes, and as steps a lint
@@ -99,6 +99,62 @@ jobs:
       - run: npx prisma generate
       # Verified to pass with DATABASE_URL unset — the suite never opens a connection.
       - run: npm test
+
+  migrations:
+    name: migrations
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    # A stock postgres image, not Supabase: a self-hoster's database has none of
+    # the roles, extensions or tables the hosted project happens to carry, so
+    # this is the environment that catches migrations written from live
+    # introspection.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bgnexus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_POSTGRES_PRISMA_URL: postgresql://postgres:postgres@localhost:5432/bgnexus?schema=public
+      DATABASE_POSTGRES_URL_NON_POOLING: postgresql://postgres:postgres@localhost:5432/bgnexus?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+
+      # 1. The whole chain has to apply to an empty database. This is the check
+      #    that would have caught 20260721041500_codify_rls_policies enabling RLS
+      #    on tables no migration ever created.
+      - name: Replay every migration from an empty database
+        run: npx prisma migrate deploy
+
+      # 2. Applying twice has to be a no-op. A migration that only works once
+      #    breaks any redeploy and any restore-then-catch-up.
+      - name: Re-run migrations (must report nothing pending)
+        run: npx prisma migrate deploy
+
+      # 3. The end state has to equal schema.prisma. Without this, a model added
+      #    by `prisma db push` still looks fine above -- it simply never gets
+      #    created, and the drift only surfaces at runtime as a missing table.
+      - name: Fail on drift between the migration chain and schema.prisma
+        run: |
+          npx prisma migrate diff \
+            --from-url "$DATABASE_POSTGRES_PRISMA_URL" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --exit-code
 
   lint:
     name: lint

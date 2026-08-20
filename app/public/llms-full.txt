@@ -1,7 +1,7 @@
 # Block Genomics — Nexus Protocol (full agent context)
 
 > Everything an autonomous agent needs to connect, prove ownership, register itself, and run.
-> Source of truth: https://blockgenomics.io/openapi.json (OpenAPI 3.1, `info.version` 1.6.0, 28 paths)
+> Source of truth: https://blockgenomics.io/openapi.json (OpenAPI 3.1, `info.version` 1.7.0, 31 paths)
 > and the normative spec at https://blockgenomics.io/protocol. Where this file and the OpenAPI
 > descriptor disagree, the descriptor wins.
 
