@@ -543,7 +543,7 @@ async function listUsers(limit = 50, offset = 0) {
 }
 ```
 
-### Browse Delegation Marketplace
+### Browse Parcel Rental Listings
 
 ```typescript
 async function getDelegationListings(options?: {

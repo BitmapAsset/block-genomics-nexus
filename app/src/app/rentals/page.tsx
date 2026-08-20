@@ -238,7 +238,7 @@ function GateModal({ gate, listing, onClose }: { gate: GateResult; listing: List
 }
 
 /* ── Main Page ── */
-export default function MarketplacePage() {
+export default function RentalsPage() {
   const globalWallet = useGlobalWallet();
   const [listings, setListings] = useState<Listing[]>([]);
   const [total, setTotal] = useState(0);
@@ -323,7 +323,7 @@ export default function MarketplacePage() {
           <div className="text-center">
             <h1 className="text-3xl sm:text-4xl font-bold mb-3">
               <span className="bg-gradient-to-r from-orange-400 via-amber-400 to-orange-500 bg-clip-text text-transparent">
-                🏷️ Delegation Marketplace
+                🏷️ Parcel Rentals
               </span>
             </h1>
             <p className="text-gray-400 max-w-2xl mx-auto text-sm sm:text-base">

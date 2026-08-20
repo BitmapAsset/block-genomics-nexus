@@ -402,13 +402,13 @@ function BlockCard({
                 Transfer Bitmap
               </button>
               <Link
-                href="/marketplace"
+                href="/rentals"
                 className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.04] text-gray-400 border border-white/[0.08] hover:bg-white/[0.08] transition-all"
               >
-                List on Marketplace
+                List for Rent
               </Link>
               <Link
-                href="/marketplace"
+                href="/rentals"
                 className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.04] text-gray-400 border border-white/[0.08] hover:bg-white/[0.08] transition-all"
               >
                 Create Delegation

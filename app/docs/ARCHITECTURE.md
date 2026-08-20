@@ -84,7 +84,7 @@ src/
 │   │   ├── guardian/             # Guardian Shell + Monitor API
 │   │   ├── game/                 # Game elements, quests, state
 │   │   ├── world/                # World objects + terrain
-│   │   ├── delegations/          # Delegation marketplace
+│   │   ├── delegations/          # Parcel rental listings
 │   │   ├── estates/              # Estate management
 │   │   ├── ownership/            # Ownership verification
 │   │   ├── encryption/           # E2E public keys
@@ -101,7 +101,7 @@ src/
 │   ├── profile/                  # User command center
 │   ├── explore/                  # Block explorer
 │   ├── directory/                # User directory
-│   ├── marketplace/              # Delegation marketplace
+│   ├── rentals/                  # Parcel rental listings
 │   ├── history/                  # Activity history
 │   ├── runebolt/                 # RuneBolt Lightning bridge
 │   ├── layout.tsx                # Root layout + providers
@@ -338,7 +338,7 @@ erDiagram
 | `OwnershipTransfer` | Block transfer records |
 | `BlockThumbnail` | Cached PNG thumbnails (unique: `blockHeight`) |
 | `SystemState` | Key-value protocol state |
-| `DelegationListing` | Marketplace listings |
+| `DelegationListing` | Parcel rental listings |
 | `Delegation` | Active delegation records |
 | `ChatMessage` | Block-level chat messages |
 | `ChatReaction` | Emoji reactions (unique: `messageId+wallet+emoji`) |

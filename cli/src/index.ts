@@ -141,7 +141,7 @@ export function createCLI() {
 
   program
     .command("market <action>")
-    .description("Marketplace")
+    .description("Parcel rental listings")
     .option("--type <type>")
     .option("--block <height>", "Block height", (v) => Number(v))
     .action((action, options) => runMarket(action, options));

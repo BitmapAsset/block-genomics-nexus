@@ -72,7 +72,7 @@ export default function UpgradeModal({ onClose, currentTier }: UpgradeModalProps
                   ))}
                 </div>
                 <div className="text-[10px] font-mono px-3 py-2 rounded-lg text-center" style={{ background: 'rgba(0,229,255,0.05)', color: '#64748b', border: '1px solid rgba(0,229,255,0.08)' }}>
-                  Delegation marketplace launching soon — block owners will list parcels for rent
+                  Parcel rentals launching soon — block owners will list parcels for rent
                 </div>
               </div>
             </div>
@@ -105,7 +105,7 @@ export default function UpgradeModal({ onClose, currentTier }: UpgradeModalProps
                     'Spawn up to 10 AI Guardian Agents',
                     'Delegate parcels & earn Bitcoin',
                     'Create games, shops & experiences',
-                    'List on delegation marketplace',
+                    'List parcels for rent',
                     'Link VPS & custom servers',
                   ].map(perk => (
                     <div key={perk} className="flex items-center gap-2 text-[11px]" style={{ color: '#94a3b8' }}>

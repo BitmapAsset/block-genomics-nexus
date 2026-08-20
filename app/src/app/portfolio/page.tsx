@@ -574,8 +574,8 @@ export default function PortfolioPage() {
                     <div className="text-center py-12">
                       <div className="text-4xl mb-3">💰</div>
                       <p className="text-sm text-text-muted mb-4">No delegation history.</p>
-                      <Link href="/marketplace" className="text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors">
-                        Visit the Marketplace
+                      <Link href="/rentals" className="text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors">
+                        Browse Rentals
                       </Link>
                     </div>
                   )}

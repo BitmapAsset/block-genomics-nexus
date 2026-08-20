@@ -1,0 +1,10 @@
+# Fingerprints are `commit:file:rule:line` — pinned to one blob at one line in
+# one commit, so an entry here can never mask a finding anywhere else.
+#
+# The comment on cli/src/commands/block.ts:7 read "Hits the live public API:
+# ownership/verify + blocks/[h] + world." `generic-api-key` matched the
+# `API: <word>` shape and reported `ownership/verify` as the secret. The comment
+# is reworded on the current tree (an em dash instead of the colon), but the
+# commit below is already on main and cannot be edited without rewriting
+# history, so a full-history scan needs this entry to stay clean.
+b21aafe61e0a1957975c32710ce2221040419c17:cli/src/commands/block.ts:generic-api-key:7
