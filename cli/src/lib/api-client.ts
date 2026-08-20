@@ -3,7 +3,7 @@
 
 import { getListings, pingUrl, type Listing } from "./api";
 
-export type MarketListing = {
+export type RentalListing = {
   id: string;
   blockHeight: number;
   parcelTxIndex: number | null;
@@ -17,7 +17,7 @@ export type MarketListing = {
   label: string | null;
 };
 
-function toMarketListing(l: Listing): MarketListing {
+function toRentalListing(l: Listing): RentalListing {
   return {
     id: l.id,
     blockHeight: l.blockHeight,
@@ -34,9 +34,9 @@ function toMarketListing(l: Listing): MarketListing {
 }
 
 // Real delegation/rental listings from the live rentals surface.
-export async function getMarketListings(opts: { blockHeight?: number; tier?: number } = {}): Promise<MarketListing[]> {
+export async function getRentalListings(opts: { blockHeight?: number; tier?: number } = {}): Promise<RentalListing[]> {
   const { listings } = await getListings({ limit: 100, ...opts });
-  return listings.map(toMarketListing);
+  return listings.map(toRentalListing);
 }
 
 // Real reachability probe for external resources.
