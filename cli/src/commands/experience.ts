@@ -11,6 +11,14 @@
  * the SAME fail-closed path as `bg register-agent`. The CLI never holds a key;
  * it resolves the signature via --sig / BG_SIGNATURE / BG_SIGNATURE_CMD.
  *
+ * What gets signed is an ACTION-BOUND message whose `Body:` field is the
+ * canonical hash of the manifest itself, so the signature commits to the exact
+ * manifest bytes rather than to "some request happened". That is what makes a
+ * CLI-registered experience tamper-evident to a third party, and it is the same
+ * authorization the SDK produces — byte for byte, because the canonicalizer and
+ * the message builder here are generated mirrors of the SDK source
+ * (see cli/scripts/sync-manifest-canon.mjs).
+ *
  * Nexus is the registry + discovery + health layer. It never hosts your world.
  */
 
@@ -31,6 +39,8 @@ import {
   ExperienceStatus,
 } from "../lib/bg-api";
 import { signMessage } from "../lib/signer";
+import { buildActionMessage } from "../lib/action-message";
+import { computeManifestHash } from "../lib/experience-manifest";
 
 export interface ExperienceOpts {
   manifest?: string;
@@ -58,6 +68,13 @@ export async function runExperience(action: string, opts: ExperienceOpts = {}): 
 }
 
 // ─── register ────────────────────────────────────────────────────────────────
+
+/**
+ * How long a signed authorization stays valid. Matches the SDK's window: long
+ * enough for an out-of-band signer (hardware wallet, BG_SIGNATURE_CMD prompt)
+ * to finish, short enough that a captured message is not useful for long.
+ */
+const AUTHORIZATION_TTL_MS = 5 * 60 * 1000;
 
 const REQUIRED_MANIFEST_FIELDS: (keyof ExperienceManifest)[] = [
   "blockHeight",
@@ -91,8 +108,22 @@ async function registerCmd(opts: ExperienceOpts): Promise<void> {
   const manifest = loadManifest(opts.manifest || "manifest.json");
 
   process.stderr.write(`[bg] challenge (purpose=experience-register) from ${apiBase()}\n`);
-  const { message, nonce } = await requestChallenge(walletAddress!, "experience-register");
-  process.stderr.write(`[bg] signing challenge (nonce=${nonce.slice(0, 12)}…)\n`);
+  const { nonce } = await requestChallenge(walletAddress!, "experience-register");
+
+  // Bind the signature to this exact manifest. The server re-derives this hash
+  // from the body it receives and rejects the write if the two disagree, so a
+  // manifest altered in flight cannot be registered under this signature.
+  const manifestHash = await computeManifestHash(manifest);
+  const message = buildActionMessage({
+    action: "experience.register",
+    method: "POST",
+    path: "/api/v1/experiences",
+    blockHeight: manifest.blockHeight,
+    bodyHash: manifestHash,
+    nonce,
+    expiresAt: Date.now() + AUTHORIZATION_TTL_MS,
+  });
+  process.stderr.write(`[bg] signing manifest ${manifestHash.slice(0, 12)}… (nonce=${nonce.slice(0, 12)}…)\n`);
   const signature = await signMessage(message, { signatureFlag: opts.sig });
 
   process.stderr.write(`[bg] registering experience "${manifest.name}" on block #${manifest.blockHeight}…\n`);
@@ -100,7 +131,7 @@ async function registerCmd(opts: ExperienceOpts): Promise<void> {
     ...manifest,
     walletAddress: walletAddress!,
     signature,
-    challenge: message,
+    message,
   });
 
   if (opts.json) {
@@ -160,12 +191,30 @@ async function removeCmd(opts: ExperienceOpts): Promise<void> {
   const walletAddress = opts.address || process.env.BG_WALLET_ADDRESS;
   if (!walletAddress) fail("--address <bc1p…> (or BG_WALLET_ADDRESS) is required");
 
+  // Removal is signed over the manifest being removed, so the authorization
+  // names WHICH experience it destroys. Prefer the hash the server stored; fall
+  // back to re-deriving it from the record's own fields, exactly as the server
+  // does for records written before signing existed.
+  const current = await getExperience(opts.id!);
+  const manifestHash = current.manifestHash ?? (await computeManifestHash(current));
+  // Same construction the SDK binds, so both clients sign identical bytes.
+  const path = `/api/v1/experiences/${encodeURIComponent(opts.id!)}`;
+
   process.stderr.write(`[bg] challenge (purpose=experience-manage) from ${apiBase()}\n`);
-  const { message, nonce } = await requestChallenge(walletAddress!, "experience-manage");
-  process.stderr.write(`[bg] signing challenge (nonce=${nonce.slice(0, 12)}…)\n`);
+  const { nonce } = await requestChallenge(walletAddress!, "experience-manage");
+  const message = buildActionMessage({
+    action: "experience.remove",
+    method: "DELETE",
+    path,
+    blockHeight: current.blockHeight,
+    bodyHash: manifestHash,
+    nonce,
+    expiresAt: Date.now() + AUTHORIZATION_TTL_MS,
+  });
+  process.stderr.write(`[bg] signing removal of ${manifestHash.slice(0, 12)}… (nonce=${nonce.slice(0, 12)}…)\n`);
   const signature = await signMessage(message, { signatureFlag: opts.sig });
 
-  const res = await removeExperience(opts.id!, { walletAddress: walletAddress!, signature, challenge: message });
+  const res = await removeExperience(opts.id!, { walletAddress: walletAddress!, signature, message });
   if (opts.json) {
     process.stdout.write(JSON.stringify(res, null, 2) + "\n");
     return;

@@ -349,6 +349,13 @@ export interface ExperienceRecord extends ExperienceManifest {
   soulJudged: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Manifest envelope schema version the server canonicalized under. */
+  manifestVersion?: number | null;
+  contentHash?: string | null;
+  /** Canonical manifest hash the owner's signature commits to, when signed. */
+  manifestHash?: string | null;
+  manifestMessage?: string | null;
+  manifestSignature?: string | null;
 }
 
 export interface ExperienceListResult {
@@ -361,8 +368,17 @@ export interface ExperienceListResult {
 export interface RegisterExperienceInput extends ExperienceManifest {
   walletAddress: string;
   signature: string;
-  /** The exact `message` returned by /api/v1/challenge (purpose 'experience-register'). */
-  challenge: string;
+  /**
+   * Action-bound authorization whose `Body:` field is the canonical manifest
+   * hash. Preferred: the signature commits to the exact manifest bytes, so the
+   * stored record is verifiable by a third party with no trust in the server.
+   */
+  message?: string;
+  /**
+   * Legacy: the bare `message` from /api/v1/challenge. Proves the wallet and
+   * blocks replay, but binds nothing about the manifest.
+   */
+  challenge?: string;
 }
 
 /** Register a self-hosted experience on a block you own. */
@@ -397,7 +413,7 @@ export async function probeExperience(id: string): Promise<ExperienceRecord> {
 /** Terminally remove an experience you own. Requires an experience-manage challenge. */
 export async function removeExperience(
   id: string,
-  input: { walletAddress: string; signature: string; challenge: string },
+  input: { walletAddress: string; signature: string; message?: string; challenge?: string },
 ): Promise<{ id: string; removed: boolean }> {
   return request(`/api/v1/experiences/${encodeURIComponent(id)}`, { method: "DELETE", body: input });
 }
