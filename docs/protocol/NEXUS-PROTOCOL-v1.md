@@ -92,8 +92,8 @@ POST /api/v1/challenge
 | `agent-token`      | `POST`/`DELETE /agents/{agentId}/token`          | the challenge `message` |
 | `parcel-customize` | `POST /blocks/{h}/parcels/{tx}/customize`        | `message` + a payload-binding line (§6.2) |
 | `world`            | `POST`/`PATCH`/`DELETE /world*`                  | a structured action message (§7.2) |
-| `experience-register` | `POST /experiences`                           | the challenge `message` |
-| `experience-manage`   | `PATCH`/`DELETE /experiences/{id}`            | the challenge `message` |
+| `experience-register` | `POST /experiences`                           | a structured action message binding the manifest hash (§8.7), or the challenge `message` (legacy) |
+| `experience-manage`   | `PATCH`/`DELETE /experiences/{id}`            | a structured action message binding the manifest hash (§8.7), or the challenge `message` (legacy) |
 
 A challenge issued for one purpose **MUST NOT** satisfy a route expecting another
 purpose. This prevents a signature captured from one flow from being replayed
@@ -343,17 +343,25 @@ discoverable, probes their health, and inherits them under the constitution
 (§8.5). Nexus **MUST NOT** host, proxy, or relay the experience itself — the entry
 and health URLs point at infrastructure the owner runs.
 
+**Bitcoin holds only the deed.** The `.bitmap` inscription is the sole on-chain
+artifact. Registering, updating, or removing an experience writes **nothing** to
+Bitcoin — no inscription, no transaction, no fee. Builders stay free and fast,
+and the chain stays unbloated. What binds the two is not a chain write but a
+signature (§8.7).
+
 Experiences are the first-class successor to the legacy `vps/link` primitive
-(§8.6). Unlike that primitive, an experience carries a typed manifest, is exposed
-in discovery, and has server-verified — not owner-attested — health.
+(§8.6). Unlike that primitive, an experience carries a typed, versioned manifest,
+is exposed in discovery, has server-verified — not owner-attested — health, and
+can be cryptographically bound to its owner's deed.
 
 ### 8.1 Manifest
 
-A registration body carries the wallet/`signature`/`challenge` (§8.3) plus the
-manifest:
+A registration body carries the wallet, the `signature`, and either a `message`
+(signed manifest, §8.7) or a bare `challenge` (§8.3), plus the manifest:
 
 ```jsonc
 {
+  "manifestVersion": 1,                  // OPTIONAL, defaults to 1; envelope schema version
   "blockHeight":   840000,              // REQUIRED
   "parcelIndex":   3,                    // OPTIONAL; omit for block-level
   "name":          "Pixel Plaza",        // REQUIRED, 1..64
@@ -365,13 +373,26 @@ manifest:
   "clientRequirements": { "platform": "web", "minVersion": "1.0", "downloadUrl": "https://…" },
   "capabilities":  ["voice", "avatars"], // OPTIONAL, <=16 items
   "contentRating": "everyone",           // everyone|teen|mature
-  "version":       "1.0.0"               // REQUIRED, semver-ish
+  "version":       "1.0.0",              // REQUIRED, semver-ish; the OPERATOR's build version
+  "contentHash":   "sha256:<64 hex>"     // OPTIONAL, owner-attested content-bundle digest
 }
 ```
 
+`manifestVersion` describes the shape of the manifest envelope; `version` is the
+operator's own build/content version and is opaque to Nexus. v1 is the only
+supported `manifestVersion`; an unsupported value is a `400`.
+
+`contentHash` is **owner-attested and never fetched or checked by the server**.
+Its value is that it is stored under the owner's signature, so a client can pin
+the digest it expects and detect a swapped payload on a host Nexus does not
+control. It **MUST** match `sha256:` followed by 64 lowercase hex characters.
+
 The server adds and owns: `id`, `walletAddress`, `status`
 (`live`|`degraded`|`unreachable`|`pending`), `lastProbedAt`, `probeLatencyMs`,
-`soulJudged`, and timestamps. Clients **MUST NOT** set these.
+`soulJudged`, `manifestHash`, `signed`, `signedAt`, and timestamps. Clients
+**MUST NOT** set these. In particular a client-supplied `manifestHash` is
+ignored — the server always derives it, or a caller could sign one manifest and
+store another.
 
 **URL safety (SSRF).** `entryUrl`, `healthUrl`, and `clientRequirements.downloadUrl`
 **MUST** be `https://` or `wss://`. The server **MUST** reject `http://`, embedded
@@ -388,9 +409,15 @@ loopback, private, link-local, CGNAT, or otherwise non-public address (§8.4).
 | `PATCH /api/v1/experiences/{id}` | owner signature | Partial manifest update; re-judged + re-probed. |
 | `DELETE /api/v1/experiences/{id}` | owner signature | Terminal removal. |
 | `POST /api/v1/experiences/{id}/probe` | public, rate-limited | On-demand health probe (1/min per experience). |
+| `GET /api/v1/experiences/{id}/verify` | public, rate-limited | Integrity report (§8.7). `?remote=1` also fetches the host's published manifest. |
 
 `blockHeight` and `parcelIndex` are immutable after registration and are ignored
 in a `PATCH` body.
+
+A self-hosting operator **SHOULD** publish its own manifest at
+`/.well-known/nexus-experience.json` on the entry URL's origin. That document is
+what `verify?remote=1` reads to report whether the running world still agrees
+with the registration.
 
 ### 8.3 Ownership gate
 
@@ -440,6 +467,73 @@ The legacy `POST /api/v1/vps/link` primitive and its `VPSLink` model are
 gaining a typed manifest, discovery, server-verified health, and constitution
 inheritance. New integrations **SHOULD** use experiences.
 
+### 8.7 Signed manifests (federation integrity)
+
+Ownership proves *who may write*. It does not prove *what was written*. A bare
+challenge signature authenticates the caller but leaves the manifest unbound, so
+a stored registration is only as trustworthy as the registry holding it. Signed
+manifests close that gap **without a chain write**.
+
+**Trust chain — three links:**
+
+```
+Bitcoin inscription (deed)  →  BIP-322 signature (action-bound)  →  manifest hash
+```
+
+**Canonical manifest hash.** The server derives `manifestHash` as the SHA-256 hex
+of a deterministic JSON encoding (sorted keys, no whitespace) of the manifest's
+client-supplied fields. Canonicalization rules are normative — a client and the
+server **MUST** produce identical bytes:
+
+- `healthUrl` is resolved to its **effective** value (`entryUrl` when omitted),
+  because that is what is persisted.
+- Absent and explicitly-null optionals are **dropped**, so both hash the same.
+- An empty `capabilities` array is dropped; capability **order is preserved**
+  (it is operator-chosen presentation order).
+- `clientRequirements` is normalized to an object over the keys `platform`,
+  `minVersion`, `downloadUrl`; empty values are dropped.
+- `manifestVersion` defaults to `1` before hashing.
+
+**Authorization.** A signed write carries `message` — a canonical action-bound
+message (§7.2) whose `Body:` field is the **manifest hash**, not a request-body
+hash. Using the manifest hash is what makes the signature re-checkable years
+later against the stored record alone. The bound `Action` is
+`experience.register`, `experience.update`, or `experience.remove`; `Path` is the
+exact route; `Block` is the target block. On `PATCH` the signature **MUST**
+commit to the **resulting** merged manifest, not to the delta. On `DELETE` it
+commits to the manifest being removed.
+
+The server verifies the signature, verifies the binding, re-verifies ownership
+live on-chain, and only then consumes the nonce — so an indexer outage costs a
+retry rather than a burnt challenge.
+
+**Back-compat.** The bare-`challenge` flow of §8.3 remains valid; such records
+report `signed: false`. Mode is chosen by which field is present, never by a
+client flag, so a caller cannot request a weaker check. A signature that is
+present but does not verify is a hard failure — never a downgrade to unsigned.
+An unsigned `PATCH` **MUST** clear any previous signature rather than leave it
+attached to a manifest it no longer describes.
+
+**Verification.** `GET /api/v1/experiences/{id}/verify` re-derives the hash from
+the record's own fields and reports:
+
+| Field | Meaning |
+|---|---|
+| `manifestHashMatches` | stored hash equals the re-derived hash — the record was not altered |
+| `signatureValid` | BIP-322 signature verifies against the record's wallet |
+| `signatureCoversManifest` | the signed `Body:` binding equals the re-derived hash |
+| `verified` | all of the above, and the record is signed |
+
+Because the signed message and signature are published on the record, this check
+is reproducible by any third party with no trust in the server: altering a stored
+manifest breaks `manifestHashMatches`, and altering both the manifest and the
+stored hash still breaks `signatureCoversManifest`.
+
+`?remote=1` additionally fetches the operator's `/.well-known/nexus-experience.json`
+under the SSRF bounds of §8.4 plus a JSON content-type requirement and a 64 KB
+response cap, and reports `remote.matchesRegistry`. Drift between host and
+registry is **data, not an error** — hosts legitimately lag a re-registration.
+
 ---
 
 ## 9. Event schema
@@ -472,6 +566,10 @@ sanitized and length-bounded. The stream is private (§5.4).
 - Registration: one per wallet per 24 hours.
 - Active agents per block: Tier 1 = 10, Tier 2 = 3, Tier 3 = 1.
 - Experience health probe: one per experience per minute (on-demand route).
+- Experience writes (`POST /experiences`, `PATCH`/`DELETE /experiences/{id}`):
+  ~20 requests/minute per identity.
+- Experience verify (`GET /experiences/{id}/verify`): ~30 requests/minute per
+  identity.
 - World writes (`POST /world`, `PATCH`/`DELETE /world/{id}`, `POST /world/terrain`):
   ~60 requests/minute per identity.
 - World batch (`POST /world/batch`): ~20 requests/minute per identity, since one
@@ -483,6 +581,11 @@ indexer call (§4.4) before it costs a database write, so an unlimited caller co
 use the ownership gate as an amplifier pointed at a third-party indexer. The
 limiter runs **before** signature verification and the ownership check, so a
 throttled request costs neither.
+
+Experience writes are tighter still, because each one costs a live indexer call
+**and** an outbound probe to an owner-supplied host — without a limit the registry
+becomes a request amplifier aimed at a third party of the caller's choosing. The
+same reasoning applies to `verify?remote=1`, which makes an outbound fetch.
 
 Challenge issuance and token rotate/revoke are guarded by a **durable,
 cross-instance** fixed-window limiter (a single atomic `INSERT … ON CONFLICT`
@@ -510,6 +613,11 @@ not the rate limiter — is the primary access control for the runtime routes.
 | Parcel **first-writer takeover** / replay | Block-ownership required to initialize; single-use challenge + field-hash binding on customize. |
 | World write **replay / re-pointing** | Action-bound message (method, path, block, body hash, nonce, expiry). |
 | **SSRF** via experience entry/health/download URLs | Scheme restricted to `https`/`wss`; literal + DNS-resolved private/loopback/link-local ranges rejected; probe redirects re-validated per hop; 5s bounded probe. |
+| **SSRF** via remote-manifest fetch (`verify?remote=1`) | Same scheme/address/redirect guards, restricted to `https`; JSON content-type required; 64 KB streamed response cap; 5s bounded fetch; rate limited. |
+| **Tampering** with a stored experience manifest | Owner's BIP-322 signature binds the canonical manifest hash (§8.7); any alteration breaks `manifestHashMatches`, and altering the stored hash too still breaks `signatureCoversManifest`. Third-party reproducible. |
+| Signed authorization **re-pointed** at another experience or route | Action, method, exact path, block, and manifest hash are all bound into the signed message; a `PATCH` binds the resulting manifest, a `DELETE` the one being removed. |
+| **Stale signature** left attached after an unsigned edit | An unsigned `PATCH` clears the stored signature rather than leaving it attached to a manifest it no longer describes. |
+| Client **downgrading** its own integrity check | Auth mode is chosen by which field is present, never by a client flag; a present-but-invalid signature is a hard failure, not a downgrade to unsigned. |
 | Former owner keeping a hosted **experience** on sold land | Experiences released in the atomic blank-slate transfer alongside agents and VPS links. |
 | Token **timing** side-channel | Constant-time comparison of SHA-256 token hashes. |
 | **Flooding / DoS** of challenge issuance or token rotate/revoke | Durable cross-instance fixed-window limiter (atomic Postgres upsert counter) returns `429` + `Retry-After`; fails open only on limiter-infra error. |

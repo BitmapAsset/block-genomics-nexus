@@ -4,15 +4,18 @@ import prisma from '@/lib/prisma';
 import { success, error, isValidBitcoinAddress } from '@/lib/api-helpers';
 import {
   experienceManifestSchema,
+  computeManifestHash,
+  MANIFEST_VERSION,
   EXPERIENCE_TYPES,
   EXPERIENCE_STATUSES,
   type ExperienceType,
   type ExperienceStatus,
 } from '@/lib/experience-protocol';
-import { verifyExperienceOwnerGate } from '@/lib/experience-ownership';
+import { authorizeExperienceWrite } from '@/lib/experience-ownership';
+import { EXPERIENCE_ACTIONS } from '@/lib/experience-integrity';
 import { judgeExperienceManifest } from '@/lib/experience-judge';
 import { serializeExperience, probeAndPersist, persistBrainRejection } from '@/lib/experience-service';
-import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { enforceRateLimit, EXPERIENCE_WRITE_LIMIT } from '@/lib/api-rate-limit';
 
 function zodMessage(err: z.ZodError): string {
   return err.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; ');
@@ -25,12 +28,18 @@ function zodMessage(err: z.ZodError): string {
  * text before accept; a violation is a hard 422 + ContentFlag. Probed on register.
  */
 export async function POST(req: NextRequest) {
+  // Writes cost a live indexer call before they cost a database write, so an
+  // unlimited caller could use the ownership gate as an amplifier. Limit BEFORE
+  // any signature or chain work, so a throttled request costs neither.
+  const rl = await enforceRateLimit(req, { bucket: 'v1-experiences-write', limit: EXPERIENCE_WRITE_LIMIT });
+  if (rl.response) return rl.response;
+
   try {
     const body = await req.json();
-    const { walletAddress, signature, challenge } = body ?? {};
+    const { walletAddress, signature, challenge, message } = body ?? {};
 
-    if (!walletAddress || !signature || !challenge) {
-      return error('Missing required fields: walletAddress, signature, challenge', 400);
+    if (!walletAddress || !signature || (!challenge && !message)) {
+      return error('Missing required fields: walletAddress, signature, and either message (signed manifest) or challenge', 400);
     }
     if (!isValidBitcoinAddress(walletAddress)) {
       return error('Invalid Bitcoin address', 400);
@@ -43,13 +52,24 @@ export async function POST(req: NextRequest) {
       return error(`Invalid manifest: ${zodMessage(parsed.error)}`, 400);
     }
     const m = parsed.data;
+    const manifestVersion = m.manifestVersion ?? MANIFEST_VERSION;
 
-    const gate = await verifyExperienceOwnerGate({
+    // The hash is derived from the manifest the SERVER parsed, never taken from
+    // the client. A client-supplied hash would let a caller sign one manifest
+    // and store another.
+    const manifestHash = await computeManifestHash({ ...m, manifestVersion });
+
+    const gate = await authorizeExperienceWrite({
       walletAddress,
       blockHeight: m.blockHeight,
       signature,
       challenge,
+      message,
       purpose: 'experience-register',
+      action: EXPERIENCE_ACTIONS.register,
+      method: 'POST',
+      path: '/api/v1/experiences',
+      manifestHash,
     });
     if (!gate.ok) return error(gate.error, gate.status);
 
@@ -94,6 +114,12 @@ export async function POST(req: NextRequest) {
         capabilities: m.capabilities ?? [],
         contentRating: m.contentRating ?? null,
         version: m.version,
+        manifestVersion,
+        contentHash: m.contentHash ?? null,
+        manifestHash,
+        manifestMessage: gate.signed ? message : null,
+        manifestSignature: gate.signed ? signature : null,
+        signedAt: gate.signed ? new Date() : null,
         status: 'pending',
         soulJudged: true,
       },

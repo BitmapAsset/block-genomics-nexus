@@ -171,6 +171,17 @@ const CASES: Case[] = [
   },
   { tool: "bg_experiences", args: {}, path: "/api/v1/experiences" },
   { tool: "bg_experience", args: { id: "exp_abc" }, path: "/api/v1/experiences/exp_abc" },
+  {
+    tool: "bg_experience_verify",
+    args: { id: "exp_abc" },
+    path: "/api/v1/experiences/exp_abc/verify",
+  },
+  {
+    tool: "bg_experience_verify",
+    args: { id: "exp_abc", remote: true },
+    path: "/api/v1/experiences/exp_abc/verify",
+    query: { remote: "1" },
+  },
   { tool: "bg_profiles_by_block", args: { height: 840000 }, path: "/api/v1/profiles/by-block/840000" },
   { tool: "bg_profiles_by_wallet", args: { address: "bc1powner" }, path: "/api/v1/profiles/by-wallet/bc1powner" },
   { tool: "bg_user_by_wallet", args: { address: "bc1powner" }, path: "/api/v1/users/by-wallet/bc1powner" },

@@ -7,6 +7,7 @@
 
 import type { BitcoinSigner } from './signer.js';
 import { buildActionMessage, hashBody } from './action-message.js';
+import { computeManifestHash } from './experience-manifest.js';
 import type {
   Stats,
   OwnershipResult,
@@ -33,6 +34,7 @@ import type {
   ExperienceListOptions,
   ExperienceListResult,
   ExperienceRemoveResult,
+  ExperienceIntegrityReport,
   SessionChallenge,
   VerifiedSession,
   SessionInfo,
@@ -149,6 +151,11 @@ export interface ExperiencesApi {
   remove(id: string): Promise<ExperienceRemoveResult>;
   /** Trigger a fresh server-side health probe (rate-limited 1/min). Public. */
   probe(id: string): Promise<ExperienceRecord>;
+  /**
+   * Check that a registration is still exactly what its owner signed. Public.
+   * Pass `remote` to also compare against the manifest the host publishes.
+   */
+  verify(id: string, remote?: boolean): Promise<ExperienceIntegrityReport>;
 }
 
 export class BlockGenomicsClient {
@@ -730,13 +737,33 @@ export class BlockGenomicsClient {
       update: (id, changes) => this.updateExperience(id, changes),
       remove: (id) => this.removeExperience(id),
       probe: (id) => this.probeExperience(id),
+      verify: (id, remote) => this.verifyExperience(id, remote),
     });
   }
 
+  /**
+   * Register a self-hosted experience, signing the manifest.
+   *
+   * The signature is action-bound and its Body field is the canonical hash of
+   * the manifest itself, so the resulting registration is tamper-evident: anyone
+   * can later re-derive the hash from the published record and check this
+   * signature without trusting the registry. Nothing is written to Bitcoin — the
+   * bitmap inscription remains the deed; this is only the link to your server.
+   */
   private async registerExperience(manifest: ExperienceManifest): Promise<ExperienceRecord> {
     const signer = this.requireSigner();
     const challenge = await this.requestChallenge(signer.address, 'experience-register');
-    const signature = await signer.signMessage(challenge.message);
+    const manifestHash = await computeManifestHash(manifest);
+    const message = buildActionMessage({
+      action: 'experience.register',
+      method: 'POST',
+      path: '/api/v1/experiences',
+      blockHeight: manifest.blockHeight,
+      bodyHash: manifestHash,
+      nonce: challenge.nonce,
+      expiresAt: Date.now() + DEFAULT_TTL_MS,
+    });
+    const signature = await signer.signMessage(message);
     return this.request<ExperienceRecord>('/api/v1/experiences', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -744,7 +771,7 @@ export class BlockGenomicsClient {
         ...manifest,
         walletAddress: signer.address,
         signature,
-        challenge: challenge.message,
+        message,
       }),
     });
   }
@@ -764,38 +791,86 @@ export class BlockGenomicsClient {
     return this.request<ExperienceListResult>(`/api/v1/experiences${qs ? `?${qs}` : ''}`);
   }
 
+  /**
+   * Update an experience you own.
+   *
+   * Fetches the current record first because the signature must commit to the
+   * RESULTING manifest, not to the delta — signing only the change would leave
+   * the final stored state unattested.
+   */
   private async updateExperience(
     id: string,
     changes: Partial<ExperienceManifest>,
   ): Promise<ExperienceRecord> {
     const signer = this.requireSigner();
+    const current = await this.getExperience(id);
+    const merged = { ...current, ...changes };
+    const manifestHash = await computeManifestHash(merged);
     const challenge = await this.requestChallenge(signer.address, 'experience-manage');
-    const signature = await signer.signMessage(challenge.message);
-    return this.request<ExperienceRecord>(`/api/v1/experiences/${encodeURIComponent(id)}`, {
+    const path = `/api/v1/experiences/${encodeURIComponent(id)}`;
+    const message = buildActionMessage({
+      action: 'experience.update',
+      method: 'PATCH',
+      path,
+      blockHeight: current.blockHeight,
+      bodyHash: manifestHash,
+      nonce: challenge.nonce,
+      expiresAt: Date.now() + DEFAULT_TTL_MS,
+    });
+    const signature = await signer.signMessage(message);
+    return this.request<ExperienceRecord>(path, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...changes,
         walletAddress: signer.address,
         signature,
-        challenge: challenge.message,
+        message,
       }),
     });
   }
 
+  /**
+   * Remove an experience you own. The signature binds the manifest being
+   * removed, so a captured authorization cannot be aimed at a different one.
+   */
   private async removeExperience(id: string): Promise<ExperienceRemoveResult> {
     const signer = this.requireSigner();
+    const current = await this.getExperience(id);
+    const manifestHash = current.manifestHash ?? (await computeManifestHash(current));
     const challenge = await this.requestChallenge(signer.address, 'experience-manage');
-    const signature = await signer.signMessage(challenge.message);
-    return this.request<ExperienceRemoveResult>(`/api/v1/experiences/${encodeURIComponent(id)}`, {
+    const path = `/api/v1/experiences/${encodeURIComponent(id)}`;
+    const message = buildActionMessage({
+      action: 'experience.remove',
+      method: 'DELETE',
+      path,
+      blockHeight: current.blockHeight,
+      bodyHash: manifestHash,
+      nonce: challenge.nonce,
+      expiresAt: Date.now() + DEFAULT_TTL_MS,
+    });
+    const signature = await signer.signMessage(message);
+    return this.request<ExperienceRemoveResult>(path, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         walletAddress: signer.address,
         signature,
-        challenge: challenge.message,
+        message,
       }),
     });
+  }
+
+  /**
+   * Check an experience's integrity. Public read — no signer needed.
+   * @param remote also fetch the manifest the host publishes at
+   *   /.well-known/nexus-experience.json and report whether it still agrees.
+   */
+  private verifyExperience(id: string, remote = false): Promise<ExperienceIntegrityReport> {
+    const qs = remote ? '?remote=1' : '';
+    return this.request<ExperienceIntegrityReport>(
+      `/api/v1/experiences/${encodeURIComponent(id)}/verify${qs}`,
+    );
   }
 
   private probeExperience(id: string): Promise<ExperienceRecord> {

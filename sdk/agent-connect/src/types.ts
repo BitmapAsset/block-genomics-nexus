@@ -330,6 +330,17 @@ export type ExperienceManifest = {
   contentRating?: ContentRating;
   /** Semver-ish version string for the experience. */
   version: string;
+  /**
+   * Schema version of the manifest envelope (currently 1). NOT the same as
+   * `version`, which is your own build/content version and opaque to Nexus.
+   */
+  manifestVersion?: number;
+  /**
+   * Owner-attested digest of your content bundle, `sha256:<64 hex>`.
+   * Nexus never fetches or checks the bundle — storing the digest under your
+   * signature is what lets a client pin what it expects and detect a swap.
+   */
+  contentHash?: string;
 };
 
 /**
@@ -348,8 +359,60 @@ export type ExperienceRecord = ExperienceManifest & {
   probeLatencyMs: number | null;
   /** Whether the manifest text passed the Brain's constitution judgment. */
   soulJudged: boolean;
+  /** Canonical hash of the manifest, computed by the server at write time. */
+  manifestHash: string | null;
+  /** The action-bound message the owner signed. Published for verifiability. */
+  manifestMessage: string | null;
+  /** The owner's BIP-322 signature over `manifestMessage`. */
+  manifestSignature: string | null;
+  /** True when this registration carries an owner signature. */
+  signed: boolean;
+  signedAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+/**
+ * Result of `experiences.verify()` — whether a registration is still exactly
+ * what its owner signed.
+ *
+ * `verified` is the single answer most callers want. The individual flags are
+ * there so a client can distinguish "unsigned legacy record" (trustworthy
+ * ownership, no tamper-evidence) from "signature present but does not match"
+ * (actively suspicious).
+ */
+export type ExperienceIntegrityReport = {
+  id: string;
+  blockHeight: number;
+  walletAddress: string;
+  manifestVersion: number;
+  contentHash: string | null;
+  /** Path a host publishes its own manifest at. */
+  wellKnownPath: string;
+  signed: boolean;
+  /** Hash re-derived from the record's fields right now. */
+  computedManifestHash: string;
+  storedManifestHash: string | null;
+  manifestHashMatches: boolean;
+  signatureCoversManifest: boolean;
+  signatureValid: boolean;
+  /** Every applicable check passed. */
+  verified: boolean;
+  issues: string[];
+  trustChain: { deed: string; signature: string; manifest: string };
+  /** Present only when verify() was called with `remote`. */
+  remote: {
+    checked: boolean;
+    url?: string;
+    reachable: boolean;
+    reason?: string;
+    bytes?: number;
+    remoteManifestHash?: string | null;
+    /** The host's published manifest hashes identically to the registry's. */
+    matchesRegistry?: boolean;
+    declaredBlockHeight?: number | null;
+    blockHeightMatches?: boolean;
+  } | null;
 };
 
 /** Filters + pagination for {@link BlockGenomicsClient.experiences}.list. */
