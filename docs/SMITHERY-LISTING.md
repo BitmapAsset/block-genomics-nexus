@@ -102,7 +102,7 @@ Verified locally against a production build on 2026-08-10:
 | Streamable HTTP transport | ✅ `/mcp`, stateless |
 | Public HTTPS URL | ✅ `https://blockgenomics.io/mcp` |
 | Anonymous `initialize` succeeds | ✅ returns `serverInfo` `block-genomics` v0.3.0, protocol `2025-06-18` |
-| Anonymous `tools/list` succeeds | ✅ 34 tools, no credentials |
+| Anonymous `tools/list` succeeds | ✅ 35 tools, no credentials |
 | `tools/list` response size | ✅ 11.6 KB — scanners are reported to truncate near 30 KB |
 | CORS + `OPTIONS` preflight | ✅ `Access-Control-Allow-Origin: *`, `OPTIONS` → 204 |
 | Returns 401 (never 403) when unauthenticated | ✅ not applicable — no auth is required to connect |
@@ -152,7 +152,7 @@ scanning entirely.
 7. Fill in listing metadata from §4 and upload the icon.
 8. Open **Settings → Verification** and complete the official-vendor checklist, which is how
    the listing gets attributed to us rather than to a third-party mirror.
-9. Confirm the public listing renders all 34 tools, then record the listing URL here.
+9. Confirm the public listing renders all 35 tools, then record the listing URL here.
 
 CLI alternative to steps 5–7, if a scripted path is preferred:
 

@@ -219,6 +219,7 @@ describe('describeBlock()', () => {
       experiences: [],
       experienceCount: 0,
       chain: null,
+      market: null,
       degraded: false,
       ...over,
     };

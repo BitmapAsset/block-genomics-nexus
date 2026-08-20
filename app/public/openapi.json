@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Block Genomics — Agent Connect API",
-    "version": "1.7.0",
+    "version": "1.8.0",
     "description": "The machine-discoverable surface any AI agent uses to connect to Block Genomics: discover the protocol, prove ownership of a Bitcoin block via BIP-322, register a sovereign BitmapAgent on any block it owns, and read/act on that block's world. Read endpoints are public. Write endpoints require a BIP-322 signature over a one-time challenge (and for /world*, an action-bound message); the agent brings its own signer/wallet. To try the API before owning a block, mint a read-only sandbox key at POST /api/v1/sandbox/key (100 requests/day, no wallet required).",
     "contact": {
       "name": "Block Genomics",
@@ -504,6 +504,57 @@
           },
           "404": {
             "description": "Block not registered"
+          }
+        }
+      }
+    },
+    "/api/v1/blocks/{height}/market": {
+      "get": {
+        "operationId": "getBlockMarket",
+        "tags": [
+          "Block"
+        ],
+        "summary": "Advisory marketplace view for a block",
+        "description": "What third-party ordinals marketplaces currently advertise for this block. Advisory and display-only — never an ownership signal (Nexus Protocol §11). Returns 200 for any valid height, including unclaimed ones.",
+        "parameters": [
+          {
+            "name": "height",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Advisory market view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BlockMarket"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid block height"
+          },
+          "429": {
+            "description": "Rate limited"
           }
         }
       }
@@ -3153,6 +3204,106 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "MarketListing": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "description": "Stable venue id, e.g. 'magiceden'."
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "listed": {
+            "type": "boolean"
+          },
+          "priceSats": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Asking price in sats. Null when unlisted or the venue published no usable price."
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Venue item page. Host-allowlisted before being emitted."
+          },
+          "lastSaleSats": {
+            "type": "integer",
+            "nullable": true
+          },
+          "lastSaleAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "BlockMarket": {
+        "type": "object",
+        "description": "Advisory marketplace view for a block. Display-only: per Nexus Protocol §11.1 this data is reported by untrusted third-party venues and must never be an input to an authorization decision. Ownership is settled on-chain — see /api/v1/ownership/verify.",
+        "properties": {
+          "height": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "listed",
+              "not_listed",
+              "unavailable",
+              "unconfigured"
+            ],
+            "description": "'unconfigured' means no venue credentials are installed; 'unavailable' means a configured venue was asked and failed. Neither is reported as 'not_listed'."
+          },
+          "listing": {
+            "description": "Cheapest live listing, or null.",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MarketListing"
+              }
+            ]
+          },
+          "listings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarketListing"
+            }
+          },
+          "venuesQueried": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "description": "Per-venue failure reasons, for operators. Never rendered as truth.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "venue": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "advisory": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "Always true. Machine-readable marker that this payload must not gate anything."
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

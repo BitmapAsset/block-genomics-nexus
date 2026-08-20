@@ -697,7 +697,134 @@ not the rate limiter — is the primary access control for the runtime routes.
 
 ---
 
-## 11. Threat model summary
+## 11. Marketplace lane (advisory)
+
+The protocol reads what third-party ordinals marketplaces advertise about a
+block and shows it. That is the entire lane.
+
+### 11.1 Position in the ownership model
+
+Market data is **advisory and display-only**. It is not part of §4 and never
+becomes part of it. A venue is an untrusted upstream that can assert anything
+about anyone, including that a block is held by an address that does not hold
+it. The deed remains what §4 says it is: whoever holds the `.bitmap` inscription
+on Bitcoin right now, established by live on-chain lookup.
+
+Normative requirement: **no marketplace value may be an input to an
+authorization decision.** Not ownership, not parcel rights, not agent
+registration, not experience writes. Every payload this lane emits carries
+`advisory: true` as a machine-readable restatement of that rule. An
+implementation that branches on market data to grant access is non-conforming,
+regardless of what the venue reported.
+
+The practical failure this forbids: a block is advertised as sold, the app
+believes the venue, and the buyer gets write access before the inscription has
+actually moved — or never moves at all. Sale is not settlement. The chain is
+settlement.
+
+### 11.2 What the protocol does not do
+
+Explicit non-goals, so no future reading mistakes silence for permission:
+
+- **No custody.** The protocol never holds a block, an inscription, or funds.
+- **No order placement.** There is no endpoint that lists, delists, bids, or
+  accepts an offer. Selling happens on the venue, in the user's own wallet.
+- **No payment flow.** No invoices, no escrow, no fee capture, no PSBT
+  construction or signing.
+- **No on-chain writes.** The lane is read-only in both directions: it reads
+  venues over HTTPS and writes nothing anywhere.
+
+A link out to a venue is the full extent of the protocol's participation in a
+sale.
+
+### 11.3 Venue identity
+
+A bitmap's identity at a venue is its **inscription id**, not its height. Height
+is a name inside the bitmap standard; resolving a height at a venue would mean
+trusting that venue's name index to agree with the standard, and a venue that
+indexes `123.bitmap` to the wrong inscription would have us report market state
+for a different object entirely.
+
+Consequence: a block with no inscription cannot be listed on an ordinals venue,
+and the lane answers `not_listed` for it without contacting anyone.
+
+### 11.4 Endpoint
+
+```
+GET /api/v1/blocks/{height}/market
+```
+
+Public read, rate limited (§10). Response `data`:
+
+| Field | Meaning |
+|-------|---------|
+| `status` | `listed` · `not_listed` · `unavailable` · `unconfigured` |
+| `listing` | Cheapest live listing, or `null` |
+| `listings[]` | Every live listing, cheapest first |
+| `venuesQueried[]` | Venue ids actually contacted |
+| `errors[]` | Per-venue failure reasons, for operators |
+| `advisory` | Always `true` (§11.1) |
+| `checkedAt` | ISO-8601 time this view was computed |
+
+A listing carries `venue`, `venueName`, `listed`, `priceSats`, `url`,
+`lastSaleSats`, `lastSaleAt`.
+
+`unconfigured` and `unavailable` are distinct on purpose: the first means no
+venue credentials are installed, the second means a configured venue was asked
+and failed. Collapsing them would make a misconfigured deploy indistinguishable
+from an outage. Neither is reported as `not_listed` — claiming "no listings"
+when nothing was successfully asked is a confident lie.
+
+MCP surface: `bg_block_market`.
+
+### 11.5 Upstream safety
+
+Venues are contacted under a stricter discipline than federation (§8.7). Because
+every venue host is known before the request is made, the lane **allowlists**
+rather than merely denying private ranges:
+
+- `https` only; the host must be an exact case-insensitive match in the calling
+  adapter's declared API hosts. Suffix matching is not used — it would admit
+  `magiceden.us.attacker.com`.
+- Literal private/loopback/link-local addresses rejected synchronously; every
+  DNS-resolved address must be public unicast. Allowlisting a name is not
+  trusting its operator's resolver.
+- Redirects followed manually, at most 2 hops, re-validated against the same
+  allowlist per hop, so a redirect chain cannot walk the fetcher off the list.
+- One bounded time budget across the chain; JSON content-type required;
+  streamed response capped.
+- Credentials are supplied by environment configuration only and are never
+  committed, logged, or returned in a response.
+
+Rendered links are allowlisted **separately** from request hosts: a URL is only
+emitted as a clickable `href` if it is `https`, on a default port, and its host
+is in the venue's declared link hosts. A venue-supplied link is an
+attacker-supplied link, and an unchecked one turns this page into a phishing
+relay. That check is applied at the aggregation boundary rather than left to
+each adapter — "every adapter remembers to sanitize" is a convention, and this
+value reaches a public `href`.
+
+Each venue answer is additionally bounded by a whole-query time budget. The
+per-request timeout above does not cover DNS resolution, and an adapter may make
+several sequential calls, so without an outer budget a stalled resolver could
+hold a caller far past any single request's timeout.
+
+Every scalar from a venue is normalized before it is surfaced. Prices must be
+finite, non-negative, and below the 21M BTC supply cap; timestamps must fall in
+a sane window; anything else degrades to `null` rather than rendering. One
+nonsense field costs that field, not the panel.
+
+### 11.6 Freshness
+
+Market views are cached briefly (60s). Prices move slower than crawler traffic,
+and the block page is a public share target. This cache is a display cache only;
+per §11.1 nothing authorization-related may read it, so the concern that governs
+§4.3 — a display read warming a memo that a later authorization trusts — does
+not arise, and must not be allowed to arise by future changes.
+
+---
+
+## 12. Threat model summary
 
 | Threat | Mitigation |
 |--------|------------|
@@ -721,10 +848,16 @@ not the rate limiter — is the primary access control for the runtime routes.
 | **Flooding / DoS** of challenge issuance or token rotate/revoke | Durable cross-instance fixed-window limiter (atomic Postgres upsert counter) returns `429` + `Retry-After`; fails open only on limiter-infra error. |
 | **Key exposure** | The server never holds private keys; API tokens are stored only as hashes and shown in plaintext exactly once. |
 | Indexer **outage** abused for open access | Indexer fails closed; ownership actions never fail open on an outage — they degrade to the last safe snapshot or deny. |
+| **Hostile marketplace** asserting a false owner or sale | Market data is advisory and structurally excluded from authorization (§11.1); every payload is flagged `advisory: true`; the deed is always re-read on-chain. |
+| **SSRF** via a marketplace venue fetch | Exact-match host allowlist (not suffix), `https` only, literal + DNS-resolved private ranges rejected, redirects re-validated per hop against the same allowlist, bounded time and response size (§11.5). |
+| **Phishing** via a venue-supplied listing URL | Rendered links are allowlisted separately from API hosts; a URL outside the venue's declared link hosts is dropped rather than displayed (§11.5). |
+| Venue returning **absurd or malformed values** | Every scalar normalized before display: prices must be finite, non-negative and below the 21M BTC supply cap; out-of-range timestamps and unparseable fields degrade to `null` (§11.5). |
+| Venue **outage** silently reported as "no listings" | `unavailable` is a distinct status from `not_listed`; a view where every queried venue failed is never rendered as an absence of listings (§11.4). |
+| **Cost amplification** against a metered venue key | Public read is rate limited below the default public ceiling, market views are cached (§11.6), and an uninscribed block is answered without any upstream call (§11.3). |
 
 ---
 
-## 12. Versioning
+## 13. Versioning
 
 This is Nexus Protocol v1.0. Additive, backward-compatible changes (new optional
 fields, new event types, new endpoints) increment the minor version. Any change

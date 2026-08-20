@@ -141,6 +141,7 @@ const CASES: Case[] = [
     path: "/api/v1/ownership/verify",
     query: { blockHeight: "840000" },
   },
+  { tool: "bg_block_market", args: { height: 840000 }, path: "/api/v1/blocks/840000/market" },
   { tool: "bg_agents_by_block", args: { blockHeight: 840000 }, path: "/api/v1/agents/block/840000" },
   {
     tool: "bg_agent_briefs",
