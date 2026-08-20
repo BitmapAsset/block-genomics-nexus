@@ -142,7 +142,6 @@ export function createCLI() {
   program
     .command("rentals <action>")
     .description("Parcel rental listings: list | rent | price")
-    .option("--type <type>")
     .option("--block <height>", "Block height", (v) => Number(v))
     .action((action, options) => runRentals(action, options));
 
@@ -153,7 +152,6 @@ export function createCLI() {
   program
     .command("market <action>")
     .description("[deprecated] alias for `rentals` — use `bg rentals`")
-    .option("--type <type>")
     .option("--block <height>", "Block height", (v) => Number(v))
     .action((action, options) => {
       console.error(

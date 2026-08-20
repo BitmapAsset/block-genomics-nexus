@@ -209,7 +209,7 @@ This upgrade makes Block Genomics delegation **fully trustless end-to-end**: wal
 - [ ] Developer documentation & tutorials
 - [ ] Open-source the verification protocol
 - [ ] Standard proposal (BIP or similar)
-- [ ] Agent marketplace
+- [ ] Agent services directory
 - [ ] Analytics dashboard for verified agents
 
 ---

@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import Table from "cli-table3";
-import { getMarketListings } from "../lib/api-client";
+import { getRentalListings } from "../lib/api-client";
 import { ApiError } from "../lib/api";
 
 // `invokedAs` keeps the deprecated `bg market` alias byte-identical on stdout:
@@ -9,7 +9,7 @@ export async function runRentals(action: string, options: any, invokedAs = "rent
   if (action === "list") {
     let listings;
     try {
-      listings = await getMarketListings(options.block ? { blockHeight: options.block } : {});
+      listings = await getRentalListings(options.block ? { blockHeight: options.block } : {});
     } catch (e) {
       console.log(chalk.red(e instanceof ApiError ? e.message : String(e)));
       return;
