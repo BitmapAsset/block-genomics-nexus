@@ -127,7 +127,7 @@
 - [x] Block owner creates delegation listing (price, spots, duration)
 - [x] Two duration options: 30-day and 365-day
 - [x] BIP-322 wallet signature for all delegation actions
-- [x] Delegation marketplace page with search/filter/sort
+- [x] Parcel rentals page (/rentals) with search/filter/sort
 - [x] Revocation mechanism (owner can revoke delegations)
 
 ### 5c. Revenue System ✅

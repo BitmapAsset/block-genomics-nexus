@@ -167,7 +167,7 @@ Before submitting a PR that touches API routes:
 Use clear, descriptive commit messages with a type prefix:
 
 ```
-feat: add delegation marketplace search
+feat: add parcel rentals search
 fix: BIP-322 taproot signature verification
 docs: update API reference
 security: sanitize LLM proxy error responses

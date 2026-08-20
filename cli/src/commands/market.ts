@@ -13,7 +13,7 @@ export async function runMarket(action: string, options: any) {
       return;
     }
     if (listings.length === 0) {
-      console.log(chalk.yellow("No active delegation/rental listings on the live marketplace right now."));
+      console.log(chalk.yellow("No active delegation/rental listings right now."));
       return;
     }
     const table = new Table({ head: ["Block", "Parcel", "Tier", "Owner", "Spots", "30d (sats)", "365d (sats)"] });

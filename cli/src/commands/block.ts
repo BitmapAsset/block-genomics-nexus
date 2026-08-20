@@ -4,7 +4,7 @@ import { deriveGenomeHash } from "../lib/genome";
 import { panel, printKeyValues } from "../lib/display";
 
 // Real, read-only block lookup — the fastest "get started" command for an
-// external agent. Hits the live public API: ownership/verify + blocks/[h] + world.
+// external agent. Hits the live public API — ownership/verify + blocks/[h] + world.
 export async function runBlock(height: number, json = false) {
   if (!height || Number.isNaN(height)) {
     console.log(chalk.red("Provide a block height: bg block <height>"));

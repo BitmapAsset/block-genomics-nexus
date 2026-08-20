@@ -76,6 +76,17 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  // `/marketplace` now names the advisory third-party venue lane, so the
+  // parcel-rental page moved to `/rentals`. Links to the old path are already
+  // published, so it stays a permanent redirect rather than a 404.
+  redirects: async () => [
+    {
+      source: "/marketplace",
+      destination: "/rentals",
+      permanent: true,
+    },
+  ],
+
   // Webpack optimizations
   webpack: (config, { isServer }) => {
     if (!isServer) {

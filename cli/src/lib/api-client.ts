@@ -33,7 +33,7 @@ function toMarketListing(l: Listing): MarketListing {
   };
 }
 
-// Real delegation/rental listings from the live marketplace.
+// Real delegation/rental listings from the live rentals surface.
 export async function getMarketListings(opts: { blockHeight?: number; tier?: number } = {}): Promise<MarketListing[]> {
   const { listings } = await getListings({ limit: 100, ...opts });
   return listings.map(toMarketListing);

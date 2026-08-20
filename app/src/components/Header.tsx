@@ -42,7 +42,7 @@ const navLinks: NavLinkItem[] = [
   { href: "/portfolio", label: "Portfolio" },
   { href: "/directory", label: "Directory" },
   { href: "/live", label: "TimesSquare", isLive: true },
-  { href: "/marketplace", label: "Marketplace" },
+  { href: "/rentals", label: "Rentals" },
   { href: "/history", label: "History" },
   { href: "/runebolt", label: "RuneBolt", isRuneBolt: true },
   { href: "/verify", label: "Verify" },
