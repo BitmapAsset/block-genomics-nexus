@@ -46,6 +46,27 @@ export const WORLD_WRITE_LIMIT = 60;
 /** Batch writes carry up to 100 sub-ops each, so they get a tighter ceiling. */
 export const WORLD_BATCH_LIMIT = 20;
 
+/**
+ * Ceiling for an experience write (register / update / remove), per identity,
+ * per minute.
+ *
+ * Tighter than a world write because an experience write costs strictly more
+ * than one: a live indexer call for the ownership gate, AND an outbound probe to
+ * an owner-supplied host. That second cost is the reason for the lower number —
+ * without it, our registry becomes a request amplifier aimed at a third party of
+ * the caller's choosing. Still far above any real operator, who registers an
+ * experience once and edits it rarely.
+ */
+export const EXPERIENCE_WRITE_LIMIT = 20;
+
+/**
+ * Ceiling for the public integrity-verify route, per identity, per minute.
+ *
+ * The local half is pure computation, but `?remote=1` makes an outbound fetch,
+ * so this shares the amplification concern above and is limited accordingly.
+ */
+export const EXPERIENCE_VERIFY_LIMIT = 30;
+
 /** Anything exposing a `headers.get` — NextRequest, Request, or a test stub. */
 export type RateLimitedRequest = { headers: { get(name: string): string | null } };
 

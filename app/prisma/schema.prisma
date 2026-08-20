@@ -277,6 +277,17 @@ model Experience {
   capabilities       String[]  @default([])
   contentRating      String?
   version            String
+  // Manifest envelope schema version (NOT the operator's content version above).
+  manifestVersion    Int       @default(1)
+  // Owner-attested digest of the content bundle: "sha256:<64 hex>".
+  contentHash        String?
+  // Integrity triple. Null on rows registered before signing existed, and on
+  // rows written through the legacy bare-challenge flow — those report
+  // signed:false rather than failing, but are not tamper-evident.
+  manifestHash       String?
+  manifestMessage    String?
+  manifestSignature  String?
+  signedAt           DateTime?
   status             String    @default("pending")
   lastProbedAt       DateTime?
   probeLatencyMs     Int?
