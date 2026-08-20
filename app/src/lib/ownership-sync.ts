@@ -6,7 +6,12 @@
  */
 
 import prisma from '@/lib/prisma';
-import { getInscriptionOwner as ordGetInscriptionOwner, getStatus as ordGetStatus } from '@/lib/onchain/ord';
+import { getStatus as ordGetStatus } from '@/lib/onchain/ord';
+import {
+  resolveInscriptionOwnerAddress,
+  invalidateInscriptionOwner,
+  type OwnerFreshness,
+} from '@/lib/onchain/owner-freshness';
 
 // ─── Memory Wipe Types ──────────────────────────────────────────
 
@@ -85,39 +90,26 @@ export interface TransferEvent {
   detectedAt: Date;
 }
 
-// ─── Cache ───────────────────────────────────────────────────────
-// Owner lookups dedupe within a cron batch. The ord client owns request
-// throttling (~1 req/sec), so there's no local rate-limited fetch here.
-
-const ownerCache = new Map<string, { address: string | null; satpoint: string | null; ts: number }>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
 // ─── Core Functions ──────────────────────────────────────────────
 
 /**
  * Get the current on-chain owner of a .bitmap inscription via the ord server
- * JSON client (ordinals.com `/inscription/<id>` → `address`).
+ * JSON client (ordinals.com `/r/inscription/<id>` → `address`).
  *
  * FAILS CLOSED: returns null when the ord server is down / non-200 / unparsable.
  * A null here means "on-chain truth unavailable", NOT "no owner" — callers must
  * never treat null as a match or a transfer trigger. The brittle HTML-regex
  * scrape fallback was removed; a single typed indexer is the only owner source.
+ *
+ * `freshness` is REQUIRED and has no default: an authorization decision must
+ * never inherit display-tier staleness by omission. See lib/onchain/
+ * owner-freshness.ts for the bound each tier guarantees.
  */
-export async function getInscriptionOwner(inscriptionId: string): Promise<string | null> {
-  // Check cache
-  const cached = ownerCache.get(inscriptionId);
-  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-    return cached.address;
-  }
-
-  const owner = await ordGetInscriptionOwner(inscriptionId);
-  const address = owner?.address ?? null;
-  const satpoint = owner?.satpoint ?? null;
-
-  // Cache result (including a null/"unavailable" result, to avoid hammering the
-  // indexer when it's down — TTL bounds how long we stay pessimistic).
-  ownerCache.set(inscriptionId, { address, satpoint, ts: Date.now() });
-  return address;
+export async function getInscriptionOwner(
+  inscriptionId: string,
+  freshness: OwnerFreshness,
+): Promise<string | null> {
+  return resolveInscriptionOwnerAddress(inscriptionId, freshness);
 }
 
 /**
@@ -137,9 +129,15 @@ async function indexerTipIsSane(): Promise<boolean> {
 }
 
 /**
- * Verify ownership of a specific block
+ * Verify ownership of a specific block.
+ *
+ * `freshness` is REQUIRED so every call site states the staleness bound it is
+ * willing to decide on. Pass `'auth'` whenever the answer gates a mutation.
  */
-export async function verifyBlockOwnership(blockHeight: number): Promise<OwnershipCheck> {
+export async function verifyBlockOwnership(
+  blockHeight: number,
+  freshness: OwnerFreshness,
+): Promise<OwnershipCheck> {
   const block = await prisma.block.findUnique({ where: { height: blockHeight } });
 
   if (!block) {
@@ -171,7 +169,7 @@ export async function verifyBlockOwnership(blockHeight: number): Promise<Ownersh
     };
   }
 
-  const onChainOwner = await getInscriptionOwner(inscriptionId);
+  const onChainOwner = await getInscriptionOwner(inscriptionId, freshness);
 
   // Update lastOwnerCheck
   await prisma.block.update({
@@ -371,6 +369,10 @@ export async function processOwnershipTransfer(
     return created;
   }, { timeout: 15000 });
 
+  // The flip committed, so any observation taken before it is known-stale — drop
+  // it rather than let even a display read serve the previous owner.
+  invalidateInscriptionOwner(inscriptionId);
+
   console.log(`[ownership-sync] Blank-slate transfer: block ${blockHeight} released from ${previousOwner.slice(0, 12)}... to ${newOwnerAddress.slice(0, 12)}...`);
 
   return {
@@ -383,12 +385,18 @@ export async function processOwnershipTransfer(
 }
 
 /**
- * Batch verify multiple blocks
+ * Batch verify multiple blocks.
+ *
+ * DISPLAY tier deliberately: this is the background reconciliation sweep, not
+ * an authorization decision. Nothing here gates a caller's write — it detects
+ * transfers the cron has not yet applied, and a transfer that is a few minutes
+ * old is exactly what this job exists to catch up on. Sharing the display
+ * observation also dedupes a block that a read path just looked at.
  */
 export async function batchVerifyOwnership(blockHeights: number[]): Promise<OwnershipCheck[]> {
   const results: OwnershipCheck[] = [];
   for (const height of blockHeights) {
-    const check = await verifyBlockOwnership(height);
+    const check = await verifyBlockOwnership(height, 'display');
     results.push(check);
 
     // Process transfer only on a live mismatch (action 'update' is set ONLY for a
@@ -406,14 +414,20 @@ export async function batchVerifyOwnership(blockHeights: number[]): Promise<Owne
 }
 
 /**
- * Verify and sync a block — used as fallback in delegation routes
- * Returns whether the given wallet is the owner after sync
+ * Verify and sync a block. Returns whether the given wallet is the owner.
+ *
+ * AUTH tier, not configurable: every caller of this function is an
+ * authorization gate (experience register/update/remove, agent register,
+ * delegation listing create). Taking the tier as a parameter would let a future
+ * call site ask to be checked against a staler observation, and per this
+ * module's fail-closed model a caller must never be able to request a weaker
+ * check. Read paths should call `verifyBlockOwnership(height, 'display')`.
  */
 export async function verifyAndSyncBlock(
   blockHeight: number,
   walletAddress: string
 ): Promise<{ isOwner: boolean; check: OwnershipCheck }> {
-  const check = await verifyBlockOwnership(blockHeight);
+  const check = await verifyBlockOwnership(blockHeight, 'auth');
 
   // If on-chain shows this wallet is owner but DB disagrees, sync.
   // Requires a live, positive on-chain owner equal to the wallet (null owner on

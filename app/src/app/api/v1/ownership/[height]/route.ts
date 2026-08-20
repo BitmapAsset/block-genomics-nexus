@@ -28,7 +28,8 @@ export async function GET(
       return error('Invalid block height (positive integer required)', 400);
     }
 
-    const check = await verifyBlockOwnership(blockHeight);
+    // DISPLAY tier: public ownership read, gates no mutation.
+    const check = await verifyBlockOwnership(blockHeight, 'display');
 
     return success({
       blockHeight: check.blockHeight,

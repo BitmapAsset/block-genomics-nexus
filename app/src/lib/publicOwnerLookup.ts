@@ -18,6 +18,12 @@
  * `ownership-sync`'s: this is a rendering concern, and the auth/write paths own
  * their own cache semantics. Nothing in this file is authoritative — callers on
  * a write or authorization path must use `verifyBlockOwnership` and await it.
+ *
+ * Background warms go through the shared 'display' freshness tier (see
+ * lib/onchain/owner-freshness.ts), so a warm here also serves display reads
+ * elsewhere and concurrent warms for one inscription coalesce into one query.
+ * The 'auth' tier is untouched: nothing rendered from this module may gate a
+ * mutation.
  */
 
 import { getInscriptionOwner } from '@/lib/ownership-sync';
@@ -85,7 +91,7 @@ function scheduleWarm(inscriptionId: string): void {
   inFlight.add(inscriptionId);
   void (async () => {
     try {
-      store(inscriptionId, await getInscriptionOwner(inscriptionId), Date.now());
+      store(inscriptionId, await getInscriptionOwner(inscriptionId, 'display'), Date.now());
     } catch {
       // Leave it cold rather than caching the failure: storing null here would
       // read back as "no owner", and a thrown lookup cannot tell an unowned

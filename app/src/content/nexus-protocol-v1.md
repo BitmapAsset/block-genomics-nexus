@@ -111,6 +111,13 @@ sync that reads a Bitcoin ordinals indexer. The indexer client **fails closed**:
 an unreachable or unparsable indexer response is treated as *"truth unavailable"*,
 never as *"no owner"* or *"owner changed."*
 
+Implementations **MUST** distinguish two uses of an ownership answer, because
+they tolerate very different staleness:
+
+- **Display** — rendering or reporting who owns a block. Authorizes nothing.
+- **Authorization** — deciding whether a caller may mutate a block. Here
+  staleness *is* the security bound, so §4.3 governs.
+
 ### 4.2 Live re-verification
 
 Security-sensitive ownership actions **MUST** re-check ownership against the chain
@@ -128,6 +135,46 @@ World writes (§4.4) are stricter and allow no fallback at all: they **MUST** an
 `503` when live truth is unavailable. The cached `owner` is **never** consulted to
 authorize one.
 
+### 4.3 Freshness guarantee
+
+§4.2 says an authorization must not trust "the cache alone." That is only
+meaningful if the ownership lookup performed *during* the authorization is
+itself uncached — otherwise a display read moments earlier can fill a memo and
+the "live" re-verify silently answers from it.
+
+**Normative rule.** An ownership lookup made for an authorization decision
+**MUST NOT** be served from a stored ownership observation. The implementation
+**MUST** issue an indexer query, or join a query already in flight, at decision
+time. Joining an in-flight query is permitted — it is live by construction, and
+it is what keeps a burst of writes against one block to a single round-trip.
+
+Servers **MAY** cache ownership observations for display reads. This profile
+uses **5 minutes**. An observation **MUST** be invalidated once a transfer has
+been processed for that inscription.
+
+**What this does and does not promise.** The guarantee is that *the server holds
+no stale answer*. It is deliberately **not** a claim of instantaneous truth, and
+implementations **MUST NOT** describe it as one. Two sources of lag remain and
+are outside the server's control:
+
+1. The answer arrives in an HTTP response, so it reflects indexer state from up
+   to one request duration ago (this profile times out at **8 seconds**).
+2. The indexer itself propagates. A public `ord` instance may serve holder data
+   from a CDN-cached endpoint, so a very recent transfer can lag there
+   regardless of server behavior. Operators who need the tightest bound
+   available **SHOULD** point the client at a self-hosted `ord` instance.
+
+So the honest statement of the bound is: **an authorization decision is made
+against an indexer query issued at decision time; residual staleness is the
+indexer's own propagation delay, not a server-side cache window.** Before this
+rule, the observable guarantee was "within the cache TTL of a sale" — a former
+owner retained write authority for the remainder of the window.
+
+**Load.** Querying live per authorization does not imply hammering the indexer.
+Authorization volume is write volume, which is small next to read volume; the
+indexer client **SHOULD** self-throttle, and per-inscription request coalescing
+**SHOULD** be used so concurrent checks share one query.
+
 ### 4.4 Content authority follows the deed
 
 The block is the unit of ownership; objects are not separately owned. The wallet
@@ -142,9 +189,11 @@ every object on that block**, including objects placed by previous owners.
   compare it against the caller to decide whether a write is allowed.
 - Servers **MUST** verify that the target object belongs to the block whose
   ownership was proved. Ownership of one block confers nothing on another.
-- The effect is immediate on both sides of a transfer: the moment the inscription
-  moves, the seller loses write access to everything on the block and the buyer
-  gains it. There is no cache-sync window in which the seller can still write.
+- The effect follows the transfer on both sides: once the inscription move is
+  visible to the indexer, the seller loses write access to everything on the
+  block and the buyer gains it. There is no server-side cache window in which
+  the seller can still write — authorization lookups are uncached by rule
+  (§4.3). Residual lag is the indexer's own propagation, not a sync interval.
 - An object's `locked` flag guards against accidental edits, not against the owner.
   The current owner **MUST** be able to clear it; a lock left behind by a previous
   owner **MUST NOT** be permanent.
@@ -332,6 +381,45 @@ replayed, re-pointed at another route, or altered in flight. Batch writes bind t
 hash of the entire batch and **MUST** validate every sub-operation for ownership
 and lock state before the nonce is consumed.
 
+A signature is one of the two credential paths of §4.4, not the only one. A caller
+holding a live `bg_vfy_` session token that covers the block **MAY** send it as
+`Authorization: Bearer …` instead, on every world write route including
+`/world/batch`; no signature, message or nonce is then required, because the token
+was itself minted from a signed one-time challenge. On that path the server
+**MUST** attribute the write to the session's wallet and **MUST NOT** read an
+actor from the request body.
+
+### 7.3 Batch semantics
+
+`POST /api/v1/world/batch` carries up to **100** sub-operations. It is
+**all-or-nothing**: the server **MUST** apply every sub-operation or none of them.
+
+- A `2xx` response means the whole batch was applied. Every entry in `results` is
+  a success; the server **MUST NOT** report a failed sub-operation inside a `2xx`.
+- Any other response means **nothing** was applied. A `500 batch_failed` in
+  particular carries no partial state — the block is exactly as it was.
+- Sub-operations are validated (shape, ownership, block membership, lock state)
+  **before** the nonce is consumed, so a rejected batch leaves the nonce spendable
+  and the same signed request can simply be re-sent.
+
+Retry rules follow from that:
+
+| Outcome | Applied? | Safe to retry |
+|---|---|---|
+| `400` / `403` (bad or unauthorized sub-op) | no | yes — nonce untouched, re-send as is |
+| `401` (bad signature, binding, or spent nonce) | no | only with a fresh challenge |
+| `429` | no | yes, after `Retry-After` |
+| `503` (chain unreachable) | no | yes — the nonce is not spent |
+| `500 batch_failed` | no | yes, but the nonce **was** spent: re-sign on the wallet path; the session path may re-send unchanged |
+| `2xx` | fully | see below |
+
+A retry of a batch that already applied is **not** idempotent for `create`
+sub-operations: they will create again. `update` and `delete` are idempotent in
+effect, but a `delete` whose target is already gone fails validation, so a
+re-sent batch containing one is rejected with `403` rather than duplicating work.
+Clients that cannot tolerate a duplicate `create` **SHOULD** treat a lost response
+as unknown and reconcile with `GET /api/v1/world?blockHeight=…` before re-sending.
+
 ---
 
 ## 8. Experience hosting
@@ -507,6 +595,15 @@ The server verifies the signature, verifies the binding, re-verifies ownership
 live on-chain, and only then consumes the nonce — so an indexer outage costs a
 retry rather than a burnt challenge.
 
+**One canonicalizer.** Because a client and the server **MUST** produce identical
+bytes, the rules above are worth exactly one implementation. Every first-party
+client — SDK and CLI — derives its canonical form from a single source, and the
+copies are enforced identical by tests rather than by convention. Anyone writing
+a third-party client should treat the rules above as normative and pin the golden
+vector in §8.7 as a conformance test, since a divergence here does not fail
+loudly: it produces signatures the server rejects, or a record that silently
+stops re-verifying later.
+
 **Back-compat.** The bare-`challenge` flow of §8.3 remains valid; such records
 report `signed: false`. Mode is chosen by which field is present, never by a
 client flag, so a caller cannot request a weaker check. A signature that is
@@ -609,6 +706,7 @@ not the rate limiter — is the primary access control for the runtime routes.
 | **Cross-owner read** of a private event stream | Runtime routes require the per-agent Bearer token; the agent `id` is never published. |
 | **Liveness / brief spoofing** | Heartbeat and brief require the agent's Bearer token. |
 | Former owner acting in the **sale→sync lag window** | Live on-chain re-verify at register; fail closed on mismatch. |
+| Former owner acting inside the **ownership-cache window** | Authorization lookups are never served from a cached observation (§4.3); a display read cannot warm a memo that a later authorization then trusts. |
 | Inherited agents / secrets after **transfer** | Atomic blank-slate release wipes agents, guardian secrets, and detaches identity before flipping ownership. |
 | Parcel **first-writer takeover** / replay | Block-ownership required to initialize; single-use challenge + field-hash binding on customize. |
 | World write **replay / re-pointing** | Action-bound message (method, path, block, body hash, nonce, expiry). |

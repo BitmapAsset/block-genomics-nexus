@@ -5,6 +5,28 @@ All notable changes to the `block-genomics` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- `bg experience register` and `bg experience remove` now sign the **manifest**,
+  not just a bare challenge. Both send an action-bound `message` whose `Body:`
+  field is the canonical manifest hash, so the write commits to the exact
+  manifest bytes and the stored record becomes verifiable by a third party via
+  `GET /api/v1/experiences/{id}/verify`. Previously these commands used the
+  legacy bare-challenge flow, which proved wallet ownership but left the record
+  un-tamper-evident (`signed: false`).
+
+  How you supply a signature is unchanged (`--sig` / `BG_SIGNATURE` /
+  `BG_SIGNATURE_CMD`) — the CLI still never holds a key. What it asks you to
+  sign is now the action-bound message rather than the raw challenge.
+
+### Added
+- `npm run sync:canon` — regenerates `src/lib/action-message.ts` and
+  `src/lib/experience-manifest.ts` from the SDK source. These are **generated
+  mirrors**: the canonicalizer decides which bytes a signature commits to, so it
+  gets exactly one editable copy. `npm run build` and the test suite both fail
+  if they drift.
+
 ## [0.4.0] — 2026-07-15
 
 Experience hosting — attach a self-hosted world (web / unreal / unity / godot /

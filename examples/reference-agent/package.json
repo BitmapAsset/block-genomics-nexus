@@ -7,18 +7,20 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "keygen": "tsx src/keygen.ts",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bitcoinerlab/secp256k1": "^1.2.0",
-    "bip322-js": "^3.0.0",
-    "block-genomics-connect": "^0.2.0",
-    "ecpair": "^2.1.0"
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.8.0",
+    "@scure/btc-signer": "1.8.1",
+    "block-genomics-connect": "^0.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
     "tsx": "^4.7.1",
-    "typescript": "^5.4.3"
+    "typescript": "^5.4.3",
+    "vitest": "^3.2.7"
   },
   "license": "MIT"
 }
