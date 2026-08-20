@@ -16,6 +16,27 @@
 
 import net from 'net';
 import { z } from 'zod';
+import { stableStringify, sha256Hex } from './action-message';
+
+// ─── Manifest versioning ─────────────────────────────────────────
+
+/**
+ * Schema version of the experience manifest envelope.
+ *
+ * This is NOT the experience's own `version` field (which is the operator's
+ * build/content version, opaque to us). `manifestVersion` describes the shape of
+ * the manifest itself, so a future v2 can add or re-type fields without breaking
+ * a v1 host that is still publishing the old shape.
+ */
+export const MANIFEST_VERSION = 1;
+export const SUPPORTED_MANIFEST_VERSIONS = [1] as const;
+export type ManifestVersion = (typeof SUPPORTED_MANIFEST_VERSIONS)[number];
+
+/** Well-known path a self-hosted experience publishes its manifest at. */
+export const WELL_KNOWN_MANIFEST_PATH = '/.well-known/nexus-experience.json';
+
+/** `sha256:<64 lowercase hex>` — the only content-hash form v1 accepts. */
+export const CONTENT_HASH_RE = /^sha256:[0-9a-f]{64}$/;
 
 // ─── Enums / unions ──────────────────────────────────────────────
 
@@ -189,9 +210,31 @@ const clientRequirementsSchema = z
   })
   .strip();
 
+/**
+ * Owner-attested integrity digest of the experience's content bundle.
+ *
+ * We never fetch or verify the bundle itself — that is the client's job at load
+ * time. Storing it under the owner's signature is what makes it useful: a client
+ * can pin the hash it expects and detect a swapped payload on a host it does not
+ * control.
+ */
+const contentHashSchema = z
+  .string()
+  .trim()
+  .regex(CONTENT_HASH_RE, 'contentHash must be "sha256:" followed by 64 lowercase hex characters');
+
+const manifestVersionSchema = z
+  .number()
+  .int()
+  .refine((v) => (SUPPORTED_MANIFEST_VERSIONS as readonly number[]).includes(v), {
+    message: `manifestVersion must be one of: ${SUPPORTED_MANIFEST_VERSIONS.join(', ')}`,
+  });
+
 /** The frozen v1 manifest (client-supplied fields only). */
 export const experienceManifestSchema = z
   .object({
+    manifestVersion: manifestVersionSchema.optional(),
+    contentHash: contentHashSchema.optional(),
     blockHeight: z.number().int().nonnegative(),
     parcelIndex: z.number().int().nonnegative().optional(),
     name: z.string().trim().min(1).max(NAME_MAX),
@@ -219,3 +262,106 @@ export const experienceManifestPatchSchema = experienceManifestSchema
   .refine((obj) => Object.keys(obj).length > 0, { message: 'PATCH body must update at least one field' });
 
 export type ExperienceManifestPatch = z.infer<typeof experienceManifestPatchSchema>;
+
+// ─── Canonical manifest hash (integrity) ─────────────────────────
+//
+// ⚠️  The block between the SHARED MANIFEST CANON markers below is byte-for-byte
+// identical to sdk/agent-connect/src/experience-manifest.ts. It decides the
+// bytes that get hashed and then signed, so any divergence silently breaks
+// BIP-322 verification between a client that signs and the server that checks.
+// app/__tests__/lib/experience-manifest-parity.test.ts fails if the two drift.
+// Edit both copies together, never one alone.
+
+// ===== BEGIN SHARED MANIFEST CANON (keep byte-identical: app/src/lib/experience-protocol.ts <-> sdk/agent-connect/src/experience-manifest.ts) =====
+/**
+ * Shape accepted by the canonicalizer: either a client body or a stored row.
+ * Deliberately loose so the same function hashes a request and a DB record.
+ */
+export interface CanonicalManifestInput {
+  manifestVersion?: number | null;
+  blockHeight: number;
+  parcelIndex?: number | null;
+  name: string;
+  description?: string | null;
+  experienceType: string;
+  entryUrl: string;
+  transport: string;
+  healthUrl?: string | null;
+  clientRequirements?: unknown;
+  capabilities?: string[] | null;
+  contentRating?: string | null;
+  version: string;
+  contentHash?: string | null;
+}
+
+/**
+ * Normalize a manifest to the exact object that gets hashed.
+ *
+ * Both sides — the client before signing, and the server when re-deriving the
+ * hash from a stored row years later — must produce byte-identical output, so
+ * every defaulting rule lives here and nowhere else:
+ *
+ * - `healthUrl` is resolved to its EFFECTIVE value (`entryUrl` when omitted),
+ *   because that is what the server persists. Hashing the raw omitted value
+ *   would make a stored row un-rehashable.
+ * - Empty/absent optionals are dropped rather than encoded as `null`, so
+ *   "omitted" and "explicitly null" hash the same.
+ * - An empty `capabilities` array is dropped for the same reason.
+ * - `capabilities` order is PRESERVED. It is owner-chosen presentation order,
+ *   and sorting it would silently rewrite the operator's intent.
+ * - `clientRequirements` is accepted as an object or as the JSON string the DB
+ *   stores it in; both normalize to the same object. Key order is irrelevant —
+ *   `stableStringify` sorts keys.
+ */
+export function canonicalManifest(input: CanonicalManifestInput): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    manifestVersion: input.manifestVersion ?? MANIFEST_VERSION,
+    blockHeight: input.blockHeight,
+    name: input.name,
+    experienceType: input.experienceType,
+    entryUrl: input.entryUrl,
+    transport: input.transport,
+    healthUrl: input.healthUrl ?? input.entryUrl,
+    version: input.version,
+  };
+
+  if (input.parcelIndex != null) out.parcelIndex = input.parcelIndex;
+  if (input.description != null && input.description !== '') out.description = input.description;
+  if (input.contentRating != null) out.contentRating = input.contentRating;
+  if (input.contentHash != null) out.contentHash = input.contentHash;
+  if (input.capabilities != null && input.capabilities.length > 0) out.capabilities = input.capabilities;
+
+  const cr = normalizeClientRequirements(input.clientRequirements);
+  if (cr) out.clientRequirements = cr;
+
+  return out;
+}
+
+function normalizeClientRequirements(raw: unknown): Record<string, unknown> | null {
+  let value = raw;
+  if (typeof value === 'string') {
+    if (value.trim() === '') return null;
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const obj = value as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of ['platform', 'minVersion', 'downloadUrl']) {
+    if (obj[key] != null && obj[key] !== '') out[key] = obj[key];
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+/**
+ * SHA-256 hex of the canonical manifest. This is the value bound into the
+ * owner's BIP-322 authorization, so it is the anchor of the whole trust chain:
+ * deed on Bitcoin → BIP-322 signature → this hash → the stored manifest.
+ */
+export async function computeManifestHash(input: CanonicalManifestInput): Promise<string> {
+  return sha256Hex(stableStringify(canonicalManifest(input)));
+}
+// ===== END SHARED MANIFEST CANON =====

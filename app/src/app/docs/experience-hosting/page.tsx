@@ -119,7 +119,37 @@ const ENDPOINTS: { method: string; path: string; note: string; auth: string }[] 
   { method: 'PATCH', path: '/api/v1/experiences/{id}', note: 'Update an experience you own; re-probes + re-judges.', auth: 'BIP-322' },
   { method: 'DELETE', path: '/api/v1/experiences/{id}', note: 'Terminally remove an experience you own.', auth: 'BIP-322' },
   { method: 'POST', path: '/api/v1/experiences/{id}/probe', note: 'Trigger a health probe (rate-limited 1/min).', auth: 'none' },
+  { method: 'GET', path: '/api/v1/experiences/{id}/verify', note: 'Integrity report. ?remote=1 also compares the manifest your host publishes.', auth: 'none' },
 ];
+
+const VERIFY_FLOW = `# Is this registration still exactly what its owner signed?
+curl https://blockgenomics.io/api/v1/experiences/<id>/verify
+
+# ...and does the live host still agree with the registry?
+curl 'https://blockgenomics.io/api/v1/experiences/<id>/verify?remote=1'
+
+# {
+#   "signed": true,
+#   "manifestHashMatches": true,      # the stored manifest was not altered
+#   "signatureCoversManifest": true,  # the signature commits to THIS manifest
+#   "signatureValid": true,           # BIP-322 checks out against the owner
+#   "verified": true,
+#   "remote": { "matchesRegistry": true }
+# }`;
+
+const WELL_KNOWN = `// Serve this from your own host, at the entry URL's origin:
+//   GET /.well-known/nexus-experience.json
+{
+  "manifestVersion": 1,
+  "blockHeight": 840000,
+  "name": "Pixel Plaza",
+  "experienceType": "web",
+  "entryUrl": "https://plaza.example.com",
+  "transport": "https",
+  "healthUrl": "https://plaza.example.com/health",
+  "version": "1.0.0",
+  "contentHash": "sha256:6e3e4bbf…"
+}`;
 
 export default function ExperienceHostingPage() {
   return (
@@ -248,6 +278,48 @@ export default function ExperienceHostingPage() {
         <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
           The normative manifest schema, probe semantics, and constitution inheritance live in the{' '}
           <Link href="/protocol" style={{ color: 'var(--color-accent-cyan)' }}>Nexus Protocol specification</Link>.
+        </p>
+      </Section>
+
+      {/* Federation + integrity */}
+      <Section id="integrity" eyebrow="Federation" title="Signed manifests — tamper-evident, with zero chain writes">
+        <p className="mb-4 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          Bitcoin holds the <strong>deed</strong> and nothing else. Registering an experience writes nothing
+          on chain — no inscription, no transaction, no fee. What binds your world to your block is not a
+          chain write but a signature:
+        </p>
+        <div className="my-4 grid gap-3 sm:grid-cols-3">
+          <ConceptCard title="1 — Deed on Bitcoin">
+            Your <code className="doc-inline-code">.bitmap</code> inscription decides who may authorize. Ownership is
+            re-checked live against the chain on every write, and fails closed on a mismatch.
+          </ConceptCard>
+          <ConceptCard title="2 — Action-bound signature">
+            Your BIP-322 signature names the method, path, block, and a hash of the exact manifest — so it
+            cannot be replayed, or re-pointed at another experience.
+          </ConceptCard>
+          <ConceptCard title="3 — Signed manifest hash">
+            The stored record carries that hash and signature, so <em>anyone</em> can re-derive and re-check it
+            without trusting us.
+          </ConceptCard>
+        </div>
+        <p className="mb-4 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          If a stored manifest were altered — by anyone, including us — the re-derived hash stops matching.
+          Alter the stored hash to cover it and the owner&apos;s signature still disagrees. That is the
+          difference between a registration that is merely <em>authenticated</em> and one that is
+          <em> tamper-evident</em>.
+        </p>
+        <CodeBlock code={VERIFY_FLOW} lang="bash" title="verify — local integrity, and drift against your host" />
+        <p className="mb-4 mt-6 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          Publish your own manifest at <code className="doc-inline-code">/.well-known/nexus-experience.json</code> and
+          <code className="doc-inline-code">?remote=1</code> will compare it to the registry. Drift is reported as data,
+          not an error — it usually just means you shipped a build without re-registering. A complete runnable
+          host lives in <code className="doc-inline-code">examples/experience-host/</code>.
+        </p>
+        <CodeBlock code={WELL_KNOWN} lang="json" title=".well-known/nexus-experience.json" />
+        <p className="mt-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+          Signing is optional for back-compat: records registered through the older bare-challenge flow stay
+          valid and report <code className="doc-inline-code">signed: false</code>. A signature that is present but
+          does not verify is always a hard failure, never a silent downgrade.
         </p>
       </Section>
 

@@ -92,6 +92,7 @@ export const PUBLIC_TOOL_NAMES = [
   "bg_game_elements",
   "bg_experiences",
   "bg_experience",
+  "bg_experience_verify",
   "bg_profiles_by_block",
   "bg_profiles_by_wallet",
   "bg_user_by_wallet",
@@ -119,4 +120,10 @@ export const OWNER_TOOL_NAMES = [
 ] as const;
 
 /** Tools unlocked only by BG_ENABLE_WRITES=1. */
-export const WRITE_TOOL_NAMES = ["bg_agent_register", "bg_auth_verify"] as const;
+export const WRITE_TOOL_NAMES = [
+  "bg_agent_register",
+  "bg_experience_register",
+  "bg_experience_update",
+  "bg_experience_remove",
+  "bg_auth_verify",
+] as const;

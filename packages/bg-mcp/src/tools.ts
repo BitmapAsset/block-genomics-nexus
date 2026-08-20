@@ -123,6 +123,22 @@ export function buildToolCatalog(call: CallFn): {
       run: (a) => call(`/api/v1/experiences/${encodeURIComponent(a.id)}`),
     },
     {
+      name: "bg_experience_verify",
+      description:
+        "Verify a self-hosted experience's integrity. Re-derives the canonical manifest hash from the stored record and checks the owner's BIP-322 signature over it, so a tampered registration is detectable without trusting the registry. Set remote:true to also fetch the manifest the host publishes at /.well-known/nexus-experience.json and report whether the live host still agrees with the registry.",
+      schema: {
+        id: z.string(),
+        remote: z
+          .boolean()
+          .optional()
+          .describe("Also fetch and compare the manifest published by the host itself"),
+      },
+      run: (a) =>
+        call(`/api/v1/experiences/${encodeURIComponent(a.id)}/verify`, {
+          query: (a.remote ? { remote: "1" } : {}) as Query,
+        }),
+    },
+    {
       name: "bg_profiles_by_block",
       description: "Block profiles for a given block, ordered primary first.",
       schema: { height },
@@ -343,6 +359,74 @@ export function buildToolCatalog(call: CallFn): {
         challenge: z.string().describe("Exact challenge message returned by bg_challenge"),
       },
       run: (a) => call("/api/v1/agents/register", { method: "POST", body: a }),
+    },
+    {
+      name: "bg_experience_register",
+      description:
+        "Attach a SELF-HOSTED experience to a block you own. Nothing is written to Bitcoin — the bitmap inscription is the deed, this is only the link to the server you run. Requires a BIP-322 signature produced externally. Preferred: sign an action-bound message whose Body field is the canonical manifest hash and pass it as `message`, which makes the registration tamper-evident to third parties. Legacy: pass a bare `challenge` from bg_challenge (purpose 'experience-register'), which proves ownership but leaves the manifest unsigned.",
+      schema: {
+        walletAddress: z.string().describe("Bitcoin wallet address that owns the block (BIP-322 signer)"),
+        blockHeight: height,
+        parcelIndex: z.number().int().optional(),
+        name: z.string().describe("Display name, 1-64 chars"),
+        description: z.string().optional(),
+        experienceType: z.enum(["web", "unreal", "unity", "godot", "minecraft", "vr", "custom"]),
+        entryUrl: z.string().describe("https:// or wss:// entry point on YOUR server"),
+        transport: z.enum(["https", "wss", "webrtc", "custom"]),
+        healthUrl: z.string().optional().describe("Defaults to entryUrl"),
+        capabilities: z.array(z.string()).optional().describe("Up to 16 freeform tags, e.g. voice, avatars"),
+        contentRating: z.enum(["everyone", "teen", "mature"]).optional(),
+        version: z.string().describe("Your build/content version, e.g. 1.0.0"),
+        manifestVersion: z.number().int().optional().describe("Manifest schema version (currently 1)"),
+        contentHash: z.string().optional().describe('Owner-attested bundle digest, "sha256:<64 hex>"'),
+        signature: z.string().describe("BIP-322 signature over `message` (preferred) or `challenge`"),
+        message: z.string().optional().describe("Canonical action-bound authorization binding the manifest hash"),
+        challenge: z.string().optional().describe("Legacy: exact challenge message from bg_challenge"),
+      },
+      run: (a) => call("/api/v1/experiences", { method: "POST", body: a }),
+    },
+    {
+      name: "bg_experience_update",
+      description:
+        "Update a self-hosted experience you own (partial manifest). Re-judged, re-probed, and re-anchored: the signature must commit to the RESULTING manifest, not the delta. An unsigned update clears any previous signature rather than leaving it attached to a manifest it no longer describes.",
+      schema: {
+        id: z.string().describe("Experience id"),
+        walletAddress: z.string(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        experienceType: z.enum(["web", "unreal", "unity", "godot", "minecraft", "vr", "custom"]).optional(),
+        entryUrl: z.string().optional(),
+        transport: z.enum(["https", "wss", "webrtc", "custom"]).optional(),
+        healthUrl: z.string().optional(),
+        capabilities: z.array(z.string()).optional(),
+        contentRating: z.enum(["everyone", "teen", "mature"]).optional(),
+        version: z.string().optional(),
+        manifestVersion: z.number().int().optional(),
+        contentHash: z.string().optional(),
+        signature: z.string(),
+        message: z.string().optional().describe("Action-bound authorization binding the resulting manifest hash"),
+        challenge: z.string().optional().describe("Legacy: challenge from bg_challenge (purpose 'experience-manage')"),
+      },
+      run: (a) => {
+        const { id, ...body } = a;
+        return call(`/api/v1/experiences/${encodeURIComponent(id)}`, { method: "PATCH", body });
+      },
+    },
+    {
+      name: "bg_experience_remove",
+      description:
+        "Terminally remove a self-hosted experience you own. A signed removal binds the manifest being removed, so a captured authorization cannot be aimed at a different experience.",
+      schema: {
+        id: z.string().describe("Experience id"),
+        walletAddress: z.string(),
+        signature: z.string(),
+        message: z.string().optional().describe("Action-bound authorization binding the current manifest hash"),
+        challenge: z.string().optional().describe("Legacy: challenge from bg_challenge (purpose 'experience-manage')"),
+      },
+      run: (a) => {
+        const { id, ...body } = a;
+        return call(`/api/v1/experiences/${encodeURIComponent(id)}`, { method: "DELETE", body });
+      },
     },
     {
       name: "bg_auth_verify",

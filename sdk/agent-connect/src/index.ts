@@ -55,6 +55,7 @@ export type {
   ExperienceListOptions,
   ExperienceListResult,
   ExperienceRemoveResult,
+  ExperienceIntegrityReport,
   SessionChallenge,
   RejectedBlock,
   VerifiedSession,

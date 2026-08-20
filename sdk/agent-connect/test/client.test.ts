@@ -5,6 +5,7 @@ import {
   makeSigner,
   type RegisteredAgent,
 } from '../src/index.js';
+import { computeManifestHash } from '../src/experience-manifest.js';
 
 // ─── test harness ──────────────────────────────────────────────────────────
 // A recording fetch double. Each call is dispatched to `handler`, which returns
@@ -328,7 +329,7 @@ const experienceRecord = (over: Record<string, unknown> = {}) => ({
 });
 
 describe('experiences.register', () => {
-  it('signs an experience-register challenge and posts the manifest + auth envelope', async () => {
+  it('signs an action-bound message committing to the manifest hash', async () => {
     const { calls, fetchImpl } = harness((rec) => {
       if (rec.url.endsWith('/challenge')) {
         return { body: env({ message: `M_${rec.body.purpose}`, nonce: 'n' }) };
@@ -344,14 +345,43 @@ describe('experiences.register', () => {
     });
     const post = calls.find((c) => c.url.endsWith('/api/v1/experiences'))!;
     expect(post.method).toBe('POST');
-    expect(post.body).toEqual({
-      ...MANIFEST,
-      walletAddress: 'bc1powner',
-      signature: 'SIG(M_experience-register)',
-      challenge: 'M_experience-register',
-    });
+
+    // The manifest travels as-is, plus the auth envelope. `challenge` is gone:
+    // the bare-nonce flow does not bind the manifest, so the SDK no longer uses it.
+    const { message, signature, walletAddress, ...manifestSent } = post.body;
+    expect(manifestSent).toEqual(MANIFEST);
+    expect(walletAddress).toBe('bc1powner');
+    expect(post.body.challenge).toBeUndefined();
+
+    // The signature must be over the action message, and that message's Body
+    // binding must be the canonical hash of exactly this manifest.
+    expect(signature).toBe(`SIG(${message})`);
+    const expectedHash = await computeManifestHash(MANIFEST);
+    expect(message).toContain('Action: experience.register');
+    expect(message).toContain('Method: POST');
+    expect(message).toContain('Path: /api/v1/experiences');
+    expect(message).toContain(`Block: ${MANIFEST.blockHeight}`);
+    expect(message).toContain(`Body: ${expectedHash}`);
+    expect(message).toContain('Nonce: n');
+
     expect(exp.id).toBe('exp_00000000000000000000000');
     expect(exp.status).toBe('live');
+  });
+
+  it('a one-field change to the manifest changes the signed bytes', async () => {
+    const sign = async (manifest: typeof MANIFEST) => {
+      const { calls, fetchImpl } = harness((rec) =>
+        rec.url.endsWith('/challenge')
+          ? { body: env({ message: `M_${rec.body.purpose}`, nonce: 'n' }) }
+          : { status: 201, body: env(experienceRecord()) },
+      );
+      const bg = new BlockGenomicsClient({ signer: testSigner('bc1powner'), fetch: fetchImpl });
+      await bg.experiences.register(manifest);
+      return calls.find((c) => c.url.endsWith('/api/v1/experiences'))!.body.message as string;
+    };
+    const original = await sign(MANIFEST);
+    const tampered = await sign({ ...MANIFEST, entryUrl: 'wss://evil.example.com' });
+    expect(tampered).not.toBe(original);
   });
 
   it('throws (401) without a signer', async () => {
@@ -418,7 +448,7 @@ describe('experiences reads (public, no signer)', () => {
 });
 
 describe('experiences writes (owner-wallet signature)', () => {
-  it('update signs an experience-manage challenge and PATCHes only the given fields', async () => {
+  it('update PATCHes only the given fields, but signs the RESULTING manifest', async () => {
     const { calls, fetchImpl } = harness((rec) =>
       rec.url.endsWith('/challenge')
         ? { body: env({ message: `M_${rec.body.purpose}`, nonce: 'n' }) }
@@ -427,32 +457,56 @@ describe('experiences writes (owner-wallet signature)', () => {
     const bg = new BlockGenomicsClient({ signer: testSigner('bc1powner'), fetch: fetchImpl });
     await bg.experiences.update('exp_abc', { version: '1.1.0' });
     expect(calls.find((c) => c.url.endsWith('/challenge'))!.body.purpose).toBe('experience-manage');
+
+    // It must read the current record first — the signature commits to the
+    // merged result, which cannot be derived from the delta alone.
+    expect(calls.some((c) => c.method === 'GET' && c.url.endsWith('/api/v1/experiences/exp_abc'))).toBe(true);
+
     const patch = calls.find((c) => c.method === 'PATCH')!;
     expect(patch.url).toBe('https://blockgenomics.io/api/v1/experiences/exp_abc');
-    expect(patch.body).toEqual({
-      version: '1.1.0',
-      walletAddress: 'bc1powner',
-      signature: 'SIG(M_experience-manage)',
-      challenge: 'M_experience-manage',
-    });
+    expect(patch.body.version).toBe('1.1.0');
+    expect(patch.body.walletAddress).toBe('bc1powner');
+    expect(patch.body.challenge).toBeUndefined();
+
+    const mergedHash = await computeManifestHash({ ...MANIFEST, version: '1.1.0' });
+    expect(patch.body.message).toContain('Action: experience.update');
+    expect(patch.body.message).toContain('Method: PATCH');
+    expect(patch.body.message).toContain('Path: /api/v1/experiences/exp_abc');
+    expect(patch.body.message).toContain(`Body: ${mergedHash}`);
+    expect(patch.body.signature).toBe(`SIG(${patch.body.message})`);
   });
 
-  it('remove signs an experience-manage challenge and DELETEs the experience', async () => {
-    const { calls, fetchImpl } = harness((rec) =>
-      rec.url.endsWith('/challenge')
-        ? { body: env({ message: `M_${rec.body.purpose}`, nonce: 'n' }) }
-        : { body: env({ id: 'exp_abc', removed: true }) },
-    );
+  it('remove binds the manifest being removed, so it cannot be aimed elsewhere', async () => {
+    const { calls, fetchImpl } = harness((rec) => {
+      if (rec.url.endsWith('/challenge')) return { body: env({ message: `M_${rec.body.purpose}`, nonce: 'n' }) };
+      if (rec.method === 'DELETE') return { body: env({ id: 'exp_abc', removed: true }) };
+      return { body: env(experienceRecord({ manifestHash: 'deadbeef'.repeat(8) })) };
+    });
     const bg = new BlockGenomicsClient({ signer: testSigner('bc1powner'), fetch: fetchImpl });
     const res = await bg.experiences.remove('exp_abc');
     expect(res).toEqual({ id: 'exp_abc', removed: true });
     const del = calls.find((c) => c.method === 'DELETE')!;
     expect(del.url).toBe('https://blockgenomics.io/api/v1/experiences/exp_abc');
-    expect(del.body).toEqual({
-      walletAddress: 'bc1powner',
-      signature: 'SIG(M_experience-manage)',
-      challenge: 'M_experience-manage',
-    });
+    expect(del.body.walletAddress).toBe('bc1powner');
+    expect(del.body.challenge).toBeUndefined();
+    expect(del.body.message).toContain('Action: experience.remove');
+    expect(del.body.message).toContain('Method: DELETE');
+    expect(del.body.message).toContain(`Block: ${MANIFEST.blockHeight}`);
+    // Binds the stored hash of the record it read, not a freshly invented one.
+    expect(del.body.message).toContain(`Body: ${'deadbeef'.repeat(8)}`);
+    expect(del.body.signature).toBe(`SIG(${del.body.message})`);
+  });
+
+  it('verify is a public read and passes remote=1 through', async () => {
+    const { calls, fetchImpl } = harness(() => ({ body: env({ verified: true, issues: [] }) }));
+    const bg = new BlockGenomicsClient({ fetch: fetchImpl });
+    await bg.experiences.verify('exp_abc');
+    expect(calls[0].url).toBe('https://blockgenomics.io/api/v1/experiences/exp_abc/verify');
+    expect(calls[0].headers.Authorization).toBeUndefined();
+
+    const remote = harness(() => ({ body: env({ verified: true, issues: [] }) }));
+    await new BlockGenomicsClient({ fetch: remote.fetchImpl }).experiences.verify('exp_abc', true);
+    expect(remote.calls[0].url).toBe('https://blockgenomics.io/api/v1/experiences/exp_abc/verify?remote=1');
   });
 
   it('update throws (401) without a signer', async () => {

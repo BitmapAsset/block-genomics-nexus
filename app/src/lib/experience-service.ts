@@ -36,6 +36,17 @@ export function serializeExperience(exp: Experience) {
     capabilities: exp.capabilities,
     contentRating: exp.contentRating,
     version: exp.version,
+    manifestVersion: exp.manifestVersion,
+    contentHash: exp.contentHash,
+    manifestHash: exp.manifestHash,
+    // The signed authorization is published deliberately: third-party
+    // verifiability is the point of signing, and it is a public attestation by
+    // the owner, not a credential. Anyone can re-derive the manifest hash and
+    // check this signature without trusting us.
+    manifestSignature: exp.manifestSignature,
+    manifestMessage: exp.manifestMessage,
+    signed: Boolean(exp.manifestSignature && exp.manifestMessage),
+    signedAt: exp.signedAt,
     status: exp.status,
     lastProbedAt: exp.lastProbedAt,
     probeLatencyMs: exp.probeLatencyMs,

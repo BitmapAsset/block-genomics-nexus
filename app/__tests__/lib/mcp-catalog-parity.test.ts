@@ -65,12 +65,12 @@ describe('tool catalog shape', () => {
     objectType: 'cube',
   };
 
-  it('splits into 21 public, 3 agent-token, 4 ownership-gated and 2 signature tools', () => {
-    expect(publicTools).toHaveLength(21);
+  it('splits into 22 public, 3 agent-token, 4 ownership-gated and 5 signature tools', () => {
+    expect(publicTools).toHaveLength(22);
     expect(agentTools).toHaveLength(3);
     expect(ownerTools).toHaveLength(4);
-    expect(writeTools).toHaveLength(2);
-    expect(all).toHaveLength(30);
+    expect(writeTools).toHaveLength(5);
+    expect(all).toHaveLength(34);
   });
 
   it('names every tool uniquely under the bg_ prefix', () => {

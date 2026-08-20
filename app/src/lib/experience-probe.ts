@@ -36,8 +36,12 @@ export interface ProbeResult {
   reason?: string;
 }
 
-/** Every resolved address for `hostname` must be public unicast. */
-async function hostResolvesPublic(hostname: string): Promise<boolean> {
+/**
+ * Every resolved address for `hostname` must be public unicast.
+ * Exported so the remote-manifest fetcher reuses this exact guard instead of
+ * growing a second copy that could drift from it.
+ */
+export async function hostResolvesPublic(hostname: string): Promise<boolean> {
   if (net.isIP(hostname) !== 0) return !isPrivateIp(hostname);
   let addrs: { address: string }[];
   try {
