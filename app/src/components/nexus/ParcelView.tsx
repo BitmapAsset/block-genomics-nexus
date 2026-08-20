@@ -117,7 +117,7 @@ interface Props {
 }
 
 type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street' | 'standard' | 'flyover';
-type RightTab = 'properties' | 'chat' | 'rank' | 'gaming';
+type RightTab = 'properties' | 'chat' | 'gaming';
 type PanelSize = 'compact' | 'quarter' | 'third' | 'half' | 'hidden';
 const PANEL_WIDTHS: Record<PanelSize, string> = { compact: 'w-80', quarter: 'w-96', third: 'w-[33vw]', half: 'w-[50vw]', hidden: 'w-0' };
 
@@ -194,12 +194,6 @@ const NEON_COLORS = ['#00ffff', '#ff00ff', '#00ff88', '#ffcc00', '#aa44ff', '#ff
 // real estate data source exists.
 function generateMockEstates(_blockHeight: number, _parcels: ParcelData[]): Estate[] {
   return [];
-}
-
-/* MOCK — replace with API */
-function generateMockVisitors(blockHeight: number): number {
-  const rng = seededRandom(blockHeight * 4217);
-  return 1 + Math.floor(rng() * 50);
 }
 
 /* Honest placeholder for blocks with no real owner in the DB. NEVER a fabricated
@@ -5175,7 +5169,6 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
       .catch(() => setGuardianStatus('none'));
   }, [blockHeight]);
 
-  const visitorCount = useMemo(() => generateMockVisitors(blockHeight), [blockHeight]);
   const spatialAvatars = useMemo(() => generateMockAvatars(blockHeight, parcels.length), [blockHeight, parcels.length]);
   const mockActivities = useMemo(() => generateMockActivities(blockHeight), [blockHeight]);
   const initialEstates = useMemo(() => generateMockEstates(blockHeight, parcels), [blockHeight, parcels]);
@@ -5773,7 +5766,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           </div>
         </div>
 
-        <VisitorOverlay count={realtimeViewerCount > 0 ? realtimeViewerCount : visitorCount} />
+        <VisitorOverlay count={realtimeViewerCount} />
 
         {/* Fullscreen toggle */}
         <button onClick={toggleFullscreen}
@@ -5898,7 +5891,6 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           {[
             { key: 'properties' as RightTab, label: 'PROPERTIES' },
             { key: 'chat' as RightTab, label: 'CHAT' },
-            { key: 'rank' as RightTab, label: '📊 RANK' },
             ...(gameElements.length > 0 ? [{ key: 'gaming' as RightTab, label: '🎮 GAMING' }] : []),
           ].map(tab => (
             <button
@@ -5915,127 +5907,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           ))}
         </div>
 
-        {rightTab === 'rank' ? (
-          /* ═══ GDP RANKING TAB ═══ */
-          <div className="flex-1 overflow-y-auto">
-            {/* Block Rank Hero */}
-            <div className="px-4 py-4 text-center" style={{ background: 'linear-gradient(180deg, rgba(247,147,26,0.08) 0%, transparent 100%)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <div className="text-[9px] uppercase tracking-widest mb-1" style={{ color: '#64748b' }}>Universal Block Rank</div>
-              <div className="text-4xl font-mono font-black mb-1" style={{ color: '#f7931a', textShadow: '0 0 30px rgba(247,147,26,0.4)' }}>
-                #{(() => { const rng = seededRandom(blockHeight * 2741); return (1 + Math.floor(rng() * 5000)).toLocaleString(); })()}
-              </div>
-              <div className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>of ~963,000 blocks</div>
-              <div className="flex items-center justify-center gap-1 mt-2">
-                <span className="text-[10px]" style={{ color: '#22c55e' }}>▲ 127</span>
-                <span className="text-[9px]" style={{ color: '#64748b' }}>past 24h</span>
-              </div>
-            </div>
-
-            {/* GDP Score */}
-            <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: '#94a3b8' }}>GDP Score</span>
-                <span className="text-lg font-mono font-black" style={{ color: '#f7931a' }}>
-                  {(() => { const rng = seededRandom(blockHeight * 1337); return (Math.floor(rng() * 9000 + 1000)).toLocaleString(); })()}
-                </span>
-              </div>
-
-              {/* GDP Breakdown bars */}
-              {(() => {
-                const rng = seededRandom(blockHeight * 5531);
-                const metrics = [
-                  { label: '⚡ Transaction Volume', value: Math.floor(rng() * 100), color: '#f7931a' },
-                  { label: '🎫 Delegations Sold', value: Math.floor(rng() * 100), color: '#aa44ff' },
-                  { label: '👁 Visitor Traffic', value: Math.floor(rng() * 100), color: '#00ccff' },
-                  { label: '🛒 Commerce Volume', value: Math.floor(rng() * 100), color: '#00ff88' },
-                  { label: '🏗️ Content & Builds', value: Math.floor(rng() * 100), color: '#ffcc00' },
-                  { label: '⏱️ Uptime & Activity', value: Math.floor(rng() * 100), color: '#ff6b35' },
-                ];
-                return metrics.map((m, i) => (
-                  <div key={i} className="mb-2.5">
-                    <div className="flex justify-between text-[9px] mb-1">
-                      <span style={{ color: '#94a3b8' }}>{m.label}</span>
-                      <span className="font-mono font-bold" style={{ color: m.color }}>{m.value}%</span>
-                    </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                      <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${m.value}%`, background: `linear-gradient(90deg, ${m.color}44, ${m.color})`, boxShadow: `0 0 8px ${m.color}44` }} />
-                    </div>
-                  </div>
-                ));
-              })()}
-            </div>
-
-            {/* Historical GDP trend — above leaderboard */}
-            <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <div className="text-[10px] uppercase tracking-wider font-bold mb-3" style={{ color: '#94a3b8' }}>📈 GDP Trend (7 days)</div>
-              <svg viewBox="0 0 200 60" className="w-full" style={{ filter: 'drop-shadow(0 0 4px rgba(247,147,26,0.3))' }}>
-                <defs>
-                  <linearGradient id="gdpGrad2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f7931a" stopOpacity="0.3" />
-                    <stop offset="100%" stopColor="#f7931a" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                {(() => {
-                  const rng = seededRandom(blockHeight * 6619);
-                  const points = Array.from({ length: 7 }, (_, i) => ({ x: i * 33 + 2, y: 10 + rng() * 40 }));
-                  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-                  const area = line + ` L ${points[6].x} 58 L ${points[0].x} 58 Z`;
-                  return (
-                    <>
-                      <path d={area} fill="url(#gdpGrad2)" />
-                      <path d={line} fill="none" stroke="#f7931a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      {points.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="3" fill="#f7931a" stroke="#0a0a0f" strokeWidth="1.5" />)}
-                    </>
-                  );
-                })()}
-                <line x1="0" y1="58" x2="200" y2="58" stroke="rgba(255,255,255,0.05)" />
-              </svg>
-              <div className="flex justify-between text-[8px] mt-1" style={{ color: '#475569' }}>
-                <span>7d ago</span><span>6d</span><span>5d</span><span>4d</span><span>3d</span><span>2d</span><span>Today</span>
-              </div>
-            </div>
-
-            {/* Top Blocks Leaderboard — hidden until real ranking data exists
-                (no fabricated owners/handles/rankings on the public surface). */}
-            <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <div className="text-[10px] uppercase tracking-wider font-bold mb-3" style={{ color: '#94a3b8' }}>🏆 Top Blocks — Global</div>
-              <div className="text-[10px] font-mono py-2" style={{ color: '#64748b' }}>
-                Leaderboard coming soon — rankings appear once blocks are live.
-              </div>
-            </div>
-
-            {/* Block Achievements */}
-            <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <div className="text-[10px] uppercase tracking-wider font-bold mb-3" style={{ color: '#94a3b8' }}>🎖️ Achievements</div>
-              <div className="flex flex-wrap gap-1.5">
-                {(() => {
-                  const rng = seededRandom(blockHeight * 3377);
-                  const allAchievements = [
-                    { icon: '🔥', label: 'Hot Block', desc: 'Top 100 traffic', color: '#ff6b35' },
-                    { icon: '💎', label: 'Diamond Hands', desc: 'Held 1+ year', color: '#00ccff' },
-                    { icon: '🏗️', label: 'Builder', desc: '10+ customizations', color: '#ffcc00' },
-                    { icon: '🤝', label: 'Delegator', desc: '5+ Tier 3 passes', color: '#aa44ff' },
-                    { icon: '⚡', label: 'Lightning', desc: '1M+ sats volume', color: '#f7931a' },
-                    { icon: '🎮', label: 'Experience', desc: 'App deployed', color: '#00ff88' },
-                    { icon: '🌐', label: 'Connected', desc: 'VPS linked', color: '#66ccff' },
-                    { icon: '🤖', label: 'AI Powered', desc: 'Agent linked', color: '#22c55e' },
-                  ];
-                  const earned = allAchievements.filter(() => rng() > 0.4);
-                  return earned.map((a, i) => (
-                    <div key={i} className="px-2 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-all hover:brightness-130"
-                      title={a.desc}
-                      style={{ background: `${a.color}10`, border: `1px solid ${a.color}30`, boxShadow: `0 0 6px ${a.color}15` }}>
-                      <span className="text-sm">{a.icon}</span>
-                      <span className="text-[8px] font-mono font-bold" style={{ color: a.color }}>{a.label}</span>
-                    </div>
-                  ));
-                })()}
-              </div>
-            </div>
-
-            {/* (GDP Trend chart moved above Top Blocks) */}
-          </div>
-        ) : rightTab === 'properties' ? (
+        {rightTab === 'properties' ? (
           <div className="flex-1 overflow-y-auto">
             <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div className="flex items-center gap-2">
@@ -6104,7 +5976,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               )}
               <PropRow label="LAYOUT" value="Treemap (proportional)" />
               <PropRow label="DISTRICT" value="2.1 km × 2.1 km" />
-              <PropRow label="VISITORS" value={`👁 ${visitorCount}`} />
+              <PropRow label="VISITORS" value={`👁 ${realtimeViewerCount}`} />
               {parcelCustomizations.size > 0 && <PropRow label="CUSTOMIZED" value={`🎨 ${parcelCustomizations.size}`} />}
             </div>
 
