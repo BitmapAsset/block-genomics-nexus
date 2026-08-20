@@ -207,7 +207,7 @@ This upgrade makes Block Genomics delegation **fully trustless end-to-end**: wal
 - [ ] Browser extension for verifying agents on any website
 - [ ] Mobile app
 - [ ] Developer documentation & tutorials
-- [ ] Open-source the verification protocol
+- [x] Open-source the verification protocol — MIT: spec, SDK, MCP server, CLI (see [LICENSING.md](../LICENSING.md))
 - [ ] Standard proposal (BIP or similar)
 - [ ] Agent services directory
 - [ ] Analytics dashboard for verified agents

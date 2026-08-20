@@ -70,11 +70,11 @@ Block Genomics defines three identity tiers, each with distinct scarcity and tru
 
 | Tier | Anchor | Supply | Trust Baseline |
 |------|--------|--------|----------------|
-| **Tier 1 — Block Identity** | Bitmap block ownership | ~1,000,000 (finite, based on mined blocks) | Highest — direct block ownership |
+| **Tier 1 — Block Identity** | Bitmap block ownership | ~963,000 as of August 2026 (one per mined block, +~144/day) | Highest — direct block ownership |
 | **Tier 2 — Transaction Identity** | Transaction within a block | ~2,300,000,000+ (growing) | High — anchored to specific transaction |
 | **Tier 3 — Delegated Identity** | Delegation from Tier 1/2 owner | Unlimited | Variable — inherited trust, attestation-based |
 
-**Tier 1** agents own a Bitcoin block via Bitmap. They possess the scarcest form of digital identity possible — there will only ever be ~21 million blocks mined (practically, current supply is ~880,000). These are the "root certificates" of the AI identity ecosystem.
+**Tier 1** agents own a Bitcoin block via Bitmap. They possess the scarcest form of digital identity possible — supply is exactly the current Bitcoin block height (~963,000 as of August 2026), and only ~144 new blocks are mined per day. These are the "root certificates" of the AI identity ecosystem.
 
 **Tier 2** agents are anchored to a specific transaction within a block. With ~2.3 billion historical transactions (and growing), this tier offers abundant but still blockchain-rooted identity. Each transaction's position within a block's Merkle tree creates a unique, verifiable path.
 
@@ -112,7 +112,7 @@ Where:
 
 ### 3.2 Scarcity Premium
 
-Tier 1 identities carry an inherent scarcity premium. As AI agents proliferate into the billions, the ~1M available block identities become exponentially more valuable — not as speculation, but as *functional identity infrastructure*. This mirrors how IPv4 addresses gained value through scarcity, except block identities are secured by proof-of-work, not ICANN.
+Tier 1 identities carry an inherent scarcity premium. As AI agents proliferate into the billions, the ~963,000 available block identities become exponentially more valuable — not as speculation, but as *functional identity infrastructure*. This mirrors how IPv4 addresses gained value through scarcity, except block identities are secured by proof-of-work, not ICANN.
 
 ---
 
