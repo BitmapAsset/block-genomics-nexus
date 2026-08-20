@@ -10,6 +10,7 @@
 import { ImageResponse } from 'next/og';
 import { parseBlockParam } from '@/lib/blockDeepLink';
 import { fetchBlockOgSummary } from '@/lib/blockOgData';
+import { fetchBlockCardFacts, shortenAddress } from '@/lib/blockPageData';
 import { EPOCH_LABELS, getEpochColor, getEpochIndex } from '@/lib/bitmapStandard';
 import { formatBytes, formatNumber, hexPairToColor } from '@/lib/genome-utils';
 
@@ -34,7 +35,8 @@ function genomeBars(genome: string) {
   return Array.from({ length: GENOME_BARS }, (_, i) => {
     const pair = genome.slice(i * 2, i * 2 + 2);
     const value = parseInt(pair, 16) / 255;
-    return { color: hexPairToColor(pair), height: 18 + value * 92 };
+    // Max must stay inside the strip's container height, or satori overflows it.
+    return { color: hexPairToColor(pair), height: 14 + value * 68 };
   });
 }
 
@@ -58,7 +60,12 @@ export async function GET(
     return new Response('Invalid block height', { status: 400 });
   }
 
-  const summary = await fetchBlockOgSummary(height);
+  // Chain header stats and the app's own facts are independent lookups; both
+  // degrade to blanks rather than throwing, so overlap them.
+  const [summary, facts] = await Promise.all([
+    fetchBlockOgSummary(height),
+    fetchBlockCardFacts(height),
+  ]);
   const epochIndex = getEpochIndex(height);
   const epoch = EPOCH_LABELS[epochIndex] ?? EPOCH_LABELS[EPOCH_LABELS.length - 1];
   const epochColor = getEpochColor(height);
@@ -72,6 +79,19 @@ export async function GET(
         timeZone: 'UTC',
       })
     : null;
+
+  // Chain stats only appear when mempool.space answered; the object count is
+  // ours and is always truthful, including the zero case.
+  const stats: Array<{ label: string; value: string }> = [
+    ...(summary
+      ? [
+          { label: 'TRANSACTIONS', value: formatNumber(summary.txCount) },
+          { label: 'SIZE', value: formatBytes(summary.size) },
+          { label: 'MINED', value: mined ?? '—' },
+        ]
+      : []),
+    { label: 'OBJECTS', value: formatNumber(facts.objectCount) },
+  ];
 
   return new ImageResponse(
     (
@@ -135,13 +155,15 @@ export async function GET(
             flexDirection: 'column',
             flex: 1,
             justifyContent: 'center',
-            marginTop: 18,
+            marginTop: 10,
           }}
         >
           <div style={{ fontSize: 24, color: MUTED, letterSpacing: 8 }}>BITCOIN BLOCK</div>
+          {/* 108, not the 132 this started at: the holder row below has to fit in
+              the same 630px, and satori overlaps rather than shrinks on overflow. */}
           <div
             style={{
-              fontSize: 132,
+              fontSize: 108,
               color: '#ffffff',
               lineHeight: 1.05,
               letterSpacing: -4,
@@ -158,6 +180,25 @@ export async function GET(
               </div>
             )}
           </div>
+
+          {/* The deed. Ownership is the headline fact about a block, so it sits
+              with the title rather than down in the stat row. */}
+          <div style={{ display: 'flex', alignItems: 'center', marginTop: 16 }}>
+            {facts.owner ? (
+              <>
+                <div style={{ display: 'flex', fontSize: 20, color: MUTED, letterSpacing: 2 }}>
+                  HELD BY
+                </div>
+                <div style={{ display: 'flex', fontSize: 28, color: TEXT, marginLeft: 16 }}>
+                  {shortenAddress(facts.owner, 12, 8)}
+                </div>
+              </>
+            ) : (
+              <div style={{ display: 'flex', fontSize: 26, color: MUTED, letterSpacing: 1 }}>
+                Unclaimed district
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Genome spectrum — deterministic from the block hash, so the card is a
@@ -167,9 +208,9 @@ export async function GET(
             style={{
               display: 'flex',
               alignItems: 'flex-end',
-              height: 100,
-              marginTop: 12,
-              marginBottom: 24,
+              height: 84,
+              marginTop: 10,
+              marginBottom: 16,
             }}
           >
             {bars.map((bar, i) => (
@@ -198,23 +239,16 @@ export async function GET(
             paddingTop: 24,
           }}
         >
-          {summary ? (
-            <div style={{ display: 'flex' }}>
-              <div style={{ display: 'flex', marginRight: 64 }}>
-                <Stat label="TRANSACTIONS" value={formatNumber(summary.txCount)} />
+          <div style={{ display: 'flex' }}>
+            {stats.map((s, i) => (
+              <div
+                key={s.label}
+                style={{ display: 'flex', marginRight: i === stats.length - 1 ? 0 : 48 }}
+              >
+                <Stat label={s.label} value={s.value} />
               </div>
-              <div style={{ display: 'flex', marginRight: 64 }}>
-                <Stat label="SIZE" value={formatBytes(summary.size)} />
-              </div>
-              <div style={{ display: 'flex' }}>
-                <Stat label="MINED" value={mined ?? '—'} />
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', fontSize: 30, color: MUTED }}>
-              Bitcoin DNA for Verified AI
-            </div>
-          )}
+            ))}
+          </div>
           <div style={{ display: 'flex', fontSize: 26, color: CYAN }}>blockgenomics.io</div>
         </div>
       </div>
