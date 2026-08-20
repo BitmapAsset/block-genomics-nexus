@@ -2,26 +2,21 @@
 //
 // Block Genomics never sees the private key. The SDK only ever calls
 // signMessage() to obtain a BIP-322 signature over a server-issued challenge.
-// We sign with `bip322-js`, the same library the server verifies with, so a
-// signature produced here is guaranteed to pass server-side verification.
+//
+// The signing itself lives in ./bip322.ts, built on `@noble/curves` and
+// `@scure/btc-signer` — the same audited primitives the server verifies with, so
+// a signature produced here is guaranteed to pass server-side verification.
 
-import bip322 from 'bip322-js';
-import ecpairPkg from 'ecpair';
-import * as ecc from '@bitcoinerlab/secp256k1';
+import { WIF } from '@scure/btc-signer';
+import { secp256k1 } from '@noble/curves/secp256k1';
 import type { BitcoinSigner } from 'block-genomics-connect';
+import { addressFromPublicKey, signBip322, type AddressType } from './bip322.js';
 
-const { Signer, Address } = bip322;
-// ecpair ships both a named and default factory export across versions; accept either.
-const ECPairFactory =
-  (ecpairPkg as { ECPairFactory?: typeof import('ecpair').ECPairFactory }).ECPairFactory ??
-  (ecpairPkg as unknown as typeof import('ecpair').ECPairFactory);
-const ECPair = ECPairFactory(ecc);
+export type { AddressType };
 
-export type AddressType = 'p2wpkh' | 'p2tr' | 'p2pkh';
-
-function deriveAddress(publicKey: Buffer | Uint8Array, type: AddressType): string {
-  // bip322-js returns { mainnet, testnet, regtest }; the protocol is mainnet.
-  return Address.convertPubKeyIntoAddress(publicKey as Buffer, type).mainnet;
+/** Decode a mainnet WIF into its 32-byte private key. Throws on a malformed or testnet key. */
+function privateKeyFromWif(wif: string): Uint8Array {
+  return WIF().decode(wif);
 }
 
 /**
@@ -29,20 +24,21 @@ function deriveAddress(publicKey: Buffer | Uint8Array, type: AddressType): strin
  * one that owns the target block on-chain, or registration fails closed (403).
  */
 export function walletSigner(wif: string, type: AddressType = 'p2wpkh'): BitcoinSigner {
-  const keyPair = ECPair.fromWIF(wif);
-  const address = deriveAddress(keyPair.publicKey, type);
+  const privateKey = privateKeyFromWif(wif);
+  const address = addressFromPublicKey(secp256k1.getPublicKey(privateKey, true), type);
   return {
     address,
     async signMessage(message: string): Promise<string> {
-      const sig = Signer.sign(wif, address, message);
-      // bip322-js returns a base64 string for most inputs, occasionally a Buffer.
-      return typeof sig === 'string' ? sig : Buffer.from(sig as Uint8Array).toString('base64');
+      return signBip322(privateKey, address, message);
     },
   };
 }
 
 /** Generate a fresh throwaway keypair (testing only — never fund this key). */
 export function generateWallet(type: AddressType = 'p2wpkh'): { wif: string; address: string } {
-  const keyPair = ECPair.makeRandom();
-  return { wif: keyPair.toWIF(), address: deriveAddress(keyPair.publicKey, type) };
+  const privateKey = secp256k1.utils.randomPrivateKey();
+  return {
+    wif: WIF().encode(privateKey),
+    address: addressFromPublicKey(secp256k1.getPublicKey(privateKey, true), type),
+  };
 }

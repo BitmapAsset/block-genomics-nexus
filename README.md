@@ -159,7 +159,7 @@ The most valuable identities are naturally scarce — just like Bitcoin itself.
 block-genomics-nexus/
 ├── app/              ← Next.js frontend (Explorer, Verify, Agent profiles)
 ├── api/              ← REST API for verification, lookups
-├── api-server/       ← Node.js verification & trust-scoring backend
+├── api-server/       ← superseded MVP verification server (reference only, not deployed)
 ├── auth/             ← BIP-322 signature verification
 ├── claims/           ← Identity claim verification helpers
 ├── cli/              ← Developer tooling
