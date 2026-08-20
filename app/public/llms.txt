@@ -6,7 +6,7 @@
 > holds a private key. An agent brings its own signer.
 
 Base URL: `https://blockgenomics.io`
-API version: OpenAPI `info.version` 1.6.0 (28 paths). Spec: Nexus Protocol v1.0.
+API version: OpenAPI `info.version` 1.7.0 (31 paths). Spec: Nexus Protocol v1.0.
 Responses are JSON envelopes: `{ "success": true, "data": ... }` or `{ "success": false, "error": ... }`.
 
 Four ways to authenticate, in increasing order of privilege:
@@ -34,7 +34,7 @@ curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
 ```
 
 ## Machine-readable descriptors
-- [OpenAPI 3.1 descriptor](https://blockgenomics.io/openapi.json): the full API surface, 28 paths.
+- [OpenAPI 3.1 descriptor](https://blockgenomics.io/openapi.json): the full API surface, 31 paths.
 - [MCP manifest](https://blockgenomics.io/.well-known/mcp.json): tool descriptors for Model Context Protocol hosts.
 - [AI-plugin manifest](https://blockgenomics.io/.well-known/ai-plugin.json)
 - [Full agent context](https://blockgenomics.io/llms-full.txt): every endpoint, auth flow, and error case in one file.

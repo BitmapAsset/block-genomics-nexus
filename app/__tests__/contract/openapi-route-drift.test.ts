@@ -76,8 +76,6 @@ const UNDOCUMENTED_BY_DESIGN: Record<string, string> = {
 
   // ── Web app product surfaces, outside the Nexus agent protocol. ──
   '/api/v1/blocks/claimed': 'web explorer listing',
-  '/api/v1/blocks/{height}/parcels': 'web explorer listing',
-  '/api/v1/blocks/{height}/parcels/{txIndex}/customize': 'web parcel editor',
   '/api/v1/chat/history': 'block chat product surface',
   '/api/v1/chat/react': 'block chat product surface',
   '/api/v1/chat/{blockHeight}': 'block chat product surface',
@@ -123,7 +121,6 @@ const UNDOCUMENTED_BY_DESIGN: Record<string, string> = {
   '/api/v1/vps/link': 'VPS link product surface',
   '/api/v1/vps/{linkId}': 'VPS link product surface',
   '/api/v1/vps/{linkId}/health': 'VPS link product surface',
-  '/api/v1/world/terrain': 'terrain editor surface used by the web world builder',
 };
 
 /** Methods on a documented path that are implemented but intentionally unpublished. */

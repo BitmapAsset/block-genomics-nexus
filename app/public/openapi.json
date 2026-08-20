@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Block Genomics — Agent Connect API",
-    "version": "1.6.0",
+    "version": "1.7.0",
     "description": "The machine-discoverable surface any AI agent uses to connect to Block Genomics: discover the protocol, prove ownership of a Bitcoin block via BIP-322, register a sovereign BitmapAgent on any block it owns, and read/act on that block's world. Read endpoints are public. Write endpoints require a BIP-322 signature over a one-time challenge (and for /world*, an action-bound message); the agent brings its own signer/wallet. To try the API before owning a block, mint a read-only sandbox key at POST /api/v1/sandbox/key (100 requests/day, no wallet required).",
     "contact": {
       "name": "Block Genomics",
@@ -508,6 +508,130 @@
         }
       }
     },
+    "/api/v1/blocks/{height}/parcels": {
+      "get": {
+        "operationId": "listBlockParcels",
+        "tags": [
+          "Block"
+        ],
+        "summary": "List every parcel on a block",
+        "description": "Public read. Returns all parcels recorded for the block in txIndex order, each with its owner summary. Unclaimed parcels are absent rather than returned with a null owner.",
+        "parameters": [
+          {
+            "name": "height",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Parcels for the block",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Parcel"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid block height"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/api/v1/blocks/{height}/parcels/{txIndex}/customize": {
+      "post": {
+        "operationId": "customizeParcel",
+        "tags": [
+          "World"
+        ],
+        "summary": "Customize a parcel on a block you own or hold a delegation on",
+        "description": "Requires a BIP-322 signature over a single-use challenge whose message also commits to a hash of the exact customization payload, so a captured signature cannot be re-applied with different values. 1) POST /api/v1/challenge { walletAddress, purpose: \"parcel-customize\" }. 2) Build the canonical payload string and SHA-256 it (see x-bg-parcel-binding). 3) Ensure the signed message contains the binding line. 4) Sign with your wallet and POST here. Authorization differs by parcel state: an existing parcel may be customized by its parcel owner, the on-chain block owner, or an active delegatee; a parcel that does not exist yet may only be initialized by the block owner.",
+        "security": [
+          {
+            "bip322": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "height",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "txIndex",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParcelCustomizeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored parcel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Parcel"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters, non-string field, or payload does not match the signed message"
+          },
+          "401": {
+            "description": "Invalid signature, or an expired/already-used challenge"
+          },
+          "403": {
+            "description": "Signer may not customize (or may not initialize) this parcel"
+          }
+        }
+      }
+    },
     "/api/v1/world": {
       "get": {
         "operationId": "getWorld",
@@ -540,9 +664,13 @@
                       }
                     },
                     "terrain": {
-                      "type": [
-                        "object",
-                        "null"
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/BlockTerrain"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     }
                   }
@@ -731,6 +859,109 @@
           },
           "403": {
             "description": "Not owner / locked"
+          }
+        }
+      }
+    },
+    "/api/v1/world/terrain": {
+      "get": {
+        "operationId": "getBlockTerrain",
+        "tags": [
+          "Block"
+        ],
+        "summary": "Read a block's terrain settings",
+        "description": "Public read. Returns null terrain when the block owner has never written any.",
+        "parameters": [
+          {
+            "name": "blockHeight",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Terrain settings, or null",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "terrain": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/BlockTerrain"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "blockHeight required"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "updateBlockTerrain",
+        "tags": [
+          "World"
+        ],
+        "summary": "Create or replace the terrain settings of a block you own",
+        "description": "Requires an action-bound BIP-322 signature, exactly like the other world writes. 1) POST /api/v1/challenge { walletAddress, purpose: \"world\" } to get a one-time nonce. 2) Build the canonical authorization message with Action `world.terrain` binding method+path+block+bodyHash+nonce+expiry (see x-bg-action-message). 3) Sign it with your wallet. 4) POST this body with { signature, message }. Ownership is re-checked against the chain, not against the cached Block.ownerAddress, before the nonce is burned. Upserts: fields you omit keep their stored value.",
+        "security": [
+          {
+            "bip322": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerrainUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored terrain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "terrain": {
+                      "$ref": "#/components/schemas/BlockTerrain"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "blockHeight and ownerAddress required"
+          },
+          "401": {
+            "description": "Missing/invalid signature, binding mismatch, or an expired/already-used nonce"
+          },
+          "403": {
+            "description": "Signer is not the on-chain block owner"
+          },
+          "429": {
+            "description": "Rate limited"
           }
         }
       }
@@ -2622,6 +2853,308 @@
             }
           }
         }
+      },
+      "Parcel": {
+        "type": "object",
+        "description": "A subdivision of a block. Identified by (blockHeight, txIndex); txIndex is the parcel index within the block, not a Bitcoin transaction index.",
+        "properties": {
+          "blockHeight": {
+            "type": "integer"
+          },
+          "txIndex": {
+            "type": "integer"
+          },
+          "ownerAddress": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Wallet that claimed this parcel, or null if unclaimed."
+          },
+          "customColor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Hex colour, max 7 characters."
+          },
+          "pattern": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 50
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "rotation": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 360
+          },
+          "facing": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "north",
+              "south",
+              "east",
+              "west",
+              null
+            ]
+          },
+          "emissive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "owner": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Present on list reads.",
+            "properties": {
+              "walletAddress": {
+                "type": "string"
+              },
+              "handle": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tier": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "BlockTerrain": {
+        "type": "object",
+        "description": "Per-block environment settings rendered by any client drawing the block.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "blockHeight": {
+            "type": "integer"
+          },
+          "ownerAddress": {
+            "type": "string"
+          },
+          "groundColor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "groundTexture": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "groundMetalness": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "groundRoughness": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "fogEnabled": {
+            "type": "boolean"
+          },
+          "fogColor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fogNear": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "fogFar": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "skyColor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "skyEnabled": {
+            "type": "boolean"
+          },
+          "ambientColor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ambientIntensity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "weather": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ParcelCustomizeRequest": {
+        "type": "object",
+        "required": [
+          "walletAddress",
+          "signature",
+          "message"
+        ],
+        "description": "Customization fields are applied with three-state semantics: omit to leave unchanged, send null to clear, send a value to set.",
+        "properties": {
+          "walletAddress": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string",
+            "description": "BIP-322 signature over `message`."
+          },
+          "message": {
+            "type": "string",
+            "description": "The exact message returned by POST /api/v1/challenge with purpose \"parcel-customize\", which must also contain the payload-binding line `customize:<blockHeight>:<txIndex>:<sha256hex>` (see x-bg-parcel-binding)."
+          },
+          "customColor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 7
+          },
+          "pattern": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 50
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "rotation": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 360
+          },
+          "facing": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "north",
+              "south",
+              "east",
+              "west",
+              null
+            ]
+          },
+          "emissive": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "TerrainUpdateRequest": {
+        "type": "object",
+        "required": [
+          "blockHeight",
+          "ownerAddress",
+          "signature",
+          "message"
+        ],
+        "description": "Only the settings listed here are writable; any other field in the body is ignored rather than persisted.",
+        "properties": {
+          "blockHeight": {
+            "type": "integer"
+          },
+          "ownerAddress": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string",
+            "description": "BIP-322 signature over `message`."
+          },
+          "message": {
+            "type": "string",
+            "description": "Action-bound authorization message with Action `world.terrain` (see x-bg-action-message)."
+          },
+          "groundColor": {
+            "type": "string"
+          },
+          "fogEnabled": {
+            "type": "boolean"
+          },
+          "fogColor": {
+            "type": "string"
+          },
+          "skyColor": {
+            "type": "string"
+          },
+          "weather": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -2654,7 +3187,7 @@
     "description": "Canonical string format that write endpoints require the wallet to sign. Build it verbatim and sign with BIP-322. Fields are newline-joined in this exact order.",
     "format": [
       "Block Genomics Authorization v1",
-      "Action: <world.create|world.update|world.delete|world.batch>",
+      "Action: <world.create|world.update|world.delete|world.batch|world.terrain>",
       "Method: <POST|PATCH|DELETE>",
       "Path: <exact route path, e.g. /api/v1/world or /api/v1/world/{id}>",
       "Block: <blockHeight>",
@@ -2682,5 +3215,11 @@
     "repo": "sdk/agent-connect",
     "docs": "docs/SDK.md",
     "cli": "block-genomics (npm)"
+  },
+  "x-bg-parcel-binding": {
+    "description": "Canonical payload string that POST /api/v1/blocks/{height}/parcels/{txIndex}/customize requires the signed message to commit to. Build it verbatim, SHA-256 it, and embed the resulting line in the challenge message you sign.",
+    "payload": "block=<blockHeight>|parcel=<txIndex>|color=<customColor>|pattern=<pattern>|image=<imageUrl>|rotation=<rotation>|facing=<facing>|emissive=<0|1>",
+    "line": "customize:<blockHeight>:<txIndex>:<sha256hex>",
+    "note": "Absent or null values serialize as the empty string; `emissive` serializes as 1 or 0. Hash the fields as sent, before any server-side sanitization."
   }
 }
