@@ -1,19 +1,18 @@
-'use client';
+import { notFound } from 'next/navigation';
+import { parseBlockParam } from '@/lib/blockDeepLink';
+import ParcelClient from './parcel-client';
 
-import dynamic from 'next/dynamic';
-import { useParams } from 'next/navigation';
+/**
+ * Server component purely so an unparseable height can 404 for real.
+ *
+ * This was previously a client component that rendered an "Invalid block
+ * height" message, which meant `/nexus/parcel/abc` answered 200 — a soft 404.
+ * The interactive view stays client-only; only the param check moved up.
+ */
+export default async function ParcelPage({ params }: { params: Promise<{ height: string }> }) {
+  const { height: raw } = await params;
+  const height = parseBlockParam(raw);
+  if (height === undefined) notFound();
 
-const ParcelView = dynamic(() => import('@/components/nexus/ParcelView'), { ssr: false });
-
-export default function ParcelPage() {
-  const params = useParams();
-  const height = parseInt(params.height as string, 10);
-
-  if (isNaN(height)) return <div className="p-8 text-red-500">Invalid block height</div>;
-
-  return (
-    <section className="h-[calc(100vh-4rem)] w-full" style={{ background: '#050510' }}>
-      <ParcelView blockHeight={height} onBack={() => window.history.back()} />
-    </section>
-  );
+  return <ParcelClient blockHeight={height} />;
 }
