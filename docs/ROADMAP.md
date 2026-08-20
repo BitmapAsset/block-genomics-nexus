@@ -222,7 +222,7 @@ This upgrade makes Block Genomics delegation **fully trustless end-to-end**: wal
 | API calls | Free tier + paid tiers | $X per 1000 verifications |
 | Premium badges | Monthly subscription | $10-50/month |
 | Enterprise API | Annual contracts | $1K-10K/year |
-| Platform fee on delegations | % of delegation fees | 5-10% |
+| Protocol fee on delegations | % of each delegation payment, hardcoded | 3% (2.5% treasury + 0.5% Nexus Brain) |
 | Data analytics | Premium insights | $50-500/month |
 
 ### For Bitmap Owners

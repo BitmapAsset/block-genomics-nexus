@@ -255,4 +255,4 @@ The blocks have already been mined. The energy has already been spent. The trust
 
 **Block Genomics — Identity forged in proof of work.**
 
-*© 2026 Block Genomics Protocol. Released under MIT License.*
+*© 2026 Block Genomics. Dual-licensed: MIT protocol — BUSL 1.1 platform.*
