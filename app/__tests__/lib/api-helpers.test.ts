@@ -5,11 +5,9 @@
 
 import { VALID_ADDRESSES, INVALID_ADDRESSES, MOCK_SIGNATURE } from '../fixtures';
 
-// Mock bip322-js before importing the module
-jest.mock('bip322-js', () => ({
-  Verifier: {
-    verifySignature: jest.fn(),
-  },
+// Mock the BIP-322 verifier before importing the module
+jest.mock('@/lib/bip322-verify', () => ({
+  verifyBip322Signature: jest.fn(),
 }));
 
 // Mock next/server
@@ -145,7 +143,7 @@ describe('api-helpers', () => {
   });
 
   describe('verifyWalletSignature()', () => {
-    const bip322 = require('bip322-js');
+    const { verifyBip322Signature } = require('@/lib/bip322-verify');
 
     beforeEach(() => {
       jest.clearAllMocks();
@@ -163,24 +161,24 @@ describe('api-helpers', () => {
       expect(verifyWalletSignature(VALID_ADDRESSES.segwit, 'message', '')).toBe(false);
     });
 
-    it('delegates to bip322-js Verifier for valid inputs', () => {
-      bip322.Verifier.verifySignature.mockReturnValue(true);
+    it('delegates to the BIP-322 verifier for valid inputs', () => {
+      verifyBip322Signature.mockReturnValue(true);
       const result = verifyWalletSignature(VALID_ADDRESSES.segwit, 'test message', MOCK_SIGNATURE);
       expect(result).toBe(true);
-      expect(bip322.Verifier.verifySignature).toHaveBeenCalledWith(
+      expect(verifyBip322Signature).toHaveBeenCalledWith(
         VALID_ADDRESSES.segwit,
         'test message',
         MOCK_SIGNATURE
       );
     });
 
-    it('returns false when bip322-js returns false', () => {
-      bip322.Verifier.verifySignature.mockReturnValue(false);
+    it('returns false when the verifier returns false', () => {
+      verifyBip322Signature.mockReturnValue(false);
       expect(verifyWalletSignature(VALID_ADDRESSES.segwit, 'msg', 'bad-sig')).toBe(false);
     });
 
-    it('SECURITY: returns false on bip322-js exception (no fallback for taproot)', () => {
-      bip322.Verifier.verifySignature.mockImplementation(() => {
+    it('SECURITY: returns false on verifier exception (no fallback for taproot)', () => {
+      verifyBip322Signature.mockImplementation(() => {
         throw new Error('Taproot not supported');
       });
       const result = verifyWalletSignature(VALID_ADDRESSES.taproot, 'msg', MOCK_SIGNATURE);
@@ -190,7 +188,7 @@ describe('api-helpers', () => {
     it('SECURITY: does NOT accept any 64-byte base64 as valid (audit finding)', () => {
       // This tests the critical security fix: previously ANY 64-byte base64 string
       // would pass as a valid taproot signature, enabling complete auth bypass
-      bip322.Verifier.verifySignature.mockImplementation(() => {
+      verifyBip322Signature.mockImplementation(() => {
         throw new Error('Taproot address not supported');
       });
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();

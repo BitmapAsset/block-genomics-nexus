@@ -73,7 +73,7 @@ async function registerAgent(height: number) {
   const owner = makeWallet('p2tr');
   await db.block.create({ data: { height, ownerAddress: owner.address } });
   const message = await issue(owner.address, 'agent-register');
-  const signature = sign(owner.wif, owner.address, message);
+  const signature = sign(owner.privKey, owner.address, message);
   const res = await registerPOST(
     req({
       walletAddress: owner.address, endpointUrl: 'https://agent.example', blockHeight: height,
@@ -144,13 +144,13 @@ describe('SIM: agent API-token auth (OPEN-1)', () => {
     // A stranger cannot rotate this agent's token.
     const stranger = makeWallet('p2wpkh');
     const sMsg = await issue(stranger.address, 'agent-token');
-    const sSig = sign(stranger.wif, stranger.address, sMsg);
+    const sSig = sign(stranger.privKey, stranger.address, sMsg);
     const denied = await tokenPOST(req({ walletAddress: stranger.address, signature: sSig, challenge: sMsg }), ctx(agentId));
     expect(denied.status).toBe(403);
 
     // Owner rotates.
     const oMsg = await issue(owner.address, 'agent-token');
-    const oSig = sign(owner.wif, owner.address, oMsg);
+    const oSig = sign(owner.privKey, owner.address, oMsg);
     const rotated = await tokenPOST(req({ walletAddress: owner.address, signature: oSig, challenge: oMsg }), ctx(agentId));
     expect(rotated.status).toBe(200);
     const newToken = (rotated.body as any).data.apiKey as string;
@@ -169,7 +169,7 @@ describe('SIM: agent API-token auth (OPEN-1)', () => {
     const { owner, agentId, token } = await registerAgent(1006);
 
     const rMsg = await issue(owner.address, 'agent-token');
-    const rSig = sign(owner.wif, owner.address, rMsg);
+    const rSig = sign(owner.privKey, owner.address, rMsg);
     const revoked = await tokenDELETE(req({ walletAddress: owner.address, signature: rSig, challenge: rMsg }), ctx(agentId));
     expect(revoked.status).toBe(200);
 
@@ -179,7 +179,7 @@ describe('SIM: agent API-token auth (OPEN-1)', () => {
 
     // Owner can recover by rotating a fresh key.
     const nMsg = await issue(owner.address, 'agent-token');
-    const nSig = sign(owner.wif, owner.address, nMsg);
+    const nSig = sign(owner.privKey, owner.address, nMsg);
     const rotated = await tokenPOST(req({ walletAddress: owner.address, signature: nSig, challenge: nMsg }), ctx(agentId));
     expect(rotated.status).toBe(200);
     const fresh = (rotated.body as any).data.apiKey as string;
@@ -192,7 +192,7 @@ describe('SIM: agent API-token auth (OPEN-1)', () => {
 
     // PATCH the agent (owner-signed agent-manage challenge) and assert no hash leaks.
     const mMsg = await issue(owner.address, 'agent-manage');
-    const mSig = sign(owner.wif, owner.address, mMsg);
+    const mSig = sign(owner.privKey, owner.address, mMsg);
     const patched = await agentPATCH(
       req({ walletAddress: owner.address, signature: mSig, challenge: mMsg, endpointUrl: 'https://updated.example' }),
       ctx(agentId),

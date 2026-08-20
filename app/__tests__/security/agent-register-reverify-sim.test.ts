@@ -50,9 +50,9 @@ async function issue(address: string, purpose: string): Promise<string> {
   return challengeMessage(nonce);
 }
 
-async function registerAs(wallet: { wif: string; address: string }, blockHeight: number) {
+async function registerAs(wallet: { privKey: string; address: string }, blockHeight: number) {
   const message = await issue(wallet.address, 'agent-register');
-  const signature = sign(wallet.wif, wallet.address, message);
+  const signature = sign(wallet.privKey, wallet.address, message);
   return registerPOST(
     req({
       walletAddress: wallet.address, endpointUrl: 'https://agent.example', blockHeight,

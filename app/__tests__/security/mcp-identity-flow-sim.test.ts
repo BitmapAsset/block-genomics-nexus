@@ -84,7 +84,7 @@ async function verifyWallet(
 ): Promise<{ status: number; body: any; token?: string }> {
   const started: any = await sessionStart(req({ walletAddress: wallet.address }));
   const message: string = started.body.data.message;
-  const signature = sign(wallet.wif, wallet.address, message);
+  const signature = sign(wallet.privKey, wallet.address, message);
 
   const res: any = await sessionVerify(
     req({ walletAddress: wallet.address, message, signature, blocks })
@@ -139,7 +139,7 @@ describe('SIM: verification handshake', () => {
     const w = makeWallet('p2wpkh');
     const started: any = await sessionStart(req({ walletAddress: w.address }));
     const message = started.body.data.message;
-    const hex = Buffer.from(sign(w.wif, w.address, message), 'base64').toString('hex');
+    const hex = Buffer.from(sign(w.privKey, w.address, message), 'base64').toString('hex');
 
     const res: any = await sessionVerify(
       req({ walletAddress: w.address, message, signature: hex, blocks: [OWNED_BLOCK] })
@@ -169,7 +169,7 @@ describe('SIM: verification refusals', () => {
     const started: any = await sessionStart(req({ walletAddress: claimed.address }));
     const message = started.body.data.message;
     // Real signature — just not from the wallet being claimed.
-    const signature = sign(attacker.wif, attacker.address, message);
+    const signature = sign(attacker.privKey, attacker.address, message);
 
     const res: any = await sessionVerify(
       req({ walletAddress: claimed.address, message, signature, blocks: [OWNED_BLOCK] })
@@ -182,7 +182,7 @@ describe('SIM: verification refusals', () => {
     const w = makeWallet('p2tr');
     const started: any = await sessionStart(req({ walletAddress: w.address }));
     const message = started.body.data.message;
-    const signature = sign(w.wif, w.address, message);
+    const signature = sign(w.privKey, w.address, message);
     const payload = { walletAddress: w.address, message, signature, blocks: [OWNED_BLOCK] };
 
     expect((await sessionVerify(req(payload)) as any).status).toBe(201);
@@ -196,7 +196,7 @@ describe('SIM: verification refusals', () => {
     const w = makeWallet('p2tr');
     const message = 'Block Genomics verification: nonce-i-made-up';
     const res: any = await sessionVerify(
-      req({ walletAddress: w.address, message, signature: sign(w.wif, w.address, message), blocks: [] })
+      req({ walletAddress: w.address, message, signature: sign(w.privKey, w.address, message), blocks: [] })
     );
     expect(res.status).toBe(401);
   });
@@ -239,7 +239,7 @@ describe('SIM: verification refusals', () => {
       req({
         walletAddress: w.address,
         message,
-        signature: sign(w.wif, w.address, message),
+        signature: sign(w.privKey, w.address, message),
         blocks: ['not-a-block'],
       })
     );

@@ -3,10 +3,8 @@
  * Covers: permissions, tier limits, challenge generation, signature verification
  */
 
-jest.mock('bip322-js', () => ({
-  Verifier: {
-    verifySignature: jest.fn(),
-  },
+jest.mock('@/lib/bip322-verify', () => ({
+  verifyBip322Signature: jest.fn(),
 }));
 
 import {
@@ -146,7 +144,7 @@ describe('agent-protocol', () => {
   });
 
   describe('verifyAgentSignature()', () => {
-    const bip322 = require('bip322-js');
+    const { verifyBip322Signature } = require('@/lib/bip322-verify');
 
     beforeEach(() => jest.clearAllMocks());
 
@@ -162,22 +160,22 @@ describe('agent-protocol', () => {
       expect(verifyAgentSignature(VALID_ADDRESSES.segwit, '', MOCK_SIGNATURE)).toBe(false);
     });
 
-    it('uses bip322-js for verification', () => {
-      bip322.Verifier.verifySignature.mockReturnValue(true);
+    it('uses the BIP-322 verifier', () => {
+      verifyBip322Signature.mockReturnValue(true);
       const result = verifyAgentSignature(VALID_ADDRESSES.segwit, 'challenge', MOCK_SIGNATURE);
       expect(result).toBe(true);
-      expect(bip322.Verifier.verifySignature).toHaveBeenCalled();
+      expect(verifyBip322Signature).toHaveBeenCalled();
     });
 
-    it('SECURITY: returns false on bip322-js error (no length-only fallback)', () => {
-      bip322.Verifier.verifySignature.mockImplementation(() => {
+    it('SECURITY: returns false on verifier error (no length-only fallback)', () => {
+      verifyBip322Signature.mockImplementation(() => {
         throw new Error('Taproot not supported');
       });
       expect(verifyAgentSignature(VALID_ADDRESSES.taproot, 'challenge', MOCK_SIGNATURE)).toBe(false);
     });
 
     it('SECURITY: rejects crafted 64-byte base64 (audit fix)', () => {
-      bip322.Verifier.verifySignature.mockImplementation(() => {
+      verifyBip322Signature.mockImplementation(() => {
         throw new Error('p2tr not supported');
       });
       const fake64 = Buffer.alloc(64, 0x42).toString('base64');

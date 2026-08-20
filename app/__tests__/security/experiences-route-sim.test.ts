@@ -73,9 +73,9 @@ async function issue(address: string, purpose: string): Promise<string> {
   return challengeMessage(nonce);
 }
 
-async function registerAs(wallet: { wif: string; address: string }, blockHeight: number, overrides: any = {}) {
+async function registerAs(wallet: { privKey: string; address: string }, blockHeight: number, overrides: any = {}) {
   const message = await issue(wallet.address, 'experience-register');
-  const signature = sign(wallet.wif, wallet.address, message);
+  const signature = sign(wallet.privKey, wallet.address, message);
   return registerPOST(
     req({
       walletAddress: wallet.address,
@@ -92,9 +92,9 @@ async function registerAs(wallet: { wif: string; address: string }, blockHeight:
   );
 }
 
-async function signedBody(wallet: { wif: string; address: string }, purpose: string, extra: any) {
+async function signedBody(wallet: { privKey: string; address: string }, purpose: string, extra: any) {
   const message = await issue(wallet.address, purpose);
-  const signature = sign(wallet.wif, wallet.address, message);
+  const signature = sign(wallet.privKey, wallet.address, message);
   return { walletAddress: wallet.address, signature, challenge: message, ...extra };
 }
 

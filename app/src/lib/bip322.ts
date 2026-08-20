@@ -2,7 +2,7 @@
  * BIP-322 message-signature verification, tolerant of the encodings real
  * ordinals wallets emit.
  *
- * `bip322-js` expects a standard-base64 signature. Wallets do not agree on that:
+ * The verifier expects a standard-base64 signature. Wallets do not agree on that:
  *   - Xverse / sats-connect, Unisat, OKX, Magic Eden → standard base64
  *   - Leather and several CLI/hardware signers        → lowercase hex
  *   - Anything that round-tripped through a URL/JWT   → base64url (`-`/`_`)
@@ -21,12 +21,11 @@
  *
  * Everything fails CLOSED — any throw, any malformed input, any empty argument
  * returns false. There is deliberately no "unsupported address type" success
- * path: bip322-js@3 covers P2PKH, P2WPKH, P2SH-P2WPKH and single-key P2TR, so a
- * throw means a bad signature, not an unsupported wallet.
+ * path: `bip322-verify` covers P2PKH, P2WPKH, P2SH-P2WPKH and single-key P2TR,
+ * so a rejection means a bad signature, not an unsupported wallet.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const bip322 = require('bip322-js');
+import { verifyBip322Signature } from './bip322-verify';
 
 /**
  * Upper bound on accepted signature input. A real BIP-322 signature is ~88–260
@@ -97,7 +96,7 @@ export function verifyBip322(address: string, message: string, signature: string
 
   for (const candidate of signatureCandidates(signature)) {
     try {
-      if (bip322.Verifier.verifySignature(address, message, candidate)) return true;
+      if (verifyBip322Signature(address, message, candidate)) return true;
     } catch {
       // A throw means malformed input or a bad signature for this encoding.
       // Keep trying the remaining candidates; never treat it as success.

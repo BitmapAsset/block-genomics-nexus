@@ -61,7 +61,7 @@ describe('SIM: parcel customize replay closure (OPEN-3)', () => {
 
     const challenge = await issue(owner.address);
     const message = boundMessage(challenge, 3001, 7, FIELDS_A);
-    const signature = sign(owner.wif, owner.address, message);
+    const signature = sign(owner.privKey, owner.address, message);
 
     const res = await customizePOST(req({ walletAddress: owner.address, signature, message, ...FIELDS_A }), ctx(3001, 7));
     expect(res.status).toBe(200);
@@ -76,7 +76,7 @@ describe('SIM: parcel customize replay closure (OPEN-3)', () => {
 
     const challenge = await issue(owner.address);
     const message = boundMessage(challenge, 3002, 1, FIELDS_A);
-    const signature = sign(owner.wif, owner.address, message);
+    const signature = sign(owner.privKey, owner.address, message);
     const body = { walletAddress: owner.address, signature, message, ...FIELDS_A };
 
     expect((await customizePOST(req(body), ctx(3002, 1))).status).toBe(200);
@@ -89,7 +89,7 @@ describe('SIM: parcel customize replay closure (OPEN-3)', () => {
 
     const challenge = await issue(owner.address);
     const message = boundMessage(challenge, 3003, 2, FIELDS_A); // signed over A's hash
-    const signature = sign(owner.wif, owner.address, message);
+    const signature = sign(owner.privKey, owner.address, message);
 
     // Send fields B in the body — server recomputes hash(B) which is not in the message.
     const res = await customizePOST(req({ walletAddress: owner.address, signature, message, ...FIELDS_B }), ctx(3003, 2));
@@ -104,7 +104,7 @@ describe('SIM: parcel customize replay closure (OPEN-3)', () => {
     // Valid signature over a well-formed bound message, but the nonce was never issued.
     const challenge = challengeMessage(freshNonce());
     const message = boundMessage(challenge, 3004, 3, FIELDS_A);
-    const signature = sign(owner.wif, owner.address, message);
+    const signature = sign(owner.privKey, owner.address, message);
 
     const res = await customizePOST(req({ walletAddress: owner.address, signature, message, ...FIELDS_A }), ctx(3004, 3));
     expect(res.status).toBe(401);
@@ -117,7 +117,7 @@ describe('SIM: parcel customize replay closure (OPEN-3)', () => {
 
     const challenge = await issue(stranger.address);
     const message = boundMessage(challenge, 3005, 4, FIELDS_A);
-    const signature = sign(stranger.wif, stranger.address, message);
+    const signature = sign(stranger.privKey, stranger.address, message);
 
     const res = await customizePOST(req({ walletAddress: stranger.address, signature, message, ...FIELDS_A }), ctx(3005, 4));
     expect(res.status).toBe(403);
