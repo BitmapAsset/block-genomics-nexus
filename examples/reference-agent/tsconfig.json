@@ -9,7 +9,17 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    // The signer suite typechecks the server's verifier alongside this package
+    // (see vitest.config.ts). That file resolves its imports from `app/`, which
+    // this job does not install, so the shared crypto packages are mapped to the
+    // copies here — the same pinned versions, and the ones actually under test.
+    "baseUrl": ".",
+    "paths": {
+      "@noble/curves/*": ["node_modules/@noble/curves/*"],
+      "@noble/hashes/*": ["node_modules/@noble/hashes/*"],
+      "@scure/btc-signer": ["node_modules/@scure/btc-signer"]
+    }
   },
-  "include": ["src/**/*.ts", "__tests__/**/*.ts"]
+  "include": ["src/**/*.ts", "__tests__/**/*.ts", "vitest.config.ts"]
 }
