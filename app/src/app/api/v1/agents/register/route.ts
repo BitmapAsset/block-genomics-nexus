@@ -9,7 +9,7 @@ import {
 } from '@/lib/agent-protocol';
 import { consumeChallengeFromMessage } from '@/lib/challenges';
 import { mintAgentToken } from '@/lib/agent-tokens';
-import { verifyAndSyncBlock } from '@/lib/ownership-sync';
+import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,44 +47,18 @@ export async function POST(req: NextRequest) {
       return error('Invalid, expired, or already-used challenge — request one from /api/v1/challenge', 401);
     }
 
-    // OWNERSHIP (DB snapshot): the Block row is kept fresh by the ownership-sync
-    // cron; the verified User record covers wallet-scan-discovered blocks. Used as
-    // the fast path AND as the fallback when live on-chain truth is unavailable.
-    const [block, user] = await Promise.all([
-      prisma.block.findUnique({ where: { height: blockHeight }, select: { ownerAddress: true } }),
-      prisma.user.findUnique({ where: { walletAddress }, select: { verified: true, anchorBlock: true, ownedBlocks: true } }),
-    ]);
-    const ownsBlockSnapshot =
-      block?.ownerAddress === walletAddress ||
-      (user?.verified === true && (user.anchorBlock === blockHeight || user.ownedBlocks.includes(blockHeight)));
-
-    // LIVE ON-CHAIN RE-VERIFY (OPEN-2): force a fresh ownership check so a FORMER
-    // owner cannot register in the lag window between an on-chain sale and the
-    // next ownership-sync cron run. Semantics:
-    //   • definitive live truth → trust it. A live mismatch FAILS CLOSED even if
-    //     the (stale) DB snapshot still says the caller owns the block.
-    //   • live truth unavailable (no inscription linked / indexer outage) →
-    //     `indeterminate`; fall back to the DB snapshot with a logged warning.
-    //     We NEVER fail open on a mismatch — only on an outage do we defer to the
-    //     snapshot, matching the fail-closed posture of the sync layer.
-    let verified: boolean;
-    try {
-      const live = await verifyAndSyncBlock(blockHeight, walletAddress);
-      if (live.check.indeterminate) {
-        console.warn(`[agents/register] live re-verify indeterminate for block ${blockHeight} (no inscription linked or indexer unavailable) — falling back to DB snapshot`);
-        verified = ownsBlockSnapshot;
-      } else if (!live.isOwner) {
-        return error('On-chain ownership check failed — wallet does not currently own this block on-chain', 403);
-      } else {
-        verified = true;
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'unknown error';
-      console.warn(`[agents/register] live re-verify threw for block ${blockHeight}; falling back to DB snapshot: ${msg}`);
-      verified = ownsBlockSnapshot;
-    }
-    if (!verified) {
-      return error('Wallet does not own this block — only the block owner can register an agent', 403);
+    // OWNERSHIP — the one live, fail-closed question: does this wallet hold the
+    // block's inscription RIGHT NOW? A former owner must not be able to register
+    // an agent in the lag window between an on-chain sale and the next
+    // ownership-sync run, so `Block.ownerAddress` is deliberately not consulted.
+    //
+    // This route used to re-verify live and then fall back to that cache whenever
+    // the live answer was INDETERMINATE — which covers an indexer outage AND any
+    // block we never linked an inscription for. That turned "the chain is
+    // unreachable" into a write. An outage is now a retryable 503, never a grant.
+    const owns = await requireLiveBlockOwner(walletAddress, blockHeight);
+    if (!owns.ok) {
+      return error(owns.reason ?? 'Wallet does not own this block', owns.status);
     }
 
     // Validate permissions

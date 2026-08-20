@@ -8,16 +8,15 @@
  *
  *   1. BIP-322 signature over the server-issued challenge  → 401 on failure
  *   2. atomic single-use challenge consume (replay-safe)   → 401 on failure
- *   3. live on-chain ownership re-verify                    → 403 on a definitive
- *      mismatch, even if a stale DB snapshot still says owner. Only an
- *      INDETERMINATE live result (no inscription linked / indexer outage) falls
- *      back to the DB snapshot. Never fails open on a mismatch.
+ *   3. live on-chain ownership re-verify                    → 403 when the wallet
+ *      does not hold the block right now, 503 when no indexer can say. The DB
+ *      snapshot is never consulted: it is a cache, and a stale cache is the
+ *      failure this exists to prevent.
  */
 
-import prisma from '@/lib/prisma';
 import { verifyAgentSignature } from '@/lib/agent-protocol';
 import { consumeChallenge, consumeChallengeFromMessage } from '@/lib/challenges';
-import { verifyAndSyncBlock } from '@/lib/ownership-sync';
+import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 import { verifySignedManifest, type ExperienceAction } from '@/lib/experience-integrity';
 
 export type OwnerGateResult = { ok: true } | { ok: false; status: number; error: string };
@@ -46,48 +45,29 @@ export async function verifyExperienceOwnerGate(params: {
 }
 
 /**
- * Live, fail-closed on-chain ownership check, factored out so both the legacy
- * challenge flow and the signed-manifest flow use the SAME gate rather than two
- * implementations that could drift apart.
+ * Live, fail-closed on-chain ownership check.
+ *
+ * This is a thin adapter over `requireLiveBlockOwner` — the ownership gate's
+ * check 3 — so there is exactly ONE implementation of "does this wallet hold
+ * this block right now?" in the app, and it is the strict one.
+ *
+ * It used to be a second implementation: it re-verified live, then treated an
+ * INDETERMINATE result as permission to fall back to the `Block.ownerAddress`
+ * snapshot. Indeterminate is not a rare edge — `verifyBlockOwnership` returns it
+ * whenever the indexer is unreachable OR our own DB has no `inscriptionId`
+ * linked for the block. The gate answers that same situation with a retryable
+ * 503, so the two implementations disagreed exactly where it mattered, and an
+ * attacker who could make the indexer fail — or who simply picked a block we
+ * had never linked an inscription for — got the lenient one, with a stale
+ * snapshot naming the seller as the grant.
  */
 export async function verifyLiveBlockOwnership(
   walletAddress: string,
   blockHeight: number,
 ): Promise<OwnerGateResult> {
-  // 3. DB snapshot: fast path AND the fallback when live on-chain truth is
-  //    unavailable (kept fresh by the ownership-sync cron + verified User record).
-  const [block, user] = await Promise.all([
-    prisma.block.findUnique({ where: { height: blockHeight }, select: { ownerAddress: true } }),
-    prisma.user.findUnique({ where: { walletAddress }, select: { verified: true, anchorBlock: true, ownedBlocks: true } }),
-  ]);
-  const ownsSnapshot =
-    block?.ownerAddress === walletAddress ||
-    (user?.verified === true && (user.anchorBlock === blockHeight || user.ownedBlocks.includes(blockHeight)));
-
-  // 4. Live on-chain re-verify (OPEN-2 parity): a live mismatch FAILS CLOSED even
-  //    if the stale DB snapshot still says owner. Only an indeterminate live
-  //    result (no inscription / indexer outage) defers to the snapshot.
-  let verified: boolean;
-  try {
-    const live = await verifyAndSyncBlock(blockHeight, walletAddress);
-    if (live.check.indeterminate) {
-      console.warn(`[experiences] live re-verify indeterminate for block ${blockHeight} — falling back to DB snapshot`);
-      verified = ownsSnapshot;
-    } else if (!live.isOwner) {
-      return { ok: false, status: 403, error: 'On-chain ownership check failed — wallet does not currently own this block on-chain' };
-    } else {
-      verified = true;
-    }
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'unknown error';
-    console.warn(`[experiences] live re-verify threw for block ${blockHeight}; falling back to DB snapshot: ${msg}`);
-    verified = ownsSnapshot;
-  }
-
-  if (!verified) {
-    return { ok: false, status: 403, error: 'Wallet does not own this block — only the block owner can manage its experiences' };
-  }
-  return { ok: true };
+  const gate = await requireLiveBlockOwner(walletAddress, blockHeight);
+  if (gate.ok) return { ok: true };
+  return { ok: false, status: gate.status, error: gate.reason ?? 'Ownership check failed' };
 }
 
 export type ExperienceAuthResult =

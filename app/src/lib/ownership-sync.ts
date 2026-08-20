@@ -308,6 +308,14 @@ export async function processOwnershipTransfer(
     await tx.experience.deleteMany({
       where: { blockHeight, walletAddress: { not: newOwnerAddress } },
     });
+    // Estates are the seller NAMING the land — "Central Citadel", drawn over
+    // parcels 1-3 and rendered to every visitor. Left standing, the seller's
+    // label survives on the buyer's block, and because a parcel may belong to
+    // only one estate it also locks the buyer out of their own parcels: their
+    // create would 409 against a previous owner's claim forever.
+    await tx.estate.deleteMany({
+      where: { blockHeight, ownerAddress: { not: newOwnerAddress } },
+    });
 
     // 5. Cancel active delegations + listings (no longer the seller's to grant).
     await tx.delegation.updateMany({

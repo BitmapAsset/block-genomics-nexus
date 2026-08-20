@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api-helpers';
 import { emitAgentEvent } from '@/lib/agent-events';
+import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(req: NextRequest) {
@@ -56,19 +57,14 @@ export async function POST(req: NextRequest) {
     /* BIP-322 wallet signature verification */
     if (!verifyWalletSignature(walletAddress, message, signature)) return error('Invalid signature', 401);
 
-    // Verify owner owns the block — check DB first, then on-chain as fallback
-    const block = await prisma.block.findUnique({ where: { height: blockHeight } });
-    if (!block) {
-      return error(`Block ${blockHeight} not found. Verify ownership first at /verify.`, 404);
-    }
-    if (block.ownerAddress !== walletAddress) {
-      // DB mismatch — try on-chain verification as fallback
-      const { verifyAndSyncBlock } = await import('@/lib/ownership-sync');
-      const check = await verifyAndSyncBlock(blockHeight, walletAddress);
-      if (!check.isOwner) {
-        return error(`Not the block owner. DB owner: ${block.ownerAddress?.slice(0, 12)}... On-chain check also failed.`, 403);
-      }
-      // If on-chain check passed, the sync function already updated the DB
+    // OWNERSHIP — asked of the chain, not of our cache. This route had the check
+    // inverted: `Block.ownerAddress === walletAddress` granted outright, and the
+    // chain was consulted ONLY when the cache disagreed. The cache could grant but
+    // never deny, so a seller kept renting out land they had sold for as long as
+    // the background sync lagged. An outage is a retryable 503, never a grant.
+    const owns = await requireLiveBlockOwner(walletAddress, blockHeight);
+    if (!owns.ok) {
+      return error(owns.reason ?? 'Not the block owner', owns.status);
     }
 
     const listing = await prisma.delegationListing.upsert({

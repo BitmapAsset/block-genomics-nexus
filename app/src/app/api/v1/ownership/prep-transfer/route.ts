@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
-import prisma from '@/lib/prisma';
 import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
 import { wipeGuardianMemories, type MemoryWipeOption } from '@/lib/ownership-sync';
+import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 
 /**
  * POST /api/v1/ownership/prep-transfer
@@ -27,10 +27,14 @@ export async function POST(req: NextRequest) {
       return error('Invalid signature', 401);
     }
 
-    // Verify ownership
-    const block = await prisma.block.findUnique({ where: { height: blockHeight } });
-    if (!block || block.ownerAddress !== walletAddress) {
-      return error('Not the block owner', 403);
+    // OWNERSHIP — asked of the chain, not of our cache. This route DESTROYS
+    // guardian memory, so the stale window matters more here than anywhere: once
+    // a block is sold, `Block.ownerAddress` still names the seller until the next
+    // background sync, and authorizing from it let a seller wipe the buyer's
+    // guardian on land they no longer owned. An outage is a retryable 503.
+    const owns = await requireLiveBlockOwner(walletAddress, blockHeight);
+    if (!owns.ok) {
+      return error(owns.reason ?? 'Not the block owner', owns.status);
     }
 
     // Perform wipe

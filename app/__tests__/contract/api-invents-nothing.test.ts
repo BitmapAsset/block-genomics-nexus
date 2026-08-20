@@ -67,4 +67,23 @@ describe('API routes do not invent the numbers they serve', () => {
       .join('\n');
     expect(returned).not.toMatch(/totalVisitors/);
   });
+
+  it('serves no visitor count from ANY route, not just the one that was caught', () => {
+    // Scoping this guard to empire-stats let the identical permanent zero keep
+    // going out of the guardian monitor status command. `totalVisitors` has
+    // exactly one write in the whole codebase — `= 0`, on block transfer — so no
+    // route can report it honestly. The column stays (dropping it is a
+    // destructive migration); nothing serves it.
+    const offenders = routeFiles(API_ROOT)
+      .filter((file) =>
+        fs
+          .readFileSync(file, 'utf8')
+          .split('\n')
+          .map((l) => l.trim())
+          .some((t) => !t.startsWith('//') && !t.startsWith('*') && !t.startsWith('/*') && /totalVisitors/.test(t)),
+      )
+      .map((file) => path.relative(API_ROOT, file));
+
+    expect(offenders).toEqual([]);
+  });
 });
