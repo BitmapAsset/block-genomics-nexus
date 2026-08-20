@@ -1,9 +1,9 @@
 -- Codifies Row Level Security state that was applied live to Supabase Postgres
 -- (see incident: ApiRateLimit + one other table found with RLS OFF, anon could read
 -- client IPs; fixed live via SQL on 2026-07-20/21 but never checked into a migration).
--- This migration is idempotent and additive: it recreates the exact live policy set
--- for all 44 public tables (verified by direct introspection of
--- pg_class.relrowsecurity / relforcerowsecurity and pg_policies), plus closes a
+-- This migration is idempotent and additive: it recreates the live policy set for
+-- every public table that schema.prisma defines (verified by direct introspection
+-- of pg_class.relrowsecurity / relforcerowsecurity and pg_policies), plus closes a
 -- residual gap where "ApiRateLimit" and "Experience" had RLS enabled+forced with
 -- ZERO policies (a leftover from the live hotfix — currently masked because
 -- "postgres" and "service_role" both carry BYPASSRLS, but a real lockout for any
@@ -12,6 +12,13 @@
 -- Safe to run against a fresh db (prisma migrate deploy on rebuild) or against the
 -- already-patched live db (DROP POLICY IF EXISTS + CREATE POLICY converges to the
 -- same state either way; ENABLE/FORCE ROW LEVEL SECURITY are no-ops if already set).
+--
+-- The hosted database also carries two tables that predate this schema and are not
+-- part of the protocol -- "notifications" and "reputation_scores". They appear in
+-- neither schema.prisma nor any application query, so requiring them would make a
+-- self-hosted deployment fail on a table it has no reason to create. Their two
+-- statement pairs were dropped from this file; the hosted database keeps the RLS
+-- state it already applied, because this migration is already recorded there.
 
 ALTER TABLE "public"."ActivityLog" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."ActivityLog" FORCE ROW LEVEL SECURITY;
@@ -97,10 +104,6 @@ ALTER TABLE "public"."VPSLink" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."VPSLink" FORCE ROW LEVEL SECURITY;
 ALTER TABLE "public"."_prisma_migrations" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."_prisma_migrations" FORCE ROW LEVEL SECURITY;
-ALTER TABLE "public"."notifications" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "public"."notifications" FORCE ROW LEVEL SECURITY;
-ALTER TABLE "public"."reputation_scores" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "public"."reputation_scores" FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow public read" ON "public"."ActivityLog";
 CREATE POLICY "Allow public read" ON "public"."ActivityLog" AS PERMISSIVE FOR SELECT TO anon,authenticated USING (true);
@@ -293,15 +296,6 @@ CREATE POLICY "Service role bypass" ON "public"."VPSLink" AS PERMISSIVE TO servi
 
 DROP POLICY IF EXISTS "Service role bypass" ON "public"."_prisma_migrations";
 CREATE POLICY "Service role bypass" ON "public"."_prisma_migrations" AS PERMISSIVE TO service_role USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Service role bypass" ON "public"."notifications";
-CREATE POLICY "Service role bypass" ON "public"."notifications" AS PERMISSIVE TO service_role USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow public read" ON "public"."reputation_scores";
-CREATE POLICY "Allow public read" ON "public"."reputation_scores" AS PERMISSIVE FOR SELECT TO anon,authenticated USING (true);
-
-DROP POLICY IF EXISTS "Service role bypass" ON "public"."reputation_scores";
-CREATE POLICY "Service role bypass" ON "public"."reputation_scores" AS PERMISSIVE TO service_role USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Service role bypass" ON "public"."ApiRateLimit";
 CREATE POLICY "Service role bypass" ON "public"."ApiRateLimit" AS PERMISSIVE TO service_role USING (true) WITH CHECK (true);
