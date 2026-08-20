@@ -630,6 +630,46 @@ async function placeObject(
 
 ### Batch Operations (Up to 100)
 
+A batch is **all-or-nothing**: a `2xx` means every sub-operation applied, and any
+other status means none of them did. A failed sub-operation is never reported
+inside a `2xx`, so the status code is the whole answer.
+
+Retrying is safe after `400`, `403`, `429` or `503` — nothing was applied and the
+nonce was not spent, so re-send the identical request. A `500 batch_failed` also
+applied nothing, but it *did* spend the nonce: sign again with a fresh challenge.
+Retrying a batch that already succeeded will duplicate its `create` sub-operations,
+so if a response is lost, reconcile with `GET /world?blockHeight=…` before
+re-sending. Full rules: [spec §7.3](https://blockgenomics.io/protocol).
+
+If you already hold a `bg_vfy_` session token covering the block, skip the
+challenge/signature round-trip entirely — send the token and the operations:
+
+```typescript
+async function batchWorldOpsWithSession(
+  sessionToken: string,
+  blockHeight: number,
+  operations: Array<{
+    action: "create" | "update" | "delete";
+    id?: string;
+    data?: Record<string, unknown>;
+  }>
+) {
+  const res = await fetch(`${BASE}/world/batch`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${sessionToken}`,
+    },
+    // No ownerAddress: the write is attributed to the session's wallet.
+    body: JSON.stringify({ blockHeight, operations }),
+  });
+
+  return res.json();
+}
+```
+
+Or with a wallet signature, which binds the hash of the entire batch:
+
 ```typescript
 async function batchWorldOps(
   walletType: WalletType,

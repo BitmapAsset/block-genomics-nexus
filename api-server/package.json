@@ -1,7 +1,7 @@
 {
   "name": "@block-genomics/api-server",
   "version": "0.1.0",
-  "description": "Block Genomics Verification API — challenge-response BIP-322 signature verification for Bitcoin block ownership",
+  "description": "SUPERSEDED by the app/ Next.js API. Original MVP verification server, kept for reference only — not deployed, not in CI, not maintained. See README.md.",
   "private": true,
   "license": "BUSL-1.1",
   "type": "module",

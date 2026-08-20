@@ -332,6 +332,45 @@ replayed, re-pointed at another route, or altered in flight. Batch writes bind t
 hash of the entire batch and **MUST** validate every sub-operation for ownership
 and lock state before the nonce is consumed.
 
+A signature is one of the two credential paths of §4.4, not the only one. A caller
+holding a live `bg_vfy_` session token that covers the block **MAY** send it as
+`Authorization: Bearer …` instead, on every world write route including
+`/world/batch`; no signature, message or nonce is then required, because the token
+was itself minted from a signed one-time challenge. On that path the server
+**MUST** attribute the write to the session's wallet and **MUST NOT** read an
+actor from the request body.
+
+### 7.3 Batch semantics
+
+`POST /api/v1/world/batch` carries up to **100** sub-operations. It is
+**all-or-nothing**: the server **MUST** apply every sub-operation or none of them.
+
+- A `2xx` response means the whole batch was applied. Every entry in `results` is
+  a success; the server **MUST NOT** report a failed sub-operation inside a `2xx`.
+- Any other response means **nothing** was applied. A `500 batch_failed` in
+  particular carries no partial state — the block is exactly as it was.
+- Sub-operations are validated (shape, ownership, block membership, lock state)
+  **before** the nonce is consumed, so a rejected batch leaves the nonce spendable
+  and the same signed request can simply be re-sent.
+
+Retry rules follow from that:
+
+| Outcome | Applied? | Safe to retry |
+|---|---|---|
+| `400` / `403` (bad or unauthorized sub-op) | no | yes — nonce untouched, re-send as is |
+| `401` (bad signature, binding, or spent nonce) | no | only with a fresh challenge |
+| `429` | no | yes, after `Retry-After` |
+| `503` (chain unreachable) | no | yes — the nonce is not spent |
+| `500 batch_failed` | no | yes, but the nonce **was** spent: re-sign on the wallet path; the session path may re-send unchanged |
+| `2xx` | fully | see below |
+
+A retry of a batch that already applied is **not** idempotent for `create`
+sub-operations: they will create again. `update` and `delete` are idempotent in
+effect, but a `delete` whose target is already gone fails validation, so a
+re-sent batch containing one is rejected with `403` rather than duplicating work.
+Clients that cannot tolerate a duplicate `create` **SHOULD** treat a lost response
+as unknown and reconcile with `GET /api/v1/world?blockHeight=…` before re-sending.
+
 ---
 
 ## 8. Experience hosting

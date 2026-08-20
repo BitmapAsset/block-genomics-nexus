@@ -51,18 +51,25 @@ const mockObjectUpdate = jest.fn();
 const mockObjectDelete = jest.fn();
 const mockObjectCreate = jest.fn();
 
-jest.mock('@/lib/prisma', () => ({
-  __esModule: true,
-  default: {
-    block: { findUnique: (...a: unknown[]) => mockBlockFindUnique(...a) },
-    blockObject: {
-      findMany: (...a: unknown[]) => mockObjectFindMany(...a),
-      update: (...a: unknown[]) => mockObjectUpdate(...a),
-      delete: (...a: unknown[]) => mockObjectDelete(...a),
-      create: (...a: unknown[]) => mockObjectCreate(...a),
+jest.mock('@/lib/prisma', () => {
+  const blockObject = {
+    findMany: (...a: unknown[]) => mockObjectFindMany(...a),
+    update: (...a: unknown[]) => mockObjectUpdate(...a),
+    delete: (...a: unknown[]) => mockObjectDelete(...a),
+    create: (...a: unknown[]) => mockObjectCreate(...a),
+  };
+  return {
+    __esModule: true,
+    default: {
+      block: { findUnique: (...a: unknown[]) => mockBlockFindUnique(...a) },
+      blockObject,
+      // The batch route runs its writes in an interactive transaction. Passing
+      // the same mock through as `tx` keeps the per-op assertions below
+      // meaningful; rollback is covered in world-batch-semantics.test.ts.
+      $transaction: (fn: (tx: unknown) => unknown) => fn({ blockObject }),
     },
-  },
-}));
+  };
+});
 
 jest.mock('@/lib/onchain/bitmap-ownership', () => ({
   verifyBlockOwnedBy: async (wallet: string, height: number, inscriptionId?: string | null) => {

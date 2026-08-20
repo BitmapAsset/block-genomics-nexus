@@ -69,6 +69,7 @@ you actually own.
 |------|------|
 | `src/index.ts` | The agent: register/resume → heartbeat → event poll → graceful revoke. |
 | `src/signer.ts` | BIP-322 signer over a WIF key (the only place the key is touched). |
+| `src/bip322.ts` | The BIP-322 signing primitives, on `@noble/curves` + `@scure/btc-signer`. Copy this if you are writing your own agent. |
 | `src/config.ts` | Reads + validates env once, fails fast with clear errors. |
 | `src/token-store.ts` | Reads/writes the one-time token file (0600, git-ignored). |
 | `src/keygen.ts` | `npm run keygen` — mint a throwaway test keypair. |
