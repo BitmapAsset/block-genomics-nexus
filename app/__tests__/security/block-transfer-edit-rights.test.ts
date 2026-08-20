@@ -78,7 +78,7 @@ jest.mock('@/lib/onchain/bitmap-ownership', () => ({
 
 jest.mock('@/lib/api-helpers', () => ({ verifyWalletSignature: () => true }));
 
-const mockConsumeChallenge = jest.fn(async () => true);
+const mockConsumeChallenge = jest.fn(async (..._args: unknown[]) => true);
 jest.mock('@/lib/challenges', () => ({ consumeChallenge: (...a: unknown[]) => mockConsumeChallenge(...a) }));
 
 jest.mock('@/lib/action-message', () => ({

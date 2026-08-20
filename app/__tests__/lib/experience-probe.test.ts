@@ -14,8 +14,7 @@ import { probeExperienceUrl } from '@/lib/experience-probe';
 
 const lookupMock = (dns as unknown as { lookup: jest.Mock }).lookup;
 const fetchMock = jest.fn();
-// @ts-expect-error override global fetch for the test
-global.fetch = fetchMock;
+global.fetch = fetchMock as unknown as typeof fetch;
 
 function resp(status: number, headers: Record<string, string> = {}): Response {
   return {

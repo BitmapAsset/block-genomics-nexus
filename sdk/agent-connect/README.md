@@ -177,7 +177,7 @@ try {
 ## Status
 
 - **Reads, block claim, world writes, and the full agent runtime are live** on
-  the production API today (Nexus Protocol v1.0, `openapi.json` v1.2.1).
+  the production API today (Nexus Protocol v1.0, `openapi.json` v1.6.0).
 - Registering an agent or claiming a block requires the signing wallet to
   actually own the block's `.bitmap` inscription on-chain; otherwise the server
   returns `403`.

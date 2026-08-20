@@ -1,6 +1,6 @@
 /**
- * API response types for the Block Genomics verification server.
- * Must match the types in api-server/types.ts
+ * API response types for the Block Genomics verification endpoints
+ * served from src/app/api/v1.
  */
 
 export interface ChallengeResponse {
