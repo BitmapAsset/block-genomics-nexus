@@ -11,6 +11,7 @@ import {
   type BlockPageData,
   type Creator,
 } from '@/lib/blockPageData';
+import type { BlockMarket } from '@/lib/marketplace';
 import { EPOCH_LABELS, getEpochColor, getEpochIndex } from '@/lib/bitmapStandard';
 import { formatBytes, formatNumber, hexPairToColor } from '@/lib/genome-utils';
 import CopyButton from './copy-button';
@@ -244,6 +245,94 @@ function DeedPanel({ data }: { data: BlockPageData }) {
   );
 }
 
+/** Sats rendered as BTC once that reads better than a seven-digit integer. */
+function formatSats(sats: number): string {
+  const btc = sats / 100_000_000;
+  if (btc >= 0.0001) {
+    return `${btc.toFixed(8).replace(/0+$/, '').replace(/\.$/, '')} BTC`;
+  }
+  return `${formatNumber(sats)} sats`;
+}
+
+/**
+ * Third-party market state for this block.
+ *
+ * Rendered below the deed and visually subordinate to it, because that is the
+ * actual relationship: the deed panel is what the chain says, this is what a
+ * shop is advertising. The copy says "advisory" out loud so a reader does not
+ * mistake a price for a fact about control.
+ *
+ * Renders nothing at all when no venue is configured — an operator who never
+ * set a venue key has no integration to report, and an empty panel on a public
+ * share page would look like breakage rather than absence.
+ */
+function MarketPanel({ market }: { market: BlockMarket | null }) {
+  if (!market || market.status === 'unconfigured') return null;
+
+  if (market.status !== 'listed' || !market.listing) {
+    return (
+      <p className="mt-4 text-xs text-text-muted">
+        {market.status === 'unavailable'
+          ? 'Marketplace data is unavailable right now.'
+          : 'Not listed on any connected marketplace.'}
+      </p>
+    );
+  }
+
+  const { listing } = market;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-muted">
+          Market
+        </div>
+        <span
+          className="rounded-full px-2.5 py-1 text-[10px] font-medium"
+          style={{ background: 'rgba(234,179,8,0.1)', color: '#eab308' }}
+        >
+          Listed
+        </span>
+      </div>
+
+      <p className="mt-3 text-base text-text-primary">
+        {listing.priceSats !== null ? formatSats(listing.priceSats) : 'Price not published'}
+        <span className="ml-2 text-sm text-text-muted">on {listing.venueName}</span>
+      </p>
+
+      {listing.lastSaleSats !== null && (
+        <p className="mt-1 text-sm text-text-muted">
+          Last sale {formatSats(listing.lastSaleSats)}
+          {listing.lastSaleAt
+            ? ` on ${new Date(listing.lastSaleAt).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                timeZone: 'UTC',
+              })}`
+            : ''}
+        </p>
+      )}
+
+      <p className="mt-2 text-sm text-text-muted">
+        Advisory only, reported by a third-party marketplace. It is not proof of ownership and the
+        protocol takes no part in the sale — the deed above is the authority.
+      </p>
+
+      {listing.url && (
+        <a
+          href={listing.url}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="mt-4 inline-block text-sm text-text-secondary underline underline-offset-4 hover:text-text-primary"
+        >
+          View on {listing.venueName} ↗
+        </a>
+      )}
+    </div>
+  );
+}
+
 // ── Page ────────────────────────────────────────────────────────────────
 
 export default async function BlockPage({ params }: { params: Promise<{ height: string }> }) {
@@ -329,6 +418,9 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
       <div className="mt-10">
         <DeedPanel data={data} />
       </div>
+
+      {/* ── Market (advisory) ── */}
+      <MarketPanel market={data.market} />
 
       {/* ── Stats ── */}
       <Section title="Block stats">

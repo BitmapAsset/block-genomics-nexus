@@ -69,6 +69,12 @@ export function buildToolCatalog(call: CallFn): {
       run: (a) => call("/api/v1/ownership/verify", { query: { blockHeight: a.blockHeight } }),
     },
     {
+      name: "bg_block_market",
+      description: "Advisory marketplace view for a block: whether third-party ordinals venues list it, the asking price in sats, and a link to click through. Display-only, never ownership — use bg_ownership_verify for who controls a block.",
+      schema: { height },
+      run: (a) => call(`/api/v1/blocks/${a.height}/market`),
+    },
+    {
       name: "bg_agents_by_block",
       description: "List active BitmapAgents registered on a block (public agent directory).",
       schema: { blockHeight: height },

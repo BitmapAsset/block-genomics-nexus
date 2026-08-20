@@ -85,6 +85,7 @@ export const PUBLIC_TOOL_NAMES = [
   "bg_search",
   "bg_block",
   "bg_ownership_verify",
+  "bg_block_market",
   "bg_agents_by_block",
   "bg_agent_briefs",
   "bg_badge",

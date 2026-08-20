@@ -29,12 +29,24 @@
 import prisma from '@/lib/prisma';
 import { lookupOwnerForRender } from '@/lib/publicOwnerLookup';
 import { fetchBlockOgSummary, type BlockOgSummary } from '@/lib/blockOgData';
+import { getBlockMarket, type BlockMarket } from '@/lib/marketplace';
 import { formatBytes, formatNumber } from '@/lib/genome-utils';
 
 /** Cap on each list so one heavily-built block cannot blow up the page. */
 export const MAX_OBJECTS = 24;
 export const MAX_PARCELS = 24;
 export const MAX_EXPERIENCES = 12;
+
+/**
+ * Wall-clock budget for the marketplace lookup during a page render.
+ *
+ * The lane's own fetch timeout is per-request, and a listed block costs two
+ * sequential upstream calls, so its worst case is longer than this page should
+ * ever wait. Market data is a decoration on a share target: past this budget the
+ * panel renders as unavailable, which is a better outcome than a slow venue
+ * holding the whole page.
+ */
+const MARKET_RENDER_BUDGET_MS = 2500;
 
 /** Identity shown next to a build. Resolved from a handle when we have one. */
 export interface Creator {
@@ -105,6 +117,15 @@ export interface BlockPageData {
   experienceCount: number;
   /** Header stats from mempool.space. Null when unmined or the API failed. */
   chain: BlockOgSummary | null;
+  /**
+   * Advisory third-party marketplace view. Null when no venue is configured or
+   * the lookup exceeded its render budget.
+   *
+   * Explicitly NOT part of the ownership model: `ownership` above is the deed,
+   * settled on-chain, and nothing in this field may be read as control over the
+   * block. A venue can advertise whatever it likes.
+   */
+  market: BlockMarket | null;
   /** True when a backing service failed, so the page can say so rather than imply zero. */
   degraded: boolean;
 }
@@ -300,6 +321,7 @@ export async function fetchBlockPageData(height: number): Promise<BlockPageData>
       experiences: [],
       experienceCount: 0,
       chain: chainResult,
+      market: null,
       degraded: true,
     };
   }
@@ -323,7 +345,12 @@ export async function fetchBlockPageData(height: number): Promise<BlockPageData>
     ),
   );
 
-  const identities = await fetchIdentities(height, addresses);
+  // Overlapped: identity resolution is a database read, the market view is an
+  // outbound call, and neither depends on the other.
+  const [identities, market] = await Promise.all([
+    fetchIdentities(height, addresses),
+    marketWithinBudget({ height, inscriptionId: block?.inscriptionId ?? null }),
+  ]);
 
   return {
     height,
@@ -356,8 +383,35 @@ export async function fetchBlockPageData(height: number): Promise<BlockPageData>
     })),
     experienceCount,
     chain: chainResult,
+    market,
     degraded: false,
   };
+}
+
+/**
+ * Market view, or null if it did not arrive in time.
+ *
+ * Bounded here rather than inside the lane because the budget is a property of
+ * this caller — the API route is happy to wait for a complete answer, a page
+ * render is not.
+ */
+async function marketWithinBudget(query: {
+  height: number;
+  inscriptionId: string | null;
+}): Promise<BlockMarket | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      getBlockMarket(query),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), MARKET_RENDER_BUDGET_MS);
+      }),
+    ]);
+  } catch {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /**

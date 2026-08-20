@@ -74,7 +74,7 @@ describe("tool gating", () => {
     expect(activeTools().map((t) => t.name)).toEqual([...PUBLIC_TOOL_NAMES, ...WRITE_TOOL_NAMES]);
   });
 
-  it("exposes the full 34-tool surface with every credential and writes enabled", async () => {
+  it("exposes the full 35-tool surface with every credential and writes enabled", async () => {
     const { activeTools } = await loadTools({
       BG_AGENT_TOKEN: TOKEN,
       BG_SESSION_TOKEN: SESSION,
@@ -87,7 +87,7 @@ describe("tool gating", () => {
       ...OWNER_TOOL_NAMES,
       ...WRITE_TOOL_NAMES,
     ]);
-    expect(names).toHaveLength(34);
+    expect(names).toHaveLength(35);
   });
 
   it("unlocks the agent tools via the BG_API_KEY alias too", async () => {
