@@ -13,7 +13,12 @@ export default function CopyButton({
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      // A root-relative path is useless in a paste, so resolve it against the
+      // current origin — also correct on preview deploys and locally.
+      const value = text.startsWith('/')
+        ? new URL(text, window.location.origin).toString()
+        : text;
+      await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
