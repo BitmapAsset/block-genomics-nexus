@@ -56,8 +56,14 @@ export async function GET(
   const { height: raw } = await params;
   const height = parseBlockParam(raw);
 
+  // 404, not 400: the height is part of the path, so an unparseable one means
+  // this card does not exist. An unfurler seeing 400 may retry a request that
+  // can never succeed.
   if (height === undefined) {
-    return new Response('Invalid block height', { status: 400 });
+    return new Response('Not found', {
+      status: 404,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+    });
   }
 
   // Chain header stats and the app's own facts are independent lookups; both
