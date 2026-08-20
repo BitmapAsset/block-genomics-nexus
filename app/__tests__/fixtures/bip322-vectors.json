@@ -1,0 +1,1341 @@
+{
+  "reference": "bip322-js@3.0.0",
+  "vectors": [
+    {
+      "name": "BIP-322 spec: empty message",
+      "kind": "p2wpkh",
+      "address": "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l",
+      "message": "",
+      "signature": "AkcwRAIgM2gBAQqvZX15ZiysmKmQpDrG83avLIT492QBzLnQIxYCIBaTpOaD20qRlEylyxFSeEA2ba9YOixpX8z46TSDtS40ASECx/EgAxlkQpQ9hYjgGu6EBCPMVPwVIVJqO4XCsMvViHI=",
+      "expected": true
+    },
+    {
+      "name": "BIP-322 spec: \"Hello World\"",
+      "kind": "p2wpkh",
+      "address": "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l",
+      "message": "Hello World",
+      "signature": "AkcwRAIgZRfIY3p7/DoVTty6YZbWS71bc5Vct9p9Fia83eRmw2QCICK/ENGfwLtptFluMGs2KsqoNSk89pO7F29zJLUx9a/sASECx/EgAxlkQpQ9hYjgGu6EBCPMVPwVIVJqO4XCsMvViHI=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#0 msg#0",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "",
+      "signature": "H+Nnitx4hIASBwpkKbLRmb85/WcqkX0BjOXybTwmuOHiRaFrn57ddIyS9E5LLbcDqolGh8sm6kOr4Mw4ZICmHug=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#0 msg#1",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Hello World",
+      "signature": "H+u5qG/lfoLElZF13t6uXC1gXT7pMfn64blGeGVuGJzTSn23jbBXUKiZJCSMWDN55GbeA+Z2MqW4qXGHPXgr0+U=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#0 msg#2",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "HzKOSGKhByfuSxPtbRoMeiix6PksR74ON36KofXV/mZ3eSyNbl9Qh4TqQyhmyA2xT+D+hbVIef/eGM0p1iHoBTo=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#0 msg#3",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "H/zVQcBn0PwcjmQA5xm9WU5vcpxWO04wneHZeXlsAtO+J1KrbiFpz2kukuVU/nuHAfgJQeIyygA+tF1wIPnx86Y=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#0 msg#4",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "H+vm5+W3S2x5f/3Beck8zjat9IIMVpIwr5Ccmr5iXq1zDrdb374t2IdoJ4SR/iAVFEqozbScxjYtRha6MkuqRrQ=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#1 msg#0",
+      "kind": "p2pkh",
+      "address": "1LHcZymwcy61evwi3hyYEKAm8P1noy3Qys",
+      "message": "",
+      "signature": "IOQbV2ePVs/ewCTh2i7Nm3gV+dyLz7YFzfgLdWqYMRmBBXp/kb9AQ8jMXah+DZDjwKn/HjwPllfnAN1RNMYkoAM=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#1 msg#1",
+      "kind": "p2pkh",
+      "address": "1LHcZymwcy61evwi3hyYEKAm8P1noy3Qys",
+      "message": "Hello World",
+      "signature": "H4HCz+wkoY3tY96cmvaU7AgoJYOw/yjiIXCFCYQ1vv/4SJpN4pgvVOlIrasDp+zQ3IwNl9eD+pcVrHZh5bZ30/E=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#1 msg#2",
+      "kind": "p2pkh",
+      "address": "1LHcZymwcy61evwi3hyYEKAm8P1noy3Qys",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "IEfsMdy0/FwENxYcm4NdhZ6oUfNCrn2f5ZIZQXpBCmagQE5XAAWrwDOnxWzp8k1fDr9pQHjOlvzWEhos0qQv5oA=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#1 msg#3",
+      "kind": "p2pkh",
+      "address": "1LHcZymwcy61evwi3hyYEKAm8P1noy3Qys",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "H8mUD7P8i59yGeY33YXSSqQRNzsqYWzw1Nlec74NEhEyFk8CEv+TVmKg4NxIZzRn/K5N/zH7F8qwt6X0qan8vGc=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#1 msg#4",
+      "kind": "p2pkh",
+      "address": "1LHcZymwcy61evwi3hyYEKAm8P1noy3Qys",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "H2nPJCS4+Ok7Ve1bAmjyY5SsWf/CRNOJLPP5kpRod5pcc1KTXpvuDjyEeyavIVPwM92/YC5qlu5n/rN9dN3POC0=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#2 msg#0",
+      "kind": "p2pkh",
+      "address": "1AQUHXJgNqTnWRa4Eq1KaBqyVvZ2Pkw6iF",
+      "message": "",
+      "signature": "INUAQhsLW+5y+WQ0CQGDRsJGVKuAX+3/sjgKP6vCUPRAFT5/svSR2f9r3LvlVGjNdmYKoqdeUM5t9lmEuWcj/70=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#2 msg#1",
+      "kind": "p2pkh",
+      "address": "1AQUHXJgNqTnWRa4Eq1KaBqyVvZ2Pkw6iF",
+      "message": "Hello World",
+      "signature": "HzcYn18O7mMkFnw6MWoDNY27NcF8LS4iOTlUvIR3ToJJDuLDcoP0Nk7ooWc1qW0v+yNIg+1wWqtqBwANuU5XJbU=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#2 msg#2",
+      "kind": "p2pkh",
+      "address": "1AQUHXJgNqTnWRa4Eq1KaBqyVvZ2Pkw6iF",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "H8Xk/3qB8ltvqnyxPNxUHQ/mxro4wLO4GDxkH1NanVbBcD7n2uZx3omz5aa8l/3NcJ4ficM3T6/Vd3JotUM6O6I=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#2 msg#3",
+      "kind": "p2pkh",
+      "address": "1AQUHXJgNqTnWRa4Eq1KaBqyVvZ2Pkw6iF",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "H3SWGGNPERmLnnjNvLjuegB6KdHITnD57wbnlF1Ovib2OyhUM78GO80g18ovPBZ7aR8behwzktDNdoN4bfhcKFI=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#2 msg#4",
+      "kind": "p2pkh",
+      "address": "1AQUHXJgNqTnWRa4Eq1KaBqyVvZ2Pkw6iF",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "ICoHet1U7FgZxHKFutCeHxJQ9oWg/uxy9dWgQQb6dpVoF0l304W/YPOibZYnzI9a0XBrlLOr5D6Ljj8Hnxri75g=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#3 msg#0",
+      "kind": "p2pkh",
+      "address": "1NdeQaz7bGdYTEYkDKcggZTCYLhRB1pTTu",
+      "message": "",
+      "signature": "H9VQdKR6HHyEN9bzmt+aWhmcXSdUcdbAGBwrhKFS+t+sM/NpS135LxCbG6mSbi4ZSgCLD6jbbj+Bf+yMP1AdQR0=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#3 msg#1",
+      "kind": "p2pkh",
+      "address": "1NdeQaz7bGdYTEYkDKcggZTCYLhRB1pTTu",
+      "message": "Hello World",
+      "signature": "IGDCqXRQaFDEgwtf2enCsaeeX9HR8n4Yxtb526EEL6kqVogFRLyc93UGUWm3EqnmhhZrAjq8AXRofObJEnKx4Lk=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#3 msg#2",
+      "kind": "p2pkh",
+      "address": "1NdeQaz7bGdYTEYkDKcggZTCYLhRB1pTTu",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "IDYhki+PI042xaXHyV4cbbSHCYw5khajlWGjVfcZYeSfcvh8Kv9EaqVrhRvD3Y/H+hJKyBAfBusT0gzopuF+ojg=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#3 msg#3",
+      "kind": "p2pkh",
+      "address": "1NdeQaz7bGdYTEYkDKcggZTCYLhRB1pTTu",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "IGZWBjI+3Do4a81hVLblQa+L4knl+F38pGngb9tPcwlZBHeG02qch72h/7vZsvqc7hOYvsS1WHmQrwPIb96CoTY=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#3 msg#4",
+      "kind": "p2pkh",
+      "address": "1NdeQaz7bGdYTEYkDKcggZTCYLhRB1pTTu",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "IBhERdUpDGORpmkwkzc3uq9IYe1/9LgdkXi7Ta6kseCUba7wzLiEHEpHYGi7wSG/hPdHoqyD76ugfSusK+ro0zw=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#4 msg#0",
+      "kind": "p2pkh",
+      "address": "1BA9JqKeetHbATETNb9P4Trhd6KtyCtBH3",
+      "message": "",
+      "signature": "IIijjiAMh4OTZsCjEaM7/cJpHqiuik6ZKq34db9p6TOvOeY9DaHaGfgAiJpH8g1j6+zOzV1JEcCjTzuylkUGbS4=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#4 msg#1",
+      "kind": "p2pkh",
+      "address": "1BA9JqKeetHbATETNb9P4Trhd6KtyCtBH3",
+      "message": "Hello World",
+      "signature": "IGyZcX7BM9HVqSsmtFGNWM0ohVxMAaGGf+Fwf0qUa2yoeUAZPS16vvoky4jxB+jcynE+vilGSS5wmbDMN5enZC0=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#4 msg#2",
+      "kind": "p2pkh",
+      "address": "1BA9JqKeetHbATETNb9P4Trhd6KtyCtBH3",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "H0UUjyHfRrov6ijJ3Qjl0w3gn0tChcubXRSfn3zxAm4kesBg4OcNHMtUUGNnHeH5RqCwpMmiYyF5ipfO/wfZB6Q=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#4 msg#3",
+      "kind": "p2pkh",
+      "address": "1BA9JqKeetHbATETNb9P4Trhd6KtyCtBH3",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "HzT9pjFUcZrpxM3cbZrV9fv5nAFg9mnAWRwxhQK2wcTfCobyMPGnugbuWiVUaPyu6JqDCx6viUfniJt6lFeD6BE=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: valid signature key#4 msg#4",
+      "kind": "p2pkh",
+      "address": "1BA9JqKeetHbATETNb9P4Trhd6KtyCtBH3",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "ICsEGigwxlmQxG53XtyneCIkFXqeZpO7OHqX36fAd4uiRqtjGk0xavLVHAvGSbSRRbLnSec7botrDLtWNc/UrJ0=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#0 msg#0",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "",
+      "signature": "AkcwRAIgLUomN8pr5guhZwdxksDLRzxOlBoxka3Bp9+fSbeMadkCIB5KmrbjzVzjEhSMSuY8oJwQF1TKL/cl0HN+5kjF2hSEASECGKwQNwsrqgqviUfmuMa37M6KJDZYFqf1keHIj1tVfPY=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#0 msg#1",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Hello World",
+      "signature": "AkgwRQIhAI5G1M5ThRF8CUCPfLtUs9A5qvQeWYYJivgYcELSMHaOAiBBf+PWUXheFGlWeM9kDNUZrBkQGeB/4ddgATLzIrtD8wEhAhisEDcLK6oKr4lH5rjGt+zOiiQ2WBan9ZHhyI9bVXz2",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#0 msg#2",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AkcwRAIgGRdOHCE2Q6sVJL81jDV06lKY1xJLVbxJphlK9kZHgjcCIDjup2hGHuHMDAwnxcr+QWIoKg48k9jpy5WFuTytha/SASECGKwQNwsrqgqviUfmuMa37M6KJDZYFqf1keHIj1tVfPY=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#0 msg#3",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AkgwRQIhAOD8jeHOEwT+estz6CfiFNU9CAIp/5X3mwKUiYWGDJXoAiBiiKqlGgRwWRX5RLQb5gi6qsexRBfl8p8g36RRhXGbpAEhAhisEDcLK6oKr4lH5rjGt+zOiiQ2WBan9ZHhyI9bVXz2",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#0 msg#4",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AkgwRQIhANbkVc2WYs8X9cFJwZLp6UGuPc05UC3Ltp7RCR2zeeGcAiAFE+zOhW786ELfdHatN2mreCtdwa+c//NMaGlQhNpJFgEhAhisEDcLK6oKr4lH5rjGt+zOiiQ2WBan9ZHhyI9bVXz2",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#1 msg#0",
+      "kind": "p2sh-p2wpkh",
+      "address": "3MN3hXoLfKHW9VnLG6vrYA5kyZmi273ytz",
+      "message": "",
+      "signature": "AkgwRQIhAKICO6jgLZ3uj8fLky+UlM4E4inHfXQQrnldIntk3CedAiB515A6u34cUzWLIO3mBIfnU5pn6C4rrLZ7Q43drF6wlgEhAuJio+kbGB2WBUC2+5Y/QrC8W0RLIhZV3BOWw84Jn7bn",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#1 msg#1",
+      "kind": "p2sh-p2wpkh",
+      "address": "3MN3hXoLfKHW9VnLG6vrYA5kyZmi273ytz",
+      "message": "Hello World",
+      "signature": "AkcwRAIgEEaQfObxRO5ASzzdTWaAnfaNRHlxofppjV9DqnfeHjcCIBmXi4VOnBdFGXWHz3GbhO0OPTWgJ/gVYcmWVau8CpghASEC4mKj6RsYHZYFQLb7lj9CsLxbREsiFlXcE5bDzgmftuc=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#1 msg#2",
+      "kind": "p2sh-p2wpkh",
+      "address": "3MN3hXoLfKHW9VnLG6vrYA5kyZmi273ytz",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AkgwRQIhANuGuZTHqS/wZy4AFlDDS2It7ZfygVnak1BnB1vqZ/diAiAHPt2vUOnLJu42CE5CDrrWeNsQqKmUdZrkWAUfxpOjkAEhAuJio+kbGB2WBUC2+5Y/QrC8W0RLIhZV3BOWw84Jn7bn",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#1 msg#3",
+      "kind": "p2sh-p2wpkh",
+      "address": "3MN3hXoLfKHW9VnLG6vrYA5kyZmi273ytz",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AkgwRQIhAIh3YqCeagfIQ0ksw+7qrO189o4S2+OAaFDkMVykVtCGAiBq4bf76c05l5XEfF5DJRCwQMwiqtqqug9KJ0m+SNHbxwEhAuJio+kbGB2WBUC2+5Y/QrC8W0RLIhZV3BOWw84Jn7bn",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#1 msg#4",
+      "kind": "p2sh-p2wpkh",
+      "address": "3MN3hXoLfKHW9VnLG6vrYA5kyZmi273ytz",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AkcwRAIgXrUTKp/x7agm0coU6UaCK60q1hw/K5RViC3JK+b4cMoCIA+UA7STHdYX/ZV6bsXUMDMW+j2Z2CRYzp3rGQnJanWPASEC4mKj6RsYHZYFQLb7lj9CsLxbREsiFlXcE5bDzgmftuc=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#2 msg#0",
+      "kind": "p2sh-p2wpkh",
+      "address": "35VDANcZ4d4FR5EjscY7PhZ65cCd3GMKcW",
+      "message": "",
+      "signature": "AkcwRAIgV9gM8CN7Ptwvxjo+bxM2+HNWqdHT6todQ+QYDKbaLVECIEhAd1oD/UtZZZd+zOuJqTpTnePmmWrcPPiVuI0HuTfyASECDBGU1QVgsRdnJwYe7sido+v2z2LhHCZVhoQVlAWeX64=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#2 msg#1",
+      "kind": "p2sh-p2wpkh",
+      "address": "35VDANcZ4d4FR5EjscY7PhZ65cCd3GMKcW",
+      "message": "Hello World",
+      "signature": "AkcwRAIgfPX2WvEhCVLIzh6W5Q7uLnZlFT9Nl0lof2ULv86OZrsCIFOZGdOcuvx48ScmhtbQfd3S0jCSisu6de6WYUHrVovmASECDBGU1QVgsRdnJwYe7sido+v2z2LhHCZVhoQVlAWeX64=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#2 msg#2",
+      "kind": "p2sh-p2wpkh",
+      "address": "35VDANcZ4d4FR5EjscY7PhZ65cCd3GMKcW",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AkgwRQIhAO/NCgm7yo3MFwiMrA9U4LYwAXJca/rznlFOERQhf224AiA9SlhEHLMFsGdJ/ZutW3GqyJ76lU4AWFgObsxjKV7WcQEhAgwRlNUFYLEXZycGHu7InaPr9s9i4RwmVYaEFZQFnl+u",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#2 msg#3",
+      "kind": "p2sh-p2wpkh",
+      "address": "35VDANcZ4d4FR5EjscY7PhZ65cCd3GMKcW",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AkcwRAIgRtqY+U8wArFizz7kaEwPlwxhAF1uiqvSJLQwEFKIIGwCIEjlN13bbKYVkmumVkgtkMlDvUAZrP+S7DzvewgOSAQUASECDBGU1QVgsRdnJwYe7sido+v2z2LhHCZVhoQVlAWeX64=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#2 msg#4",
+      "kind": "p2sh-p2wpkh",
+      "address": "35VDANcZ4d4FR5EjscY7PhZ65cCd3GMKcW",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AkgwRQIhAPEQUERc2inQhWmn5Xvi94oaRk5l+PvHGrbNnj2faO4nAiBGLkhmrCshFzLVFAS7FimRFFpE9J5E6bMMdkJe2yzZ/gEhAgwRlNUFYLEXZycGHu7InaPr9s9i4RwmVYaEFZQFnl+u",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#3 msg#0",
+      "kind": "p2sh-p2wpkh",
+      "address": "3Gd1MFzEkSuW8yov4jjpFFZNmNtj6nKUVt",
+      "message": "",
+      "signature": "AkgwRQIhAOMxgxV/K+P22xmsT+Xm4iOnPqIJcPqX2Snz2hTGsn5TAiAQRd8AU3V7QHMDD4X+uMRS2s8Elq34SR86+1ZunEWxTAEhAiDpg6/WrS2kbfvgekJCplVPKDiWc3OVUQvGFOXUQhMs",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#3 msg#1",
+      "kind": "p2sh-p2wpkh",
+      "address": "3Gd1MFzEkSuW8yov4jjpFFZNmNtj6nKUVt",
+      "message": "Hello World",
+      "signature": "AkgwRQIhANR7TrLiI6XmxcS94yjIoT6nPlv6gWF0DqOM53a8Dx+kAiAyFJ62aAN6riVzh8oRHf14oiTBvIEAu7e9cYskEX41lQEhAiDpg6/WrS2kbfvgekJCplVPKDiWc3OVUQvGFOXUQhMs",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#3 msg#2",
+      "kind": "p2sh-p2wpkh",
+      "address": "3Gd1MFzEkSuW8yov4jjpFFZNmNtj6nKUVt",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AkcwRAIgQa2KHXkJ3/WHP9rSO0vjGEhFuqTrU/ll38V+9WQ2iXsCIFPRZmVKJX4lsVWutqg9Z/18yLGWMuna6X8uUHh5kJyWASECIOmDr9atLaRt++B6QkKmVU8oOJZzc5VRC8YU5dRCEyw=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#3 msg#3",
+      "kind": "p2sh-p2wpkh",
+      "address": "3Gd1MFzEkSuW8yov4jjpFFZNmNtj6nKUVt",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AkgwRQIhANZAO+o8fff/GPgdw1QELBu4b1SZXJcw/DKx3Q6c0XoWAiB+dQgsLHiOmS1SdsDvyHT/nsOIMVofBkASHUNJ9G881AEhAiDpg6/WrS2kbfvgekJCplVPKDiWc3OVUQvGFOXUQhMs",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#3 msg#4",
+      "kind": "p2sh-p2wpkh",
+      "address": "3Gd1MFzEkSuW8yov4jjpFFZNmNtj6nKUVt",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AkcwRAIgb3tW+Fzkn2xV/UZ3AzzmzxAarjFJGxsJGgbIunimCeQCIFtJ7DVwdKFefW04eHaev/hooUo8SFSHYfExVOxMnHJLASECIOmDr9atLaRt++B6QkKmVU8oOJZzc5VRC8YU5dRCEyw=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#4 msg#0",
+      "kind": "p2sh-p2wpkh",
+      "address": "3HNMeT3Q9eW1qzvK9vnStTSdeEpGQkjnnZ",
+      "message": "",
+      "signature": "AkcwRAIgOlPlvCLeiE2w1ID6awr2bG/kmJTTN4AG6WOBokI8gNwCIC4gd6XR0HrDUC33iOL3fpi+ewK56x5eJ3GrnccfBcezASECvKEZHC0IJRUZnA50g6Uo6qUhvD3mpjo2j7JrV7vNjtw=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#4 msg#1",
+      "kind": "p2sh-p2wpkh",
+      "address": "3HNMeT3Q9eW1qzvK9vnStTSdeEpGQkjnnZ",
+      "message": "Hello World",
+      "signature": "AkgwRQIhAP0nBfSbALaa9mFfubDb6b+dvDrR0qd65MPvxnXg60NDAiA7cd/dwp1o0z0kr2Z2M9jaslm1E3GqomOidM9LGkY+uQEhAryhGRwtCCUVGZwOdIOlKOqlIbw95qY6No+ya1e7zY7c",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#4 msg#2",
+      "kind": "p2sh-p2wpkh",
+      "address": "3HNMeT3Q9eW1qzvK9vnStTSdeEpGQkjnnZ",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AkcwRAIgLxq09F4X77R78VzjJk57RiXMihbANamka431FVgbwNcCIHWljCBRChrMQGKiL/509MN7k3LHk4a4yNsXOjnDw9t0ASECvKEZHC0IJRUZnA50g6Uo6qUhvD3mpjo2j7JrV7vNjtw=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#4 msg#3",
+      "kind": "p2sh-p2wpkh",
+      "address": "3HNMeT3Q9eW1qzvK9vnStTSdeEpGQkjnnZ",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AkcwRAIgQwA1chKo0PO3zDxmBO+2ZP/iqAFDRtILvlyiCcqpsz0CIF1LKfWNhdvOoOTi/eU2RqQ8kFHRIXhaRX7hLS8DsBsyASECvKEZHC0IJRUZnA50g6Uo6qUhvD3mpjo2j7JrV7vNjtw=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: valid signature key#4 msg#4",
+      "kind": "p2sh-p2wpkh",
+      "address": "3HNMeT3Q9eW1qzvK9vnStTSdeEpGQkjnnZ",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AkcwRAIgcpVQIvw15IeiBz20KLIkGj3pel19AwYD3RN0em7OuO8CIBCAsYHfDpebOOy/VctdOqUa1Ow6jdnjcnoUiwTcDmjSASECvKEZHC0IJRUZnA50g6Uo6qUhvD3mpjo2j7JrV7vNjtw=",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#0 msg#0",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "",
+      "signature": "AkgwRQIhAPE2OZMr/DwUHN4zaRgHumtbGR0eYebRPw307mrQyZQXAiBUXJx+h9NYCW970cNVfCsQx0/dykHprQbTX7mto0Q0AAEhAhJmJSU0uMv9c9jqcuFmUClnXZOWWyNhS9GqudZ2k5p6",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#0 msg#1",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Hello World",
+      "signature": "AkcwRAIgVjelHd0Sjesnffl8BCn8NIWuHpvKvUTHetw87nwKNZkCIASFQD5fsOMY7Fu8qVjmDh7YcIFZn/EooHhC0axE3mvkASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#0 msg#2",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AkgwRQIhAJh6Jn6IiWMe7CYrc+Iml9iUACGsOwF6F7UodC49xbvtAiBbp8kSKoh+OBJmgmPDiX6bQZI6sLvxtX3/sOEk4E1zwwEhAhJmJSU0uMv9c9jqcuFmUClnXZOWWyNhS9GqudZ2k5p6",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#0 msg#3",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AkcwRAIgJwrCBjZWyUq5kdaOKG8HvBNUkp/72OMy7qUa2Q48T+0CIC2ciJjSDfAOFADSx3PEKxygsHG7qz7KRmqi76+WT2faASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#0 msg#4",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AkcwRAIgYurCnKTbV2fi/Ivp8w7MJ1bGy+sd4YmPPHgQ3COrmdwCIFS8x5xGjyeCtqsuTSIiafUKswPzzvVgeLLt+Kvwr3TsASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#1 msg#0",
+      "kind": "p2wpkh",
+      "address": "bc1q2dwspzce9fpdly4ce6krxkencdg3zteevnc3un",
+      "message": "",
+      "signature": "AkgwRQIhAOWwIUzmqjqm2hKpGxIyCR+IluxSp3yfMvi3U8V90pm9AiB9aeT8QsSRDJ0+P97cHqo5E7WrHoqkHp04PRa8xLSMWwEhAiFbiFo3mX+RfOjWoc6Z4Pgnpb51ybgBj3osIyBOLeZh",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#1 msg#1",
+      "kind": "p2wpkh",
+      "address": "bc1q2dwspzce9fpdly4ce6krxkencdg3zteevnc3un",
+      "message": "Hello World",
+      "signature": "AkgwRQIhAIxUMxi5nG06zFdBgbz7eJhRVEsHIHOVAmkol1SXY6CTAiARJFGZgqZEKTibATqkR5OqFcfi4e50bNi+tjWFtMgUJwEhAiFbiFo3mX+RfOjWoc6Z4Pgnpb51ybgBj3osIyBOLeZh",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#1 msg#2",
+      "kind": "p2wpkh",
+      "address": "bc1q2dwspzce9fpdly4ce6krxkencdg3zteevnc3un",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AkgwRQIhAOFRQlpShzFu++fwuJQyZfBtJTs/UI4T9m5I5bLf73oRAiBEhSZGeLSvtX1OOmCfqnvmC18kgvd8AyiZ6AHN9+OIBQEhAiFbiFo3mX+RfOjWoc6Z4Pgnpb51ybgBj3osIyBOLeZh",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#1 msg#3",
+      "kind": "p2wpkh",
+      "address": "bc1q2dwspzce9fpdly4ce6krxkencdg3zteevnc3un",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AkgwRQIhANLXKi1IqVTHRozUlP+7Let+s1qPJ+uAgmx5+MMfNZmdAiATEoMxC6h+jgMCTKHwFGYUx+koY6We9L2gxfpzdji7LgEhAiFbiFo3mX+RfOjWoc6Z4Pgnpb51ybgBj3osIyBOLeZh",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#1 msg#4",
+      "kind": "p2wpkh",
+      "address": "bc1q2dwspzce9fpdly4ce6krxkencdg3zteevnc3un",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AkgwRQIhAPn0nP3NI2oSFy3gwiV/Mau6j0EaPR/gPtPZ4xlJ99gOAiAq8Zt+QQAcxxf7tZo6nnUwHa3qgwxvBvb1WbelJgHShAEhAiFbiFo3mX+RfOjWoc6Z4Pgnpb51ybgBj3osIyBOLeZh",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#2 msg#0",
+      "kind": "p2wpkh",
+      "address": "bc1quwc3mv6m9ze6x56ljvqg47n8e08h3urglwyzx5",
+      "message": "",
+      "signature": "AkcwRAIgWEA3ZyqqlyzPLqcKkWNNBOVPayfKEQ5Ozq2n4LoVEW0CIGl63yzEh8IvWY746pFkZQYEd4mXuiPFPO0Sv1nIE6ofASEDchXTTjtGmYyJY7pjAajs55A9aBiA3WcSp5ShselBgqo=",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#2 msg#1",
+      "kind": "p2wpkh",
+      "address": "bc1quwc3mv6m9ze6x56ljvqg47n8e08h3urglwyzx5",
+      "message": "Hello World",
+      "signature": "AkgwRQIhAPRAnBrIQm1ygMaPCm1y5C8cmlpF6YHcK+icvG96EFGqAiA5r3CGhK/xyrCW0MvSAveaDeUAJ7O3NAS91Uyc5tX2wAEhA3IV0047RpmMiWO6YwGo7OeQPWgYgN1nEqeUobHpQYKq",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#2 msg#2",
+      "kind": "p2wpkh",
+      "address": "bc1quwc3mv6m9ze6x56ljvqg47n8e08h3urglwyzx5",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AkcwRAIgJOWCTbYT0uB3Ru8oavZ56YAxLv+tC64YklT0K4Kbpc0CIFtfIRS5udFpXwdkMO8Iu3Pf6BAOaZ2d2W9XzxfitRTrASEDchXTTjtGmYyJY7pjAajs55A9aBiA3WcSp5ShselBgqo=",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#2 msg#3",
+      "kind": "p2wpkh",
+      "address": "bc1quwc3mv6m9ze6x56ljvqg47n8e08h3urglwyzx5",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AkcwRAIgB/QAsmqIfDt3H769xRzWERLQ5BNRTIu4Naa/xfXGGCUCIDrCLTkJEjKYNaNqelgeG0m7eXk3QF3PI3IkSrOCRds9ASEDchXTTjtGmYyJY7pjAajs55A9aBiA3WcSp5ShselBgqo=",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#2 msg#4",
+      "kind": "p2wpkh",
+      "address": "bc1quwc3mv6m9ze6x56ljvqg47n8e08h3urglwyzx5",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AkgwRQIhANW5IisDkoyN4kGkHaAPfBGvGZOLLjWS1AbDxTF55H7JAiA1n6K6sOA6r8LKbxtrnH2a1ZyLHMWjLGwznzUGrDUmowEhA3IV0047RpmMiWO6YwGo7OeQPWgYgN1nEqeUobHpQYKq",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#3 msg#0",
+      "kind": "p2wpkh",
+      "address": "bc1q3nf56la2g5j4kpejfmspwv6cqz3g03xvrawj7g",
+      "message": "",
+      "signature": "AkgwRQIhAPNpvUQ2VUfuX7k6MpouxKtoasE3SBJUg7huPKPWG+b6AiBJjBp/e4PQSc/PU7eitn/MZ6CyI2z5TvAa9lG/8TePTgEhAm15pZXZzA+zNx1dY7XQor3BGKhym7b9HcotQACNlsqm",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#3 msg#1",
+      "kind": "p2wpkh",
+      "address": "bc1q3nf56la2g5j4kpejfmspwv6cqz3g03xvrawj7g",
+      "message": "Hello World",
+      "signature": "AkgwRQIhAMTo3uSnhBrj6auNfY3RZskS+JY1eWd1WnJeg4gjancQAiADYGIMkEgYsWG3Z3NUqcFrD0MB7PhT0vsVjQrafQFefgEhAm15pZXZzA+zNx1dY7XQor3BGKhym7b9HcotQACNlsqm",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#3 msg#2",
+      "kind": "p2wpkh",
+      "address": "bc1q3nf56la2g5j4kpejfmspwv6cqz3g03xvrawj7g",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AkcwRAIge10mJLMlkXVPvHZZ/Q3tWfbelJZAzN7oZ2r8+K4/58cCIFuAWMfKI4H5pvARkptOoAUEpVZ1NvEbPHwMkyT3MjtoASECbXmlldnMD7M3HV1jtdCivcEYqHKbtv0dyi1AAI2WyqY=",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#3 msg#3",
+      "kind": "p2wpkh",
+      "address": "bc1q3nf56la2g5j4kpejfmspwv6cqz3g03xvrawj7g",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AkcwRAIgTSCP2gt6mAn33lOgdgQIk9RsNiNf+Y/4YcnWi4oWSVYCIBbtcGaXzU+XT3qm3WxQEsQHENxVBZL/0Rdt/QL20hjyASECbXmlldnMD7M3HV1jtdCivcEYqHKbtv0dyi1AAI2WyqY=",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#3 msg#4",
+      "kind": "p2wpkh",
+      "address": "bc1q3nf56la2g5j4kpejfmspwv6cqz3g03xvrawj7g",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AkcwRAIgeH17KurTSuk8IbKBjhBRevOrpXXdfxmPDtzKdOwD9F0CIEKORb+QvTa026WTnnJI3uAkkB8UzJTXxlK6HZ8SkOBGASECbXmlldnMD7M3HV1jtdCivcEYqHKbtv0dyi1AAI2WyqY=",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#4 msg#0",
+      "kind": "p2wpkh",
+      "address": "bc1q4jsam8qkf0kw4vw0nnp3ujh8nndz4ljv6g54lu",
+      "message": "",
+      "signature": "AkgwRQIhAJSH9O5zx1YYbffoaZ4ggOeq2ca1HQARPwEaH1wvcD/SAiBJcdHbaAKPkW/o8jjglx7fPA/uVjuE/dkqGvAn7cGxWQEhA0g4IqvrlEYVnM/krS0VMVlXZbb1NjmXXZis9InBbwVq",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#4 msg#1",
+      "kind": "p2wpkh",
+      "address": "bc1q4jsam8qkf0kw4vw0nnp3ujh8nndz4ljv6g54lu",
+      "message": "Hello World",
+      "signature": "AkgwRQIhANUOGCN52ag0f/7ZLS8cgxCxwlaAMOnMkiNtCqWtYlyhAiBKJ/nCCUhd7YkDXr5CRaBnWeFY44OMXLFgqyE6UBWlSAEhA0g4IqvrlEYVnM/krS0VMVlXZbb1NjmXXZis9InBbwVq",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#4 msg#2",
+      "kind": "p2wpkh",
+      "address": "bc1q4jsam8qkf0kw4vw0nnp3ujh8nndz4ljv6g54lu",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AkgwRQIhALVfX9i2fFfDbucwUg5UVYHJRwGB3g32K0Ptj6+QeKz0AiBkzi9MObwJ8WC7Gxj4BKwU62Ykbh47VFjAL034sTv3WgEhA0g4IqvrlEYVnM/krS0VMVlXZbb1NjmXXZis9InBbwVq",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#4 msg#3",
+      "kind": "p2wpkh",
+      "address": "bc1q4jsam8qkf0kw4vw0nnp3ujh8nndz4ljv6g54lu",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AkgwRQIhAOd8PryRsjZfldAINDE6j95vSKo7WFfvJwmY8cdqSskmAiA7IFvEVkb1u78Lq5oDRbL7zqLALoz0yW/S9ltDb56KvgEhA0g4IqvrlEYVnM/krS0VMVlXZbb1NjmXXZis9InBbwVq",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: valid signature key#4 msg#4",
+      "kind": "p2wpkh",
+      "address": "bc1q4jsam8qkf0kw4vw0nnp3ujh8nndz4ljv6g54lu",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AkcwRAIgYY+KaEhCCSdCxGcyOLUSm7BrLIPg3s0mgH3AD/WZmmACIElsrUaivDUJ5GuXbXWaJyh9Idkx5+FdR4JouHXZO+LZASEDSDgiq+uURhWcz+StLRUxWVdltvU2OZddmKz0icFvBWo=",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#0 msg#0",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "",
+      "signature": "AUDi4qFNR8llqpqKZZ7js0j2I3tjF81KCYuXVZvP2i0/ceWVf0Pect52VjE0ua5Uaarmx7US6y2sUxBXYV1hKj6h",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#0 msg#1",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Hello World",
+      "signature": "AUBIeKft9K4Q89IYJJzsIeNzwkUiXLD0HBraf9Ij9Om3hOQxNY6o9EY81H0Ae3FZ8trsmMdEH1uBZ1mgICIWv6C2",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#0 msg#2",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AUD9nksx7MP47n7ClZiBR3Q751LBxm4Yn6TFrUCvpLc1X7xPPpG1iqRPYetonfVoqXeCkzPBvfnBKnaheFayqMLP",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#0 msg#3",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AUC1Vgqk6iARobEvR2gqlzYnGqAvjL7ovPtfKYslc4daoM1TCApMrcLachn9eDgpQM/FmQfIYWv7Yr95f+LPz9U+",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#0 msg#4",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AUBnIdPR+wK8HQj0d5RcKx5COvkTdMIojokAMxqJyrHO5BYgNs/K0Ziaty6lw8Y33y49tKabZ3o/VYUzloQXMLbP",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#1 msg#0",
+      "kind": "p2tr",
+      "address": "bc1p5syv7aj623eaqgfxqjcpuspma3mtgheqyg2p2ceghd2cljxe4psskx6aq2",
+      "message": "",
+      "signature": "AUAe7vmvrxSP9i/xdtpHET2kcsTp9qrh428quLxPUbAFj4Aa6BjbsZBxPOMFPYsBTyQwmvf4B3YvAWUquJOOxevU",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#1 msg#1",
+      "kind": "p2tr",
+      "address": "bc1p5syv7aj623eaqgfxqjcpuspma3mtgheqyg2p2ceghd2cljxe4psskx6aq2",
+      "message": "Hello World",
+      "signature": "AUB+us815dURNZKdHSOaWrrxsGBArpGg6JSZtKltBZ4skHbMHY9jaUxZ1E6T1dXtembO44VZVWfaACpmUckWDTSS",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#1 msg#2",
+      "kind": "p2tr",
+      "address": "bc1p5syv7aj623eaqgfxqjcpuspma3mtgheqyg2p2ceghd2cljxe4psskx6aq2",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AUBLKO8Y7pr1HztU7uTgvtMMQS3luwLOiKOsxwRVhMDjA+P/L/6CsegkJ4qVxW+K6OMn14PyH8wGothxNqWOcBez",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#1 msg#3",
+      "kind": "p2tr",
+      "address": "bc1p5syv7aj623eaqgfxqjcpuspma3mtgheqyg2p2ceghd2cljxe4psskx6aq2",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AUATgbwVXWswSUyXUs3aieFCKJtq4HII1HVI7BX7ZJU4JWDwhBdhA0ggDY/Zny8aqdZcrBFKcbIuiqVPe9XvYZ+v",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#1 msg#4",
+      "kind": "p2tr",
+      "address": "bc1p5syv7aj623eaqgfxqjcpuspma3mtgheqyg2p2ceghd2cljxe4psskx6aq2",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AUBhtB83ctjNP8r1zpYbb2amIdCmOe2HzBJpJ+cPq2ElAYq4PuF6WeELzeSRrB5NplFo2XqoqNWDMdgB77zMxyg5",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#2 msg#0",
+      "kind": "p2tr",
+      "address": "bc1p5gu8x2syl0e2jjfnv34rvxtagws8xtfsqjyz4xy2jrnq7846w9pqj0ysw2",
+      "message": "",
+      "signature": "AUCYzhi8x1tH4mWtChNtx4hn34UiJ/7OPP7uU5BV9rEB8hwO61ftN/7Q0ahOpj/oIsAisRr6dZtPJ7+bhU8ldCvC",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#2 msg#1",
+      "kind": "p2tr",
+      "address": "bc1p5gu8x2syl0e2jjfnv34rvxtagws8xtfsqjyz4xy2jrnq7846w9pqj0ysw2",
+      "message": "Hello World",
+      "signature": "AUCH7Ng73a/MA5ZgL6kcH3rzicpGECw7bIciHrWPjSnJyu8x+PYddE73EUz/gUoM8nvI/DOtouvu/16Y141NaRiw",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#2 msg#2",
+      "kind": "p2tr",
+      "address": "bc1p5gu8x2syl0e2jjfnv34rvxtagws8xtfsqjyz4xy2jrnq7846w9pqj0ysw2",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AUC663DiRXHIGOC2zSNRKJ2JXxZsa5b982Ok/v2X2XEMR1exLpu1r8KaI6wztHnRQlzFrAOw6rjw6VLyJ8imTPZj",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#2 msg#3",
+      "kind": "p2tr",
+      "address": "bc1p5gu8x2syl0e2jjfnv34rvxtagws8xtfsqjyz4xy2jrnq7846w9pqj0ysw2",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AUBsVYQNB7sN2ejKhOSHC4KhXB2/yiHokvMKvxQ24jYSmO1jfhC/Z6cCzOJtBFL5Nsq8ZmS//26xBQcjJCAQpgbL",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#2 msg#4",
+      "kind": "p2tr",
+      "address": "bc1p5gu8x2syl0e2jjfnv34rvxtagws8xtfsqjyz4xy2jrnq7846w9pqj0ysw2",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AUDYCs/q70Qytt9hCtIcbP0TFOpe+u6mSSXwMVv7iOnSU2WOgrGyE/lcFyWz3syyuWHctMbDPF1r50RBhCRIWifc",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#3 msg#0",
+      "kind": "p2tr",
+      "address": "bc1phmjsmc9eknlrndpups26t89pfsp9k9ut6gksg4fz08te3z8wjpfqfepr7k",
+      "message": "",
+      "signature": "AUBXlKR68KvSGED5lDJXUv/iSPN3WAWmPO46uvlOxKREvPBfyEpZHLuZYMjINrGWUL1vMDQ2hfMVK6Rhk1QqLn/8",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#3 msg#1",
+      "kind": "p2tr",
+      "address": "bc1phmjsmc9eknlrndpups26t89pfsp9k9ut6gksg4fz08te3z8wjpfqfepr7k",
+      "message": "Hello World",
+      "signature": "AUAnkcgP4D5ISQ7ObgsAROPsYoALy8PJwWvYCmrYD9yJPiCkMu6zLnK2pOJEX01IiKSRM8ALNwn8ZbydSOiCXgAF",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#3 msg#2",
+      "kind": "p2tr",
+      "address": "bc1phmjsmc9eknlrndpups26t89pfsp9k9ut6gksg4fz08te3z8wjpfqfepr7k",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AUBFoSGa/4/UZ72miWHXnNoZ26pdY9oa16+liDdeYdsrhqvvjsi+f4KxSKWhpN9zrAXH5gYsVQGpPnWw9mQW8Eu7",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#3 msg#3",
+      "kind": "p2tr",
+      "address": "bc1phmjsmc9eknlrndpups26t89pfsp9k9ut6gksg4fz08te3z8wjpfqfepr7k",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AUBL3x+wVM4V3vBaJiIyuSQTPgEs2aiCUB1PYEp4tgIplTfU4kGXu4IFIhs5sQ09CbmaDkBaay2jRaKN9aNbBixh",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#3 msg#4",
+      "kind": "p2tr",
+      "address": "bc1phmjsmc9eknlrndpups26t89pfsp9k9ut6gksg4fz08te3z8wjpfqfepr7k",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AUC7ft8ne/gH2KUyWmzhO83yUxJi/HTAbeeRvztAIp8MOhJvBa5K2nwKT5WBoliNvF9HG4Dp4WCUYVrQoS3lDV5a",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#4 msg#0",
+      "kind": "p2tr",
+      "address": "bc1pqw5resz7mwv9p47zz0gh2xsgau6k6ejrw0t7q23pr6u50mxz89dqva7jj7",
+      "message": "",
+      "signature": "AUB1qkgn4YUqx/CgOCtRqSMPPhP/u5Q9y4xu9x7xATdwLQaGxL2DqWJAVJ3QiF0FJpic1s1OtaV7gdex4taBlSit",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#4 msg#1",
+      "kind": "p2tr",
+      "address": "bc1pqw5resz7mwv9p47zz0gh2xsgau6k6ejrw0t7q23pr6u50mxz89dqva7jj7",
+      "message": "Hello World",
+      "signature": "AUB584iMYrf4M9GAW+8+/ppBs0rlx0w3qQxR2vVvj8lEWFaM+mZftgmowJfkWkqaJ0JXe7vZD17MU0WwWqV+05hy",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#4 msg#2",
+      "kind": "p2tr",
+      "address": "bc1pqw5resz7mwv9p47zz0gh2xsgau6k6ejrw0t7q23pr6u50mxz89dqva7jj7",
+      "message": "Block Genomics verification: 0000000aababababababababababababababababababababababababababababab",
+      "signature": "AUDQVLYwTYyitrJSmXCBxeDiOfJ+9nYL0FIh/x8ie9F8yefqxBKns6qGwSZS1Nzv7CIvUoUrbZc8B57Ba1u7pUge",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#4 msg#3",
+      "kind": "p2tr",
+      "address": "bc1pqw5resz7mwv9p47zz0gh2xsgau6k6ejrw0t7q23pr6u50mxz89dqva7jj7",
+      "message": "unicode: ⛓️🐸 — em-dash, emoji, accents éü",
+      "signature": "AUABSwBEwTYBM2eFsTbR5Z2gw9piNi8jhjGA7Uzlsy9YUHB8FTMFmmUP/W8+5q6y7by+++gKUDe92UCI7F3u1Wvd",
+      "expected": true
+    },
+    {
+      "name": "p2tr: valid signature key#4 msg#4",
+      "kind": "p2tr",
+      "address": "bc1pqw5resz7mwv9p47zz0gh2xsgau6k6ejrw0t7q23pr6u50mxz89dqva7jj7",
+      "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "signature": "AUB0k18s5fzyY+Hez/7JbjAvQFSoRBwLGo8YZQzzvf312GsBKeaISCdCxvFveSCFrn5zsQfxHBnqYpPTBXPr9gB5",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: high-S (malleated) signature",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "high-s malleability check",
+      "signature": "AkgwRQIgYEtI4PIITuL2N5fByes6IiknY2Oq+gfRvTs+78/Ir7ECIQDGFWhTKYIGAdeqfFLTy/+zCCGDwZzc0LHXw385SjICYAEhAhJmJSU0uMv9c9jqcuFmUClnXZOWWyNhS9GqudZ2k5p6",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh: signed by bip322-js reference signer (\"\")",
+      "kind": "p2wpkh",
+      "address": "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l",
+      "message": "",
+      "signature": "AkgwRQIhAPkJ1Q4oYS0htvyuSFHLxRQpFAY56b70UvE7Dxazen0ZAiAtZfFz1S6T6I23MWI2lK/pcNTWncuyL8UL+oMdydVgzAEhAsfxIAMZZEKUPYWI4BruhAQjzFT8FSFSajuFwrDL1Yhy",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: signed by bip322-js reference signer (\"Hello World\")",
+      "kind": "p2wpkh",
+      "address": "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l",
+      "message": "Hello World",
+      "signature": "AkgwRQIhAOzyynlqt93lOKJr+wmmxIens//zPzl9tqIOua93wO6MAiBi5n5EyAcPScOjf1lAqIUIQtr3zKNeavYabHyR8eGhowEhAsfxIAMZZEKUPYWI4BruhAQjzFT8FSFSajuFwrDL1Yhy",
+      "expected": true
+    },
+    {
+      "name": "p2wpkh: signed by bip322-js reference signer (\"nested challenge 42\")",
+      "kind": "p2wpkh",
+      "address": "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l",
+      "message": "nested challenge 42",
+      "signature": "AkcwRAIgQFXAC05FnVgvuyUhDxBlPqcPQDR1XfXa6abmnhh1jEMCIEzGZthK3mNRUCWq/ZXAp4xB2weqOYED7+eX8NOfkA+9ASECx/EgAxlkQpQ9hYjgGu6EBCPMVPwVIVJqO4XCsMvViHI=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: signed by bip322-js reference signer (\"\")",
+      "kind": "p2sh-p2wpkh",
+      "address": "37qyp7jQAzqb2rCBpMvVtLDuuzKAUCVnJb",
+      "message": "",
+      "signature": "AkgwRQIhAJFXl+/g7w+UDxvGex2KulmFJshHi02gQZXGRpZ+9bapAiB5Q/ikazTS7FMewqVFil3RLkEErUZ25k6f/xYThoQXogEhAsfxIAMZZEKUPYWI4BruhAQjzFT8FSFSajuFwrDL1Yhy",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: signed by bip322-js reference signer (\"Hello World\")",
+      "kind": "p2sh-p2wpkh",
+      "address": "37qyp7jQAzqb2rCBpMvVtLDuuzKAUCVnJb",
+      "message": "Hello World",
+      "signature": "AkcwRAIgRfq2Gfv9guFcXAf2vQEJSHX8FP5OuiHs1DSK1I0wk/0CIGPzqm6QNPTDJuki148OQ2DbJtXyrr71s4xYPwogQUupASECx/EgAxlkQpQ9hYjgGu6EBCPMVPwVIVJqO4XCsMvViHI=",
+      "expected": true
+    },
+    {
+      "name": "p2sh-p2wpkh: signed by bip322-js reference signer (\"nested challenge 42\")",
+      "kind": "p2sh-p2wpkh",
+      "address": "37qyp7jQAzqb2rCBpMvVtLDuuzKAUCVnJb",
+      "message": "nested challenge 42",
+      "signature": "AkcwRAIgWkZoDsqalWX9pwzH9C6VZoV/nCnlRAbIsrTMVTjd02YCIAEJ1UGVHVMsm8NGMQNU7UWQbvKr+jKTZRH8SrDsgvL+ASECx/EgAxlkQpQ9hYjgGu6EBCPMVPwVIVJqO4XCsMvViHI=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: signed by bip322-js reference signer (\"\")",
+      "kind": "p2pkh",
+      "address": "14vV3aCHBeStb5bkenkNHbe2YAFinYdXgc",
+      "message": "",
+      "signature": "H0Gm/ylcjvGmj29D/r6ASHKKWAyGA/MEU/Eh+IhFw3ZxFxy9b/dJ8/XFsiutCV8DWlFGnO95m/KoZwFPJTF1qaM=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: signed by bip322-js reference signer (\"Hello World\")",
+      "kind": "p2pkh",
+      "address": "14vV3aCHBeStb5bkenkNHbe2YAFinYdXgc",
+      "message": "Hello World",
+      "signature": "IOW2xi+ebJLeBtr674l4QH76dqDoVjLV80R9EFKFQX5rBrlCXPIZaYs8Yuayg0ZqjyiCbLy9pzZIS7JWT65/nsU=",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: signed by bip322-js reference signer (\"nested challenge 42\")",
+      "kind": "p2pkh",
+      "address": "14vV3aCHBeStb5bkenkNHbe2YAFinYdXgc",
+      "message": "nested challenge 42",
+      "signature": "IFav/uXNtGQEySuCQi5DACmig53+ATNHQhWnOJrOmA8TaeVledJJrjk6B9AurEXtqi3MLhscWSMxdvg5VMsgyS8=",
+      "expected": true
+    },
+    {
+      "name": "p2tr: signed by bip322-js reference signer (\"\")",
+      "kind": "p2tr",
+      "address": "bc1ppv609nr0vr25u07u95waq5lucwfm6tde4nydujnu8npg4q75mr5sxq8lt3",
+      "message": "",
+      "signature": "AUF7DHFjyqyAGM+DonVhyRZmKWSCmsO4CEu/Y0dh1uQcomW/jDvKmmVnMe4CrZEov7M/APtUS2zkzw4JbKBc7C0hAQ==",
+      "expected": true
+    },
+    {
+      "name": "p2tr: signed by bip322-js reference signer (\"Hello World\")",
+      "kind": "p2tr",
+      "address": "bc1ppv609nr0vr25u07u95waq5lucwfm6tde4nydujnu8npg4q75mr5sxq8lt3",
+      "message": "Hello World",
+      "signature": "AUFlXXTquZMDfWlMYMWzeuq1qc9b830Ok+jGdj3bhT6mov1AvMB/8VqykaP3DBv2NEDTrqVrolEcIiJRjDAzX//vAQ==",
+      "expected": true
+    },
+    {
+      "name": "p2tr: signed by bip322-js reference signer (\"nested challenge 42\")",
+      "kind": "p2tr",
+      "address": "bc1ppv609nr0vr25u07u95waq5lucwfm6tde4nydujnu8npg4q75mr5sxq8lt3",
+      "message": "nested challenge 42",
+      "signature": "AUETEw3WDghHKQhfD07+JBN0VL7hreuzeQvyZkScQac2Ws8K5v+pxB3j+9gUQVppTSTivtcd/muuXy/nfIkBoXMPAQ==",
+      "expected": true
+    },
+    {
+      "name": "p2pkh: tampered message",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Block Genomics verification: deadbeef ",
+      "signature": "IJHDalT0VAD9m1XX0Ei/RIErirKX++Zr5Il2pmg/wqJ+fuFoq0WltL6IWQMOsZOYgmikNovoor3jBpefFuinI10=",
+      "expected": false
+    },
+    {
+      "name": "p2pkh: wrong address (same type)",
+      "kind": "p2pkh",
+      "address": "1EWVEf6fTYCJWAuYwYXBGRQcQpenYm7LVo",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "IJHDalT0VAD9m1XX0Ei/RIErirKX++Zr5Il2pmg/wqJ+fuFoq0WltL6IWQMOsZOYgmikNovoor3jBpefFuinI10=",
+      "expected": false
+    },
+    {
+      "name": "p2pkh: attacker's own valid signature replayed onto victim address",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "H+ncVATz5kIxT7TITT/VbAW8rRADYQvsXaa6Z4gCsPCNFHrpVjt7eGkFNdHOZW0YzgmUaM5rFrimEgbWX9jqnCM=",
+      "expected": false
+    },
+    {
+      "name": "p2pkh: empty signature",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "",
+      "expected": false
+    },
+    {
+      "name": "p2pkh: truncated signature",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "IJHDalT0VAD9m1XX0Ei/RIErirKX++Zr5Il2pmg/wqJ+",
+      "expected": false
+    },
+    {
+      "name": "p2pkh: random 65-byte (BIP-137 shape)",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f38=",
+      "expected": false
+    },
+    {
+      "name": "p2pkh: all-zero 65-byte",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "expected": false
+    },
+    {
+      "name": "p2pkh: not base64 at all",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "not-a-signature!!",
+      "expected": false
+    },
+    {
+      "name": "p2pkh: single-bit-flipped signature",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "IJHDalT0VAD9m1XX0Ei/RIErirKX++Zr5Il2pmg/wqJ/fuFoq0WltL6IWQMOsZOYgmikNovoor3jBpefFuinI10=",
+      "expected": false
+    },
+    {
+      "name": "p2pkh signature presented for p2sh-p2wpkh address",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "IJHDalT0VAD9m1XX0Ei/RIErirKX++Zr5Il2pmg/wqJ+fuFoq0WltL6IWQMOsZOYgmikNovoor3jBpefFuinI10=",
+      "expected": false
+    },
+    {
+      "name": "p2pkh signature presented for p2wpkh address",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "IJHDalT0VAD9m1XX0Ei/RIErirKX++Zr5Il2pmg/wqJ+fuFoq0WltL6IWQMOsZOYgmikNovoor3jBpefFuinI10=",
+      "expected": false
+    },
+    {
+      "name": "p2pkh signature presented for p2tr address",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "IJHDalT0VAD9m1XX0Ei/RIErirKX++Zr5Il2pmg/wqJ+fuFoq0WltL6IWQMOsZOYgmikNovoor3jBpefFuinI10=",
+      "expected": false
+    },
+    {
+      "name": "p2sh-p2wpkh: tampered message",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Block Genomics verification: deadbeef ",
+      "signature": "AkcwRAIgcoWDXZXMpU9bOBEy0OiEt6CyO80JU9LEP889ZvDcI2sCIG/kCaofiZY8gbHIM/PZeVxK7cyJfDJYVZP2Wg3gZH+gASECGKwQNwsrqgqviUfmuMa37M6KJDZYFqf1keHIj1tVfPY=",
+      "expected": false
+    },
+    {
+      "name": "p2sh-p2wpkh: wrong address (same type)",
+      "kind": "p2sh-p2wpkh",
+      "address": "3MsTWtobbkXAHpHxKahXNEBRHZBJBTGTuM",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgcoWDXZXMpU9bOBEy0OiEt6CyO80JU9LEP889ZvDcI2sCIG/kCaofiZY8gbHIM/PZeVxK7cyJfDJYVZP2Wg3gZH+gASECGKwQNwsrqgqviUfmuMa37M6KJDZYFqf1keHIj1tVfPY=",
+      "expected": false
+    },
+    {
+      "name": "p2sh-p2wpkh: attacker's own valid signature replayed onto victim address",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkgwRQIhAKxsnhUwiHiqlT/l4COuP3SCo/sBtZ6zDMDUJPBM+xMzAiBE1eIakX55XvWWjwKNxiGwujKRklYMHZ+JJ+1CU6JEiwEhAoyChftJvAwdTwfCLKT7yiejzWZdikankYItrCU9SIXl",
+      "expected": false
+    },
+    {
+      "name": "p2sh-p2wpkh: empty signature",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "",
+      "expected": false
+    },
+    {
+      "name": "p2sh-p2wpkh: truncated signature",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgcoWDXZXMpU9bOBEy0OiEt6CyO80JU9LEP889ZvDcI2sCIG/kCaofiZY8gbHIM/PZ",
+      "expected": false
+    },
+    {
+      "name": "p2sh-p2wpkh: random 65-byte (BIP-137 shape)",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f38=",
+      "expected": false
+    },
+    {
+      "name": "p2sh-p2wpkh: all-zero 65-byte",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "expected": false
+    },
+    {
+      "name": "p2sh-p2wpkh: not base64 at all",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "not-a-signature!!",
+      "expected": false
+    },
+    {
+      "name": "p2sh-p2wpkh: single-bit-flipped signature",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgcoWDXZXMpU9bOBEy0OiEt6CyO80JU9LEP889ZvDcI2sCIG/kCaofiZY8gbHIM/PYeVxK7cyJfDJYVZP2Wg3gZH+gASECGKwQNwsrqgqviUfmuMa37M6KJDZYFqf1keHIj1tVfPY=",
+      "expected": false
+    },
+    {
+      "name": "p2sh-p2wpkh signature presented for p2pkh address",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgcoWDXZXMpU9bOBEy0OiEt6CyO80JU9LEP889ZvDcI2sCIG/kCaofiZY8gbHIM/PZeVxK7cyJfDJYVZP2Wg3gZH+gASECGKwQNwsrqgqviUfmuMa37M6KJDZYFqf1keHIj1tVfPY=",
+      "expected": false
+    },
+    {
+      "name": "p2sh-p2wpkh signature presented for p2wpkh address",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgcoWDXZXMpU9bOBEy0OiEt6CyO80JU9LEP889ZvDcI2sCIG/kCaofiZY8gbHIM/PZeVxK7cyJfDJYVZP2Wg3gZH+gASECGKwQNwsrqgqviUfmuMa37M6KJDZYFqf1keHIj1tVfPY=",
+      "expected": false
+    },
+    {
+      "name": "p2sh-p2wpkh signature presented for p2tr address",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgcoWDXZXMpU9bOBEy0OiEt6CyO80JU9LEP889ZvDcI2sCIG/kCaofiZY8gbHIM/PZeVxK7cyJfDJYVZP2Wg3gZH+gASECGKwQNwsrqgqviUfmuMa37M6KJDZYFqf1keHIj1tVfPY=",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh: tampered message",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Block Genomics verification: deadbeef ",
+      "signature": "AkcwRAIgcrUb4WJkbqoFfl7TJyNP9+IdxiCIS5v4HGU7GR7qvfYCIFXTY4AC1C/F75lxTBsTgYaIF4uqMuevl/ECaPA3W1MNASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh: wrong address (same type)",
+      "kind": "p2wpkh",
+      "address": "bc1qvtwd9wzvtmulykf325tqdketw3sgpm0m5ddpdd",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgcrUb4WJkbqoFfl7TJyNP9+IdxiCIS5v4HGU7GR7qvfYCIFXTY4AC1C/F75lxTBsTgYaIF4uqMuevl/ECaPA3W1MNASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh: attacker's own valid signature replayed onto victim address",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgUiZzE5vaYZgcI5y3YGqXUgYTQhML3Cr7BIzE7Ch0qHcCIBvwv2qeficGYxWlHZhxest/ccyyiUzDDIlfeQkcbayrASEDszJpJHN2uIBS8wnAZSD9/s4WaAZiUPYR4NwUcWilokI=",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh: empty signature",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh: truncated signature",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgcrUb4WJkbqoFfl7TJyNP9+IdxiCIS5v4HGU7GR7qvfYCIFXTY4AC1C/F75lxTBsT",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh: random 65-byte (BIP-137 shape)",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f38=",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh: all-zero 65-byte",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh: not base64 at all",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "not-a-signature!!",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh: single-bit-flipped signature",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgcrUb4WJkbqoFfl7TJyNP9+IdxiCIS5v4HGU7GR7qvfYCIFXTY4AC1C/F75lxTBsSgYaIF4uqMuevl/ECaPA3W1MNASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh signature presented for p2pkh address",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgcrUb4WJkbqoFfl7TJyNP9+IdxiCIS5v4HGU7GR7qvfYCIFXTY4AC1C/F75lxTBsTgYaIF4uqMuevl/ECaPA3W1MNASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh signature presented for p2sh-p2wpkh address",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgcrUb4WJkbqoFfl7TJyNP9+IdxiCIS5v4HGU7GR7qvfYCIFXTY4AC1C/F75lxTBsTgYaIF4uqMuevl/ECaPA3W1MNASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": false
+    },
+    {
+      "name": "p2wpkh signature presented for p2tr address",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AkcwRAIgcrUb4WJkbqoFfl7TJyNP9+IdxiCIS5v4HGU7GR7qvfYCIFXTY4AC1C/F75lxTBsTgYaIF4uqMuevl/ECaPA3W1MNASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": false
+    },
+    {
+      "name": "p2tr: tampered message",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Block Genomics verification: deadbeef ",
+      "signature": "AUCDtkK0V5EJqPleOT8fHI8w8qFQs8qF/PQ7l156MGUEhFwRT64UYVPoj+bQflqAENDdr7fNNtZMWBz2Z34mqrWD",
+      "expected": false
+    },
+    {
+      "name": "p2tr: wrong address (same type)",
+      "kind": "p2tr",
+      "address": "bc1pz3kyeewe7pvut7xzcmv522n7z0x0jydjyyrhpsqurmfakcs3pl9sckajra",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AUCDtkK0V5EJqPleOT8fHI8w8qFQs8qF/PQ7l156MGUEhFwRT64UYVPoj+bQflqAENDdr7fNNtZMWBz2Z34mqrWD",
+      "expected": false
+    },
+    {
+      "name": "p2tr: attacker's own valid signature replayed onto victim address",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AUAJBmcmKfOKoDirfLhDkGEMHcAM8+Y5ZfZJ8od2sFKwiWg9rw1Y5ob/wM6uvbDn32ubN4riB6bhf9vf94jPUBkU",
+      "expected": false
+    },
+    {
+      "name": "p2tr: empty signature",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "",
+      "expected": false
+    },
+    {
+      "name": "p2tr: truncated signature",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AUCDtkK0V5EJqPleOT8fHI8w8qFQs8qF/PQ7l156MGUE",
+      "expected": false
+    },
+    {
+      "name": "p2tr: random 65-byte (BIP-137 shape)",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f38=",
+      "expected": false
+    },
+    {
+      "name": "p2tr: all-zero 65-byte",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "expected": false
+    },
+    {
+      "name": "p2tr: not base64 at all",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "not-a-signature!!",
+      "expected": false
+    },
+    {
+      "name": "p2tr: single-bit-flipped signature",
+      "kind": "p2tr",
+      "address": "bc1puwu5kmyyvlzqfst9farr7w9mvxltmcn9mrzq6dkj908tx2ap47kq6f0yt3",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AUCDtkK0V5EJqPleOT8fHI8w8qFQs8qF/PQ7l156MGUEhVwRT64UYVPoj+bQflqAENDdr7fNNtZMWBz2Z34mqrWD",
+      "expected": false
+    },
+    {
+      "name": "p2tr signature presented for p2pkh address",
+      "kind": "p2pkh",
+      "address": "1KsTqF6AjEsBjYaW2B9sEKLnPKHMM6sD1D",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AUCDtkK0V5EJqPleOT8fHI8w8qFQs8qF/PQ7l156MGUEhFwRT64UYVPoj+bQflqAENDdr7fNNtZMWBz2Z34mqrWD",
+      "expected": false
+    },
+    {
+      "name": "p2tr signature presented for p2sh-p2wpkh address",
+      "kind": "p2sh-p2wpkh",
+      "address": "36MoXcbPWSZ6ZZSV4zhRWyzBR4s3cAeWAZ",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AUCDtkK0V5EJqPleOT8fHI8w8qFQs8qF/PQ7l156MGUEhFwRT64UYVPoj+bQflqAENDdr7fNNtZMWBz2Z34mqrWD",
+      "expected": false
+    },
+    {
+      "name": "p2tr signature presented for p2wpkh address",
+      "kind": "p2wpkh",
+      "address": "bc1qfna329x8z25rngw9zm9zz64ssvcepwenuv7ddw",
+      "message": "Block Genomics verification: deadbeef",
+      "signature": "AUCDtkK0V5EJqPleOT8fHI8w8qFQs8qF/PQ7l156MGUEhFwRT64UYVPoj+bQflqAENDdr7fNNtZMWBz2Z34mqrWD",
+      "expected": false
+    },
+    {
+      "name": "invalid address: empty",
+      "kind": "invalid",
+      "address": "",
+      "message": "x",
+      "signature": "AkcwRAIgViho7QZIh+LkQTb3XS5yCAUL3+3FwyHtGqwgMspxnNUCIBe1W3szj8oDFDPilh4swPC/7GFG9evKA/v+gX3b63o5ASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": false
+    },
+    {
+      "name": "invalid address: garbage",
+      "kind": "invalid",
+      "address": "not-an-address",
+      "message": "x",
+      "signature": "AkcwRAIgViho7QZIh+LkQTb3XS5yCAUL3+3FwyHtGqwgMspxnNUCIBe1W3szj8oDFDPilh4swPC/7GFG9evKA/v+gX3b63o5ASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": false
+    },
+    {
+      "name": "invalid address: bad bech32 checksum",
+      "kind": "invalid",
+      "address": "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0m",
+      "message": "x",
+      "signature": "AkcwRAIgViho7QZIh+LkQTb3XS5yCAUL3+3FwyHtGqwgMspxnNUCIBe1W3szj8oDFDPilh4swPC/7GFG9evKA/v+gX3b63o5ASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": false
+    },
+    {
+      "name": "invalid address: p2wsh (unsupported)",
+      "kind": "invalid",
+      "address": "bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3",
+      "message": "x",
+      "signature": "AkcwRAIgViho7QZIh+LkQTb3XS5yCAUL3+3FwyHtGqwgMspxnNUCIBe1W3szj8oDFDPilh4swPC/7GFG9evKA/v+gX3b63o5ASECEmYlJTS4y/1z2Opy4WZQKWddk5ZbI2FL0aq51naTmno=",
+      "expected": false
+    }
+  ]
+}

@@ -61,7 +61,7 @@ describe('SIM: agent-doorway ownership scoping (real routes + real signatures)',
     await db.block.create({ data: { height: 111, ownerAddress: owner.address } });
 
     const message = await issue(owner.address, 'agent-register');
-    const signature = sign(owner.wif, owner.address, message);
+    const signature = sign(owner.privKey, owner.address, message);
 
     const res = await registerPOST(req({
       walletAddress: owner.address, endpointUrl: 'https://agent.example', blockHeight: 111,
@@ -78,7 +78,7 @@ describe('SIM: agent-doorway ownership scoping (real routes + real signatures)',
     await db.block.create({ data: { height: 112, ownerAddress: owner.address } });
 
     const message = await issue(stranger.address, 'agent-register');
-    const signature = sign(stranger.wif, stranger.address, message);
+    const signature = sign(stranger.privKey, stranger.address, message);
 
     const res = await registerPOST(req({
       walletAddress: stranger.address, endpointUrl: 'https://evil.example', blockHeight: 112,
@@ -94,7 +94,7 @@ describe('SIM: agent-doorway ownership scoping (real routes + real signatures)',
     await db.block.create({ data: { height: 113, ownerAddress: owner.address } });
 
     const message = await issue(owner.address, 'agent-register');
-    const signature = sign(owner.wif, owner.address, message);
+    const signature = sign(owner.privKey, owner.address, message);
     const body = {
       walletAddress: owner.address, endpointUrl: 'https://a.example', blockHeight: 113,
       tier: 1, permissions: ['READ_DMS'], signature, challenge: message,
@@ -110,7 +110,7 @@ describe('SIM: agent-doorway ownership scoping (real routes + real signatures)',
     await db.block.create({ data: { height: 114, ownerAddress: owner.address } });
 
     const message = await issue(owner.address, 'agent-register', -1000); // already expired
-    const signature = sign(owner.wif, owner.address, message);
+    const signature = sign(owner.privKey, owner.address, message);
 
     const res = await registerPOST(req({
       walletAddress: owner.address, endpointUrl: 'https://a.example', blockHeight: 114,
@@ -125,7 +125,7 @@ describe('SIM: agent-doorway ownership scoping (real routes + real signatures)',
     await db.block.create({ data: { height: 115, ownerAddress: owner.address } });
 
     const message = challengeMessage(freshNonce()); // valid signature, but never issued
-    const signature = sign(owner.wif, owner.address, message);
+    const signature = sign(owner.privKey, owner.address, message);
 
     const res = await registerPOST(req({
       walletAddress: owner.address, endpointUrl: 'https://a.example', blockHeight: 115,
@@ -144,7 +144,7 @@ describe('SIM: agent-doorway ownership scoping (real routes + real signatures)',
 
     // A holds a perfectly valid signature over their OWN agent-manage challenge…
     const aMsg = await issue(a.address, 'agent-manage');
-    const aSig = sign(a.wif, a.address, aMsg);
+    const aSig = sign(a.privKey, a.address, aMsg);
     const hijack = await agentPATCH(
       req({ walletAddress: a.address, signature: aSig, challenge: aMsg, endpointUrl: 'https://hijacked.example' }),
       ctx(agentB.id),
@@ -154,7 +154,7 @@ describe('SIM: agent-doorway ownership scoping (real routes + real signatures)',
 
     // Positive control: B updates B with a fresh manage challenge.
     const bMsg = await issue(b.address, 'agent-manage');
-    const bSig = sign(b.wif, b.address, bMsg);
+    const bSig = sign(b.privKey, b.address, bMsg);
     const ok = await agentPATCH(
       req({ walletAddress: b.address, signature: bSig, challenge: bMsg, endpointUrl: 'https://b2.example' }),
       ctx(agentB.id),
@@ -190,7 +190,7 @@ describe('SIM: agent-doorway ownership scoping (real routes + real signatures)',
 
     // And the seller can no longer register a new agent on the sold block.
     const message = await issue(seller.address, 'agent-register');
-    const signature = sign(seller.wif, seller.address, message);
+    const signature = sign(seller.privKey, seller.address, message);
     const res = await registerPOST(req({
       walletAddress: seller.address, endpointUrl: 'https://s2.example', blockHeight: 333,
       tier: 1, permissions: ['READ_DMS'], signature, challenge: message,
@@ -207,14 +207,14 @@ describe('SIM: agent-doorway ownership scoping (real routes + real signatures)',
 
     // A tries to revoke B → 403.
     const aMsg = await issue(a.address, 'agent-manage');
-    const aSig = sign(a.wif, a.address, aMsg);
+    const aSig = sign(a.privKey, a.address, aMsg);
     const denied = await agentDELETE(req({ walletAddress: a.address, signature: aSig, challenge: aMsg }), ctx(agentB.id));
     expect(denied.status).toBe(403);
     expect((await db.bitmapAgent.findUnique({ where: { id: agentB.id } })).status).toBe('active');
 
     // B revokes B → 200, status flips to revoked.
     const bMsg = await issue(b.address, 'agent-manage');
-    const bSig = sign(b.wif, b.address, bMsg);
+    const bSig = sign(b.privKey, b.address, bMsg);
     const ok = await agentDELETE(req({ walletAddress: b.address, signature: bSig, challenge: bMsg }), ctx(agentB.id));
     expect(ok.status).toBe(200);
     expect((await db.bitmapAgent.findUnique({ where: { id: agentB.id } })).status).toBe('revoked');

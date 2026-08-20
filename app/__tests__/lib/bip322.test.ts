@@ -17,7 +17,7 @@ describe('verifyBip322 — valid signatures', () => {
   it.each(KINDS)('accepts a genuine %s signature', (kind) => {
     const w = makeWallet(kind);
     const message = challengeMessage(freshNonce());
-    expect(verifyBip322(w.address, message, sign(w.wif, w.address, message))).toBe(true);
+    expect(verifyBip322(w.address, message, sign(w.privKey, w.address, message))).toBe(true);
   });
 });
 
@@ -26,7 +26,7 @@ describe('verifyBip322 — wrong wallet', () => {
     const signer = makeWallet(kind);
     const impostor = makeWallet(kind);
     const message = challengeMessage(freshNonce());
-    const signature = sign(signer.wif, signer.address, message);
+    const signature = sign(signer.privKey, signer.address, message);
 
     // The signature is cryptographically real — it just belongs to someone else.
     expect(verifyBip322(signer.address, message, signature)).toBe(true);
@@ -37,7 +37,7 @@ describe('verifyBip322 — wrong wallet', () => {
     const w = makeWallet('p2wpkh');
     const other = makeWallet('p2tr');
     const message = challengeMessage(freshNonce());
-    expect(verifyBip322(other.address, message, sign(w.wif, w.address, message))).toBe(false);
+    expect(verifyBip322(other.address, message, sign(w.privKey, w.address, message))).toBe(false);
   });
 });
 
@@ -46,17 +46,17 @@ describe('verifyBip322 — invalid signatures', () => {
   const message = challengeMessage(freshNonce());
 
   it('rejects a signature over a different message', () => {
-    const signature = sign(w.wif, w.address, challengeMessage(freshNonce()));
+    const signature = sign(w.privKey, w.address, challengeMessage(freshNonce()));
     expect(verifyBip322(w.address, message, signature)).toBe(false);
   });
 
   it('rejects a tampered message (nonce swapped after signing)', () => {
-    const signature = sign(w.wif, w.address, message);
+    const signature = sign(w.privKey, w.address, message);
     expect(verifyBip322(w.address, `${message}x`, signature)).toBe(false);
   });
 
   it('rejects a bit-flipped signature', () => {
-    const signature = sign(w.wif, w.address, message);
+    const signature = sign(w.privKey, w.address, message);
     const bytes = Buffer.from(signature, 'base64');
     bytes[bytes.length - 1] ^= 0x01;
     expect(verifyBip322(w.address, message, bytes.toString('base64'))).toBe(false);
@@ -85,14 +85,14 @@ describe('verifyBip322 — invalid signatures', () => {
 
   it('rejects an oversized message', () => {
     const huge = 'x'.repeat(5000);
-    expect(verifyBip322(w.address, huge, sign(w.wif, w.address, huge))).toBe(false);
+    expect(verifyBip322(w.address, huge, sign(w.privKey, w.address, huge))).toBe(false);
   });
 });
 
 describe('verifyBip322 — wallet encoding variants', () => {
   const w = makeWallet('p2wpkh');
   const message = challengeMessage(freshNonce());
-  const base64 = sign(w.wif, w.address, message);
+  const base64 = sign(w.privKey, w.address, message);
 
   it('accepts standard base64 (Xverse, Unisat, OKX, Magic Eden)', () => {
     expect(verifyBip322(w.address, message, base64)).toBe(true);
@@ -163,7 +163,7 @@ describe('verifyWalletSignature delegates to the shared verifier', () => {
   it('gains multi-encoding support for every existing caller', () => {
     const w = makeWallet('p2tr');
     const message = challengeMessage(freshNonce());
-    const base64 = sign(w.wif, w.address, message);
+    const base64 = sign(w.privKey, w.address, message);
     const hex = Buffer.from(base64, 'base64').toString('hex');
 
     expect(verifyWalletSignature(w.address, message, base64)).toBe(true);

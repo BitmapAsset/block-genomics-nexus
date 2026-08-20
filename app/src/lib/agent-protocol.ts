@@ -4,6 +4,7 @@
  */
 
 import crypto from 'crypto';
+import { verifyBip322 } from './bip322';
 
 // ─── Enums ───────────────────────────────────────────────────────
 
@@ -156,15 +157,7 @@ export function verifyAgentSignature(
   if (!signature || signature.length === 0) return false;
   if (!walletAddress || !challenge) return false;
 
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Verifier } = require('bip322-js');
-    return Verifier.verifySignature(walletAddress, challenge, signature);
-  } catch (e: unknown) {
-    // SECURITY: Do not fall back to length-only checks — any 64-byte base64 would pass.
-    // Taproot (bc1p) signature verification requires proper BIP-322 support.
-    const msg = e instanceof Error ? e.message : 'Unknown error';
-    console.warn('BIP-322 verification failed:', msg);
-    return false;
-  }
+  // SECURITY: no length-only fallback — any 64-byte base64 would pass.
+  // `verifyBip322` fails closed and accepts the encodings real wallets emit.
+  return verifyBip322(walletAddress, challenge, signature);
 }

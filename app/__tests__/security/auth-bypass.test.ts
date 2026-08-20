@@ -3,10 +3,8 @@
  * Tests that verify fixes for known security vulnerabilities
  */
 
-jest.mock('bip322-js', () => ({
-  Verifier: {
-    verifySignature: jest.fn(),
-  },
+jest.mock('@/lib/bip322-verify', () => ({
+  verifyBip322Signature: jest.fn(),
 }));
 
 jest.mock('next/server', () => ({
@@ -71,7 +69,7 @@ import { verifyWalletSignature, isValidBitcoinAddress, sanitizeString } from '@/
 import { verifyAgentSignature, validatePermissions, canPerformAction, AgentPermission } from '@/lib/agent-protocol';
 import { issueChallenge, consumeChallenge } from '@/lib/challenges';
 
-const bip322 = require('bip322-js');
+const { verifyBip322Signature } = require('@/lib/bip322-verify');
 
 describe('SECURITY: Signature bypass prevention', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -79,9 +77,9 @@ describe('SECURITY: Signature bypass prevention', () => {
   describe('Taproot signature bypass (CRITICAL — audit finding)', () => {
     it('MUST NOT accept any base64 string as valid taproot signature', () => {
       // The original code had a fallback that accepted ANY 64-byte base64
-      // string as a valid signature when bip322-js threw for taproot addresses.
+      // string as a valid signature when the verifier threw for taproot addresses.
       // This was a complete authentication bypass.
-      bip322.Verifier.verifySignature.mockImplementation(() => {
+      verifyBip322Signature.mockImplementation(() => {
         throw new Error('Taproot (P2TR/bc1p) addresses are not supported');
       });
 
@@ -92,7 +90,7 @@ describe('SECURITY: Signature bypass prevention', () => {
     });
 
     it('MUST NOT accept randomly generated signatures', () => {
-      bip322.Verifier.verifySignature.mockImplementation(() => {
+      verifyBip322Signature.mockImplementation(() => {
         throw new Error('Unsupported address type');
       });
 
@@ -112,7 +110,7 @@ describe('SECURITY: Signature bypass prevention', () => {
     });
 
     it('agent signature also rejects taproot bypass', () => {
-      bip322.Verifier.verifySignature.mockImplementation(() => {
+      verifyBip322Signature.mockImplementation(() => {
         throw new Error('p2tr not supported');
       });
 
