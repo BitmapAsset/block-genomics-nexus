@@ -30,7 +30,9 @@ export async function POST(req: NextRequest) {
       return error(`Block ${blockHeight} not found`, 404);
     }
 
-    const check = await verifyBlockOwnership(blockHeight);
+    // AUTH tier: this result decides both who may call the sync and whether a
+    // transfer is executed, so it must not be decided on a stale observation.
+    const check = await verifyBlockOwnership(blockHeight, 'auth');
 
     // Caller must be either DB owner or on-chain owner
     const isDbOwner = block.ownerAddress === walletAddress;

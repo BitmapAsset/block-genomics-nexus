@@ -262,11 +262,19 @@ async function fetchIdentities(height: number, addresses: string[]): Promise<Map
   }
 }
 
-/** Live deed holder, or null when there is no inscription or the indexer is down. */
+/**
+ * Deed holder for the public block page, or null when there is no inscription
+ * or the indexer is down.
+ *
+ * DISPLAY tier: this renders a page and authorizes nothing, so it shares the
+ * cached observation rather than putting every page view on the indexer's
+ * throttle. Anything that gates a write must use the auth tier instead — see
+ * lib/onchain/owner-freshness.ts.
+ */
 async function fetchOnChainOwner(inscriptionId: string | null): Promise<string | null> {
   if (!inscriptionId) return null;
   try {
-    return await getInscriptionOwner(inscriptionId);
+    return await getInscriptionOwner(inscriptionId, 'display');
   } catch {
     return null;
   }
