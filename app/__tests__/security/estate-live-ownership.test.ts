@@ -181,8 +181,13 @@ describe('a sale is honoured on the very next estate write', () => {
     expect((await CREATE(tokenReq(buyerToken, estateBody())) as any).status).toBe(201);
 
     chainOwner = SELLER;
-    expect((await CREATE(tokenReq(buyerToken, estateBody({ name: 'Second' }))) as any).status).toBe(403);
-    expect((await CREATE(tokenReq(sellerToken, estateBody({ name: 'Third' }))) as any).status).toBe(201);
+    // Different parcels on purpose: this case is about WHO may write after a
+    // resale, and reusing [3,1,2] would now be refused for a second, unrelated
+    // reason — a parcel belongs to exactly one estate — which would hide whether
+    // authority actually flipped back.
+    const second = { parcelIndices: [7, 8] };
+    expect((await CREATE(tokenReq(buyerToken, estateBody({ ...second, name: 'Second' }))) as any).status).toBe(403);
+    expect((await CREATE(tokenReq(sellerToken, estateBody({ ...second, name: 'Third' }))) as any).status).toBe(201);
 
     expect(await estateCount()).toBe(2);
   });

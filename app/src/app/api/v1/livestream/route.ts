@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
+import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -47,10 +48,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
-    // Verify ownership
-    const block = await prisma.block.findUnique({ where: { height: blockHeight } });
-    if (!block || block.ownerAddress !== walletAddress) {
-      return NextResponse.json({ error: 'Not block owner' }, { status: 403 });
+    // OWNERSHIP — asked of the chain, not of our cache. `Block.ownerAddress` is
+    // refreshed by a background sync, so between an on-chain sale and the next
+    // run it still names the seller, and authorizing from it let a seller keep
+    // broadcasting on land they had already sold. An outage is a retryable 503.
+    const owns = await requireLiveBlockOwner(walletAddress, blockHeight);
+    if (!owns.ok) {
+      return NextResponse.json({ error: owns.reason ?? 'Not block owner' }, { status: owns.status });
     }
 
     // Validate URL

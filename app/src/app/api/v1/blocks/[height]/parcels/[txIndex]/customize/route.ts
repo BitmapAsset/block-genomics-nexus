@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api-helpers';
 import { consumeChallengeFromMessage } from '@/lib/challenges';
 import { parcelCustomizeBindingString, parcelCustomizeBindingLine } from '@/lib/parcel-customize';
+import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 
 // Rate limiting: in-memory (upgrade to Redis for production scale)
 export async function POST(
@@ -67,25 +68,31 @@ export async function POST(
       where: { blockHeight_txIndex: { blockHeight: h, txIndex: tx } },
     });
 
-    const [block, user, delegation] = await Promise.all([
-      prisma.block.findUnique({ where: { height: h }, select: { ownerAddress: true } }),
-      prisma.user.findUnique({ where: { walletAddress }, select: { verified: true, anchorBlock: true, ownedBlocks: true } }),
-      prisma.delegation.findFirst({
-        where: { blockHeight: h, delegateeAddress: walletAddress, active: true, endDate: { gte: new Date() } },
-      }),
-    ]);
-    const ownsBlock =
-      block?.ownerAddress === walletAddress ||
-      (user?.verified === true && (user.anchorBlock === h || user.ownedBlocks.includes(h)));
+    const delegation = await prisma.delegation.findFirst({
+      where: { blockHeight: h, delegateeAddress: walletAddress, active: true, endDate: { gte: new Date() } },
+    });
     const isParcelOwner = !!parcel && parcel.ownerAddress === walletAddress;
 
-    if (parcel) {
-      if (!isParcelOwner && !ownsBlock && !delegation) {
-        return error('Not authorized to customize this parcel', 403);
+    // Block ownership is asked of the chain, not of `Block.ownerAddress` plus the
+    // verified-`User` snapshot. Both are caches a background sync refreshes, so
+    // between an on-chain sale and the next run they still named the seller.
+    //
+    // Asked only where it can change the answer: an EXISTING parcel is already
+    // customizable by its parcel owner or an active delegate, so paying an
+    // indexer round-trip to re-confirm what those facts settle on their own would
+    // put every delegate write at the mercy of indexer uptime for nothing.
+    // Initializing a parcel is a claim on new land and always asks.
+    if (!parcel || (!isParcelOwner && !delegation)) {
+      const owns = await requireLiveBlockOwner(walletAddress, h);
+      if (!owns.ok) {
+        return error(
+          owns.reason ??
+            (parcel
+              ? 'Not authorized to customize this parcel'
+              : 'Only the block owner can initialize a parcel — live on-chain ownership required'),
+          owns.status,
+        );
       }
-    } else if (!ownsBlock) {
-      // Delegation lets you customize existing parcels, not claim new ownership.
-      return error('Only the block owner can initialize a parcel — verified block ownership required', 403);
     }
 
     const updated = await prisma.parcel.upsert({

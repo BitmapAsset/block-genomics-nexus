@@ -117,6 +117,41 @@ describe('a ₿ figure is printed only where one is known', () => {
   });
 });
 
+describe('block-level facts are the chain’s or nothing', () => {
+  it('does not build a block hash out of the block height', () => {
+    // The HASH row rendered `0000...${(blockHeight * 7919).toString(16)}` — an
+    // arithmetic function of the height, formatted to look like a truncated
+    // hash. Stable across reloads, which is what sold it.
+    //
+    // `seededRandom(blockHeight * n)` is excluded on purpose: seeding geometry,
+    // layout and colour from the height is deterministic VISUAL variation, not a
+    // claim about the world. The line this guards is the one that formats such a
+    // number and prints it as a fact.
+    const derived = offenders(SRC, /blockHeight\s*\*\s*\d+/).filter((l) => !/seededRandom\(/.test(l));
+    expect(derived).toEqual([]);
+    expect(offenders(SRC, /`0{4}\.\.\./)).toEqual([]);
+  });
+
+  it('does not fall back to the mock block for hash, size, or weight', () => {
+    // `realBlock?.hash ?? block.hash` looks like a null-safe default and is
+    // really a fabrication: `block` is `generateBlock(height)`, whose `hash` is
+    // `fakeHash(height)` and whose `size` is a seeded `rng()`. The fallback also
+    // made the "no hash" branch unreachable, so the honest empty state could
+    // never render.
+    expect(offenders(SRC, /realBlock\?\.\w+\s*\?\?\s*block\./)).toEqual([]);
+  });
+
+  it('prints each block-stat row only when the value is present', () => {
+    // Every blockStats row must carry an explicit not-fetched arm; a bare
+    // `blockStats.x.toLocaleString()` means x was defaulted somewhere upstream.
+    const printed = offenders(SRC, /blockStats\.\w+/);
+    expect(printed.length).toBeGreaterThan(0);
+    for (const line of printed) {
+      expect(line).toMatch(/NOT_FETCHED|!==\s*undefined|blockStats\.hash\s*\?/);
+    }
+  });
+});
+
 describe('receive QR is never drawn from a seed', () => {
   it('has no generated QR module grid', () => {
     // A seeded boolean grid rendered as a Bitcoin QR is a wrong-address bug

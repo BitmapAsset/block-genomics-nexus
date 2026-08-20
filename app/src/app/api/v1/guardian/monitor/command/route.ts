@@ -97,7 +97,13 @@ export async function POST(req: NextRequest) {
           status: guardian.status,
           blockHeight: guardian.blockHeight,
           ownerAddress: guardian.ownerAddress,
-          totalVisitors: guardian.totalVisitors,
+          // No `totalVisitors`. Nothing in the app ever increments it — the only
+          // write anywhere in the codebase sets it to 0 when a block changes
+          // hands — so serving it as a statistic published a permanent zero as
+          // if it were a measurement. `empire-stats` already dropped it for this
+          // reason; this was the last surface still reporting it. There is no
+          // honest version to relabel, which is the call #136 made about RANK.
+          // `totalMessages` below is real: guardian/chat increments it per message.
           totalMessages: guardian.totalMessages,
           totalConversations: conversations,
           totalEvents: events,

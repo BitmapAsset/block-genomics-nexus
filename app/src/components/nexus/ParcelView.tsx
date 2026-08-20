@@ -5197,14 +5197,25 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const cols = Math.ceil(Math.sqrt(parcels.length)); // kept for rough reference
   const rows = Math.ceil(parcels.length / cols);
   const block = generateBlock(blockHeight);
-  // Override block stats with real data when available
+  /**
+   * Block-level facts, and ONLY when the chain has actually supplied them.
+   *
+   * Every field here used to fall back to `generateBlock(height)` — `size` and
+   * `weight` to a seeded `rng()`, `hash` to `fakeHash(height)`. Seeded values are
+   * stable across reloads, which is precisely what made them read as real: the
+   * same block showed the same 64-hex "hash" every visit. The HASH row carried a
+   * second invented fallback on top (`0000...` built from `blockHeight * 7919`)
+   * that was unreachable, because `fakeHash` is never empty.
+   *
+   * Undefined means not fetched, and the rows say so. A block hash in
+   * particular is either the one the chain has or nothing at all.
+   */
   const blockStats = useMemo(() => ({
-    txCount: realBlock?.txCount ?? block.txCount,
-    size: realBlock?.size ?? block.size,
-    weight: realBlock?.weight ?? (block.size * 4),
-    hash: realBlock?.hash ?? block.hash,
+    size: realBlock?.size,
+    weight: realBlock?.weight,
+    hash: realBlock?.hash,
     vbytes: realBlock ? realBlock.txs.reduce((s, t) => s + t.size, 0) : undefined,
-  }), [realBlock, block]);
+  }), [realBlock]);
 
   /* Fetch real block owner from DB, show Loading... while fetching */
   const [realBlockOwner, setRealBlockOwner] = useState<OwnerData | null>(null);
@@ -5298,9 +5309,23 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     }
   }, [blockHeight]);
   useEffect(() => { void loadEstates(); }, [loadEstates]);
+  /**
+   * Parcel → the estate that owns it.
+   *
+   * The API rejects an overlapping create with a 409, so a contested parcel can
+   * only arrive from rows written before that check existed. This still resolves
+   * it by a stated rule rather than by arrival order: the OLDEST claim keeps the
+   * parcel, with the id as a tiebreak so the result cannot depend on how the
+   * list happened to be sorted.
+   *
+   * The previous `map.set(idx, e)` per estate meant last-writer-wins over an
+   * unordered API response — the same block could render a different owner's
+   * name on the same parcel between two loads, with no data change at all.
+   */
   const estateByParcel = useMemo(() => {
     const map = new Map<number, Estate>();
-    estates.forEach(e => e.parcelIndices.forEach(idx => map.set(idx, e)));
+    const byAge = [...estates].sort((a, b) => a.created - b.created || a.id.localeCompare(b.id));
+    byAge.forEach(e => e.parcelIndices.forEach(idx => { if (!map.has(idx)) map.set(idx, e); }));
     return map;
   }, [estates]);
   const hoveredEstate = useMemo(() => hoveredEstateId ? estates.find(e => e.id === hoveredEstateId) ?? null : null, [estates, hoveredEstateId]);
@@ -5337,7 +5362,6 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     }]);
   }, [selectedParcel]);
 
-  const totalBytes = parcels.reduce((s, p) => s + p.bytes, 0);
   // Only sum what is known. A block with any unknown-value parcel has no
   // total to report — the honest reading is "not yet", not a partial sum
   // presented as the block's worth.
@@ -6067,11 +6091,11 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
             <div className="px-4 py-3 space-y-2 text-xs font-mono" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <PropRow label="PARCELS / TXS" value={parcels.length.toLocaleString()} />
               <PropRow label="VALUE" value={totalValueKnown ? `₿ ${totalValue.toFixed(4)}` : '— not fetched yet'} highlight />
-              <PropRow label="VBYTES" value={(blockStats.vbytes ?? totalBytes).toLocaleString()} />
+              <PropRow label="VBYTES" value={blockStats.vbytes !== undefined ? blockStats.vbytes.toLocaleString() : NOT_FETCHED} />
               <PropRow label="HEIGHT" value={blockHeight.toLocaleString()} />
-              <PropRow label="HASH" value={blockStats.hash ? `${blockStats.hash.slice(0, 4)}...${blockStats.hash.slice(-4)}` : `0000...${(blockHeight * 7919).toString(16).slice(-4)}`} />
-              <PropRow label="SIZE" value={blockStats.size.toLocaleString()} />
-              <PropRow label="WEIGHT" value={blockStats.weight.toLocaleString()} />
+              <PropRow label="HASH" value={blockStats.hash ? `${blockStats.hash.slice(0, 4)}...${blockStats.hash.slice(-4)}` : NOT_FETCHED} />
+              <PropRow label="SIZE" value={blockStats.size !== undefined ? blockStats.size.toLocaleString() : NOT_FETCHED} />
+              <PropRow label="WEIGHT" value={blockStats.weight !== undefined ? blockStats.weight.toLocaleString() : NOT_FETCHED} />
               <PropRow label="EPOCH" value={`${block.epoch}`} />
               <PropRow label="DATA" value={
                 dataSource === 'real' 
@@ -6692,6 +6716,9 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 }
 
 /* ─── Property Row ─── */
+/** What a fact row shows when the chain has not supplied that fact yet. */
+const NOT_FETCHED = '— not fetched yet';
+
 function PropRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div className="flex justify-between items-center py-0.5">

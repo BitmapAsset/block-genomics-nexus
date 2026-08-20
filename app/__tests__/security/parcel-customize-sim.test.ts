@@ -18,6 +18,12 @@ jest.mock('next/server', () => ({
   },
 }));
 
+jest.mock('@/lib/onchain/bitmap-ownership', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { verifyBlockOwnedByFromDbFixture } = require('../helpers/chain-ownership-mock');
+  return verifyBlockOwnedByFromDbFixture();
+});
+
 jest.mock('@/lib/prisma', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { createMemoryPrisma } = require('../helpers/memory-prisma');

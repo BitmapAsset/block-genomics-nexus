@@ -27,6 +27,12 @@ jest.mock('next/server', () => ({
   },
 }));
 
+jest.mock('@/lib/onchain/bitmap-ownership', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { verifyBlockOwnedByViaAuthFreshness } = require('../helpers/chain-ownership-mock');
+  return verifyBlockOwnedByViaAuthFreshness();
+});
+
 jest.mock('@/lib/onchain/ord', () => ({
   getInscriptionOwner: jest.fn(async () => null),
   getStatus: jest.fn(async () => ({ height: 800_000 })),

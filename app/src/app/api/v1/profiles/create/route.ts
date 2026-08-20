@@ -6,6 +6,7 @@ import { logActivity } from '@/lib/activity';
 import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
 import { normalizeHandle, isValidHandle, HANDLE_ERROR } from '@/lib/handle';
+import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 
 const HANDLE_RE = /^[a-z0-9_]{1,30}$/;
 
@@ -64,10 +65,13 @@ export async function POST(req: NextRequest) {
       return error('Wallet must be verified first via /auth/verify', 403);
     }
 
-    // Check wallet owns this block
-    const block = await prisma.block.findUnique({ where: { height: blockHeight } });
-    if (!block || block.ownerAddress !== walletAddress) {
-      return error('Wallet does not own this block', 403);
+    // OWNERSHIP — asked of the chain, not of our cache. A block profile is the
+    // public identity attached to a block; authorizing it from the background-
+    // synced `Block.ownerAddress` let a seller keep claiming handles on land they
+    // had already sold. An outage is a retryable 503, never a grant.
+    const owns = await requireLiveBlockOwner(walletAddress, blockHeight);
+    if (!owns.ok) {
+      return error(owns.reason ?? 'Wallet does not own this block', owns.status);
     }
 
     // Check handle uniqueness across both User and BlockProfile tables
