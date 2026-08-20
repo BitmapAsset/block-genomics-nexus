@@ -4,7 +4,9 @@ import { verifyWalletSignature } from '@/lib/api-helpers';
 import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
 import { requireVerifiedBlock, gateDenialResponse, sessionTokenFromHeaders } from '@/lib/ownership-gate';
+import { requireSignedBlockOwner, authorizeObjectWrite } from '@/lib/block-write-auth';
 import { looksLikeSessionToken } from '@/lib/verified-sessions';
+import { enforceRateLimit, WORLD_WRITE_LIMIT } from '@/lib/api-rate-limit';
 
 // H-03: Allowlist of fields that can be updated on block objects
 const ALLOWED_UPDATE_FIELDS = ['objectType', 'geometry', 'color', 'material', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ', 'name', 'visible', 'locked'];
@@ -26,7 +28,12 @@ type BlockObject = { id: string; blockHeight: number; ownerAddress: string; lock
  *            session is live, the object's block is in its proven scope, and the
  *            wallet STILL holds the inscription on-chain right now, so a
  *            transferred bitmap fails closed mid-session.
- *   WALLET — an action-bound BIP-322 signature, the browser path, unchanged.
+ *   WALLET — an action-bound BIP-322 signature proves the wallet; a live on-chain
+ *            check proves it currently holds the object's block.
+ *
+ * Both roads end at the same question — "do you hold this block right now?" — and
+ * neither asks who placed the object. The answer is authoritative only at the
+ * moment it is asked, which is the point: it flips the instant the bitmap does.
  *
  * The block height always comes from the stored object, never from the request
  * body — otherwise a caller could gate against a block it owns while mutating an
@@ -83,6 +90,13 @@ async function resolveActor(
     return { response: NextResponse.json({ error: binding.reason }, { status: 401 }) };
   }
 
+  // LIVE OWNERSHIP: the signature proves the wallet, not what it owns. Ask the
+  // chain — not our cache — whether this wallet holds the object's block right
+  // now. Checked BEFORE the nonce is burned so an indexer outage costs a retry
+  // rather than forcing the user to sign again.
+  const owns = await requireSignedBlockOwner(ownerAddress, existing.blockHeight);
+  if (!owns.ok) return { response: gateDenialResponse(owns) };
+
   // REPLAY PROTECTION: consume the exact one-time nonce the signed binding carried.
   if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
     return {
@@ -94,6 +108,9 @@ async function resolveActor(
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-world-write', limit: WORLD_WRITE_LIMIT });
+  if (rl.response) return rl.response;
+
   try {
     const { id } = await params;
     const body = await req.json();
@@ -104,12 +121,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const actor = await resolveActor(req, existing, body, 'world.update', 'PATCH');
     if ('response' in actor) return actor.response;
 
-    if (existing.ownerAddress !== actor.ownerAddress) return NextResponse.json({ error: 'Not owner' }, { status: 403 });
-    if (existing.locked) return NextResponse.json({ error: 'Object is locked' }, { status: 403 });
+    // `existing.ownerAddress` is provenance and is deliberately not consulted:
+    // the current block owner edits a previous owner's objects as their own.
+    const allowed = authorizeObjectWrite(existing, existing.blockHeight, { unlocking: body.locked === false });
+    if (!allowed.ok) return gateDenialResponse(allowed);
 
     const updates = pickAllowed(body);
     const updated = await prisma.blockObject.update({ where: { id }, data: updates });
-    return NextResponse.json({ object: updated });
+    return NextResponse.json({ object: updated }, { headers: rl.headers });
   } catch (err) {
     console.error('[World PATCH]', err);
     return NextResponse.json({ error: 'Failed to update object' }, { status: 500 });
@@ -117,6 +136,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-world-write', limit: WORLD_WRITE_LIMIT });
+  if (rl.response) return rl.response;
+
   try {
     const { id } = await params;
     const body = await req.json();
@@ -127,11 +149,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const actor = await resolveActor(req, existing, body, 'world.delete', 'DELETE');
     if ('response' in actor) return actor.response;
 
-    if (existing.ownerAddress !== actor.ownerAddress) return NextResponse.json({ error: 'Not owner' }, { status: 403 });
-    if (existing.locked) return NextResponse.json({ error: 'Object is locked' }, { status: 403 });
+    const allowed = authorizeObjectWrite(existing, existing.blockHeight);
+    if (!allowed.ok) return gateDenialResponse(allowed);
 
     await prisma.blockObject.delete({ where: { id } });
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { headers: rl.headers });
   } catch (err) {
     console.error('[World DELETE]', err);
     return NextResponse.json({ error: 'Failed to delete object' }, { status: 500 });

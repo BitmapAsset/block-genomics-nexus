@@ -5,8 +5,9 @@ import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
 import { emitAgentEvent } from '@/lib/agent-events';
 import { requireVerifiedBlock, gateDenialResponse, sessionTokenFromHeaders } from '@/lib/ownership-gate';
+import { requireSignedBlockOwner } from '@/lib/block-write-auth';
 import { looksLikeSessionToken } from '@/lib/verified-sessions';
-import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { enforceRateLimit, WORLD_WRITE_LIMIT } from '@/lib/api-rate-limit';
 
 export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-world' });
@@ -29,6 +30,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // §10: writes were the one unprotected side of this route. Each one costs a
+  // live indexer call before it costs a database write, so the ceiling is lower
+  // than the public read ceiling above.
+  const rl = await enforceRateLimit(req, { bucket: 'v1-world-write', limit: WORLD_WRITE_LIMIT });
+  if (rl.response) return rl.response;
+
   try {
     const body = await req.json();
     const { blockHeight, objectType, signature, message } = body;
@@ -88,17 +95,19 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: binding.reason }, { status: 401 });
       }
 
+      // LIVE OWNERSHIP: the signature proves the wallet, not what it owns. This
+      // used to read `Block.ownerAddress` — our background-synced cache — which
+      // between an on-chain sale and the next sync still names the seller. Ask
+      // the chain instead, before burning the nonce so an indexer outage costs a
+      // retry rather than another signing round-trip.
+      const owns = await requireSignedBlockOwner(ownerAddress, blockHeight);
+      if (!owns.ok) return gateDenialResponse(owns);
+
       // REPLAY PROTECTION: atomically consume the exact one-time nonce the signed
       // binding carried (not any nonce that happens to appear in the message) so a
       // captured signed mutation cannot be resubmitted.
       if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
         return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
-      }
-
-      // Verify ownership
-      const block = await prisma.block.findUnique({ where: { height: blockHeight } });
-      if (!block || block.ownerAddress !== ownerAddress) {
-        return NextResponse.json({ error: 'Not the block owner' }, { status: 403 });
       }
     }
 
@@ -122,7 +131,7 @@ export async function POST(req: NextRequest) {
       summary: `Owner placed a ${objectType} on block #${blockHeight}`,
     });
 
-    return NextResponse.json({ object }, { status: 201 });
+    return NextResponse.json({ object }, { status: 201, headers: rl.headers });
   } catch (err) {
     console.error('[World POST]', err);
     return NextResponse.json({ error: 'Failed to create object' }, { status: 500 });

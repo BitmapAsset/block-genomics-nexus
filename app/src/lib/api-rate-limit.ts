@@ -32,6 +32,20 @@ import { looksLikeSessionToken, sessionTokenFromHeaders } from '@/lib/verified-s
 export const PUBLIC_READ_LIMIT = 120;
 export const PUBLIC_READ_WINDOW_MS = 60_000;
 
+/**
+ * Ceiling for an authenticated world write (create / update / delete), per
+ * identity, per minute.
+ *
+ * Lower than the public read ceiling because each of these costs a live indexer
+ * call before it costs a database write, so an unlimited caller could turn our
+ * ownership gate into a request amplifier pointed at ordinals.com. Still well
+ * above a human building in the editor, who batches.
+ */
+export const WORLD_WRITE_LIMIT = 60;
+
+/** Batch writes carry up to 100 sub-ops each, so they get a tighter ceiling. */
+export const WORLD_BATCH_LIMIT = 20;
+
 /** Anything exposing a `headers.get` — NextRequest, Request, or a test stub. */
 export type RateLimitedRequest = { headers: { get(name: string): string | null } };
 
