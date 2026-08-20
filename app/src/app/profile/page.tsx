@@ -384,7 +384,7 @@ function BlockCard({
                 ⚡ Create Profile
               </Link>
               <div className="mt-4 space-y-1">
-                {["Guardian", "World Building", "Marketplace"].map((s) => (
+                {["Guardian", "World Building", "Rentals"].map((s) => (
                   <p key={s} className="text-gray-700 text-xs">🔒 {s} — <span className="italic">Activate to unlock</span></p>
                 ))}
               </div>

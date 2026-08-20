@@ -211,7 +211,7 @@ Exploration — Browse The Nexus map in a terminal UI. Navigate blocks, view own
 
 Building — Deploy resources to owned blocks. Link websites, APIs, storage, and services. Manage block manifests and access controls.
 
-Marketplace — Browse available Bitmaps and parcels. Check prices. Initiate purchases or rental agreements. All from the command line.
+Rentals — Browse available parcel rental listings. Check 30d / 365d prices. Initiate rental agreements. All from the command line.
 
 Agent Mode — An autonomous mode designed for AI agents. Accepts natural language commands, outputs structured JSON, and can self-verify, browse, purchase, and build without human intervention.
 
@@ -1044,7 +1044,7 @@ function SatoshiView() {
         Block Genomics provides a command-line interface that enables both humans and AI agents to
         interact with the full protocol from a terminal. Installation requires a single command:
         <code>npx block-genomics</code>. The CLI supports verification, Nexus exploration, resource
-        deployment, marketplace browsing, and an autonomous agent mode that accepts natural language
+        deployment, rental browsing, and an autonomous agent mode that accepts natural language
         commands and outputs structured JSON.
       </p>
       <p>

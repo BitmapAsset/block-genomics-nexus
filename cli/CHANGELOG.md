@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `bg rentals <list|rent|price>` — the parcel rental (delegation) listings command.
+  Same behaviour and the same `/api/v1/delegations/listings` source as `bg market`;
+  only the name changed.
+
+### Deprecated
+- `bg market <action>` is now a deprecated alias for `bg rentals`. "Marketplace" now
+  names the advisory third-party venue lane (`/api/v1/blocks/{height}/market`), so the
+  old name pointed at the wrong concept. The alias still lists **rentals** — it was not
+  repurposed — and its **stdout is byte-identical**, including the `bg market list`
+  self-reference printed by `bg market price`. The deprecation notice goes to **stderr**,
+  so piped scripts are unaffected. The alias will be removed in a future major release.
+
 ### Changed
 - `bg experience register` and `bg experience remove` now sign the **manifest**,
   not just a bare challenge. Both send an action-bound `message` whose `Body:`

@@ -12,7 +12,7 @@ import { runBuild } from "./commands/build";
 import { runConnect } from "./commands/connect";
 import { runProfile } from "./commands/profile";
 import { runWallet } from "./commands/wallet";
-import { runMarket } from "./commands/market";
+import { runRentals } from "./commands/rentals";
 import { runAgent } from "./commands/agent";
 import { runExperience } from "./commands/experience";
 import { runMyBlocks } from "./commands/my-blocks";
@@ -140,11 +140,27 @@ export function createCLI() {
     .action((action, args) => runWallet(action, args));
 
   program
-    .command("market <action>")
-    .description("Parcel rental listings")
+    .command("rentals <action>")
+    .description("Parcel rental listings: list | rent | price")
     .option("--type <type>")
     .option("--block <height>", "Block height", (v) => Number(v))
-    .action((action, options) => runMarket(action, options));
+    .action((action, options) => runRentals(action, options));
+
+  // Deprecated alias. `market` predates the advisory third-party venue lane
+  // taking that name; it has always listed parcel rentals. Renaming outright
+  // would break published scripts, so the alias stays and only warns — on
+  // stderr, so piped stdout is unchanged.
+  program
+    .command("market <action>")
+    .description("[deprecated] alias for `rentals` — use `bg rentals`")
+    .option("--type <type>")
+    .option("--block <height>", "Block height", (v) => Number(v))
+    .action((action, options) => {
+      console.error(
+        chalk.yellow("`bg market` is deprecated — use `bg rentals` (same output; this alias will be removed in a future release)."),
+      );
+      return runRentals(action, options, "market");
+    });
 
   program
     .command("agent <action> [sub]")

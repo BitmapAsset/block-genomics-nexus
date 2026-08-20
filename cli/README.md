@@ -53,6 +53,8 @@ Payloads are small JSON with `actor`, a short `summary`, and resource ids — ne
 | `block-genomics agent token revoke --agent <id>` | Revokes the active token — runtime calls `401` until you rotate a new one. |
 | `block-genomics my-blocks` | Lists the blocks your wallet owns (public read; no signature needed). |
 | `block-genomics whoami` | Shows your configured wallet, verified tier, and the agents registered from this machine. |
+| `block-genomics rentals list [--block <h>]` | Lists live parcel rental (delegation) listings from `/api/v1/delegations/listings` — block, parcel, tier, owner, spots, and 30d / 365d prices. Public read. |
+| `block-genomics rentals rent` / `rentals price` | Explain the rental purchase path (`/api/v1/delegations/purchase`, BIP-322 signed) and per-listing pricing. This CLI holds no keys, so it does not sign rentals itself. |
 | `block-genomics agent list` | Lists agents you registered from this machine. |
 | `block-genomics agent update --agent <id> --endpoint <url> [--permissions csv]` | Rotates an agent's endpoint/permissions. Ownership-scoped: fetches a `purpose=agent-manage` challenge, signs it (single-use), and the server verifies you own the agent. |
 | `block-genomics agent revoke --agent <id>` | Retires an agent you own (same `agent-manage` challenge flow, kills active sessions). |
@@ -65,7 +67,13 @@ Get the token from `register-agent` (shown once) or `agent token rotate`, then p
 
 `agent update` / `agent revoke` / `my-blocks` / `whoami` all require `--address` (or `BG_WALLET_ADDRESS`) and use the same signer as `verify`. Because the manage challenge is single-use, a captured signature cannot be replayed against your agents.
 
-Legacy demo commands (`verify-demo`, `explore`, `build`, `market`, `wallet`, `profile`, `connect`, and `agent verify` / `agent start`) are still available but do NOT hit the network — they exist for offline demos of the CLI shell only.
+Legacy demo commands (`verify-demo`, `explore`, `build`, `wallet`, `profile`, `connect`, and `agent verify` / `agent start`) are still available but do NOT hit the network — they exist for offline demos of the CLI shell only.
+
+**Deprecated:** `block-genomics market <action>` is an alias for `rentals` and behaves identically —
+it lists parcel *rentals*, not the advisory third-party venue lane served at
+`/api/v1/blocks/{height}/market`. It prints a deprecation notice on **stderr** and leaves stdout
+byte-identical, so existing piped scripts keep working. Switch to `block-genomics rentals`; the
+alias will be removed in a future major release.
 
 ## Signing
 

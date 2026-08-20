@@ -3,7 +3,9 @@ import Table from "cli-table3";
 import { getMarketListings } from "../lib/api-client";
 import { ApiError } from "../lib/api";
 
-export async function runMarket(action: string, options: any) {
+// `invokedAs` keeps the deprecated `bg market` alias byte-identical on stdout:
+// lines that name the command render whichever name the caller actually typed.
+export async function runRentals(action: string, options: any, invokedAs = "rentals") {
   if (action === "list") {
     let listings;
     try {
@@ -42,9 +44,9 @@ export async function runMarket(action: string, options: any) {
 
   if (action === "price") {
     console.log(chalk.yellow("There is no live spot-price endpoint — pricing is per-listing."));
-    console.log(chalk.gray("Run `bg market list` to see real 30d / 365d delegation prices."));
+    console.log(chalk.gray(`Run \`bg ${invokedAs} list\` to see real 30d / 365d delegation prices.`));
     return;
   }
 
-  console.log(chalk.red("Unknown market action. Use: list | rent | price"));
+  console.log(chalk.red(`Unknown ${invokedAs} action. Use: list | rent | price`));
 }
