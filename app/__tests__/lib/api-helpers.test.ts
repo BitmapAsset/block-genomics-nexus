@@ -23,6 +23,12 @@ jest.mock('next/server', () => ({
 
 import { success, error, sanitizeString, isValidBitcoinAddress, verifyWalletSignature } from '@/lib/api-helpers';
 
+// `process.env.NODE_ENV` is typed readonly, but these cases need to observe
+// real production behaviour rather than a stubbed flag.
+function setNodeEnv(value: string | undefined) {
+  (process.env as Record<string, string | undefined>).NODE_ENV = value;
+}
+
 describe('api-helpers', () => {
   describe('success()', () => {
     it('returns success response with data', () => {
@@ -62,26 +68,26 @@ describe('api-helpers', () => {
 
     it('masks 500+ errors in production', () => {
       const origEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
+      setNodeEnv('production');
       const res = error('Database connection details leaked', 500) as any;
       expect(res.body.error).toBe('Internal server error');
-      process.env.NODE_ENV = origEnv;
+      setNodeEnv(origEnv);
     });
 
     it('shows full error in development for 500+', () => {
       const origEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'development';
+      setNodeEnv('development');
       const res = error('Database details', 500) as any;
       expect(res.body.error).toBe('Database details');
-      process.env.NODE_ENV = origEnv;
+      setNodeEnv(origEnv);
     });
 
     it('does not mask 4xx errors in production', () => {
       const origEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
+      setNodeEnv('production');
       const res = error('Bad request details', 400) as any;
       expect(res.body.error).toBe('Bad request details');
-      process.env.NODE_ENV = origEnv;
+      setNodeEnv(origEnv);
     });
   });
 

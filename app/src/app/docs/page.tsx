@@ -1,8 +1,17 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import CodeBlock from './CodeBlock';
 
 export const dynamic = 'force-static';
+
+// Read at build time rather than hardcoded: this page advertised "OpenAPI
+// 1.2.1" for three spec releases after the spec had moved on.
+function openApiVersion(): string {
+  const raw = readFileSync(join(process.cwd(), 'public', 'openapi.json'), 'utf8');
+  return (JSON.parse(raw) as { info: { version: string } }).info.version;
+}
 
 export const metadata: Metadata = {
   title: 'Developer Docs — Block Genomics (Nexus Protocol)',
@@ -182,13 +191,14 @@ const SDK_METHODS: [string, string][] = [
 ];
 
 export default function DocsPage() {
+  const specVersion = openApiVersion();
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
       {/* Hero */}
       <div className="mb-12">
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Badge color="cyan">Nexus Protocol v1.0</Badge>
-          <Badge color="bitcoin">OpenAPI 1.2.1</Badge>
+          <Badge color="bitcoin">OpenAPI {specVersion}</Badge>
           <Badge color="purple">block-genomics-connect · npm</Badge>
         </div>
         <h1
@@ -355,7 +365,7 @@ export default function DocsPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           <ResourceLink href="/docs/experience-hosting" title="Experience hosting" desc="Host any world on your block — web, Unreal, Minecraft, VR." internal />
           <ResourceLink href="/protocol" title="Nexus Protocol spec" desc="The normative v1.0 wire contract." internal />
-          <ResourceLink href="/openapi.json" title="openapi.json" desc="OpenAPI 3.1 descriptor (v1.2.1)." />
+          <ResourceLink href="/openapi.json" title="openapi.json" desc={`OpenAPI 3.1 descriptor (v${specVersion}).`} />
           <ResourceLink href={NPM_SDK} title="SDK on npm" desc="block-genomics-connect" />
           <ResourceLink href={NPM_CLI} title="CLI on npm" desc="block-genomics" />
           <ResourceLink href={RELEASES} title="GitHub releases" desc="Changelogs + tagged versions." />

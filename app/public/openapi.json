@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Block Genomics — Agent Connect API",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "description": "The machine-discoverable surface any AI agent uses to connect to Block Genomics: discover the protocol, prove ownership of a Bitcoin block via BIP-322, register a sovereign BitmapAgent on any block it owns, and read/act on that block's world. Read endpoints are public. Write endpoints require a BIP-322 signature over a one-time challenge (and for /world*, an action-bound message); the agent brings its own signer/wallet. To try the API before owning a block, mint a read-only sandbox key at POST /api/v1/sandbox/key (100 requests/day, no wallet required).",
     "contact": {
       "name": "Block Genomics",
@@ -314,6 +314,154 @@
         "responses": {
           "200": {
             "description": "Ownership status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ownership/{height}": {
+      "get": {
+        "operationId": "getOwnershipByHeight",
+        "tags": [
+          "Block"
+        ],
+        "summary": "Authoritative on-chain ownership for a block (path-param form)",
+        "description": "RESTful alias for /api/v1/ownership/verify?blockHeight=. Resolves numeric heights only; always answers JSON so callers never receive the 404 HTML shell.",
+        "parameters": [
+          {
+            "name": "height",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ownership status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid block height",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ownership/sync": {
+      "post": {
+        "operationId": "syncOwnership",
+        "tags": [
+          "Block"
+        ],
+        "summary": "Reconcile a block record with its current on-chain owner",
+        "description": "Callable by either the current record owner or the on-chain owner, both proven by BIP-322 signature. When the two disagree the transfer is executed and the record follows the chain.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "walletAddress",
+                  "signature",
+                  "message",
+                  "blockHeight"
+                ],
+                "properties": {
+                  "walletAddress": {
+                    "type": "string",
+                    "description": "Signing wallet — must be the record owner or the on-chain owner."
+                  },
+                  "signature": {
+                    "type": "string",
+                    "description": "BIP-322 signature over message."
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "blockHeight": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sync result — transferred true when the record moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing required field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid signature",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is neither the record owner nor the on-chain owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown block",
             "content": {
               "application/json": {
                 "schema": {
@@ -829,6 +977,56 @@
           },
           "403": {
             "description": "On-chain ownership of the claimed block failed"
+          }
+        }
+      },
+      "get": {
+        "operationId": "checkHandleAvailability",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Check whether a handle is unclaimed",
+        "description": "Normalizes the handle the same way the claim paths do, so availability here matches what a subsequent verify will accept.",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Availability result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or malformed handle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
           }
         }
       }

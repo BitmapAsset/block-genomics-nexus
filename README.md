@@ -159,7 +159,6 @@ The most valuable identities are naturally scarce — just like Bitcoin itself.
 block-genomics-nexus/
 ├── app/              ← Next.js frontend (Explorer, Verify, Agent profiles)
 ├── api/              ← REST API for verification, lookups
-├── api-server/       ← superseded MVP verification server (reference only, not deployed)
 ├── auth/             ← BIP-322 signature verification
 ├── claims/           ← Identity claim verification helpers
 ├── cli/              ← Developer tooling
@@ -335,7 +334,7 @@ converts to Apache 2.0 on **2029-08-10**.
 | | License | What it covers |
 |---|---|---|
 | **Protocol & client tooling** | [MIT](LICENSING.md) | Nexus Protocol spec, `block-genomics-connect` SDK, `block-genomics-mcp`, `block-genomics` CLI, RuneBolt, reference agent |
-| **Nexus platform** | [BUSL 1.1](LICENSE) | `app/`, `api/`, `api-server/`, `explorer/`, and the rest of this repository |
+| **Nexus platform** | [BUSL 1.1](LICENSE) | `app/`, `api/`, `explorer/`, and the rest of this repository |
 
 You may **self-host Nexus, run it in production commercially, fork it, and build
 paid products on it.** The only restriction is offering the platform itself to third

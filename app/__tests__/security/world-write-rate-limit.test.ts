@@ -13,7 +13,14 @@
  * signature check, indexer call, or database write happens.
  */
 
-const enforceRateLimit = jest.fn(async () => ({ response: null as unknown, headers: { 'X-RateLimit-Limit': '60' } }));
+// Mirrors RateLimitOutcome: `headers` is a Record, so a 429 case can resolve
+// with no advertisement headers without widening what the suite asserts.
+const enforceRateLimit = jest.fn(
+  async (): Promise<{ response: unknown; headers: Record<string, string> }> => ({
+    response: null,
+    headers: { 'X-RateLimit-Limit': '60' },
+  })
+);
 
 jest.mock('next/server', () => {
   class NextResponse {

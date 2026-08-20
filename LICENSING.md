@@ -88,7 +88,6 @@ is a build-time mirror of the canonical spec and is MIT as well.
 |---|---|
 | [`app/`](app) | Nexus web application and public API (Next.js) |
 | [`api/`](api) | Genome generation API |
-| [`api-server/`](api-server) | BIP-322 verification API |
 | [`explorer/`](explorer) | OG image and preview service |
 | *(everything else)* | Any file in this repository not listed as MIT above |
 
