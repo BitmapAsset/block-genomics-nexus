@@ -90,9 +90,6 @@ export async function GET(
       0
     );
 
-    // Mock visitors for now
-    const totalVisitors = Math.floor(Math.random() * 451) + 50;
-
     const guardianDetails = guardians.map((g) => {
       const event = eventMap.get(g.id);
       let lastAction: string | null = null;
@@ -119,7 +116,13 @@ export async function GET(
       totalBlocks: ownedBlocks.length,
       activeGuardians,
       totalWorldObjects,
-      totalVisitors,
+      // No `totalVisitors`. It was `Math.random() * 451 + 50` — a different
+      // number on every refresh, rendered as "👥 Total Visitors" on two
+      // dashboards. Nothing in this schema records a visit: PageView is never
+      // written by the app, and GuardianAgent.totalVisitors is only ever reset
+      // to 0. The real presence figure is a live per-block count in the browser
+      // and does not aggregate into a lifetime total, so the field is gone
+      // rather than relabelled — the same call #136 made about RANK.
       guardianDetails,
       ownedBlocks,
     });

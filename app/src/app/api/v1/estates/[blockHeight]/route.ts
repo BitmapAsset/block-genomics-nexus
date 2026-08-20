@@ -18,7 +18,10 @@ export async function GET(
     const estates = await prisma.estate.findMany({
       where: { blockHeight: h },
       include: {
-        owner: { select: { walletAddress: true, handle: true, tier: true } },
+        // `resolvedTier`, not `tier`: the first is resolved from the chain,
+        // the second defaults to 3 for every row that exists, and the UI draws
+        // a crown from whichever it is handed.
+        owner: { select: { walletAddress: true, handle: true, resolvedTier: true } },
       },
     });
 

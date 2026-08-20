@@ -47,7 +47,6 @@ interface PortfolioData {
     totalWorldObjects: number;
     activeDelegations: number;
     totalDelegationIncome: number;
-    totalVisitors: number;
   };
 }
 
@@ -259,7 +258,6 @@ export default function PortfolioPage() {
         totalWorldObjects: 0,
         activeDelegations: 0,
         totalDelegationIncome: 0,
-        totalVisitors: 0,
       };
 
       if (userRes.ok) {
@@ -314,7 +312,6 @@ export default function PortfolioPage() {
           stats.totalBlocks = s.totalBlocks || blocks.length;
           stats.activeGuardians = s.activeGuardians || 0;
           stats.totalWorldObjects = s.totalWorldObjects || 0;
-          stats.totalVisitors = s.totalVisitors || 0;
 
           // Map guardian info onto blocks
           if (s.guardianDetails) {
@@ -455,7 +452,7 @@ export default function PortfolioPage() {
                     <StatCard icon="🧱" label="Blocks Owned" value={data.stats.totalBlocks} subtext={`${data.stats.profiledBlocks} profiled`} accentColor="#f7931a" delay={0} />
                     <StatCard icon="🟢" label="Active Guardians" value={data.stats.activeGuardians} subtext={`of ${data.stats.totalBlocks} blocks`} accentColor="#22c55e" delay={0.1} />
                     <StatCard icon="💰" label="Delegation Income" value={`${data.stats.totalDelegationIncome.toLocaleString()}`} subtext={`${data.stats.activeDelegations} active`} accentColor="#a855f7" delay={0.2} />
-                    <StatCard icon="👥" label="Total Visitors" value={data.stats.totalVisitors} subtext="across all blocks" accentColor="#00ffcc" delay={0.3} />
+                    <StatCard icon="🌐" label="World Objects" value={data.stats.totalWorldObjects} subtext="built across blocks" accentColor="#00ffcc" delay={0.3} />
                   </div>
 
                   {/* Quick Block Grid */}

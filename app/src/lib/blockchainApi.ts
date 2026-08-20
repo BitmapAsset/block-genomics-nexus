@@ -8,8 +8,16 @@ export interface RealTx {
   txIndex: number;    // position in block (0 = coinbase)
   size: number;       // bytes (vbytes for pre-segwit)
   weight: number;     // weight units
-  fee: number;        // satoshis
+  /**
+   * Satoshis paid, or null when this transaction was synthesized to fill a page
+   * that was never fetched. Null is the honest answer: the block's real total
+   * weight constrains a synthesized SIZE, but nothing at all constrains its
+   * fee, so there is no number here that is derived from anything.
+   */
+  fee: number | null;
   isCoinbase: boolean;
+  /** True when this transaction's figures are synthesized rather than fetched. */
+  estimated?: boolean;
 }
 
 export interface RealBlockData {
@@ -34,8 +42,18 @@ interface RawApiTx {
 const blockCache = new Map<number, RealBlockData>();
 
 /**
- * Generate estimated tx sizes for remaining txs using block weight/size stats.
- * Uses a realistic power-law-ish distribution seeded by the block height.
+ * Fill the pages we did not fetch with size-only placeholders.
+ *
+ * A block summary gives a real total weight, and the first page gives real
+ * transactions; the remainder is drawn from a size distribution and rescaled so
+ * the synthesized weights sum to the weight actually left over. That makes the
+ * SIZES a defensible approximation of something measured, and each one is
+ * flagged `estimated` so no caller can mistake it for a fetched value.
+ *
+ * The fee had none of that. It was `rng() * 50000` sats — an invented number
+ * with nothing behind it, on a payload named "Real"; ParcelView turned it into
+ * a building height and a "₿ VALUE" readout. It is `null` now. Not knowing is
+ * representable; guessing and calling it real is not.
  */
 function generateEstimatedTxs(
   startIndex: number,
@@ -82,8 +100,9 @@ function generateEstimatedTxs(
       txIndex: startIndex + i,
       size: Math.ceil(weight / 4),
       weight,
-      fee: Math.round(rng() * 50000), // estimated fee
+      fee: null,
       isCoinbase: false,
+      estimated: true,
     };
   });
 }
@@ -117,7 +136,9 @@ async function fetchFromMempool(height: number): Promise<RealBlockData | null> {
       txIndex: i,
       size: tx.weight ? Math.ceil(tx.weight / 4) : tx.size || 250,
       weight: tx.weight || (tx.size || 250) * 4,
-      fee: tx.fee || 0,
+      // `?? null`, not `|| 0`: a missing fee field is unknown, and a real
+      // zero-fee transaction is a fact. Collapsing both to 0 loses that.
+      fee: tx.fee ?? null,
       isCoinbase: i === 0,
     }));
 
@@ -188,7 +209,9 @@ async function fetchFullFromMempool(height: number): Promise<RealBlockData | nul
       txIndex: i,
       size: tx.weight ? Math.ceil(tx.weight / 4) : tx.size || 250,
       weight: tx.weight || (tx.size || 250) * 4,
-      fee: tx.fee || 0,
+      // `?? null`, not `|| 0`: a missing fee field is unknown, and a real
+      // zero-fee transaction is a fact. Collapsing both to 0 loses that.
+      fee: tx.fee ?? null,
       isCoinbase: i === 0,
     }));
 
@@ -200,7 +223,10 @@ async function fetchFullFromMempool(height: number): Promise<RealBlockData | nul
       size: block.size,
       weight: block.weight,
       txs,
-      estimated: false,
+      // The page walk stops at `maxTxs`, and a block can carry more than that.
+      // A short read is still a partial view, so it reports as estimated rather
+      // than lighting the "🟢 Live" badge over a block it only half-fetched.
+      estimated: txs.length < block.tx_count,
     };
   } catch {
     return null;
@@ -222,7 +248,9 @@ async function fetchFromBlockchainInfo(height: number): Promise<RealBlockData | 
       txIndex: i,
       size: tx.size || 250,
       weight: tx.weight || (tx.size || 250) * 4,
-      fee: tx.fee || 0,
+      // `?? null`, not `|| 0`: a missing fee field is unknown, and a real
+      // zero-fee transaction is a fact. Collapsing both to 0 loses that.
+      fee: tx.fee ?? null,
       isCoinbase: i === 0,
     }));
 

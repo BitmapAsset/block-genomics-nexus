@@ -124,6 +124,98 @@ describe('blockchainApi', () => {
     });
   });
 
+  describe('synthesized transactions are labelled, and invent no fee', () => {
+    /** A block whose first page is real and whose remaining 2,975 txs are filled in. */
+    async function partiallyFetchedBlock(height: number) {
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, text: async () => 'hash-fee' })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            id: 'hash-fee',
+            timestamp: 1713571200,
+            tx_count: 3000,
+            size: 1500000,
+            weight: 4000000,
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () =>
+            Array.from({ length: 25 }, (_, i) => ({ weight: 1000 + i * 100, fee: i * 1000 })),
+        });
+      return blockchainApi.fetchRealBlock(height);
+    }
+
+    it('gives every synthesized tx a null fee, never a generated number', async () => {
+      // The removed line was `fee: Math.round(rng() * 50000)`. It was not an
+      // estimate of anything: the block summary constrains total WEIGHT, so a
+      // synthesized size is anchored, and nothing whatsoever anchors a fee.
+      // ParcelView turned it into a building height and a "₿ VALUE" readout.
+      const result = await partiallyFetchedBlock(840010);
+      const synthesized = result!.txs.slice(25);
+
+      expect(synthesized).toHaveLength(2975);
+      expect(synthesized.every((tx) => tx.fee === null)).toBe(true);
+      expect(synthesized.some((tx) => typeof tx.fee === 'number')).toBe(false);
+    });
+
+    it('flags each synthesized tx, so a consumer can tell them apart per-row', async () => {
+      // The block-level `estimated` flag says "some of this was filled in". It
+      // cannot say WHICH, so a consumer had to assume page boundaries.
+      const result = await partiallyFetchedBlock(840011);
+
+      expect(result!.txs.slice(0, 25).every((tx) => tx.estimated !== true)).toBe(true);
+      expect(result!.txs.slice(25).every((tx) => tx.estimated === true)).toBe(true);
+    });
+
+    it('keeps real fetched fees exactly as the indexer reported them', async () => {
+      const result = await partiallyFetchedBlock(840012);
+      expect(result!.txs.slice(0, 25).map((tx) => tx.fee)).toEqual(
+        Array.from({ length: 25 }, (_, i) => i * 1000),
+      );
+    });
+
+    it('still anchors synthesized weight to the block weight actually left over', async () => {
+      // The fee is gone; the size is not. Dropping both would have been the
+      // easy way out and would have thrown away a real constraint.
+      const result = await partiallyFetchedBlock(840013);
+      // Not exact: a 400-weight floor per synthesized tx pushes the sum a little
+      // past the target on a block this crowded. It stays in the same
+      // neighbourhood as the block's real 4,000,000, which is the property that
+      // makes the size an approximation rather than a guess.
+      const total = result!.txs.reduce((sum, tx) => sum + tx.weight, 0);
+      expect(total).toBeGreaterThan(3_500_000);
+      expect(total).toBeLessThan(4_600_000);
+    });
+
+    it('reports a short full-fetch as estimated rather than as live data', async () => {
+      // The page walk stops at 5,000 txs. A bigger block came back truncated
+      // with `estimated: false`, which lit the "🟢 Live" badge over a partial view.
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, text: async () => 'hash-big' })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            id: 'hash-big',
+            timestamp: 1713571200,
+            tx_count: 6000,
+            size: 1500000,
+            weight: 4000000,
+          }),
+        });
+      // Every page request returns a full page of 25 until the walk gives up.
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => Array.from({ length: 25 }, () => ({ weight: 800, fee: 500 })),
+      });
+
+      const result = await blockchainApi.fetchFullBlock(840014);
+      expect(result!.txs.length).toBeLessThan(6000);
+      expect(result!.estimated).toBe(true);
+    });
+  });
+
   describe('estimated TX generation', () => {
     it('generates deterministic estimated txs for same block', async () => {
       const setupMock = () => {

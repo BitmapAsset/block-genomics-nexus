@@ -60,6 +60,13 @@ export const WORLD_BATCH_LIMIT = 20;
 export const EXPERIENCE_WRITE_LIMIT = 20;
 
 /**
+ * Ceiling for creating an estate, per identity, per minute. Same amplification
+ * concern as a world write — one live indexer call per attempt — against a
+ * surface a real owner touches a handful of times, so it sits at the tighter end.
+ */
+export const ESTATE_WRITE_LIMIT = 20;
+
+/**
  * Ceiling for the public integrity-verify route, per identity, per minute.
  *
  * The local half is pure computation, but `?remote=1` makes an outbound fetch,

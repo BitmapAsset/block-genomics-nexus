@@ -36,7 +36,6 @@ interface EmpireStats {
   totalBlocks: number;
   activeGuardians: number;
   totalWorldObjects: number;
-  totalVisitors: number;
   guardianDetails: GuardianDetail[];
   ownedBlocks: number[];
 }
@@ -629,11 +628,10 @@ export default function ProfileHubPage() {
         {/* Empire Stats */}
         {empireStats && (
           <section className="mb-10">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               <StatCard icon="🏗️" label="Blocks Owned" value={empireStats.totalBlocks} />
               <StatCard icon="🟢" label="Guardians Active" value={empireStats.activeGuardians} />
               <StatCard icon="🌐" label="World Objects" value={empireStats.totalWorldObjects} />
-              <StatCard icon="👥" label="Total Visitors" value={empireStats.totalVisitors} />
             </div>
           </section>
         )}

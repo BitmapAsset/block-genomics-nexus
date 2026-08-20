@@ -50,7 +50,6 @@ interface EmpireStats {
   totalBlocks: number;
   activeGuardians: number;
   totalWorldObjects: number;
-  totalVisitors: number;
   guardianDetails: GuardianDetail[];
   ownedBlocks: number[];
 }
