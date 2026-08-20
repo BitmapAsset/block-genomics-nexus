@@ -124,6 +124,35 @@ at the time of the action rather than trusting the cache alone. Specifically,
   server **MAY** fall back to the cached ownership snapshot, and **MUST** log the
   fallback. It **MUST NOT** fall back on a definitive mismatch.
 
+World writes (§4.4) are stricter and allow no fallback at all: they **MUST** answer
+`503` when live truth is unavailable. The cached `owner` is **never** consulted to
+authorize one.
+
+### 4.4 Content authority follows the deed
+
+The block is the unit of ownership; objects are not separately owned. The wallet
+that currently holds a block's `.bitmap` inscription has **full authority over
+every object on that block**, including objects placed by previous owners.
+
+- Create, update, and delete on `/world`, `/world/{id}`, `/world/batch`, and
+  `/world/terrain` **MUST** authorize on live block ownership at the time of the
+  action, by either credential path (a `bg_vfy_` session token, or an action-bound
+  BIP-322 signature). Both paths end at the same live check.
+- An object's stored creator address is **provenance only**. Servers **MUST NOT**
+  compare it against the caller to decide whether a write is allowed.
+- Servers **MUST** verify that the target object belongs to the block whose
+  ownership was proved. Ownership of one block confers nothing on another.
+- The effect is immediate on both sides of a transfer: the moment the inscription
+  moves, the seller loses write access to everything on the block and the buyer
+  gains it. There is no cache-sync window in which the seller can still write.
+- An object's `locked` flag guards against accidental edits, not against the owner.
+  The current owner **MUST** be able to clear it; a lock left behind by a previous
+  owner **MUST NOT** be permanent.
+
+Rationale: a buyer who cannot edit what they just bought does not own it, and a
+seller who can still edit what they sold has not really sold it. Attribution is
+worth preserving; control is not divisible from the deed.
+
 ### 4.3 Transfer = blank-slate release
 
 When a block changes hands on-chain, the transfer is processed as a **blank-slate
@@ -141,6 +170,12 @@ The release and the ownership flip **MUST** be atomic, with the flip performed
 last, so that any failure rolls back to the seller owning an intact block and the
 next sync retries the whole release. A sale therefore **revokes the former owner's
 agent authority**.
+
+The release covers *identity and secrets*, not *content*. World objects and terrain
+are part of the block and transfer with it — they are **NOT** wiped, and the buyer
+inherits full authority over them (§4.4). The distinction is deliberate: a trained
+agent carries the seller's keys and personality, while a placed object carries only
+its own geometry.
 
 ---
 
@@ -437,6 +472,17 @@ sanitized and length-bounded. The stream is private (§5.4).
 - Registration: one per wallet per 24 hours.
 - Active agents per block: Tier 1 = 10, Tier 2 = 3, Tier 3 = 1.
 - Experience health probe: one per experience per minute (on-demand route).
+- World writes (`POST /world`, `PATCH`/`DELETE /world/{id}`, `POST /world/terrain`):
+  ~60 requests/minute per identity.
+- World batch (`POST /world/batch`): ~20 requests/minute per identity, since one
+  call carries up to 100 sub-operations.
+
+World writes are keyed per credential where one is present, falling back to client
+IP. Their ceiling is lower than public reads because each write costs a live
+indexer call (§4.4) before it costs a database write, so an unlimited caller could
+use the ownership gate as an amplifier pointed at a third-party indexer. The
+limiter runs **before** signature verification and the ownership check, so a
+throttled request costs neither.
 
 Challenge issuance and token rotate/revoke are guarded by a **durable,
 cross-instance** fixed-window limiter (a single atomic `INSERT … ON CONFLICT`

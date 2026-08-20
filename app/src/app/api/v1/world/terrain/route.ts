@@ -3,7 +3,9 @@ import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
-import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { enforceRateLimit, WORLD_WRITE_LIMIT } from '@/lib/api-rate-limit';
+import { requireSignedBlockOwner } from '@/lib/block-write-auth';
+import { gateDenialResponse } from '@/lib/ownership-gate';
 
 export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-world-terrain' });
@@ -22,6 +24,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-world-write', limit: WORLD_WRITE_LIMIT });
+  if (rl.response) return rl.response;
+
   try {
     const body = await req.json();
     const { blockHeight, ownerAddress, signature, message, ...settings } = body;
@@ -50,14 +55,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: binding.reason }, { status: 401 });
     }
 
+    // LIVE OWNERSHIP: same question the object routes ask, against the chain
+    // rather than the `Block.ownerAddress` cache, and before the nonce is burned.
+    const owns = await requireSignedBlockOwner(ownerAddress, blockHeight);
+    if (!owns.ok) return gateDenialResponse(owns);
+
     // REPLAY PROTECTION: consume the exact one-time nonce the signed binding carried.
     if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
       return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
-    }
-
-    const block = await prisma.block.findUnique({ where: { height: blockHeight } });
-    if (!block || block.ownerAddress !== ownerAddress) {
-      return NextResponse.json({ error: 'Not the block owner' }, { status: 403 });
     }
 
     // H-03: Allowlist terrain fields to prevent mass assignment
@@ -73,7 +78,7 @@ export async function POST(req: NextRequest) {
       update: safeSettings,
     });
 
-    return NextResponse.json({ terrain });
+    return NextResponse.json({ terrain }, { headers: rl.headers });
   } catch (err) {
     console.error('[Terrain POST]', err);
     return NextResponse.json({ error: 'Failed to update terrain' }, { status: 500 });

@@ -24,6 +24,14 @@
  *
  * When no indexer can answer we return 503 (retryable), never a grant. A caller
  * cannot convert "the chain is unreachable" into a write.
+ *
+ * OWNERSHIP FOLLOWS THE DEED. The block is the unit of ownership, not the object.
+ * Whoever holds the inscription right now controls everything standing on that
+ * block, including objects a previous owner placed. Authorship is recorded as
+ * provenance and never as a permission — otherwise a buyer would inherit a block
+ * they cannot edit, and a seller would keep write access to property they sold.
+ * So `requireLiveBlockOwner` is the ONLY question asked about who may mutate an
+ * object; `BlockObject.ownerAddress` is never compared against the caller.
  */
 
 import { NextResponse } from 'next/server';
@@ -119,8 +127,39 @@ export async function requireVerifiedBlock(
   }
 
   // ── 3. LIVE CHAIN RE-VERIFY ──────────────────────────────────────
+  const live = await requireLiveBlockOwner(session.walletAddress, blockHeight, opts);
+  if (!live.ok) return { ...live, session };
+
+  void touchSession(session.id);
+  return { ok: true, status: 200, session, walletAddress: session.walletAddress };
+}
+
+/**
+ * Check 3 on its own: does `walletAddress` hold `blockHeight` RIGHT NOW?
+ *
+ * Split out because the browser path reaches the same question by a different
+ * road — an action-bound BIP-322 signature proves the wallet, and this proves the
+ * wallet still owns the block — and two implementations of "who owns this block"
+ * would eventually disagree, with the lenient one becoming the way in.
+ *
+ * @param opts.inscriptionId Known `.bitmap` inscription, skips the wallet scan.
+ *   A hint only: the check still verifies live holder AND that the inscription's
+ *   content names this block, so a wrong or stale hint cannot grant anything.
+ */
+export async function requireLiveBlockOwner(
+  walletAddress: string,
+  blockHeight: number,
+  opts: {
+    inscriptionId?: string | null;
+    verifyOwnership?: (wallet: string, height: number, inscriptionId?: string | null) => Promise<OwnershipCheck>;
+  } = {}
+): Promise<GateResult> {
+  if (!Number.isInteger(blockHeight) || blockHeight < 0) {
+    return { ok: false, status: 400, code: 'bad_request', reason: 'A valid integer blockHeight is required' };
+  }
+
   const verify = opts.verifyOwnership ?? verifyBlockOwnedBy;
-  const onchain = await verify(session.walletAddress, blockHeight, opts.inscriptionId ?? null);
+  const onchain = await verify(walletAddress, blockHeight, opts.inscriptionId ?? null);
 
   if (onchain.unavailable) {
     return {
@@ -128,7 +167,6 @@ export async function requireVerifiedBlock(
       status: 503,
       code: 'onchain_unavailable',
       reason: 'On-chain ownership could not be confirmed right now. Retry shortly.',
-      session,
     };
   }
 
@@ -138,14 +176,12 @@ export async function requireVerifiedBlock(
       status: 403,
       code: 'ownership_lost',
       reason:
-        `Block ${blockHeight} is no longer held by this wallet on-chain. ` +
+        `Block ${blockHeight} is not held by this wallet on-chain. ` +
         (onchain.reason ?? 'Ownership check failed.'),
-      session,
     };
   }
 
-  void touchSession(session.id);
-  return { ok: true, status: 200, session, walletAddress: session.walletAddress };
+  return { ok: true, status: 200, walletAddress };
 }
 
 /** Render a gate denial as the API's standard error envelope. */

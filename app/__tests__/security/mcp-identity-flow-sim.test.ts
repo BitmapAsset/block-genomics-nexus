@@ -422,20 +422,39 @@ describe('SIM: ownership-gated edits through /api/v1/world/[id]', () => {
     expect(db.__rows('blockObject')).toHaveLength(1);
   });
 
-  it("refuses one wallet's token against another wallet's object", async () => {
+  it("lets a NEW owner's token edit an object the previous owner placed", async () => {
     const { objectId } = await ownerWithObject();
-    // Mallory verifies the SAME block, so scope alone would let her through; the
-    // per-object owner check is what stops her.
+
+    // The block sells. The buyer verifies it, and the chain now names only her.
+    const buyer = makeWallet('p2tr');
+    const { token: buyerToken } = await verifyWallet(buyer, [OWNED_BLOCK]);
+    chain.mockImplementation(async (w: string) => ({ verified: w === buyer.address }));
+
+    const res: any = await worldPatch(req({ color: '#123456' }, auth(buyerToken!)), params(objectId));
+
+    expect(res.status).toBe(200);
+    expect(res.body.object.color).toBe('#123456');
+    // Control moved with the deed; attribution stayed with whoever built it.
+    expect(db.__rows('blockObject')[0].ownerAddress).not.toBe(buyer.address);
+  });
+
+  it("refuses a second wallet the chain does not name as the block's holder", async () => {
+    const { objectId } = await ownerWithObject();
+    // Mallory verifies the SAME block, so scope alone would let her through. With
+    // the per-object creator check gone, the live holder check is the only thing
+    // standing between her and someone else's block.
     const mallory = makeWallet('p2tr');
     const { token: malloryToken } = await verifyWallet(mallory, [OWNED_BLOCK]);
+    chain.mockImplementation(async (w: string) => ({
+      verified: w !== mallory.address,
+      reason: 'Inscription is not held by this wallet',
+    }));
 
-    const res: any = await worldPatch(
-      req({ color: '#bad' }, auth(malloryToken!)),
-      params(objectId)
-    );
+    const res: any = await worldPatch(req({ color: '#bad' }, auth(malloryToken!)), params(objectId));
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe('Not owner');
+    expect(res.body.code).toBe('ownership_lost');
+    expect(db.__rows('blockObject')[0].color).not.toBe('#bad');
   });
 
   it('refuses a retryable 503 rather than editing when the chain is unreachable', async () => {
@@ -467,14 +486,25 @@ describe('SIM: ownership-gated edits through /api/v1/world/[id]', () => {
     expect(res.status).toBe(404);
   });
 
-  it('refuses to edit a locked object even for its verified owner', async () => {
+  it('refuses to edit a locked object even for the current block owner', async () => {
     const { token, objectId } = await ownerWithObject();
     db.__rows('blockObject')[0].locked = true;
 
     const res: any = await worldPatch(req({ color: '#111111' }, auth(token)), params(objectId));
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe('Object is locked');
+    expect(res.body.error).toContain('locked');
+    expect(db.__rows('blockObject')[0].color).not.toBe('#111111');
+  });
+
+  it('lets the current block owner clear a lock a previous owner left behind', async () => {
+    const { token, objectId } = await ownerWithObject();
+    db.__rows('blockObject')[0].locked = true;
+
+    const res: any = await worldPatch(req({ locked: false }, auth(token)), params(objectId));
+
+    expect(res.status).toBe(200);
+    expect(db.__rows('blockObject')[0].locked).toBe(false);
   });
 });
 

@@ -218,7 +218,9 @@ describe('SIM: ownership gate — live chain refusals', () => {
     expect(res.ok).toBe(false);
     expect(res.status).toBe(403);
     expect(res.code).toBe('ownership_lost');
-    expect(res.reason).toContain('no longer held');
+    // Wording is now shared with the browser path, which reaches this same check
+    // for wallets that never held the block — so it states the current fact.
+    expect(res.reason).toContain('not held');
   });
 
   it('returns a retryable 503 when no indexer can answer, and does NOT grant', async () => {
