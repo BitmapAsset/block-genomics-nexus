@@ -4,8 +4,8 @@
 # job installs from its own package-lock.json. Every suite below was verified
 # green before this workflow was added; jobs run in parallel and finish in ~2 min.
 #
-# Job names double as branch-protection status checks: sdk, mcp, cli, app, lint,
-# typecheck, example, build, secrets, migrations.
+# Job names double as branch-protection status checks: sdk, mcp, cli, api, app,
+# lint, typecheck, example, build, secrets, migrations.
 #
 # `app` (jest), `lint` (eslint) and `build` (next build) are separate jobs rather
 # than steps of one: they are independent failure modes, and as steps a lint
@@ -79,6 +79,33 @@ jobs:
       - run: npm run build
       # `npm test` is bare `vitest`; call `vitest run` so CI can never enter watch mode.
       - run: npx vitest run
+
+  api:
+    name: api
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    # The Fastify deploy target under api/src. It had no job at all, so its
+    # sources were never compiled by CI.
+    #
+    # No separate typecheck step: api's `build` is bare `tsc` over the whole
+    # tsconfig, and `npm run typecheck` is the same `tsc --noEmit`. Unlike the
+    # app job below — where `next build` skips `__tests__` and typecheck earns
+    # its place — there is nothing here the build does not already check.
+    #
+    # No lint or test step: this package configures neither.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+      # Verified to pass with DATABASE_URL unset: config.ts only parses env at
+      # runtime, and nothing in the compile path opens a connection.
+      - run: npm run build
 
   typecheck:
     name: typecheck
