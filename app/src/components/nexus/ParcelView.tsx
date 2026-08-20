@@ -32,6 +32,13 @@ interface ParcelData {
   txIndex: number;
   bytes: number;
   value: number;
+  /**
+   * Whether `value` is a figure we actually have. False for a synthesized
+   * transaction (no fee was fetched) and for the whole mock fallback. It still
+   * drives geometry — a floor-height building is the right drawing for "we do
+   * not know" — but it must never be printed as a ₿ amount.
+   */
+  valueKnown: boolean;
   isCoinbase: boolean;
   // Treemap layout (proportional to vbytes)
   x: number;      // world x position
@@ -179,21 +186,53 @@ function mondrianLayout(
 interface Estate {
   id: string;
   name: string;
-  ownerHandle: string;
-  ownerTier: 1 | 2;
+  ownerAddress: string;
+  /** Real profile handle, or null when the owner has never claimed one. */
+  ownerHandle: string | null;
+  ownerTier: ShieldTier;
   parcelIndices: number[]; // txIndex array of merged parcels
-  color?: string; // custom color
   glowColor: string; // neon glow color
   created: number;
 }
 
 const NEON_COLORS = ['#00ffff', '#ff00ff', '#00ff88', '#ffcc00', '#aa44ff', '#ff4444'];
 
-// No fabricated estates. Estates group parcels under a named owner; inventing
-// them would surface fake owner handles on unowned blocks. Returns empty until a
-// real estate data source exists.
-function generateMockEstates(_blockHeight: number, _parcels: ParcelData[]): Estate[] {
-  return [];
+/**
+ * What to call an estate's owner. A handle exists only if the owner claimed
+ * one, so the fallback is their real address, shortened — never an invented
+ * handle and never the "you" placeholder the local-only flow used to show.
+ */
+function estateOwnerLabel(estate: Estate): string {
+  if (estate.ownerHandle) return `@${estate.ownerHandle}`;
+  const a = estate.ownerAddress;
+  return a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a;
+}
+
+/** Shape returned by GET /api/v1/estates/[blockHeight]. */
+interface EstateApiRow {
+  id: string;
+  name: string;
+  ownerAddress: string;
+  glowColor: string | null;
+  parcelIndices: number[];
+  createdAt: string;
+  owner?: { handle: string | null; resolvedTier: number } | null;
+}
+
+function estateFromApi(row: EstateApiRow): Estate {
+  return {
+    id: row.id,
+    name: row.name,
+    ownerAddress: row.ownerAddress,
+    ownerHandle: row.owner?.handle ?? null,
+    // `resolvedTier` is the chain-resolved tier every other crown in this app
+    // reads. `User.tier` defaults to 3 for anyone who has a row at all, so
+    // rendering a crown from it would hand out a badge nobody earned.
+    ownerTier: ((row.owner?.resolvedTier ?? 0) as ShieldTier),
+    parcelIndices: Array.isArray(row.parcelIndices) ? row.parcelIndices : [],
+    glowColor: row.glowColor ?? NEON_COLORS[0],
+    created: Date.parse(row.createdAt) || 0,
+  };
 }
 
 /* Honest placeholder for blocks with no real owner in the DB. NEVER a fabricated
@@ -201,15 +240,6 @@ function generateMockEstates(_blockHeight: number, _parcels: ParcelData[]): Esta
 const UNCLAIMED_OWNER: OwnerData = { handle: '', tier: 0, verified: false, avatar: '○' };
 function isUnclaimedOwner(o: OwnerData | null | undefined): boolean {
   return !o || o.handle === '';
-}
-
-// Real on-chain receive/recipient address for a block owner. Sourcing this
-// requires the parcel-profile work; until then there is NO genuine address and we
-// must never fabricate one (a fake bc1q... would burn real sats). Returns null
-// today; the UI shows an honest "not available yet" state and disables sending.
-// TODO: resolve from the owner's verified profile once that lands.
-function getOwnerReceiveAddress(_blockHeight: number, _owner: OwnerData): string | null {
-  return null;
 }
 
 /* ─── Block size constant ─── */
@@ -222,7 +252,7 @@ const METERS_PER_UNIT = 2100 / BLOCK_SIZE; // 105 meters per world unit
 function generateParcels(blockHeight: number, realBlock?: RealBlockData | null): ParcelData[] {
   const block = generateBlock(blockHeight);
   const rng = seededRandom(blockHeight * 7919);
-  const rawParcels: { txIndex: number; bytes: number; value: number; isCoinbase: boolean }[] = [];
+  const rawParcels: { txIndex: number; bytes: number; value: number; valueKnown: boolean; isCoinbase: boolean }[] = [];
 
   if (realBlock && realBlock.txs.length > 0) {
     // ═══ REAL BLOCKCHAIN DATA ═══
@@ -237,21 +267,29 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
     // drew block 500,000's 12.5 BTC coinbase at a quarter of its real size.
     //
     // Fees are only added when the payload carries real ones. `estimated`
-    // means blockchainApi fetched the first page and synthesised the rest, fee
-    // included, so summing them would hang an invented total on the tallest
-    // building in the block. The subsidy alone is the honest floor there.
+    // means blockchainApi fetched the first page and synthesised the rest, so
+    // summing them would hang a partial total on the tallest building in the
+    // block. The subsidy alone is the honest floor there.
+    //
+    // A synthesized transaction now arrives with `fee: null` instead of a
+    // random number, so it has no value to draw and no value to print. It
+    // renders at the floor and reads as unknown until the full fetch lands.
     const subsidyBtc = 50 / Math.pow(2, getEpoch(blockHeight));
     const totalFeesBtc = realBlock.estimated
       ? 0
-      : realBlock.txs.reduce((sum, tx) => sum + (tx.fee || 0), 0) / 100_000_000;
+      : realBlock.txs.reduce((sum, tx) => sum + (tx.fee ?? 0), 0) / 100_000_000;
     for (const tx of realBlock.txs) {
       const value = tx.isCoinbase
         ? subsidyBtc + totalFeesBtc
-        : (tx.fee || 0) / 100_000_000;
+        : (tx.fee ?? 0) / 100_000_000;
       rawParcels.push({
         txIndex: tx.txIndex,
         bytes: tx.size,
         value,
+        // The coinbase carries the subsidy plus every fee in the block, so on a
+        // partially-fetched block its exact value is unknown too — what we hold
+        // is a floor, not the figure.
+        valueKnown: tx.isCoinbase ? !realBlock.estimated : tx.fee !== null,
         isCoinbase: tx.isCoinbase,
       });
     }
@@ -284,7 +322,9 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
         : rng() < 0.1 ? 0.1 + rng() * 1
         : 0.0001 + rng() * 0.1;
 
-      rawParcels.push({ txIndex: i, bytes, value, isCoinbase });
+      // Declared mock: the geometry is a placeholder, so the ₿ figure is not a
+      // figure at all and must not be printed as one.
+      rawParcels.push({ txIndex: i, bytes, value, valueKnown: false, isCoinbase });
     }
   }
 
@@ -316,6 +356,7 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
       txIndex: raw.txIndex,
       bytes: raw.bytes,
       value: raw.value,
+      valueKnown: raw.valueKnown,
       isCoinbase: raw.isCoinbase,
       x: rect ? rect.x : 0,  // center x (packSquaresToWorldSpace returns centers)
       z: rect ? rect.z : 0,  // center z (packSquaresToWorldSpace returns centers)
@@ -1907,7 +1948,7 @@ function EstateOverlay({ estates, parcels, hoveredEstateId, onHoverEstate, onCli
                     🏰 {estate.name}
                   </div>
                   <div style={{ color: '#94a3b8', fontSize: '9px', fontFamily: 'monospace' }}>
-                    @{estate.ownerHandle} · {estate.parcelIndices.length} parcels
+                    {estateOwnerLabel(estate)} · {estate.parcelIndices.length} parcels
                   </div>
                 </div>
               </Html>
@@ -2115,13 +2156,21 @@ type OwnershipProof =
   | { state: 'proven' }
   | { state: 'failed'; reason: string; retryable: boolean };
 
-function EstateModal({ onClose, blockHeight, parcels, onCreateEstate }: { onClose: () => void; blockHeight: number; parcels: ParcelData[]; onCreateEstate: (estate: Estate) => void }) {
+function EstateModal({ onClose, blockHeight, parcels, onEstateCreated }: { onClose: () => void; blockHeight: number; parcels: ParcelData[]; onEstateCreated: () => void }) {
   const { walletAddress, signMessage } = useGlobalWallet();
   const [estateName, setEstateName] = useState('');
   const [selectedParcels, setSelectedParcels] = useState<Set<number>>(new Set());
   const [selectedColor, setSelectedColor] = useState(NEON_COLORS[0]);
   const [created, setCreated] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [proof, setProof] = useState<OwnershipProof>({ state: 'unproven' });
+  /**
+   * The credential minted by the handshake below. `POST /api/v1/estates` runs
+   * the same three checks again — identity, scope, live chain — so this is what
+   * the write is authorized by, not the fact that this component rendered.
+   */
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   /**
    * Ownership follows the deed. Holding `<height>.bitmap` means holding every
@@ -2191,6 +2240,11 @@ function EstateModal({ onClose, blockHeight, parcels, onCreateEstate }: { onClos
         });
         return;
       }
+      const token: unknown = verifyData?.data?.token;
+      if (typeof token !== 'string' || !token) {
+        throw new Error('Verification returned no session token');
+      }
+      setSessionToken(token);
       setProof({ state: 'proven' });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Verification failed';
@@ -2211,20 +2265,43 @@ function EstateModal({ onClose, blockHeight, parcels, onCreateEstate }: { onClos
     });
   };
 
-  const handleCreate = () => {
-    if (!estateName.trim() || selectedParcels.size < 2) return;
-    const newEstate: Estate = {
-      id: `estate-${blockHeight}-${Date.now()}`,
-      name: estateName.trim(),
-      ownerHandle: 'you',
-      ownerTier: 1,
-      glowColor: selectedColor,
-      parcelIndices: [...selectedParcels],
-      created: Date.now(),
-    };
-    onCreateEstate(newEstate);
-    setCreated(true);
-    setTimeout(() => { setCreated(false); onClose(); }, 1200);
+  /**
+   * Estates used to exist only in this component's state: the modal built an
+   * object, handed it up, and it vanished on reload. It now goes to the server,
+   * which re-checks ownership on the chain before it writes anything — so a
+   * "✅ Estate Created" badge means a row exists, not that a local array grew.
+   */
+  const handleCreate = async () => {
+    if (!estateName.trim() || selectedParcels.size < 2 || saving) return;
+    if (!sessionToken) {
+      setSaveError('Ownership proof expired — verify again');
+      setProof({ state: 'unproven' });
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await fetch('/api/v1/estates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+        body: JSON.stringify({
+          name: estateName.trim(),
+          blockHeight,
+          parcelIndices: [...selectedParcels],
+          glowColor: selectedColor,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Could not create the estate');
+
+      onEstateCreated();
+      setCreated(true);
+      setTimeout(() => { setCreated(false); onClose(); }, 1200);
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : 'Could not create the estate');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -2310,16 +2387,22 @@ function EstateModal({ onClose, blockHeight, parcels, onCreateEstate }: { onClos
             </div>
               </div>
 
-              <button onClick={handleCreate} disabled={!estateName.trim() || selectedParcels.size < 2}
+              {saveError && (
+                <div className="text-[10px] px-3 py-2 rounded-lg" style={{ color: '#f87171', background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.15)' }}>
+                  ❌ {saveError}
+                </div>
+              )}
+
+              <button onClick={() => { void handleCreate(); }} disabled={!estateName.trim() || selectedParcels.size < 2 || saving}
             className="w-full py-3 rounded-xl text-sm font-bold transition-all"
             style={{
               background: created ? 'rgba(0,255,136,0.2)' : `${selectedColor}22`,
               border: `1.5px solid ${created ? '#00ff88' : selectedColor}`,
               color: created ? '#00ff88' : selectedColor,
-              opacity: (!estateName.trim() || selectedParcels.size < 2) ? 0.4 : 1,
+              opacity: (!estateName.trim() || selectedParcels.size < 2 || saving) ? 0.4 : 1,
               boxShadow: `0 0 20px ${selectedColor}33`,
             }}>
-              {created ? '✅ Estate Created!' : '🏰 Create Estate'}
+              {created ? '✅ Estate Created!' : saving ? '⏳ Creating…' : '🏰 Create Estate'}
               </button>
             </>
           )}
@@ -4819,21 +4902,38 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const prevPanelSize = useRef<PanelSize>('quarter');
-  const toggleFullscreen = useCallback(() => {
+  /**
+   * `requestFullscreen()` and `exitFullscreen()` return promises, and both
+   * reject routinely — a permissions policy, a missing user activation, or a
+   * document that has already left fullscreen. Neither result was handled, so
+   * every refusal surfaced as `Uncaught (in promise) TypeError: Permissions
+   * check failed`.
+   *
+   * The rejection was the visible half. The real bug was flipping the UI before
+   * the browser had answered: on a refusal the button claimed fullscreen and
+   * the side panel stayed hidden, with nothing on screen actually fullscreen.
+   * So the request is awaited, and the view state is driven by the
+   * `fullscreenchange` event — the browser's answer — rather than by our intent.
+   */
+  const toggleFullscreen = useCallback(async () => {
     if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen?.();
-      setIsFullscreen(true);
+      const el = containerRef.current;
+      if (!el?.requestFullscreen) return;
       prevPanelSize.current = panelSize;
-      setPanelSize('hidden'); // auto-hide panel for immersion
+      await el.requestFullscreen().catch(() => undefined);
     } else {
-      document.exitFullscreen?.();
-      setIsFullscreen(false);
-      setPanelSize(prevPanelSize.current); // restore panel
+      await document.exitFullscreen?.().catch(() => undefined);
     }
   }, [panelSize]);
 
   useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    // Esc leaves fullscreen without going through the toggle, so the panel has
+    // to follow this event too or it stays hidden with no way to bring it back.
+    const handler = () => {
+      const on = !!document.fullscreenElement;
+      setIsFullscreen(on);
+      setPanelSize(on ? 'hidden' : prevPanelSize.current);
+    };
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
@@ -5182,9 +5282,22 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
   const spatialAvatars = useMemo(() => generateMockAvatars(blockHeight, parcels.length), [blockHeight, parcels.length]);
   const mockActivities = useMemo(() => generateMockActivities(blockHeight), [blockHeight]);
-  const initialEstates = useMemo(() => generateMockEstates(blockHeight, parcels), [blockHeight, parcels]);
   const [estates, setEstates] = useState<Estate[]>([]);
-  useEffect(() => { setEstates(initialEstates); }, [initialEstates]);
+  /**
+   * Estates come from the database now. The block may genuinely have none —
+   * that is an empty overlay, not a reason to invent one.
+   */
+  const loadEstates = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/v1/estates/${blockHeight}`);
+      const data = await res.json().catch(() => null);
+      const rows: unknown = data?.data;
+      setEstates(res.ok && Array.isArray(rows) ? (rows as EstateApiRow[]).map(estateFromApi) : []);
+    } catch {
+      setEstates([]);
+    }
+  }, [blockHeight]);
+  useEffect(() => { void loadEstates(); }, [loadEstates]);
   const estateByParcel = useMemo(() => {
     const map = new Map<number, Estate>();
     estates.forEach(e => e.parcelIndices.forEach(idx => map.set(idx, e)));
@@ -5225,7 +5338,11 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   }, [selectedParcel]);
 
   const totalBytes = parcels.reduce((s, p) => s + p.bytes, 0);
+  // Only sum what is known. A block with any unknown-value parcel has no
+  // total to report — the honest reading is "not yet", not a partial sum
+  // presented as the block's worth.
   const totalValue = parcels.reduce((s, p) => s + p.value, 0);
+  const totalValueKnown = parcels.length > 0 && parcels.every(p => p.valueKnown);
   const displayParcel = selectedParcel || (parcelNavIndex < parcels.length ? parcels[parcelNavIndex] : null);
   const displayParcelOwner = useMemo(() => {
     if (!displayParcel) return null;
@@ -5480,7 +5597,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
           return '';
         }}
       />}
-      {showEstateModal && <EstateModal onClose={() => setShowEstateModal(false)} blockHeight={blockHeight} parcels={parcels} onCreateEstate={(estate) => setEstates(prev => [...prev, estate])} />}
+      {showEstateModal && <EstateModal onClose={() => setShowEstateModal(false)} blockHeight={blockHeight} parcels={parcels} onEstateCreated={() => { void loadEstates(); }} />}
       {showLivestreamModal && <LivestreamModal onClose={() => setShowLivestreamModal(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? 0} isStreaming={isStreaming} onStartStream={handleStartStream} onEndStream={handleEndStream} walletAddress={walletAddress} />}
 
       {/* Live Stream Embed — visible to ALL visitors when stream is active */}
@@ -5780,7 +5897,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
         <VisitorOverlay count={realtimeViewerCount} />
 
         {/* Fullscreen toggle */}
-        <button onClick={toggleFullscreen}
+        <button onClick={() => { void toggleFullscreen(); }}
           className="absolute z-20 px-2.5 py-2 rounded-xl transition-all hover:brightness-150 active:scale-90"
           title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen immersive mode'}
           style={{
@@ -5813,7 +5930,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               <div className="flex justify-between gap-6"><span>Dimensions</span><span style={{ color: '#e2e8f0' }}>{fmtDim(hoveredParcel.width)}m × {fmtDim(hoveredParcel.depth)}m</span></div>
               <div className="flex justify-between gap-6"><span>Total Area</span><span style={{ color: '#e2e8f0' }}>{hoveredParcel.areaSqMeters.toLocaleString()} m²</span></div>
               <div className="flex justify-between gap-6"><span>Height</span><span style={{ color: '#e2e8f0' }}>{hoveredParcel.heightMeters.toFixed(0)}m</span></div>
-              <div className="flex justify-between gap-6"><span>Value</span><span style={{ color: '#e2e8f0' }}>₿ {hoveredParcel.value.toFixed(4)}</span></div>
+              <div className="flex justify-between gap-6"><span>Value</span><span style={{ color: '#e2e8f0' }}>{hoveredParcel.valueKnown ? `₿ ${hoveredParcel.value.toFixed(4)}` : 'not fetched yet'}</span></div>
               <div className="flex justify-between gap-6"><span>Size</span><span style={{ color: '#e2e8f0' }}>{hoveredParcel.bytes.toLocaleString()} vB</span></div>
               {parcelCustomizations.has(hoveredParcel.txIndex) && (
                 <div className="flex justify-between gap-6"><span>Custom</span><span style={{ color: '#ffcc00' }}>🎨 Customized</span></div>
@@ -5839,7 +5956,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
               </span>
             </div>
             <div className="space-y-1 text-[11px]" style={{ color: '#94a3b8' }}>
-              <div className="flex justify-between gap-4"><span>Owner</span><span style={{ color: '#e2e8f0' }}>@{hoveredEstate.ownerHandle}</span></div>
+              <div className="flex justify-between gap-4"><span>Owner</span><span style={{ color: '#e2e8f0' }}>{estateOwnerLabel(hoveredEstate)}</span></div>
               <div className="flex justify-between gap-4"><span>Parcels</span><span style={{ color: '#e2e8f0' }}>{hoveredEstate.parcelIndices.length} merged</span></div>
               <div className="flex justify-between gap-4"><span>Total Area</span><span style={{ color: '#e2e8f0' }}>
                 {hoveredEstate.parcelIndices.reduce((s, i) => s + (parcels[i]?.areaSqMeters ?? 0), 0).toLocaleString()} m²
@@ -5949,7 +6066,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
             <div className="px-4 py-3 space-y-2 text-xs font-mono" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <PropRow label="PARCELS / TXS" value={parcels.length.toLocaleString()} />
-              <PropRow label="VALUE" value={`₿ ${totalValue.toFixed(4)}`} highlight />
+              <PropRow label="VALUE" value={totalValueKnown ? `₿ ${totalValue.toFixed(4)}` : '— not fetched yet'} highlight />
               <PropRow label="VBYTES" value={(blockStats.vbytes ?? totalBytes).toLocaleString()} />
               <PropRow label="HEIGHT" value={blockHeight.toLocaleString()} />
               <PropRow label="HASH" value={blockStats.hash ? `${blockStats.hash.slice(0, 4)}...${blockStats.hash.slice(-4)}` : `0000...${(blockHeight * 7919).toString(16).slice(-4)}`} />
@@ -6056,7 +6173,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                         <span className="text-[12px] font-bold" style={{ color: estate.glowColor, textShadow: `0 0 8px ${estate.glowColor}66` }}>{estate.name}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px]" style={{ color: '#94a3b8' }}>@{estate.ownerHandle}</span>
+                        <span className="text-[10px]" style={{ color: '#94a3b8' }}>{estateOwnerLabel(estate)}</span>
                         <CrownShield tier={estate.ownerTier} size={11} />
                       </div>
                       <PropRow label="PARCELS MERGED" value={`${estate.parcelIndices.length}`} />
@@ -6090,7 +6207,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
                   </>
                 )}
                 <PropRow label="TYPE" value={displayParcel.isCoinbase ? '⛏ Coinbase' : 'Standard'} />
-                <PropRow label="VALUE" value={`₿ ${displayParcel.value.toFixed(6)}`} />
+                <PropRow label="VALUE" value={displayParcel.valueKnown ? `₿ ${displayParcel.value.toFixed(6)}` : '— not fetched yet'} />
                 <PropRow label="SIZE" value={`${displayParcel.bytes.toLocaleString()} vB`} />
                 <PropRow label="DIMENSIONS" value={`${fmtDim(displayParcel.width)}m × ${fmtDim(displayParcel.depth)}m`} />
                 <PropRow label="AREA" value={`${displayParcel.areaSqMeters.toLocaleString()} m²`} />

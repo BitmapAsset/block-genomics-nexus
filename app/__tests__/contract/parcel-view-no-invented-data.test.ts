@@ -82,6 +82,41 @@ describe('ownership is never fabricated', () => {
   });
 });
 
+describe('estates are records, not local state', () => {
+  it('has no mock-estate generator left to fall back to', () => {
+    expect(offenders(SRC, /generateMockEstates/)).toEqual([]);
+  });
+
+  it('does not mint estate ids in the browser', () => {
+    // `estate-${blockHeight}-${Date.now()}` was the tell: an id no server had
+    // ever seen, for a row that did not exist. The estate lived in a useState
+    // array and was gone on reload, while the UI said "✅ Estate Created!".
+    expect(offenders(SRC, /`estate-\$\{/)).toEqual([]);
+  });
+
+  it('does not label the owner "you" instead of reading who owns it', () => {
+    expect(offenders(SRC, /ownerHandle:\s*'you'/)).toEqual([]);
+  });
+
+  it('reads estates from the API that gates them on live ownership', () => {
+    expect(SRC).toContain('/api/v1/estates/');
+    expect(SRC).toContain("fetch('/api/v1/estates'");
+  });
+});
+
+describe('a ₿ figure is printed only where one is known', () => {
+  it('never formats a parcel value without checking it is known', () => {
+    // `fee: rng() * 50000` from blockchainApi used to arrive as a real number
+    // for every transaction past the first page, and this file printed it as
+    // "₿ VALUE" to six decimal places.
+    const printed = offenders(SRC, /value\.toFixed\(/);
+    for (const line of printed) {
+      expect(line).toMatch(/valueKnown/);
+    }
+    expect(printed.length).toBeGreaterThan(0);
+  });
+});
+
 describe('receive QR is never drawn from a seed', () => {
   it('has no generated QR module grid', () => {
     // A seeded boolean grid rendered as a Bitcoin QR is a wrong-address bug
