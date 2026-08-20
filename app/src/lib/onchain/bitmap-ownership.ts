@@ -22,12 +22,16 @@
  *     re-grant a sold block.
  *   - When no provider can answer, callers get `unavailable` and must surface a
  *     retryable 503 rather than granting or hard-denying.
+ *
+ * FRESHNESS: every question this module answers gates a mutation, so the holder
+ * lookup always runs on the AUTH tier (lib/onchain/owner-freshness.ts). That is
+ * a tightening AND a de-load: these calls previously went straight to the ord
+ * client on every single write with no coalescing, so a burst of writes against
+ * one block cost one throttled indexer round-trip each.
  */
 
-import {
-  getInscriptionOwner as ordGetInscriptionOwner,
-  getAddressInscriptions as ordGetAddressInscriptions,
-} from '@/lib/onchain/ord';
+import { getAddressInscriptions as ordGetAddressInscriptions } from '@/lib/onchain/ord';
+import { resolveInscriptionOwner } from '@/lib/onchain/owner-freshness';
 
 /** Timeout for the non-ord (content / Unisat) calls made from this module. */
 const FETCH_TIMEOUT_MS = 8000;
@@ -72,7 +76,7 @@ export async function verifyInscriptionOwnership(
     // ── MANDATORY current-holder check ──────────────────────────────
     let holderAddress: string | null = null;
 
-    const ordOwner = await ordGetInscriptionOwner(inscriptionId);
+    const ordOwner = await resolveInscriptionOwner(inscriptionId, 'auth');
     if (ordOwner) holderAddress = ordOwner.address;
 
     // Tertiary fallback: Unisat, ONLY to learn the current holder.

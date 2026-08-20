@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
       return error('blockHeight query param required (positive integer)', 400);
     }
 
-    const check = await verifyBlockOwnership(blockHeight);
+    // DISPLAY tier: a public read-only comparison of DB vs on-chain owner.
+    // It authorizes nothing, so it shares the cached observation.
+    const check = await verifyBlockOwnership(blockHeight, 'display');
 
     return success({
       blockHeight: check.blockHeight,
