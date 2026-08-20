@@ -27,13 +27,20 @@ function loadSpec(): string {
   return readFileSync(join(process.cwd(), 'src', 'content', 'nexus-protocol-v1.md'), 'utf8');
 }
 
+/**
+ * `public/openapi.json` is the canonical descriptor and is committed to the repo,
+ * so an unreadable or version-less file is a build-integrity failure rather than a
+ * condition to paper over. This page is `force-static`, so throwing fails the
+ * build -- the previous `?? '1.2.1'` fallback would instead have shipped a badge
+ * four minor versions behind the descriptor the API actually serves.
+ */
 function loadOpenApiVersion(): string {
-  try {
-    const raw = readFileSync(join(process.cwd(), 'public', 'openapi.json'), 'utf8');
-    return JSON.parse(raw).info?.version ?? '1.2.1';
-  } catch {
-    return '1.2.1';
+  const raw = readFileSync(join(process.cwd(), 'public', 'openapi.json'), 'utf8');
+  const version = (JSON.parse(raw) as { info?: { version?: string } }).info?.version;
+  if (!version) {
+    throw new Error('public/openapi.json is missing info.version');
   }
+  return version;
 }
 
 interface TocItem {
@@ -68,10 +75,17 @@ function buildToc(md: string): TocItem[] {
   return items;
 }
 
-/** Version + status line pulled from the spec header, so the badge tracks the file. */
+/**
+ * Version + status line pulled from the spec header, so the badge tracks the file.
+ * Same reasoning as loadOpenApiVersion: a header this page cannot parse means the
+ * mirror is malformed, and defaulting would render a version nobody wrote.
+ */
 function loadSpecMeta(md: string): { version: string; status: string } {
-  const version = /\*\*Version:\*\*\s*([0-9][^\n]*)/.exec(md)?.[1]?.trim() ?? '1.0.0';
-  const status = /\*\*Status:\*\*\s*([^\n]*)/.exec(md)?.[1]?.trim() ?? 'Normative specification';
+  const version = /\*\*Version:\*\*\s*([0-9][^\n]*)/.exec(md)?.[1]?.trim();
+  const status = /\*\*Status:\*\*\s*([^\n]*)/.exec(md)?.[1]?.trim();
+  if (!version || !status) {
+    throw new Error('src/content/nexus-protocol-v1.md is missing its **Version:** / **Status:** header');
+  }
   return { version, status };
 }
 
