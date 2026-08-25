@@ -140,6 +140,23 @@ export async function POST(req: NextRequest) {
     return success({ ...estate, parcelIndices: indices }, 201, rl.headers);
   } catch (e: unknown) {
     if (e instanceof EstateOverlapError) return error(e.message, 409);
+
+    // A unique-constraint clash is a conflict the caller can act on, not a
+    // server fault. The reachable one today is a race rather than a duplicate
+    // estate: `Estate` itself carries no unique constraint beyond its id, but
+    // the `User` and `Block` upserts above run inside the transaction, so two
+    // concurrent creates by a first-time wallet can both read "absent" and both
+    // insert. A 500 asked the caller to report a bug that a retry fixes.
+    if (typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2002') {
+      const target = (e as { meta?: { target?: unknown } }).meta?.target;
+      const fields = Array.isArray(target) ? target.join(', ') : null;
+      return error(
+        `That estate conflicts with a record that already exists${fields ? ` (unique constraint on ${fields})` : ''}. ` +
+          'If two requests raced, retry; otherwise this wallet already has an estate on this block.',
+        409,
+      );
+    }
+
     const message = e instanceof Error ? e.message : 'Unknown error';
     return error(message, 500);
   }

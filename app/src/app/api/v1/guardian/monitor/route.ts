@@ -1,8 +1,15 @@
+/**
+ * A monitor token is a live read channel onto a block's guardian traffic, so it
+ * is issued and revoked on the block's deed — not on the `ownerAddress` stored
+ * on the guardian row, which keeps naming the seller after a sale.
+ */
+
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { generateMonitorToken, revokeMonitorToken } from '@/lib/monitor-tokens';
+import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,9 +28,8 @@ export async function POST(req: NextRequest) {
     });
 
     if (!guardian) return error('Guardian not found', 404);
-    if (guardian.ownerAddress !== ownerAddress) {
-      return error('Owner address mismatch', 403);
-    }
+    const gate = await requireLiveBlockOwner(ownerAddress, guardian.blockHeight);
+    if (!gate.ok) return gateDenialResponse(gate);
 
     const token = await generateMonitorToken(guardianId, ownerAddress);
 
@@ -51,9 +57,8 @@ export async function DELETE(req: NextRequest) {
     });
 
     if (!guardian) return error('Guardian not found', 404);
-    if (guardian.ownerAddress !== ownerAddress) {
-      return error('Owner address mismatch', 403);
-    }
+    const gate = await requireLiveBlockOwner(ownerAddress, guardian.blockHeight);
+    if (!gate.ok) return gateDenialResponse(gate);
 
     await revokeMonitorToken(guardianId);
 

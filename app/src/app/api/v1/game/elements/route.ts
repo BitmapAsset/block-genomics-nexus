@@ -4,6 +4,7 @@ import { verifyWalletSignature } from '@/lib/api-helpers';
 import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 
 export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-game-elements' });
@@ -54,19 +55,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: binding.reason }, { status: 401 });
     }
 
-    // REPLAY PROTECTION: consume the exact one-time nonce the signed binding carried.
-    if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
-      return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
-    }
+    // OWNERSHIP: placing an element is building on the block, so the deed
+    // decides. Asked of the chain, never of `Block.ownerAddress` — that is a
+    // cache a background sync refreshes, so inside the sale→sync window it
+    // still named the seller. `blockHeight` is safe to take from the body
+    // because the signed action binding above committed to it.
+    //
+    // Asked BEFORE the nonce is consumed, so an indexer outage does not cost
+    // the caller a fresh wallet signature for a request that never applied.
+    const gate = await requireLiveBlockOwner(ownerAddress, blockHeight);
+    if (!gate.ok) return gateDenialResponse(gate);
 
-    // Verify ownership (T1 block owner or T2 parcel owner)
-    const block = await prisma.block.findUnique({ where: { height: blockHeight } });
+    // Tier is a product entitlement layered on top of the deed, not a substitute
+    // for it. The old form only asked tier 1 about the land, so a tier-2 wallet
+    // reached the create with no ownership check of any kind.
     const user = await prisma.user.findUnique({ where: { walletAddress: ownerAddress } });
     if (!user || user.tier > 2) {
       return NextResponse.json({ error: 'Tier 1 or 2 required to create game elements' }, { status: 403 });
     }
-    if (user.tier === 1 && (!block || block.ownerAddress !== ownerAddress)) {
-      return NextResponse.json({ error: 'Not the block owner' }, { status: 403 });
+
+    // REPLAY PROTECTION: consume the exact one-time nonce the signed binding carried.
+    if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
+      return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
     }
 
     // H-03: Allowlist fields to prevent mass assignment

@@ -4,6 +4,7 @@ import { encryptApiKey, maskApiKey } from '@/lib/key-encryption';
 import { generateGuardianBundle, GUARDIAN_PROTOCOL_VERSION } from '@/lib/guardian-templates';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 
 const VALID_PROVIDERS = ['openai', 'anthropic', 'google', 'xai', 'custom'];
 
@@ -42,6 +43,13 @@ export async function POST(req: NextRequest) {
     if (!verifyWalletSignature(ownerAddress, signedMessage, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
+
+    // A signature proves the wallet and says nothing about the land. Without
+    // this, any wallet could stand an agent up on any block — the upsert key is
+    // (blockHeight, ownerAddress), so a squatter got their own row on someone
+    // else's block rather than colliding with the real owner's.
+    const gate = await requireLiveBlockOwner(ownerAddress, blockHeight);
+    if (!gate.ok) return gateDenialResponse(gate);
 
     // Validate provider
     if (llmProvider && !VALID_PROVIDERS.includes(llmProvider)) {

@@ -14,12 +14,17 @@
  * all. One of the two owners is being shown someone else's name on their land,
  * and which one is arbitrary.
  *
- * It takes a sale to reach the state at all: `@@unique([blockHeight,
- * ownerAddress])` means one estate per owner per block, so two estates on one
- * block implies two different owners, which implies the block changed hands.
- * That points at the root cause — `processOwnershipTransfer` releases the
- * seller's profile, guardian, agents, and experiences on sale, but left their
- * estates behind.
+ * How the state is reached in practice is a sale: `processOwnershipTransfer`
+ * released the seller's profile, guardian, agents, and experiences but left
+ * their estates behind, so the buyer's first estate landed beside one naming the
+ * seller.
+ *
+ * An earlier version of this note claimed `Estate @@unique([blockHeight,
+ * ownerAddress])` guaranteed one estate per owner per block. It does not exist —
+ * `Estate` declares only `@@index` on those two columns, and no migration ever
+ * created a unique index (the constraint of that shape lives on
+ * `GuardianAgent`). So nothing stops ONE wallet from naming several estates on a
+ * block; the parcel-overlap check below is the only thing keeping them disjoint.
  */
 
 const SELLER = 'bc1pseller00000000000000000000000000000000000';
@@ -152,6 +157,37 @@ describe('a sale releases the seller’s estates', () => {
     // buyer would be locked out of their own parcels by a previous owner.
     const res = await createEstate(BUYER, { name: 'Buyer Keep', parcelIndices: [1, 2, 3] });
     expect(res.status).toBe(201);
+  });
+});
+
+describe('a unique-constraint clash is a conflict, not a crash', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('answers 409 and names the clash when the database rejects a duplicate', async () => {
+    // The reachable P2002 on this route today is the `User`/`Block` upsert race
+    // inside the transaction: two concurrent creates by a first-time wallet both
+    // read "absent" and both insert. It surfaced as a 500, which tells the
+    // caller to file a bug about something a retry fixes.
+    jest.spyOn(db.estate, 'create').mockRejectedValueOnce(
+      Object.assign(new Error('Unique constraint failed'), {
+        code: 'P2002',
+        meta: { target: ['blockHeight', 'ownerAddress'] },
+      })
+    );
+
+    const res = await createEstate(SELLER, { name: 'Citadel', parcelIndices: [1, 2, 3] });
+
+    expect(res.status).toBe(409);
+    expect(JSON.stringify(res.body)).toMatch(/blockHeight, ownerAddress/);
+    expect(JSON.stringify(res.body)).toMatch(/retry/i);
+  });
+
+  it('still answers 500 for a fault the caller cannot act on', async () => {
+    jest.spyOn(db.estate, 'create').mockRejectedValueOnce(new Error('connection reset'));
+
+    const res = await createEstate(SELLER, { name: 'Citadel', parcelIndices: [1, 2, 3] });
+
+    expect(res.status).toBe(500);
   });
 });
 

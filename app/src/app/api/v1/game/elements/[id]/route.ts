@@ -1,8 +1,18 @@
+/**
+ * A game element stands on a block, so the block's deed decides who may mutate
+ * it — not the `ownerAddress` stored on the element, which is provenance.
+ *
+ * The ownership check runs BEFORE the nonce is consumed, so an indexer outage
+ * does not cost the caller a fresh wallet signature for a request that never
+ * had a chance to apply.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
+import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -20,7 +30,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const element = await prisma.gameElement.findUnique({ where: { id } });
     if (!element) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (element.ownerAddress !== ownerAddress) return NextResponse.json({ error: 'Not the owner' }, { status: 403 });
+    const gate = await requireLiveBlockOwner(ownerAddress, element.blockHeight);
+    if (!gate.ok) return gateDenialResponse(gate);
 
     // ACTION BINDING: signature must authorize THIS element on THIS block.
     const binding = verifyActionBinding(message, {
@@ -70,7 +81,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     const element = await prisma.gameElement.findUnique({ where: { id } });
     if (!element) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (element.ownerAddress !== ownerAddress) return NextResponse.json({ error: 'Not the owner' }, { status: 403 });
+    const gate = await requireLiveBlockOwner(ownerAddress, element.blockHeight);
+    if (!gate.ok) return gateDenialResponse(gate);
 
     // ACTION BINDING: signature must authorize THIS element on THIS block.
     const binding = verifyActionBinding(message, {
