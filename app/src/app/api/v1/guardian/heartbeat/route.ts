@@ -17,12 +17,32 @@
  * `ord.ts`, which self-throttles process-wide and coalesces concurrent lookups
  * for the same inscription into one query. An outage now answers 503, which the
  * daemon must treat as retry-later rather than as a reason to stop.
+ *
+ * FRESHNESS: the signature proves who is calling, never WHEN. Signed over a
+ * caller-chosen message it is a bearer token that never expires, so one
+ * observed heartbeat — from a proxy, a log, the daemon's own stdout — could be
+ * resent forever to hold `endpointVerified` open on a guardian that stopped
+ * answering. The nonce below closes that, using the same single-use challenge
+ * every other wallet-signed write here consumes rather than a scheme local to
+ * this route.
+ *
+ * The cost is a second round-trip per beat: the daemon must fetch a challenge
+ * before each heartbeat. That is deliberate — a timestamp window would avoid
+ * the fetch but still accept any replay inside the window unless we also
+ * remembered every signature seen during it, which is the nonce store with
+ * extra steps.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
+import { consumeChallengeFromMessage } from '@/lib/challenges';
+
+// Binds a nonce to this flow, so a nonce signed for a session cannot beat here.
+// Deliberately not exported: Next rejects any route export that is not a route
+// field, and this is a value daemons send on the wire, so tests pin the literal.
+const GUARDIAN_HEARTBEAT_PURPOSE = 'guardian-heartbeat';
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,6 +59,23 @@ export async function POST(req: NextRequest) {
     // Verify wallet signature
     if (!verifyWalletSignature(ownerAddress, message, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+
+    // Nonce proves the beat is happening NOW. Atomic and single-use, so a
+    // replay of a signature that was valid a moment ago loses the race by
+    // definition. Checked before the indexer round-trip: a resent heartbeat
+    // should cost nothing.
+    const fresh = await consumeChallengeFromMessage(ownerAddress, message, {
+      purpose: GUARDIAN_HEARTBEAT_PURPOSE,
+    });
+    if (!fresh) {
+      return NextResponse.json(
+        {
+          error:
+            'No valid challenge found. Request one from POST /api/v1/challenge with { walletAddress, purpose: "guardian-heartbeat" } and sign it within 5 minutes.',
+        },
+        { status: 401 }
+      );
     }
 
     const gate = await requireLiveBlockOwner(ownerAddress, guardian.blockHeight);
