@@ -1,6 +1,13 @@
+/**
+ * A quest belongs to the block it is on, so the block's deed decides who may
+ * edit it — not the `ownerAddress` stored on the quest, which records who wrote
+ * it and never moves when the land does.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
+import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -18,7 +25,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const quest = await prisma.gameQuest.findUnique({ where: { id } });
     if (!quest) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (quest.ownerAddress !== ownerAddress) return NextResponse.json({ error: 'Not the owner' }, { status: 403 });
+    const gate = await requireLiveBlockOwner(ownerAddress, quest.blockHeight);
+    if (!gate.ok) return gateDenialResponse(gate);
 
     // H-03: Allowlist fields to prevent mass assignment
     const allowedFields = ['name', 'description', 'steps', 'rewardXp', 'rewardCoins', 'difficulty', 'config', 'enabled'];
@@ -52,7 +60,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     const quest = await prisma.gameQuest.findUnique({ where: { id } });
     if (!quest) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (quest.ownerAddress !== ownerAddress) return NextResponse.json({ error: 'Not the owner' }, { status: 403 });
+    const gate = await requireLiveBlockOwner(ownerAddress, quest.blockHeight);
+    if (!gate.ok) return gateDenialResponse(gate);
 
     await prisma.gameQuest.delete({ where: { id } });
     return NextResponse.json({ success: true });
