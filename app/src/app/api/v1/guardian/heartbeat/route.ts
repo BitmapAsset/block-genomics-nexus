@@ -39,8 +39,10 @@ import { verifyWalletSignature } from '@/lib/api-helpers';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 import { consumeChallengeFromMessage } from '@/lib/challenges';
 
-/** Binds a nonce to this flow, so a nonce signed for a session cannot beat here. */
-export const GUARDIAN_HEARTBEAT_PURPOSE = 'guardian-heartbeat';
+// Binds a nonce to this flow, so a nonce signed for a session cannot beat here.
+// Deliberately not exported: Next rejects any route export that is not a route
+// field, and this is a value daemons send on the wire, so tests pin the literal.
+const GUARDIAN_HEARTBEAT_PURPOSE = 'guardian-heartbeat';
 
 export async function POST(req: NextRequest) {
   try {

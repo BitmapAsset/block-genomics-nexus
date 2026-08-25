@@ -74,7 +74,9 @@ jest.mock('@/lib/ownership-gate', () => ({
 import prisma from '@/lib/prisma';
 import { issueChallenge } from '@/lib/challenges';
 import { POST as HEARTBEAT } from '@/app/api/v1/guardian/heartbeat/route';
-import { GUARDIAN_HEARTBEAT_PURPOSE } from '@/app/api/v1/guardian/heartbeat/route';
+
+/** The literal a daemon must send. Pinned here because it is a wire contract. */
+const GUARDIAN_HEARTBEAT_PURPOSE = 'guardian-heartbeat';
 
 function req(body: Record<string, unknown>) {
   return { json: async () => body } as never;
