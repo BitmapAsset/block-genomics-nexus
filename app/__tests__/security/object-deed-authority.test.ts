@@ -112,8 +112,13 @@ jest.mock('@/lib/api-helpers', () => ({
     require('next/server').NextResponse.json({ success: false, error: message }, { status }),
 }));
 
+// Nonce freshness has its own suite (guardian-heartbeat-replay). Here every
+// nonce is fresh, so a denial can only ever come from the ownership decision.
 const mockConsumeChallenge = jest.fn(async () => true);
-jest.mock('@/lib/challenges', () => ({ consumeChallenge: () => mockConsumeChallenge() }));
+jest.mock('@/lib/challenges', () => ({
+  consumeChallenge: () => mockConsumeChallenge(),
+  consumeChallengeFromMessage: () => mockConsumeChallenge(),
+}));
 
 jest.mock('@/lib/action-message', () => ({
   verifyActionBinding: () => ({ ok: true, nonce: 'nonce_1' }),
