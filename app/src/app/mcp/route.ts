@@ -121,11 +121,16 @@ export async function POST(request: Request): Promise<Response> {
  */
 export async function GET(request: Request): Promise<Response> {
   if ((request.headers.get('accept') ?? '').includes('text/html')) {
+    // Uncacheable, like every other response from this path. A shared cache
+    // keys on the URL, not on Accept, so a cacheable page here was handed
+    // straight back to the next MCP client that GET this URL — 200 text/html
+    // where the protocol expects 405. Observed live on the edge.
     return new Response(mcpLandingPage(), {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=300, s-maxage=3600',
+        'Cache-Control': 'no-store',
+        Vary: 'Accept',
       },
     });
   }
