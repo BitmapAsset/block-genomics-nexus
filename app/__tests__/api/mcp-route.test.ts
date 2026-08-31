@@ -254,7 +254,7 @@ describe('/mcp — transport surface', () => {
     expect(res.status).toBe(405);
   });
 
-  it('sends a browser GET to the docs instead of a bare 405', async () => {
+  it('serves a browser GET the landing page instead of a bare 405', async () => {
     const res = await GET(
       new Request(ENDPOINT, {
         method: 'GET',
@@ -264,8 +264,30 @@ describe('/mcp — transport surface', () => {
         },
       }),
     );
-    expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toBe('/docs');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+
+    const html = await res.text();
+    // The page exists to hand over a working config, so the endpoint URL and a
+    // copy-paste snippet are the parts worth failing on.
+    expect(html).toContain('https://blockgenomics.io/mcp');
+    expect(html).toContain('claude mcp add --transport http');
+    expect(html).toContain('"mcpServers"');
+  });
+
+  it('advertises the same tool count on the landing page as tools/list', async () => {
+    const res = await GET(
+      new Request(ENDPOINT, {
+        method: 'GET',
+        headers: { accept: 'text/html', 'x-forwarded-for': '203.0.113.252' },
+      }),
+    );
+    const html = await res.text();
+
+    for (const name of ['bg_stats', 'bg_ownership_verify', 'bg_agent_heartbeat', 'bg_auth_verify']) {
+      expect(html).toContain(name);
+    }
+    expect(html).toContain('35 tools');
   });
 
   it('rate limits a flood from one client', async () => {
