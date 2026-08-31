@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-game-quests' });
   if (rl.response) return rl.response;
 
   try {
-    const blockHeight = parseInt(req.nextUrl.searchParams.get('blockHeight') || '0');
-    if (!blockHeight) return NextResponse.json({ error: 'blockHeight required' }, { status: 400 });
+    const blockHeight = parseBlockHeight(req.nextUrl.searchParams.get('blockHeight'));
+    if (blockHeight === null) return NextResponse.json({ error: INVALID_BLOCK_HEIGHT_MESSAGE }, { status: 400 });
 
     const quests = await prisma.gameQuest.findMany({
       where: { blockHeight, enabled: true },

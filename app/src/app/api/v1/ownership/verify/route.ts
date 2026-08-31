@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { verifyBlockOwnership } from '@/lib/ownership-sync';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 /**
  * GET /api/v1/ownership/verify?blockHeight=720143
@@ -13,9 +14,9 @@ export async function GET(req: NextRequest) {
   if (rl.response) return rl.response;
 
   try {
-    const blockHeight = parseInt(req.nextUrl.searchParams.get('blockHeight') || '', 10);
-    if (isNaN(blockHeight) || blockHeight <= 0) {
-      return error('blockHeight query param required (positive integer)', 400);
+    const blockHeight = parseBlockHeight(req.nextUrl.searchParams.get('blockHeight'));
+    if (blockHeight === null) {
+      return error(`blockHeight query param required — ${INVALID_BLOCK_HEIGHT_MESSAGE}`, 400);
     }
 
     // DISPLAY tier: a public read-only comparison of DB vs on-chain owner.

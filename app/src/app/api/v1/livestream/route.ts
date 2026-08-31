@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,8 +12,8 @@ export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-livestream' });
   if (rl.response) return rl.response;
 
-  const blockHeight = parseInt(req.nextUrl.searchParams.get('blockHeight') || '');
-  if (isNaN(blockHeight)) return NextResponse.json({ error: 'Missing blockHeight' }, { status: 400 });
+  const blockHeight = parseBlockHeight(req.nextUrl.searchParams.get('blockHeight'));
+  if (blockHeight === null) return NextResponse.json({ error: INVALID_BLOCK_HEIGHT_MESSAGE }, { status: 400 });
 
   const block = await prisma.block.findUnique({
     where: { height: blockHeight },

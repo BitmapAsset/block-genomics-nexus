@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { success, error } from '@/lib/api-helpers';
 import { verifyBlockOwnership } from '@/lib/ownership-sync';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 /**
  * GET /api/v1/ownership/[height]
@@ -20,12 +21,9 @@ export async function GET(
 
   try {
     const { height } = await params;
-    if (!/^\d+$/.test(height)) {
-      return error('Invalid block height (positive integer required)', 400);
-    }
-    const blockHeight = parseInt(height, 10);
-    if (!Number.isSafeInteger(blockHeight) || blockHeight <= 0) {
-      return error('Invalid block height (positive integer required)', 400);
+    const blockHeight = parseBlockHeight(height);
+    if (blockHeight === null) {
+      return error(INVALID_BLOCK_HEIGHT_MESSAGE, 400);
     }
 
     // DISPLAY tier: public ownership read, gates no mutation.

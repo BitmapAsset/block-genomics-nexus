@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 export async function GET(
   req: NextRequest,
@@ -12,8 +13,8 @@ export async function GET(
 
   try {
     const { blockHeight } = await params;
-    const h = parseInt(blockHeight, 10);
-    if (isNaN(h) || h < 0) return error('Invalid block height', 400);
+    const h = parseBlockHeight(blockHeight);
+    if (h === null) return error(INVALID_BLOCK_HEIGHT_MESSAGE, 400);
 
     const agents = await prisma.bitmapAgent.findMany({
       where: { blockHeight: h, status: 'active' },

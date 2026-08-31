@@ -5,6 +5,7 @@ import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api
 import { consumeChallengeFromMessage } from '@/lib/challenges';
 import { parcelCustomizeBindingString, parcelCustomizeBindingLine } from '@/lib/parcel-customize';
 import { requireLiveBlockOwner } from '@/lib/ownership-gate';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 // Rate limiting: in-memory (upgrade to Redis for production scale)
 export async function POST(
@@ -13,9 +14,9 @@ export async function POST(
 ) {
   try {
     const { height, txIndex } = await params;
-    const h = parseInt(height, 10);
+    const h = parseBlockHeight(height);
     const tx = parseInt(txIndex, 10);
-    if (isNaN(h) || isNaN(tx) || h < 0 || tx < 0) return error('Invalid parameters', 400);
+    if (h === null || isNaN(tx) || tx < 0) return error('Invalid parameters', 400);
 
     const body = await req.json();
     const { walletAddress, signature, message, customColor, pattern, imageUrl, rotation, facing, emissive } = body;

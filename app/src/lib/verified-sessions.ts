@@ -65,9 +65,24 @@ export function sessionTokenPrefix(token: string): string {
   return token.slice(0, VERIFIED_TOKEN_PREFIX.length + 8);
 }
 
-/** Shape-only check — says nothing about whether the token is valid or live. */
+/**
+ * Exactly what `generateSessionToken` emits: the prefix plus 32 random bytes as
+ * lowercase hex. Anything else was never minted here.
+ */
+const SESSION_TOKEN_PATTERN = new RegExp(`^${VERIFIED_TOKEN_PREFIX}[0-9a-f]{64}$`);
+
+/**
+ * Shape-only check — says nothing about whether the token is valid or live, but
+ * it does say the string could ever have been one.
+ *
+ * A prefix-only test made `bg_vfy_` — the seven literal characters — enough to
+ * reach the session lookup. Every unmintable string bought a database round
+ * trip on an unauthenticated path, and when that lookup failed the caller was
+ * told 503 "temporarily unavailable" rather than the truthful 401. Validating
+ * the full shape costs nothing and rejects those before any I/O.
+ */
 export function looksLikeSessionToken(token: string | null | undefined): boolean {
-  return typeof token === 'string' && token.startsWith(VERIFIED_TOKEN_PREFIX);
+  return typeof token === 'string' && SESSION_TOKEN_PATTERN.test(token);
 }
 
 /**
@@ -184,14 +199,19 @@ export async function authenticateSession(
   opts: { now?: number; lookup?: SessionLookup } = {}
 ): Promise<SessionAuthResult> {
   if (!looksLikeSessionToken(plaintextToken)) {
+    // A malformed token is reported as invalid rather than missing: the caller
+    // sent a credential, it just cannot be one we issued, and saying "missing"
+    // would send them looking for a header they already set.
+    const sent = typeof plaintextToken === 'string' && plaintextToken.length > 0;
     return {
       ok: false,
       status: 401,
-      code: 'missing_token',
-      reason:
-        'This action requires a verified session. Prove bitmap ownership first: ' +
-        'POST /api/v1/session/start, sign the message with the wallet holding your ' +
-        '.bitmap inscription, then POST /api/v1/session/verify.',
+      code: sent ? 'invalid_token' : 'missing_token',
+      reason: sent
+        ? 'Invalid session token'
+        : 'This action requires a verified session. Prove bitmap ownership first: ' +
+          'POST /api/v1/session/start, sign the message with the wallet holding your ' +
+          '.bitmap inscription, then POST /api/v1/session/verify.',
     };
   }
 

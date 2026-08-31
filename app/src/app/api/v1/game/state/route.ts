@@ -2,15 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-game-state' });
   if (rl.response) return rl.response;
 
   try {
-    const blockHeight = parseInt(req.nextUrl.searchParams.get('blockHeight') || '0');
+    const blockHeight = parseBlockHeight(req.nextUrl.searchParams.get('blockHeight'));
     const wallet = req.nextUrl.searchParams.get('wallet') || '';
-    if (!blockHeight || !wallet) return NextResponse.json({ error: 'blockHeight and wallet required' }, { status: 400 });
+    if (blockHeight === null || !wallet) return NextResponse.json({ error: 'A valid blockHeight and wallet are required' }, { status: 400 });
 
     let state = await prisma.gameState.findUnique({
       where: { blockHeight_walletAddress: { blockHeight, walletAddress: wallet } },

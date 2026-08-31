@@ -44,6 +44,7 @@ jest.mock('next/server', () => {
 
 import { GET } from '@/app/api/v1/blocks/[height]/market/route';
 import { clearMarketCache } from '@/lib/marketplace';
+import { INVALID_BLOCK_HEIGHT_MESSAGE } from '@/lib/block-height';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -62,10 +63,20 @@ describe('param validation', () => {
     ['not a number', 'abc'],
     ['negative', '-1'],
     ['empty', ''],
+    ['trailing junk', '840000junk'],
+    // Past the int4 ceiling `Block.height` is stored in. This used to reach
+    // Prisma and come back as a 500 from an unauthenticated read.
+    ['out of range', '99999999999'],
   ])('rejects %s with a 400', async (_label, height) => {
     const res = await call(height);
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ success: false, error: 'Invalid block height' });
+    expect(res.body).toEqual({ success: false, error: INVALID_BLOCK_HEIGHT_MESSAGE });
+  });
+
+  it('accepts the genesis block', async () => {
+    const res = await call('0');
+    expect(res.status).toBe(200);
+    expect(res.body.data.height).toBe(0);
   });
 });
 

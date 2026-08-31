@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api-helpers';
 import { emitAgentEvent } from '@/lib/agent-events';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 export async function GET(
   req: NextRequest,
@@ -13,8 +14,8 @@ export async function GET(
 
   try {
     const { blockHeight } = await params;
-    const h = parseInt(blockHeight, 10);
-    if (isNaN(h) || h < 0) return error('Invalid block height', 400);
+    const h = parseBlockHeight(blockHeight);
+    if (h === null) return error(INVALID_BLOCK_HEIGHT_MESSAGE, 400);
 
     const url = new URL(req.url);
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 200);
@@ -89,8 +90,8 @@ export async function POST(
 ) {
   try {
     const { blockHeight } = await params;
-    const h = parseInt(blockHeight, 10);
-    if (isNaN(h) || h < 0) return error('Invalid block height', 400);
+    const h = parseBlockHeight(blockHeight);
+    if (h === null) return error(INVALID_BLOCK_HEIGHT_MESSAGE, 400);
 
     const body = await req.json();
     const { senderAddress, senderHandle, text, type, channel, signature, message } = body;

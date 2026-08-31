@@ -20,6 +20,31 @@ const ESPLORA_BASES = [
 
 const FETCH_TIMEOUT_MS = 8000;
 
+/**
+ * The canonical block hash at `height`, or `null` when no provider answered or
+ * the height is not mined yet.
+ *
+ * `null` means "unknown", never "this block has no hash" — a mined block always
+ * has one, so callers must leave the field empty rather than invent a value.
+ */
+export async function getBlockHashAtHeight(height: number): Promise<string | null> {
+  if (!Number.isInteger(height) || height < 0) return null;
+
+  for (const base of ESPLORA_BASES) {
+    try {
+      const res = await fetch(`${base}/block-height/${height}`, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (!res.ok) continue;
+      const hash = (await res.text()).trim();
+      if (/^[0-9a-f]{64}$/.test(hash)) return hash;
+    } catch (e) {
+      console.warn(`[esplora] ${base} block-height lookup failed:`, e instanceof Error ? e.message : e);
+    }
+  }
+  return null;
+}
+
 /** `<txid>:<vout>` for every output the address currently holds. */
 export async function getAddressOutpoints(address: string): Promise<string[] | null> {
   for (const base of ESPLORA_BASES) {

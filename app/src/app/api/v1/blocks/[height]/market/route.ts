@@ -4,6 +4,7 @@ import { success, error } from '@/lib/api-helpers';
 import { sandboxGate } from '@/lib/sandbox-keys';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { getBlockMarket } from '@/lib/marketplace';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 /**
  * `GET /api/v1/blocks/[height]/market` — what venues are advertising for a block.
@@ -33,8 +34,8 @@ export async function GET(
     if (gate.response) return gate.response;
 
     const { height } = await params;
-    const h = parseInt(height, 10);
-    if (isNaN(h) || h < 0) return error('Invalid block height', 400);
+    const h = parseBlockHeight(height);
+    if (h === null) return error(INVALID_BLOCK_HEIGHT_MESSAGE, 400);
 
     // The inscription id is the venue-side identity of a bitmap, so it is read
     // here rather than inside the lane — the lane stays free of database

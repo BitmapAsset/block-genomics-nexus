@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { emitAgentEvent } from '@/lib/agent-events';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 export async function GET(
   req: NextRequest,
@@ -13,8 +14,8 @@ export async function GET(
 
   try {
     const { height } = await params;
-    const blockHeight = parseInt(height, 10);
-    if (isNaN(blockHeight)) return error('Invalid block height', 400);
+    const blockHeight = parseBlockHeight(height);
+    if (blockHeight === null) return error(INVALID_BLOCK_HEIGHT_MESSAGE, 400);
 
     // Deterministic ordering so consumers that take profiles[0] always get the
     // same, meaningful profile (the block's primary first, then oldest). Without

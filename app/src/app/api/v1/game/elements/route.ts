@@ -5,14 +5,15 @@ import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-game-elements' });
   if (rl.response) return rl.response;
 
   try {
-    const blockHeight = parseInt(req.nextUrl.searchParams.get('blockHeight') || '0');
-    if (!blockHeight) return NextResponse.json({ error: 'blockHeight required' }, { status: 400 });
+    const blockHeight = parseBlockHeight(req.nextUrl.searchParams.get('blockHeight'));
+    if (blockHeight === null) return NextResponse.json({ error: INVALID_BLOCK_HEIGHT_MESSAGE }, { status: 400 });
 
     const elements = await prisma.gameElement.findMany({
       where: { blockHeight, enabled: true },
