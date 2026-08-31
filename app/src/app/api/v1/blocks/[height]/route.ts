@@ -3,6 +3,25 @@ import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { sandboxGate } from '@/lib/sandbox-keys';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
+import { getBlockHashAtHeight } from '@/lib/onchain/esplora';
+
+/**
+ * Fetch the chain's hash for a block whose row is missing one, and keep it.
+ *
+ * Returns `null` when no indexer answers, so an outage shows an empty field
+ * rather than failing a public read or storing a guess.
+ */
+async function backfillBlockHash(height: number): Promise<string | null> {
+  const hash = await getBlockHashAtHeight(height);
+  if (!hash) return null;
+  try {
+    await prisma.block.update({ where: { height }, data: { hash } });
+  } catch {
+    /* The read still answers correctly; the next request retries the write. */
+  }
+  return hash;
+}
 
 export async function GET(
   req: NextRequest,
@@ -16,8 +35,8 @@ export async function GET(
     if (gate.response) return gate.response;
 
     const { height } = await params;
-    const h = parseInt(height, 10);
-    if (isNaN(h) || h < 0) return error('Invalid block height', 400);
+    const h = parseBlockHeight(height);
+    if (h === null) return error(INVALID_BLOCK_HEIGHT_MESSAGE, 400);
 
     const block = await prisma.block.findUnique({
       where: { height: h },
@@ -29,9 +48,17 @@ export async function GET(
 
     if (!block) return error('Block not found', 404);
 
+    // Rows created by the ownership and estate paths never carried a hash, so
+    // most blocks reported `hash: null` for a block that demonstrably has one.
+    // A block hash is immutable, so the first read that needs it can fetch it
+    // and the row is correct from then on. Best-effort: if no indexer answers we
+    // still return the block, with the field honestly empty.
+    const hash = block.hash ?? (await backfillBlockHash(h));
+
     return success(
       {
         ...block,
+        hash,
         parcelCount: block._count.parcels,
         _count: undefined,
       },

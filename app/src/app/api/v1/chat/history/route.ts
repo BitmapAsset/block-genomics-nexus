@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-chat-history' });
@@ -36,8 +37,8 @@ export async function GET(req: NextRequest) {
     } else {
       // block mode
       if (!blockHeight) return error('blockHeight required for block mode', 400);
-      const h = parseInt(blockHeight, 10);
-      if (isNaN(h) || h < 0) return error('Invalid blockHeight', 400);
+      const h = parseBlockHeight(blockHeight);
+      if (h === null) return error(INVALID_BLOCK_HEIGHT_MESSAGE, 400);
       where.blockHeight = h;
       where.channel = 'block';
     }

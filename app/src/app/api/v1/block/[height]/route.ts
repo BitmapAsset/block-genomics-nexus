@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 // Legacy route — redirects to new schema. Use /api/v1/blocks/[height] for new API.
 export async function GET(
@@ -12,10 +13,10 @@ export async function GET(
 
   try {
     const { height } = await params;
-    const blockHeight = Number.parseInt(height, 10);
+    const blockHeight = parseBlockHeight(height);
 
-    if (!Number.isInteger(blockHeight) || blockHeight < 0) {
-      return NextResponse.json({ error: 'Invalid block height' }, { status: 400 });
+    if (blockHeight === null) {
+      return NextResponse.json({ error: INVALID_BLOCK_HEIGHT_MESSAGE }, { status: 400 });
     }
 
     const block = await prisma.block.findUnique({

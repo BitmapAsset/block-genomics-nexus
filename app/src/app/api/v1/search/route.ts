@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { sandboxGate } from '@/lib/sandbox-keys';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { MAX_BLOCK_HEIGHT, parseBlockHeight } from '@/lib/block-height';
 
 /**
  * Global Search API
@@ -26,8 +27,9 @@ export async function GET(req: NextRequest) {
   }
 
   const qLower = q.toLowerCase();
-  const qNum = Number(q);
-  const isNumeric = !isNaN(qNum) && Number.isFinite(qNum) && qNum > 0;
+  // `null`, not a falsy number: height 0 is the genesis block, and a `qNum > 0`
+  // guard made searching "0" silently return no blocks while /blocks/0 served one.
+  const qHeight = parseBlockHeight(q);
 
   try {
     const [users, blocks] = await Promise.all([
@@ -51,12 +53,12 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
       }),
 
-      isNumeric
+      qHeight !== null
         ? prisma.block.findMany({
             where: {
               height: {
-                gte: Math.floor(qNum),
-                lte: Math.floor(qNum) + (q.length < 6 ? 999 : 0),
+                gte: qHeight,
+                lte: Math.min(qHeight + (q.length < 6 ? 999 : 0), MAX_BLOCK_HEIGHT),
               },
             },
             select: {

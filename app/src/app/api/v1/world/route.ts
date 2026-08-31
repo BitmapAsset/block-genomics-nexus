@@ -8,14 +8,15 @@ import { requireVerifiedBlock, gateDenialResponse, sessionTokenFromHeaders } fro
 import { requireSignedBlockOwner } from '@/lib/block-write-auth';
 import { looksLikeSessionToken } from '@/lib/verified-sessions';
 import { enforceRateLimit, WORLD_WRITE_LIMIT } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-world' });
   if (rl.response) return rl.response;
 
   try {
-    const blockHeight = parseInt(req.nextUrl.searchParams.get('blockHeight') || '0');
-    if (!blockHeight) return NextResponse.json({ error: 'blockHeight required' }, { status: 400 });
+    const blockHeight = parseBlockHeight(req.nextUrl.searchParams.get('blockHeight'));
+    if (blockHeight === null) return NextResponse.json({ error: INVALID_BLOCK_HEIGHT_MESSAGE }, { status: 400 });
 
     const [objects, terrain] = await Promise.all([
       prisma.blockObject.findMany({ where: { blockHeight, visible: true }, orderBy: { createdAt: 'asc' } }),

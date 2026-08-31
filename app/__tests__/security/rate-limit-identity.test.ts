@@ -31,8 +31,10 @@ import {
 } from '@/lib/api-rate-limit';
 import type { RateCounter } from '@/lib/rate-limit-db';
 
-const SESSION = 'bg_vfy_11111111111111111111111111111111';
-const OTHER_SESSION = 'bg_vfy_22222222222222222222222222222222';
+// Real shape: the prefix plus 32 random bytes in hex. A short stand-in no longer
+// reads as a session token and would quietly fall back to the IP bucket.
+const SESSION = 'bg_vfy_' + '1'.repeat(64);
+const OTHER_SESSION = 'bg_vfy_' + '2'.repeat(64);
 const SANDBOX = 'bg_sbx_33333333333333333333333333333333';
 
 /** A request exposing only the headers the limiter reads. */

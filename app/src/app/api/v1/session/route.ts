@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { success, error } from '@/lib/api-helpers';
 import { sessionTokenFromHeaders, gateDenialResponse } from '@/lib/ownership-gate';
-import { authenticateSession, revokeSession, touchSession } from '@/lib/verified-sessions';
+import { authenticateSession, looksLikeSessionToken, revokeSession, touchSession } from '@/lib/verified-sessions';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -62,6 +62,10 @@ export async function DELETE(req: NextRequest) {
   try {
     const token = sessionTokenFromHeaders(req.headers);
     if (!token) return error('Session token required', 401);
+    // A string that could never have been minted is refused before the database
+    // is asked about it. Without this a forged `bg_vfy_…` reached the lookup,
+    // and any error there surfaced as a 500 on an unauthenticated path.
+    if (!looksLikeSessionToken(token)) return error('Invalid session token', 401);
 
     // Idempotent: an already-revoked or unknown token reports revoked:false
     // rather than leaking whether the token ever existed.

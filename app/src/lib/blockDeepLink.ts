@@ -6,23 +6,19 @@
  * param round-trip can be tested without a DOM.
  */
 
+import { MAX_BLOCK_HEIGHT, parseBlockHeight } from '@/lib/block-height';
+
 export const NEXUS_PATH = '/nexus';
 export const BLOCK_PARAM = 'block';
 
-/** Sanity ceiling — well past any real Bitcoin height, rejects junk like `9e99`. */
-export const MAX_BLOCK_HEIGHT = 10_000_000;
+export { MAX_BLOCK_HEIGHT };
 
 /**
  * Parse a `?block=` value into a height. Strict on purpose: `parseInt` would
  * happily turn `"840000junk"` into a valid-looking height.
  */
 export function parseBlockParam(raw: string | null | undefined): number | undefined {
-  if (raw === null || raw === undefined) return undefined;
-  const trimmed = raw.trim();
-  if (!/^\d+$/.test(trimmed)) return undefined;
-  const height = Number(trimmed);
-  if (!Number.isSafeInteger(height) || height > MAX_BLOCK_HEIGHT) return undefined;
-  return height;
+  return parseBlockHeight(raw) ?? undefined;
 }
 
 /**

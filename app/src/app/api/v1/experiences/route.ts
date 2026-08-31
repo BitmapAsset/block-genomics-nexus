@@ -16,6 +16,7 @@ import { EXPERIENCE_ACTIONS } from '@/lib/experience-integrity';
 import { judgeExperienceManifest } from '@/lib/experience-judge';
 import { serializeExperience, probeAndPersist, persistBrainRejection } from '@/lib/experience-service';
 import { enforceRateLimit, EXPERIENCE_WRITE_LIMIT } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 function zodMessage(err: z.ZodError): string {
   return err.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; ');
@@ -149,8 +150,8 @@ export async function GET(req: NextRequest) {
 
     const blockHeightRaw = searchParams.get('blockHeight');
     if (blockHeightRaw != null) {
-      const bh = Number(blockHeightRaw);
-      if (!Number.isInteger(bh) || bh < 0) return error('blockHeight must be a non-negative integer', 400);
+      const bh = parseBlockHeight(blockHeightRaw);
+      if (bh === null) return error(INVALID_BLOCK_HEIGHT_MESSAGE, 400);
       where.blockHeight = bh;
     }
 
