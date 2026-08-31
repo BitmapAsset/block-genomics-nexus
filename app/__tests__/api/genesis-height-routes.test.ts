@@ -60,6 +60,9 @@ import { GET as OWNERSHIP_VERIFY } from '@/app/api/v1/ownership/verify/route';
 const req = (query: string) =>
   ({ nextUrl: { searchParams: new URLSearchParams(query) }, headers: { get: () => null } }) as any;
 
+const search = (query: string) => SEARCH(req(query)) as any;
+const ownershipVerify = (query: string) => OWNERSHIP_VERIFY(req(query)) as any;
+
 beforeEach(() => {
   mockBlockFindMany.mockReset().mockResolvedValue([]);
   mockUserFindMany.mockReset().mockResolvedValue([]);
@@ -78,7 +81,7 @@ describe('GET /api/v1/search', () => {
   it('searches blocks for the query "0"', async () => {
     mockBlockFindMany.mockResolvedValue([{ height: 0, ownerAddress: null, label: 'Genesis' }]);
 
-    const res = await SEARCH(req('q=0'));
+    const res = await search('q=0');
 
     expect(res.status).toBe(200);
     expect(mockBlockFindMany).toHaveBeenCalledWith(
@@ -90,7 +93,7 @@ describe('GET /api/v1/search', () => {
   });
 
   it('does not run a block query for an out-of-range number', async () => {
-    const res = await SEARCH(req('q=99999999999'));
+    const res = await search('q=99999999999');
 
     expect(res.status).toBe(200);
     expect(res.body.data.blocks).toEqual([]);
@@ -98,7 +101,7 @@ describe('GET /api/v1/search', () => {
   });
 
   it('still treats a non-numeric query as a handle search only', async () => {
-    await SEARCH(req('q=satoshi'));
+    await search('q=satoshi');
 
     expect(mockBlockFindMany).not.toHaveBeenCalled();
     expect(mockUserFindMany).toHaveBeenCalled();
@@ -107,23 +110,23 @@ describe('GET /api/v1/search', () => {
 
 describe('GET /api/v1/ownership/verify', () => {
   it('verifies height 0 instead of calling it invalid', async () => {
-    const res = await OWNERSHIP_VERIFY(req('blockHeight=0'));
+    const res = await ownershipVerify('blockHeight=0');
 
     expect(res.status).toBe(200);
     expect(mockVerifyBlockOwnership).toHaveBeenCalledWith(0, 'display');
   });
 
   it('rejects an out-of-range height with a 400 and never checks ownership', async () => {
-    const res = await OWNERSHIP_VERIFY(req('blockHeight=99999999999'));
+    const res = await ownershipVerify('blockHeight=99999999999');
 
     expect(res.status).toBe(400);
     expect(mockVerifyBlockOwnership).not.toHaveBeenCalled();
   });
 
   it('still rejects a missing or malformed height', async () => {
-    expect((await OWNERSHIP_VERIFY(req(''))).status).toBe(400);
-    expect((await OWNERSHIP_VERIFY(req('blockHeight=abc'))).status).toBe(400);
-    expect((await OWNERSHIP_VERIFY(req('blockHeight=-1'))).status).toBe(400);
+    expect((await ownershipVerify('')).status).toBe(400);
+    expect((await ownershipVerify('blockHeight=abc')).status).toBe(400);
+    expect((await ownershipVerify('blockHeight=-1')).status).toBe(400);
     expect(mockVerifyBlockOwnership).not.toHaveBeenCalled();
   });
 });
