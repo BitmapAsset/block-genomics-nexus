@@ -110,8 +110,20 @@ export async function POST(request: Request): Promise<Response> {
   return serve(request);
 }
 
-/** Stateless serving has no stream to attach to; the SDK answers 405. */
+/**
+ * Stateless serving has no stream to attach to; the SDK answers 405 — correct
+ * for MCP clients, a dead end for the human who clicked the same URL in a
+ * tweet or README. Only a browser leads its Accept header with `text/html`
+ * (MCP clients ask for `text/event-stream`/JSON), so that one case goes to
+ * the docs instead.
+ */
 export async function GET(request: Request): Promise<Response> {
+  if ((request.headers.get('accept') ?? '').includes('text/html')) {
+    return new Response(null, {
+      status: 307,
+      headers: { Location: '/docs', 'Cache-Control': 'no-store' },
+    });
+  }
   return serve(request);
 }
 
