@@ -254,6 +254,20 @@ describe('/mcp — transport surface', () => {
     expect(res.status).toBe(405);
   });
 
+  it('sends a browser GET to the docs instead of a bare 405', async () => {
+    const res = await GET(
+      new Request(ENDPOINT, {
+        method: 'GET',
+        headers: {
+          accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'x-forwarded-for': '203.0.113.251',
+        },
+      }),
+    );
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('/docs');
+  });
+
   it('rate limits a flood from one client', async () => {
     const flood = async () =>
       POST(
