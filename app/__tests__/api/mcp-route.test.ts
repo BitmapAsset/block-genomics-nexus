@@ -266,6 +266,10 @@ describe('/mcp — transport surface', () => {
     );
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
+    // A shared cache keys on the URL, not on Accept: a cacheable page here gets
+    // replayed to the next MCP client that GETs this URL.
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(res.headers.get('vary')).toBe('Accept');
 
     const html = await res.text();
     // The page exists to hand over a working config, so the endpoint URL and a
