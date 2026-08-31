@@ -17,6 +17,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { bearerFrom } from '@/lib/sandbox-tier';
 import { createBgMcpServer } from '@/lib/mcp/server';
 import { resolveApiBase } from '@/lib/mcp/client';
+import { mcpLandingPage } from '@/lib/mcp/landing';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -114,14 +115,18 @@ export async function POST(request: Request): Promise<Response> {
  * Stateless serving has no stream to attach to; the SDK answers 405 — correct
  * for MCP clients, a dead end for the human who clicked the same URL in a
  * tweet or README. Only a browser leads its Accept header with `text/html`
- * (MCP clients ask for `text/event-stream`/JSON), so that one case goes to
- * the docs instead.
+ * (MCP clients ask for `text/event-stream`/JSON), so that one case gets the
+ * page describing the server and how to connect to it. Sending them to /docs
+ * instead was a redirect away from the thing they asked about.
  */
 export async function GET(request: Request): Promise<Response> {
   if ((request.headers.get('accept') ?? '').includes('text/html')) {
-    return new Response(null, {
-      status: 307,
-      headers: { Location: '/docs', 'Cache-Control': 'no-store' },
+    return new Response(mcpLandingPage(), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=300, s-maxage=3600',
+      },
     });
   }
   return serve(request);
