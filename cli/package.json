@@ -51,7 +51,7 @@
     "cli-table3": "^0.6.3",
     "commander": "^11.1.0",
     "inquirer": "^8.2.6",
-    "ora": "^5.4.1"
+    "ora": "^9.4.1"
   },
   "devDependencies": {
     "@types/blessed": "^0.1.21",
