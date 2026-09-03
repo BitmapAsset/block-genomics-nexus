@@ -14,11 +14,11 @@
     "@noble/curves": "1.9.7",
     "@noble/hashes": "1.8.0",
     "@scure/btc-signer": "1.8.1",
-    "block-genomics-connect": "^0.2.0"
+    "block-genomics-connect": "^0.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
-    "tsx": "^4.7.1",
+    "tsx": "^4.23.13",
     "typescript": "^5.4.3",
     "vitest": "^3.2.7"
   },
