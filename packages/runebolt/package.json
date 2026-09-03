@@ -35,8 +35,8 @@
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.3",
-    "@grpc/proto-loader": "^0.7.15",
-    "argon2": "^0.31.0",
+    "@grpc/proto-loader": "^0.8.1",
+    "argon2": "^0.45.1",
     "bip32": "^4.0.0",
     "bip39": "^3.1.0",
     "bitcoinjs-lib": "^6.1.5",
