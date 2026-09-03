@@ -19,7 +19,7 @@
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",
     "@noble/curves": "1.9.7",
-    "@noble/hashes": "1.8.0",
+    "@noble/hashes": "2.4.0",
     "@prisma/client": "^6.19.2",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
