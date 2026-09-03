@@ -56,7 +56,7 @@
   "devDependencies": {
     "@types/node": "^20.11.30",
     "ajv": "^8.17.1",
-    "typescript": "^5.4.3",
+    "typescript": "^7.0.2",
     "vitest": "^3.2.7"
   },
   "overrides": {
