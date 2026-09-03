@@ -57,7 +57,7 @@
     "@types/node": "^20.11.30",
     "ajv": "^8.17.1",
     "typescript": "^5.4.3",
-    "vitest": "^3.2.7"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "@hono/node-server": "^2.0.5"
