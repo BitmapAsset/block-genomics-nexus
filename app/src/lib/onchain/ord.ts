@@ -102,8 +102,9 @@ export interface OrdStatus {
  *
  * IMPORTANT: the non-recursive `/inscription/<id>` JSON API is DISABLED on the
  * public ordinals.com instance (HTTP 406 "JSON API disabled") — only
- * `/r/inscription/<id>` serves JSON there. The `/r/` endpoint is CDN-cacheable,
- * so on a fresh transfer the reported holder can lag by the cache TTL; that is
+ * `/r/inscription/<id>` serves JSON there. The `/r/` endpoint may be cached by a
+ * CDN (observed uncached on 2026-10-14: `cf-cache-status: BYPASS`); if it ever
+ * is, a fresh transfer's reported holder can lag by the cache TTL. That is
  * acceptable because we fail closed (never grant on stale/empty), and it goes
  * away once ORD_BASE_URL points at a self-hosted ord with the full JSON API.
  *

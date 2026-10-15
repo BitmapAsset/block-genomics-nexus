@@ -35,10 +35,10 @@
  *   - The answer comes from an HTTP response, so it reflects indexer state from
  *     up to one request duration ago (ord.ts caps that at an 8s timeout).
  *   - The upstream indexer carries its own propagation delay. ordinals.com
- *     serves JSON only from the CDN-cacheable `/r/inscription/<id>` endpoint,
- *     so a fresh transfer can lag there regardless of what we do (see
- *     lib/onchain/ord.ts). Pointing ORD_BASE_URL at a self-hosted ord instance
- *     removes that term.
+ *     serves JSON only from the `/r/inscription/<id>` endpoint, which may be
+ *     cached by a CDN (observed uncached on 2026-10-14), so a fresh transfer
+ *     could lag there regardless of what we do (see lib/onchain/ord.ts).
+ *     Pointing ORD_BASE_URL at a self-hosted ord instance removes that term.
  *
  * SECOND-ORDER EFFECT: INDEXER LOAD
  * Querying live on every authorization sounds like it should multiply indexer
