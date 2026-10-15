@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 
@@ -6,7 +7,8 @@ import { enforceRateLimit } from '@/lib/api-rate-limit';
  * GET /api/v1/bitmap-image/:height
  * 
  * Returns the Magic Eden bitmap image URL for a given block height.
- * Looks up the .bitmap inscription ID via ordinals.com content search.
+ * Looks up the .bitmap inscription ID from the known table, then the id this
+ * app has on file for the block, then ordinals.com content search.
  * Caches results in memory.
  */
 
@@ -29,6 +31,23 @@ async function lookupBitmapInscription(height: number): Promise<string | null> {
   
   // Check cache
   if (inscriptionCache.has(height)) return inscriptionCache.get(height) ?? null;
+
+  // Interim: the inscription id this app has on file for the block. The search
+  // below answers 400 on ordinals.com ("failed to parse sat", seen 2026-10-14),
+  // so until the canonical resolver lands this is the only lookup that finds
+  // anything outside the known table.
+  try {
+    const block = await prisma.block.findUnique({
+      where: { height },
+      select: { inscriptionId: true },
+    });
+    if (block?.inscriptionId) {
+      inscriptionCache.set(height, block.inscriptionId);
+      return block.inscriptionId;
+    }
+  } catch {
+    // A database blip falls through to the search rather than failing the route.
+  }
 
   // Try to find via ordinals.com content search
   try {
@@ -81,7 +100,7 @@ export async function GET(
     const inscriptionId = await lookupBitmapInscription(h);
     
     if (!inscriptionId) {
-      return error('No .bitmap inscription found for this block', 404);
+      return error('Bitmap image unavailable: no inscription id resolved for this block yet', 404);
     }
 
     const imageUrl = `https://bitmap-img.magiceden.dev/v1/${inscriptionId}`;
