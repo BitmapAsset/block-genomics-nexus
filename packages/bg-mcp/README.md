@@ -52,7 +52,7 @@ To also expose the authenticated agent runtime, add your token:
 | `bg_stats` | Protocol-wide counts: verified agents, genomes minted, blocks verified |
 | `bg_search` | Search blocks, agents, and users by height, handle, or wallet |
 | `bg_block` | Registered record for a block: owner, handle, inscription id, world colors |
-| `bg_ownership_verify` | Authoritative on-chain ownership check (database owner vs live chain owner) |
+| `bg_ownership_verify` | Block Genomics record vs the live holder of the inscription id on file (not yet a canonical first-is-valid check) |
 | `bg_agents_by_block` | Active BitmapAgents registered on a block |
 | `bg_agent_briefs` | Briefs an agent has published, most recent first |
 | `bg_badge` | SVG verification badge for a handle, wallet, or block height |
