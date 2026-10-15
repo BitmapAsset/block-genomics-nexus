@@ -6,10 +6,12 @@
 //              scan:<blockHash>            candidates of one block (serves every n <= height)
 //              blockhash:<height>          hash, once >= 6 confirmations deep
 //              oci:<pageId>                decoded OCI page (pinned ids never change)
-//              canon:<rule>:<height>       a final verdict
-//   ttl        canon:<rule>:<height>       a non-final verdict (10 min)
-//              holder:<inscriptionId>      display-tier holder (60 s); auth never reads it
+//              ociid:<sat>:<satIndex>      inscription id at that sat position
+//   ttl        holder:<inscriptionId>      display-tier holder (60 s); auth never reads it
 //              tip                         ord tip (30 s)
+// Verdicts themselves are not cached here: a warm resolve costs the tip and a
+// live holder check. An app that wants per-height verdict rows can persist
+// ResolveResult keyed by (rule, height); a rule bump invalidates them.
 
 export interface ImmutableStore {
   get(key: string): Promise<unknown | undefined>;

@@ -148,20 +148,25 @@ async function ociCore(ctx: Context, n: number): Promise<Core> {
     // The OCI is not authoritative about absence.
     return { ...base, verdict: 'undetermined', reason: `the OCI has no entry for ${n}.bitmap`, candidate: null };
   }
-  let id: string | null;
-  try {
-    id = await ctx.ord.satAt(sat, satIndex, ctx.signal);
-    ctx.mark('ord', 'agree');
-  } catch (e) {
-    if (ctx.signal?.aborted) throw e;
-    ctx.mark('ord', 'unreachable', (e as Error).message);
-    throw new ResolveFailure(`ord /r/sat: ${(e as Error).message}`, 'unreachable');
+  // sat + satIndex -> id never changes once the inscription exists, so it is cached.
+  const idKey = `ociid:${sat}:${satIndex}`;
+  let id = ((await ctx.stores.immutable.get(idKey)) as string | undefined) ?? null;
+  if (!id) {
+    try {
+      id = await ctx.ord.satAt(sat, satIndex, ctx.signal);
+      ctx.mark('ord', 'agree');
+    } catch (e) {
+      if (ctx.signal?.aborted) throw e;
+      ctx.mark('ord', 'unreachable', (e as Error).message);
+      throw new ResolveFailure(`ord /r/sat: ${(e as Error).message}`, 'unreachable');
+    }
   }
   if (!id) {
     ctx.mark('oci', 'disagree', `no inscription at sat ${sat} index ${satIndex}`);
     return { ...base, verdict: 'undetermined', reason: `ord has no inscription at the OCI's sat ${sat} index ${satIndex}`, candidate: null };
   }
   const facts = await revealFacts(ctx, id, tip);
+  if (facts.revealHeight <= tip - 5) await ctx.stores.immutable.set(idKey, id);
   if (facts.sat !== sat) {
     ctx.mark('oci', 'disagree', `OCI sat ${sat}, ord sat ${facts.sat}`);
     return { ...base, verdict: 'undetermined', reason: `OCI sat ${sat} differs from ord's sat ${facts.sat} for ${id}`, candidate: facts };
