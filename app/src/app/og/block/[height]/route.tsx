@@ -188,12 +188,13 @@ export async function GET(
           </div>
 
           {/* The deed. Ownership is the headline fact about a block, so it sits
-              with the title rather than down in the stat row. */}
+              with the title rather than down in the stat row. "HELD BY" only
+              when the chain confirmed our record; otherwise it is our record. */}
           <div style={{ display: 'flex', alignItems: 'center', marginTop: 16 }}>
             {facts.owner ? (
               <>
                 <div style={{ display: 'flex', fontSize: 20, color: MUTED, letterSpacing: 2 }}>
-                  HELD BY
+                  {facts.verified ? 'HELD BY' : 'LAST RECORDED'}
                 </div>
                 <div style={{ display: 'flex', fontSize: 28, color: TEXT, marginLeft: 16 }}>
                   {shortenAddress(facts.owner, 12, 8)}
@@ -201,7 +202,7 @@ export async function GET(
               </>
             ) : (
               <div style={{ display: 'flex', fontSize: 26, color: MUTED, letterSpacing: 1 }}>
-                Unclaimed district
+                Not yet on Block Genomics
               </div>
             )}
           </div>

@@ -430,13 +430,18 @@ export function describeBlock(data: BlockPageData): string {
   }
 
   const owner = displayOwner(data.ownership);
-  // Silence, not "Unclaimed", when the lookup failed: a share card that calls
-  // someone's block unowned because our database blinked is worse than one that
-  // omits the line entirely.
-  if (owner) {
+  // "Held by" only on a live match between the chain and our record. Anything
+  // else is our record and is labelled as one: an unverified row once put a
+  // wallet that does not hold the inscription into timelines as "Held by".
+  // Silence, not "Not yet on Block Genomics", when the lookup failed: a share
+  // card that misstates someone's block because our database blinked is worse
+  // than one that omits the line entirely.
+  if (owner && data.ownership.inSync) {
     parts.push(`Held by ${shortenAddress(owner)}`);
-  } else if (!data.degraded) {
-    parts.push('Unclaimed');
+  } else if (data.ownership.registeredOwner) {
+    parts.push(`Registered to ${shortenAddress(data.ownership.registeredOwner)} (not verified)`);
+  } else if (!owner && !data.degraded) {
+    parts.push('Not yet on Block Genomics');
   }
 
   if (data.objectCount > 0) {
@@ -456,7 +461,10 @@ export function describeBlock(data: BlockPageData): string {
  * detail and sits in the critical path of a crawler request that will time out.
  */
 export interface BlockCardFacts {
+  /** Owner this app last recorded. Only `verified` lets the card call it the holder. */
   owner: string | null;
+  /** True only when the live holder of the recorded inscription equals `owner`. */
+  verified: boolean;
   objectCount: number;
   claimed: boolean;
 }
@@ -471,18 +479,20 @@ export async function fetchBlockCardFacts(height: number): Promise<BlockCardFact
       prisma.blockObject.count({ where: { blockHeight: height, visible: true } }),
     ]);
 
-    if (!block) return { owner: null, objectCount: 0, claimed: false };
+    if (!block) return { owner: null, verified: false, objectCount: 0, claimed: false };
 
     // Same non-blocking rule as the page: unfurlers hit this in bursts and time
-    // out fast, and the recorded owner is an acceptable card-level answer.
+    // out fast, and the recorded owner is an acceptable card-level answer as
+    // long as the card does not call it the holder.
     const { address: onChainOwner } = lookupOwnerForRender(block.inscriptionId);
 
     return {
-      owner: onChainOwner ?? block.ownerAddress,
+      owner: block.ownerAddress,
+      verified: onChainOwner !== null && onChainOwner === block.ownerAddress,
       objectCount,
       claimed: true,
     };
   } catch {
-    return { owner: null, objectCount: 0, claimed: false };
+    return { owner: null, verified: false, objectCount: 0, claimed: false };
   }
 }

@@ -173,8 +173,10 @@ function GenomeStrip({ genome }: { genome: string }) {
  * The deed panel.
  *
  * Three distinct states, kept distinct on purpose: verified against the chain,
- * on record but not verifiable this request, and genuinely unclaimed. Collapsing
- * "we could not reach the indexer" into "unowned" would be a lie about property.
+ * on record but not verifiable this request, and not registered on Block
+ * Genomics. The last one says nothing about who holds the `.bitmap` on Bitcoin:
+ * this registry is not the chain. Collapsing "we could not reach the indexer"
+ * into "unowned" would be a lie about property.
  */
 function DeedPanel({ data }: { data: BlockPageData }) {
   const { ownership } = data;
@@ -187,12 +189,12 @@ function DeedPanel({ data }: { data: BlockPageData }) {
           Deed
         </div>
         <p className="mt-2 text-base text-text-primary">
-          {data.degraded ? 'Ownership unavailable' : 'Unclaimed'}
+          {data.degraded ? 'Ownership unavailable' : 'Not yet on Block Genomics'}
         </p>
         <p className="mt-1 text-sm text-text-muted">
           {data.degraded
             ? 'The ownership record could not be reached. This does not mean the block is unowned.'
-            : `No one has inscribed ${data.height}.bitmap in this registry yet. The district exists — it is simply empty.`}
+            : `Nobody has verified ${data.height}.bitmap on Block Genomics yet. That says nothing about who holds it on Bitcoin.`}
         </p>
       </div>
     );
@@ -228,7 +230,11 @@ function DeedPanel({ data }: { data: BlockPageData }) {
             ? 'Live holder per the ordinals indexer. This registry still lists a previous owner and has not caught up yet.'
             : ownership.checkPending
               ? 'Last recorded holder. The live chain check is still running — reload in a moment to see it confirmed.'
-              : 'Last recorded holder. The ordinals indexer could not be reached, so this is not confirmed against the chain right now.'}
+              : ownership.inscriptionId === null
+                ? // No id on file means the indexer was never asked, so "could
+                  // not be reached" would be a false reason.
+                  'Last recorded holder. Block Genomics has no inscription id on file for this block, so the chain was not checked.'
+                : 'Last recorded holder. The ordinals indexer could not be reached, so this is not confirmed against the chain right now.'}
       </p>
 
       {ownership.inscriptionId && (
