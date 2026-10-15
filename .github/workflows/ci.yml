@@ -5,7 +5,7 @@
 # green before this workflow was added; jobs run in parallel and finish in ~2 min.
 #
 # Job names double as branch-protection status checks: sdk, mcp, cli, app,
-# lint, typecheck, example, build, secrets, migrations.
+# lint, typecheck, example, build, secrets, migrations, resolver.
 #
 # `app` (jest), `lint` (eslint) and `build` (next build) are separate jobs rather
 # than steps of one: they are independent failure modes, and as steps a lint
@@ -60,6 +60,25 @@ jobs:
       - run: npm ci
       # `npm test` here is `npm run build && vitest run`, so the build is covered.
       # The live smoke suite stays skipped: it needs BG_LIVE_SMOKE=1 and a real API.
+      - run: npm test
+
+  resolver:
+    name: resolver
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/bitmap-resolver
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/bitmap-resolver/package-lock.json
+      - run: npm ci
+      # `npm test` is `npm run build && vitest run`. The suite replays recorded
+      # vectors with the global fetch stubbed, so it never calls ordinals.com;
+      # the live suite stays skipped without BITMAP_LIVE_TESTS=1.
       - run: npm test
 
   cli:
