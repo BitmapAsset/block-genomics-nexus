@@ -1,0 +1,86 @@
+{
+ "height": 745506,
+ "recordedAt": "2026-10-15T23:41:48.686Z",
+ "rule": "liveoci-alpha@0c18b83c+bg1",
+ "expected": {
+  "verdict": "canonical",
+  "canonicalId": "6168ba458d997ec874135f6c1a5a70ae5e14844f745f7ab1b29377f2b47469d3i0",
+  "sat": "323070958137956",
+  "satIndex": 0,
+  "holder": "bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978",
+  "satpoint": "5574518830fa75bd44de78ca6a324314544d757ec53a3a7c4e3a275baa4589a1:4:0",
+  "checkedAtHeight": 971633,
+  "canonical": {
+   "id": "6168ba458d997ec874135f6c1a5a70ae5e14844f745f7ab1b29377f2b47469d3i0",
+   "revealTxid": "6168ba458d997ec874135f6c1a5a70ae5e14844f745f7ab1b29377f2b47469d3",
+   "vin": 0,
+   "envelopeIndex": 0,
+   "revealHeight": 796336,
+   "bodyHex": "3734353530362e6269746d6170",
+   "contentType": "text/plain;charset=utf-8",
+   "contentEncoding": null,
+   "delegate": null,
+   "number": 14033160,
+   "charms": [],
+   "sat": "323070958137956",
+   "satIndex": 0
+  }
+ },
+ "oci": {
+  "page": 7,
+  "pageId": "bb076934c1c22007b315dd1dc0f8c4a2f9d52f348320cfbadc7c0bd99eaa5e18i0",
+  "pageSha256": "da4cfec8e8951b192e80d5d652d8f2bdfb9577169a3a2cf2e3275bd34c482e1d",
+  "pageBytes": 2160283,
+  "position": 45506,
+  "sat": 323070958137956,
+  "satIndex": 0,
+  "sparse": {
+   "sats": {
+    "45506": 323070958137956
+   },
+   "satIndexMap": null
+  }
+ },
+ "http": {
+  "https://blockstream.info/api/block-height/796336": {
+   "status": 200,
+   "body": "00000000000000000004e703a9618395fd2647fc0541792c7753edfd66ad3c7f"
+  },
+  "https://blockstream.info/api/blocks/tip/height": {
+   "status": 200,
+   "body": "971633"
+  },
+  "https://blockstream.info/api/tx/5574518830fa75bd44de78ca6a324314544d757ec53a3a7c4e3a275baa4589a1": {
+   "status": 200,
+   "body": "{\"txid\":\"5574518830fa75bd44de78ca6a324314544d757ec53a3a7c4e3a275baa4589a1\",\"version\":2,\"locktime\":0,\"vin\":[{\"txid\":\"fd8f62f8ae956e54ed918944a7f1922e99568de42d1a4659869fb75960eb6ae1\",\"vout\":0,\"prevout\":{\"scriptpubkey\":\"512095d8791eb4c16970a2fb05f4cf82144f58ed1ad1eaba7fd069bbf7b628ec6773\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 95d8791eb4c16970a2fb05f4cf82144f58ed1ad1eaba7fd069bbf7b628ec6773\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1pjhv8j845c95hpghmqh6vlqs5favw6xk3a2a8l5rfh0mmv28vvaeseraph9\",\"value\":546},\"scriptsig\":\"\",\"scriptsig_asm\":\"\",\"witness\":[\"c6f6477d4f14e70ffef66f5a18b7801615594ef8b1092fdc18c1e710c07722a3ffb47c855c1d5357badd3a7280620733cd7ba422a199ad1f20c8c17aa783e937\"],\"is_coinbase\":false,\"sequence\":4294967295},{\"txid\":\"6010a1e7b6a3e2201e831a44a60a8ba82c22c251426e6dbce215c6971a9467ae\",\"vout\":0,\"prevout\":{\"scriptpubkey\":\"5120a8435367d89be8d08c39903cb843c37fd1538d80eb49c69be0caaf9a99bd2885\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 a8435367d89be8d08c39903cb843c37fd1538d80eb49c69be0caaf9a99bd2885\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1p4pp4xe7cn05dprpejq7tss7r0lg48rvqadyudxlqe2he4xda9zzs9kna6a\",\"value\":546},\"scriptsig\":\"\",\"scriptsig_asm\":\"\",\"witness\":[\"34b68ee0d1b981d5397c97e460ee8b189ff5959d6660334a94ed0b21a4c7e768a1abeb942478408eab36ab1fa14a509b5a4fb277880eb805654230f0002e36fc\"],\"is_coinbase\":false,\"sequence\":4294967295},{\"txid\":\"8fe6382e6a9e34a1d317cb2d84f025cc0d35db2600f65311c9aebba803a29221\",\"vout\":0,\"prevout\":{\"scriptpubkey\":\"512054375db9061bbb137c172057a65f189e4f1feb4d022d595118611212051e983c\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 54375db9061bbb137c172057a65f189e4f1feb4d022d595118611212051e983c\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1p2sm4mwgxrwa3xlqhypt6vhccne83l66dqgk4j5gcvyfpypg7nq7qmehp4z\",\"value\":546},\"scriptsig\":\"\",\"scriptsig_asm\":\"\",\"witness\":[\"4e4cc2350eabf51d1ee5c65650d835bb84110d26bc788708b98775e4cd73ae333cd73ad0aaf22498f1846bad5791f67f721d2ed3ae48540c87f26f453f909476\"],\"is_coinbase\":false,\"sequence\":4294967295},{\"txid\":\"f79723e48728038955f053997738658a83f74d7afa6c296e9aa72eca20d6cc48\",\"vout\":0,\"prevout\":{\"scriptpubkey\":\"51205f3b34c89984904442f45a66517586911907674668988bdf7f94f20566a6d95e\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 5f3b34c89984904442f45a66517586911907674668988bdf7f94f20566a6d95e\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1ptuanfjyesjgygsh5tfn9zavxjyvswe6xdzvghhmljneq2e4xm90qtnc8jv\",\"value\":546},\"scriptsig\":\"\",\"scriptsig_asm\":\"\",\"witness\":[\"77e1b74db51d28c9bf13ee95ac9983a904d0d90532f8ebb27ea4956b590a44ba8d9203637df75c4d93374c29728c20c689a53ec50ada6bd8b6cc3f9945e7801f\"],\"is_coinbase\":false,\"sequence\":4294967295},{\"txid\":\"5090a2977c5c07d0715daf1509381dba4cc52cef942a2fc458def8216df0f27e\",\"vout\":0,\"prevout\":{\"scriptpubkey\":\"5120875cd9c402179fc408f3d1e2fa148b58986dbe7fd85949c56a938c5aec587f8d\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 875cd9c402179fc408f3d1e2fa148b58986dbe7fd85949c56a938c5aec587f8d\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1psawdn3qzz70ugz8n683059yttzvxm0nlmpv5n3t2jwx94mzc07xs7ld3wp\",\"value\":546},\"scriptsig\":\"\",\"scriptsig_asm\":\"\",\"witness\":[\"327387f8ef98fb0dc9b595173a2e39cb98c1d9ac713a132b31d5e3c46e950076eaa4a92aeefdbe619657d4f38293049a340d24b3cbac7aa64be45377327e3b64\"],\"is_coinbase\":false,\"sequence\":4294967295},{\"txid\":\"6ac42df84ee2deb1f1200b0a33b6c8a2e0e1038683c1a7e203c95096b96ceae4\",\"vout\":5,\"prevout\":{\"scriptpubkey\":\"51203d81fa7d456bb929928164e58ad575d2cde9e43ab52fe5bd64c3746926ff7df2\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 3d81fa7d456bb929928164e58ad575d2cde9e43ab52fe5bd64c3746926ff7df2\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1p8kql5l29dwujny5pvnjc44t46tx7nep6k5h7t0tycd6xjfhl0heqrfhk2c\",\"value\":3373},\"scriptsig\":\"\",\"scriptsig_asm\":\"\",\"witness\":[\"e512581223c22f137772031b9ad52aa320dee638ea19db3905a57d4b18ba6673906bc7d3cc775ee5993305c34490d170e405d176fecfff36c292627ff501d1e6\"],\"is_coinbase\":false,\"sequence\":4294967295}],\"vout\":[{\"scriptpubkey\":\"512081e5d2baaad14707d7809f9a242e1886947dc20aa14e65499fe5c4a0bcbf4e96\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 81e5d2baaad14707d7809f9a242e1886947dc20aa14e65499fe5c4a0bcbf4e96\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978\",\"value\":546},{\"scriptpubkey\":\"512081e5d2baaad14707d7809f9a242e1886947dc20aa14e65499fe5c4a0bcbf4e96\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 81e5d2baaad14707d7809f9a242e1886947dc20aa14e65499fe5c4a0bcbf4e96\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978\",\"value\":546},{\"scriptpubkey\":\"512081e5d2baaad14707d7809f9a242e1886947dc20aa14e65499fe5c4a0bcbf4e96\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 81e5d2baaad14707d7809f9a242e1886947dc20aa14e65499fe5c4a0bcbf4e96\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978\",\"value\":546},{\"scriptpubkey\":\"512081e5d2baaad14707d7809f9a242e1886947dc20aa14e65499fe5c4a0bcbf4e96\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 81e5d2baaad14707d7809f9a242e1886947dc20aa14e65499fe5c4a0bcbf4e96\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978\",\"value\":546},{\"scriptpubkey\":\"512081e5d2baaad14707d7809f9a242e1886947dc20aa14e65499fe5c4a0bcbf4e96\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 81e5d2baaad14707d7809f9a242e1886947dc20aa14e65499fe5c4a0bcbf4e96\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978\",\"value\":546},{\"scriptpubkey\":\"0014c015c65276d5f38d599d445c4cb03aa7aa0dc365\",\"scriptpubkey_asm\":\"OP_0 OP_PUSHBYTES_20 c015c65276d5f38d599d445c4cb03aa7aa0dc365\",\"scriptpubkey_type\":\"v0_p2wpkh\",\"scriptpubkey_address\":\"bc1qcq2uv5nk6hec6kvag3wyevp6574qmsm9scjxc2\",\"value\":1023}],\"size\":900,\"weight\":2406,\"fee\":2350,\"status\":{\"confirmed\":true,\"block_height\":936384,\"block_hash\":\"00000000000000000001a91a44bf97b7d736385e134257a25936e3c561845974\",\"block_time\":1770993938}}"
+  },
+  "https://blockstream.info/api/tx/5574518830fa75bd44de78ca6a324314544d757ec53a3a7c4e3a275baa4589a1/outspend/4": {
+   "status": 200,
+   "body": "{\"spent\":false}"
+  },
+  "https://blockstream.info/api/tx/6168ba458d997ec874135f6c1a5a70ae5e14844f745f7ab1b29377f2b47469d3": {
+   "status": 200,
+   "body": "{\"txid\":\"6168ba458d997ec874135f6c1a5a70ae5e14844f745f7ab1b29377f2b47469d3\",\"version\":2,\"locktime\":0,\"vin\":[{\"txid\":\"0b6d118a9e9764baef3af7a5ab69e787b844ea3135a0afb63faa435a97f7d010\",\"vout\":4,\"prevout\":{\"scriptpubkey\":\"51209de6a5a136f9866c4dc172d7806892be05141f016aa9673c6764043b2403216d\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 9de6a5a136f9866c4dc172d7806892be05141f016aa9673c6764043b2403216d\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1pnhn2tgfklxrxcnwpwttcq6yjhcz3g8cpd25kw0r8vszrkfqry9ks0xnus3\",\"value\":3120},\"scriptsig\":\"\",\"scriptsig_asm\":\"\",\"witness\":[\"cc147233cdfdf738ba64abd789d567bbc4fa806bc4d3b5b4741e40c9cace32cf79bbfd8a8c8f938e6dfc5a46079dbcb67a3126d2203b82ca71a12344df841e18\",\"20117f692257b2331233b5705ce9c682be8719ff1b2b64cbca290bd6faeb54423eac06d199d1048901750063036f7264010118746578742f706c61696e3b636861727365743d7574662d38000d3734353530362e6269746d617068\",\"c0117f692257b2331233b5705ce9c682be8719ff1b2b64cbca290bd6faeb54423e\"],\"is_coinbase\":false,\"sequence\":4294967293}],\"vout\":[{\"scriptpubkey\":\"5120f5762dc9f54ed06f7ccdb1aa2b04007d04b379dfd02a446d497f4ab85951828d\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 f5762dc9f54ed06f7ccdb1aa2b04007d04b379dfd02a446d497f4ab85951828d\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1p74mzmj04fmgx7lxdkx4zkpqq05ztx7wl6q4ygm2f0a9tsk23s2xsaygjhd\",\"value\":546}],\"size\":288,\"weight\":570,\"fee\":2574,\"status\":{\"confirmed\":true,\"block_height\":796336,\"block_hash\":\"00000000000000000004e703a9618395fd2647fc0541792c7753edfd66ad3c7f\",\"block_time\":1688003930}}"
+  },
+  "https://ordinals.com/r/blockhash/796336": {
+   "status": 200,
+   "body": "\"00000000000000000004e703a9618395fd2647fc0541792c7753edfd66ad3c7f\""
+  },
+  "https://ordinals.com/r/blockheight": {
+   "status": 200,
+   "body": "971633"
+  },
+  "https://ordinals.com/r/inscription/6168ba458d997ec874135f6c1a5a70ae5e14844f745f7ab1b29377f2b47469d3i0": {
+   "status": 200,
+   "body": "{\"charms\":[],\"content_type\":\"text/plain;charset=utf-8\",\"content_length\":13,\"delegate\":null,\"fee\":2574,\"height\":796336,\"id\":\"6168ba458d997ec874135f6c1a5a70ae5e14844f745f7ab1b29377f2b47469d3i0\",\"number\":14033160,\"output\":\"5574518830fa75bd44de78ca6a324314544d757ec53a3a7c4e3a275baa4589a1:4\",\"sat\":323070958137956,\"satpoint\":\"5574518830fa75bd44de78ca6a324314544d757ec53a3a7c4e3a275baa4589a1:4:0\",\"timestamp\":1688003930,\"value\":546,\"address\":\"bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978\"}"
+  },
+  "https://ordinals.com/r/sat/323070958137956/at/0": {
+   "status": 200,
+   "body": "{\"id\":\"6168ba458d997ec874135f6c1a5a70ae5e14844f745f7ab1b29377f2b47469d3i0\"}"
+  },
+  "https://ordinals.com/r/tx/6168ba458d997ec874135f6c1a5a70ae5e14844f745f7ab1b29377f2b47469d3": {
+   "status": 200,
+   "body": "\"0200000000010110d0f7975a43aa3fb6afa03531ea44b887e769aba5f73aefba64979e8a116d0b0400000000fdffffff012202000000000000225120f5762dc9f54ed06f7ccdb1aa2b04007d04b379dfd02a446d497f4ab85951828d0340cc147233cdfdf738ba64abd789d567bbc4fa806bc4d3b5b4741e40c9cace32cf79bbfd8a8c8f938e6dfc5a46079dbcb67a3126d2203b82ca71a12344df841e185b20117f692257b2331233b5705ce9c682be8719ff1b2b64cbca290bd6faeb54423eac06d199d1048901750063036f7264010118746578742f706c61696e3b636861727365743d7574662d38000d3734353530362e6269746d61706821c0117f692257b2331233b5705ce9c682be8719ff1b2b64cbca290bd6faeb54423e00000000\""
+  }
+ }
+}

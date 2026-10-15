@@ -1,0 +1,86 @@
+{
+ "height": 433445,
+ "recordedAt": "2026-10-15T23:41:48.686Z",
+ "rule": "liveoci-alpha@0c18b83c+bg1",
+ "expected": {
+  "verdict": "canonical",
+  "canonicalId": "e16820142ec10fa1e61fbbcba6037a52fbe01704bfd7a19ab6a188f9a15b0fa1i0",
+  "sat": "1940902121470334",
+  "satIndex": 0,
+  "holder": "bc1pkjpdzyq7emtqgyfh7yasc92w0yytvrenllknjs99mr9y6atdl7jshdk6ny",
+  "satpoint": "e86d836b667995a16db02bd2ae968e8857db69501b955de5f3780c6060f34659:0:0",
+  "checkedAtHeight": 971633,
+  "canonical": {
+   "id": "e16820142ec10fa1e61fbbcba6037a52fbe01704bfd7a19ab6a188f9a15b0fa1i0",
+   "revealTxid": "e16820142ec10fa1e61fbbcba6037a52fbe01704bfd7a19ab6a188f9a15b0fa1",
+   "vin": 0,
+   "envelopeIndex": 0,
+   "revealHeight": 795668,
+   "bodyHex": "3433333434352e6269746d6170",
+   "contentType": "text/plain;charset=utf-8",
+   "contentEncoding": null,
+   "delegate": null,
+   "number": 13329282,
+   "charms": [],
+   "sat": "1940902121470334",
+   "satIndex": 0
+  }
+ },
+ "oci": {
+  "page": 4,
+  "pageId": "bb9438f4345f223c6f4f92adf6db12a82c45d1724019ecd7b6af4fcc3f5786cei0",
+  "pageSha256": "0b46bea72c30390fa67a4c8a99918139f270fd6605c8ef8b39e711d7a76eed00",
+  "pageBytes": 2147232,
+  "position": 33445,
+  "sat": 1940902121470334,
+  "satIndex": 0,
+  "sparse": {
+   "sats": {
+    "33445": 1940902121470334
+   },
+   "satIndexMap": null
+  }
+ },
+ "http": {
+  "https://blockstream.info/api/block-height/795668": {
+   "status": 200,
+   "body": "00000000000000000000931d452c049068d07f441bbd8da3dc95453ba0cd3742"
+  },
+  "https://blockstream.info/api/blocks/tip/height": {
+   "status": 200,
+   "body": "971633"
+  },
+  "https://blockstream.info/api/tx/e16820142ec10fa1e61fbbcba6037a52fbe01704bfd7a19ab6a188f9a15b0fa1": {
+   "status": 200,
+   "body": "{\"txid\":\"e16820142ec10fa1e61fbbcba6037a52fbe01704bfd7a19ab6a188f9a15b0fa1\",\"version\":2,\"locktime\":0,\"vin\":[{\"txid\":\"c2b2291f208ddedd16ed43ebbef6e9262f3c4453e525daebbd9b1227e58f5cc0\",\"vout\":548,\"prevout\":{\"scriptpubkey\":\"5120367a7ea8065c01e5e1a224e752368427ac9373b970e67ef3c402d79933620aa9\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 367a7ea8065c01e5e1a224e752368427ac9373b970e67ef3c402d79933620aa9\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1pxea8a2qxtsq7tcdzynn4yd5yy7kfxuaewrn8au7yqttejvmzp25sep62v3\",\"value\":2405},\"scriptsig\":\"\",\"scriptsig_asm\":\"\",\"witness\":[\"ab265428753978b08da3d2b1cf5048b0dd967fd692b6d576244253c4576d6f752427e375cab1472f5d3a888f314ef0bd1cb33b5cdb52d73a401fc574c89bc6a3\",\"20117f692257b2331233b5705ce9c682be8719ff1b2b64cbca290bd6faeb54423eac06fdcd94eb8801750063036f7264010118746578742f706c61696e3b636861727365743d7574662d38000d3433333434352e6269746d617068\",\"c0117f692257b2331233b5705ce9c682be8719ff1b2b64cbca290bd6faeb54423e\"],\"is_coinbase\":false,\"sequence\":4294967293}],\"vout\":[{\"scriptpubkey\":\"51201a095d5c8888433e61d222954fef7fd9e5982acb1d7e5fe576bae302edbe12ef\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 1a095d5c8888433e61d222954fef7fd9e5982acb1d7e5fe576bae302edbe12ef\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1prgy46hyg3ppnucwjy225lmmlm8jes2ktr4l9letkht3s9md7zthscpf7vw\",\"value\":546}],\"size\":288,\"weight\":570,\"fee\":1859,\"status\":{\"confirmed\":true,\"block_height\":795668,\"block_hash\":\"00000000000000000000931d452c049068d07f441bbd8da3dc95453ba0cd3742\",\"block_time\":1687582210}}"
+  },
+  "https://blockstream.info/api/tx/e86d836b667995a16db02bd2ae968e8857db69501b955de5f3780c6060f34659": {
+   "status": 200,
+   "body": "{\"txid\":\"e86d836b667995a16db02bd2ae968e8857db69501b955de5f3780c6060f34659\",\"version\":2,\"locktime\":0,\"vin\":[{\"txid\":\"8dbb561d70c522f8ff1bed0baf4a072dea69ce1dbae8bac3ce3678232e740548\",\"vout\":0,\"prevout\":{\"scriptpubkey\":\"51201dd4340a87e7add2a1731f5e039f4c88ae3c785a20219b78a7d6b62bdc661a5d\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 1dd4340a87e7add2a1731f5e039f4c88ae3c785a20219b78a7d6b62bdc661a5d\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1prh2rgz58u7ka9gtnra0q886v3zhrc7z6yqsek79866mzhhrxrfws044dlr\",\"value\":546},\"scriptsig\":\"\",\"scriptsig_asm\":\"\",\"witness\":[\"478016fc0cf4c5294bee2f228ce7e0e6d1ec05fd51fbe293aa098bb9f258f2dfcb9e9c7abd75e14c1795e5eb85bfc3455ad448ee53800772689f7fa45a10ed3f\"],\"is_coinbase\":false,\"sequence\":4294967295},{\"txid\":\"5119f02c872e667da6978c9e4b63981ae88e92137ee6f21699fec6a946d7caef\",\"vout\":1,\"prevout\":{\"scriptpubkey\":\"512047a33e596816dc2276bbe93c4f8273a2be43167d6d005f70465f0053eb873dd7\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 47a33e596816dc2276bbe93c4f8273a2be43167d6d005f70465f0053eb873dd7\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1pg73nuktgzmwzya4may7ylqnn52lyx9nad5q97uzxtuq986u88htspe5uat\",\"value\":820},\"scriptsig\":\"\",\"scriptsig_asm\":\"\",\"witness\":[\"0d2a7dce208a61b550205814b44932466a8efe92a0ed7ea9fb7a1730b8d97b4a15233591980a0c3556e958b3e5780b8fc4fab908a1ee93a0202a41e9188b5e66\"],\"is_coinbase\":false,\"sequence\":4294967295}],\"vout\":[{\"scriptpubkey\":\"5120b482d1101eced6041137f13b0c154e7908b60f33ffed3940a5d8ca4d756dffa5\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 b482d1101eced6041137f13b0c154e7908b60f33ffed3940a5d8ca4d756dffa5\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1pkjpdzyq7emtqgyfh7yasc92w0yytvrenllknjs99mr9y6atdl7jshdk6ny\",\"value\":546},{\"scriptpubkey\":\"0014c015c65276d5f38d599d445c4cb03aa7aa0dc365\",\"scriptpubkey_asm\":\"OP_0 OP_PUSHBYTES_20 c015c65276d5f38d599d445c4cb03aa7aa0dc365\",\"scriptpubkey_type\":\"v0_p2wpkh\",\"scriptpubkey_address\":\"bc1qcq2uv5nk6hec6kvag3wyevp6574qmsm9scjxc2\",\"value\":580}],\"size\":300,\"weight\":798,\"fee\":240,\"status\":{\"confirmed\":true,\"block_height\":936717,\"block_hash\":\"000000000000000000018eeaaa88d61577acfd65a3d82e22386827416cff2057\",\"block_time\":1771151549}}"
+  },
+  "https://blockstream.info/api/tx/e86d836b667995a16db02bd2ae968e8857db69501b955de5f3780c6060f34659/outspend/0": {
+   "status": 200,
+   "body": "{\"spent\":false}"
+  },
+  "https://ordinals.com/r/blockhash/795668": {
+   "status": 200,
+   "body": "\"00000000000000000000931d452c049068d07f441bbd8da3dc95453ba0cd3742\""
+  },
+  "https://ordinals.com/r/blockheight": {
+   "status": 200,
+   "body": "971633"
+  },
+  "https://ordinals.com/r/inscription/e16820142ec10fa1e61fbbcba6037a52fbe01704bfd7a19ab6a188f9a15b0fa1i0": {
+   "status": 200,
+   "body": "{\"charms\":[],\"content_type\":\"text/plain;charset=utf-8\",\"content_length\":13,\"delegate\":null,\"fee\":1859,\"height\":795668,\"id\":\"e16820142ec10fa1e61fbbcba6037a52fbe01704bfd7a19ab6a188f9a15b0fa1i0\",\"number\":13329282,\"output\":\"e86d836b667995a16db02bd2ae968e8857db69501b955de5f3780c6060f34659:0\",\"sat\":1940902121470334,\"satpoint\":\"e86d836b667995a16db02bd2ae968e8857db69501b955de5f3780c6060f34659:0:0\",\"timestamp\":1687582210,\"value\":546,\"address\":\"bc1pkjpdzyq7emtqgyfh7yasc92w0yytvrenllknjs99mr9y6atdl7jshdk6ny\"}"
+  },
+  "https://ordinals.com/r/sat/1940902121470334/at/0": {
+   "status": 200,
+   "body": "{\"id\":\"e16820142ec10fa1e61fbbcba6037a52fbe01704bfd7a19ab6a188f9a15b0fa1i0\"}"
+  },
+  "https://ordinals.com/r/tx/e16820142ec10fa1e61fbbcba6037a52fbe01704bfd7a19ab6a188f9a15b0fa1": {
+   "status": 200,
+   "body": "\"02000000000101c05c8fe527129bbdebda25e553443c2f26e9f6beeb43ed16ddde8d201f29b2c22402000000fdffffff0122020000000000002251201a095d5c8888433e61d222954fef7fd9e5982acb1d7e5fe576bae302edbe12ef0340ab265428753978b08da3d2b1cf5048b0dd967fd692b6d576244253c4576d6f752427e375cab1472f5d3a888f314ef0bd1cb33b5cdb52d73a401fc574c89bc6a35b20117f692257b2331233b5705ce9c682be8719ff1b2b64cbca290bd6faeb54423eac06fdcd94eb8801750063036f7264010118746578742f706c61696e3b636861727365743d7574662d38000d3433333434352e6269746d61706821c0117f692257b2331233b5705ce9c682be8719ff1b2b64cbca290bd6faeb54423e00000000\""
+  }
+ }
+}

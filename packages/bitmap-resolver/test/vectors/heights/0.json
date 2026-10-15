@@ -1,0 +1,86 @@
+{
+ "height": 0,
+ "recordedAt": "2026-10-15T23:41:48.686Z",
+ "rule": "liveoci-alpha@0c18b83c+bg1",
+ "expected": {
+  "verdict": "canonical",
+  "canonicalId": "86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732i0",
+  "sat": "1934908198010420",
+  "satIndex": 0,
+  "holder": "bc1p7hf8x2q2zal4v64c2h34qheyz4zk8zgnv767ygkkrd5dhg9zackq4rmvhd",
+  "satpoint": "350a27fa86e9d5ae30f167b185e54171c10f7f734bcc2aefec860d19ee050e01:0:0",
+  "checkedAtHeight": 971633,
+  "canonical": {
+   "id": "86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732i0",
+   "revealTxid": "86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732",
+   "vin": 0,
+   "envelopeIndex": 0,
+   "revealHeight": 792435,
+   "bodyHex": "302e6269746d6170",
+   "contentType": "text/plain;charset=utf-8",
+   "contentEncoding": null,
+   "delegate": null,
+   "number": 10423123,
+   "charms": [],
+   "sat": "1934908198010420",
+   "satIndex": 0
+  }
+ },
+ "oci": {
+  "page": 0,
+  "pageId": "01bba6c58af39d7f199aa2bceeaaba1ba91b23d2663bc4ef079a4b5e442dbf74i0",
+  "pageSha256": "09c2de69d75d3ea5d5946f93fea39f5b30cbff3c6d2a58ab0fcd0bfd15e3c384",
+  "pageBytes": 2352688,
+  "position": 0,
+  "sat": 1934908198010420,
+  "satIndex": 0,
+  "sparse": {
+   "sats": {
+    "0": 1934908198010420
+   },
+   "satIndexMap": null
+  }
+ },
+ "http": {
+  "https://blockstream.info/api/block-height/792435": {
+   "status": 200,
+   "body": "000000000000000000035d4eee4c3b3864b503ed5c6b35a92de219529b34ca2c"
+  },
+  "https://blockstream.info/api/blocks/tip/height": {
+   "status": 200,
+   "body": "971633"
+  },
+  "https://blockstream.info/api/tx/350a27fa86e9d5ae30f167b185e54171c10f7f734bcc2aefec860d19ee050e01": {
+   "status": 200,
+   "body": "{\"txid\":\"350a27fa86e9d5ae30f167b185e54171c10f7f734bcc2aefec860d19ee050e01\",\"version\":2,\"locktime\":0,\"vin\":[{\"txid\":\"823a34196dac55caa39f57c14b165f3a0c160b7a5e24328558d6da1bf35c3c79\",\"vout\":0,\"prevout\":{\"scriptpubkey\":\"51209b966c1f1018a82e5b9646a8f08c2e2611c0d9caad0a8a4c889bda1871a37d60\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 9b966c1f1018a82e5b9646a8f08c2e2611c0d9caad0a8a4c889bda1871a37d60\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1pnwtxc8csrz5zukukg650prpwycgupkw2459g5nygn0dpsudr04sqcysruv\",\"value\":825},\"scriptsig\":\"\",\"scriptsig_asm\":\"\",\"witness\":[\"81262565d04b389a6415043d0124dabe366920796fcfe16e227a0725f5b1dae4ce0d98e4ba82ff43771e3e2ca99359143cdcb5921d3da25af8229f6b6d88ca86\",\"202e32f1884db4ad0e1ab0508753edfc04e3ff651749b7d7d2637640c8257871f3ac0063036f7264010118746578742f706c61696e3b636861727365743d7574662d38010b205092a0f3416482b47f56b12c6d0d445b33c14c034e221ed741e0288be219280501054d9b01a3694469726563746f7279a575583a204269746f73686920426c6f636b616d6f746f781f68747470733a2f2f782e636f6d2f4269746f736869426c6f636b616d6f746f6b6269746d61702e6c616e647368747470733a2f2f6269746d61702e6c616e646b7361746d61702e6c616e647368747470733a2f2f7361746d61702e6c616e646a61746c61732e6c616e647268747470733a2f2f61746c61732e6c616e646c7465726d696e612e6c616e647468747470733a2f2f7465726d696e612e6c616e646842756c6c6574696ea1645a65726f78224f6e6c7920696e206461726b6e6573732063616e206c6967687420656d657267652e665369676e616ca264686f6f64a4647365617468302e6269746d6170646e616d65675361746f73686965636f6c6f72672346393936323064666c61677842353136303734626432633131633432343164623662666632333931656264303561616363346265323766303966643738336138643330393061376436636433386930686469737472696374a2646e616d65674269746f73686965636f6c6f726723463946364545004c7122596f7572207472756520666163652e2e2e2057686174206b696e64206f662e2e2e20666163652069732069743f204920776f6e6465722e2e2e20546865206661636520756e64657220746865206d61736b2e2e2e20497320746861742e2e2e20796f7572207472756520666163653f2268\",\"c02e32f1884db4ad0e1ab0508753edfc04e3ff651749b7d7d2637640c8257871f3\"],\"is_coinbase\":false,\"sequence\":4294967293}],\"vout\":[{\"scriptpubkey\":\"5120f5d273280a177f566ab855e3505f24154563891367b5e222d61b68dba0a2ee2c\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 f5d273280a177f566ab855e3505f24154563891367b5e222d61b68dba0a2ee2c\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1p7hf8x2q2zal4v64c2h34qheyz4zk8zgnv767ygkkrd5dhg9zackq4rmvhd\",\"value\":546}],\"size\":834,\"weight\":1116,\"fee\":279,\"status\":{\"confirmed\":true,\"block_height\":961625,\"block_hash\":\"000000000000000000013c2994a5fd3aa7c67e2ecca74a6fcfaf04fe333e96dc\",\"block_time\":1786216537}}"
+  },
+  "https://blockstream.info/api/tx/350a27fa86e9d5ae30f167b185e54171c10f7f734bcc2aefec860d19ee050e01/outspend/0": {
+   "status": 200,
+   "body": "{\"spent\":false}"
+  },
+  "https://blockstream.info/api/tx/86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732": {
+   "status": 200,
+   "body": "{\"txid\":\"86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732\",\"version\":2,\"locktime\":0,\"vin\":[{\"txid\":\"d5f2846db42e4250c7a01620a29a1d44c5cca4df838943e16db701b820bd62e1\",\"vout\":0,\"prevout\":{\"scriptpubkey\":\"5120eec5f57e18b15bfbeaea003b2dfe52e0388f5b12bdfb2bdfc9422891bea0dbb8\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 eec5f57e18b15bfbeaea003b2dfe52e0388f5b12bdfb2bdfc9422891bea0dbb8\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1pamzl2lsck9dlh6h2qqajmljjuqug7kcjhhajhh7fgg5fr04qmwuqrwepqj\",\"value\":8000},\"scriptsig\":\"\",\"scriptsig_asm\":\"\",\"witness\":[\"9319027be006ddfe7dd785bd11777cc349f8a67ce4b04c2c4aff12bec1bce42a8df9e32193bf1d01a535e30e374ed47cf987cf3cb298ceb66a7f42741643f632\",\"20117f692257b2331233b5705ce9c682be8719ff1b2b64cbca290bd6faeb54423eac068b49fa788801750063036f7264010118746578742f706c61696e3b636861727365743d7574662d380008302e6269746d617068\",\"c0117f692257b2331233b5705ce9c682be8719ff1b2b64cbca290bd6faeb54423e\"],\"is_coinbase\":false,\"sequence\":4294967293}],\"vout\":[{\"scriptpubkey\":\"5120f5d273280a177f566ab855e3505f24154563891367b5e222d61b68dba0a2ee2c\",\"scriptpubkey_asm\":\"OP_PUSHNUM_1 OP_PUSHBYTES_32 f5d273280a177f566ab855e3505f24154563891367b5e222d61b68dba0a2ee2c\",\"scriptpubkey_type\":\"v1_p2tr\",\"scriptpubkey_address\":\"bc1p7hf8x2q2zal4v64c2h34qheyz4zk8zgnv767ygkkrd5dhg9zackq4rmvhd\",\"value\":546},{\"scriptpubkey\":\"0014329f2ae1712d95a9a1238c7c8c7cca173669a67b\",\"scriptpubkey_asm\":\"OP_0 OP_PUSHBYTES_20 329f2ae1712d95a9a1238c7c8c7cca173669a67b\",\"scriptpubkey_type\":\"v0_p2wpkh\",\"scriptpubkey_address\":\"bc1qx20j4ct39k26ngfr337gclx2zumxnfnmskngtr\",\"value\":2437}],\"size\":314,\"weight\":689,\"fee\":5017,\"status\":{\"confirmed\":true,\"block_height\":792435,\"block_hash\":\"000000000000000000035d4eee4c3b3864b503ed5c6b35a92de219529b34ca2c\",\"block_time\":1685657332}}"
+  },
+  "https://ordinals.com/r/blockhash/792435": {
+   "status": 200,
+   "body": "\"000000000000000000035d4eee4c3b3864b503ed5c6b35a92de219529b34ca2c\""
+  },
+  "https://ordinals.com/r/blockheight": {
+   "status": 200,
+   "body": "971633"
+  },
+  "https://ordinals.com/r/inscription/86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732i0": {
+   "status": 200,
+   "body": "{\"charms\":[],\"content_type\":\"text/plain;charset=utf-8\",\"content_length\":8,\"delegate\":null,\"fee\":5017,\"height\":792435,\"id\":\"86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732i0\",\"number\":10423123,\"output\":\"350a27fa86e9d5ae30f167b185e54171c10f7f734bcc2aefec860d19ee050e01:0\",\"sat\":1934908198010420,\"satpoint\":\"350a27fa86e9d5ae30f167b185e54171c10f7f734bcc2aefec860d19ee050e01:0:0\",\"timestamp\":1685657332,\"value\":546,\"address\":\"bc1p7hf8x2q2zal4v64c2h34qheyz4zk8zgnv767ygkkrd5dhg9zackq4rmvhd\"}"
+  },
+  "https://ordinals.com/r/sat/1934908198010420/at/0": {
+   "status": 200,
+   "body": "{\"id\":\"86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732i0\"}"
+  },
+  "https://ordinals.com/r/tx/86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732": {
+   "status": 200,
+   "body": "\"02000000000101e162bd20b801b76de1438983dfa4ccc5441d9aa22016a0c750422eb46d84f2d50000000000fdffffff022202000000000000225120f5d273280a177f566ab855e3505f24154563891367b5e222d61b68dba0a2ee2c8509000000000000160014329f2ae1712d95a9a1238c7c8c7cca173669a67b03409319027be006ddfe7dd785bd11777cc349f8a67ce4b04c2c4aff12bec1bce42a8df9e32193bf1d01a535e30e374ed47cf987cf3cb298ceb66a7f42741643f6325620117f692257b2331233b5705ce9c682be8719ff1b2b64cbca290bd6faeb54423eac068b49fa788801750063036f7264010118746578742f706c61696e3b636861727365743d7574662d380008302e6269746d61706821c0117f692257b2331233b5705ce9c682be8719ff1b2b64cbca290bd6faeb54423e00000000\""
+  }
+ }
+}
