@@ -23,7 +23,7 @@ import {
 } from './types';
 import {
   MORAL_CODE,
-  MORAL_CODE_INSCRIPTION_ID,
+  MORAL_CODE_INSCRIPTION_ID_FULL,
   SOUL_FILE_INSCRIPTION_ID,
   SOUL_JSON_INSCRIPTION_ID,
   NEXUS_BRAIN_HANDLE,
@@ -230,7 +230,7 @@ export async function verifyMoralCodeInscription(
   config: BrainRuntimeConfig = DEFAULT_BRAIN_CONFIG,
 ): Promise<{ matches: boolean; inscriptionText?: string }> {
   try {
-    const url = `${config.ordinalsApiUrl}/content/${MORAL_CODE_INSCRIPTION_ID}`;
+    const url = `${config.ordinalsApiUrl}/content/${MORAL_CODE_INSCRIPTION_ID_FULL}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return { matches: false };
     
