@@ -1,0 +1,55 @@
+{
+  "name": "bitmap-resolver",
+  "version": "0.1.0",
+  "private": true,
+  "description": "First-is-valid N.bitmap deed resolver with proof bundles. LiveOCI rules (versioned rule id), OCI below 942,000, self-verified block walk above it. Zero runtime dependencies; Node >= 20 and browsers.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "npm run build && vitest run",
+    "test:live": "npm run build && BITMAP_LIVE_TESTS=1 vitest run test/live.test.ts",
+    "record-vectors": "npm run build && node scripts/record-vectors.mjs",
+    "resolve": "npm run build && node scripts/resolve-live.mjs"
+  },
+  "keywords": [
+    "bitcoin",
+    "bitmap",
+    "ordinals",
+    "inscriptions",
+    "resolver",
+    "proof"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BitmapAsset/block-genomics-nexus.git",
+    "directory": "packages/bitmap-resolver"
+  },
+  "author": "Gravity (BitmapAsset)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}
