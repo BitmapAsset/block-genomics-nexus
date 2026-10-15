@@ -92,7 +92,7 @@ export async function runVerify(block?: number, json = false) {
   }
 
   if (!ownerAddress) {
-    console.log(panel("Block #" + targetBlock, chalk.yellow("Unclaimed — no on-chain owner found.")));
+    console.log(panel("Block #" + targetBlock, chalk.yellow("Not registered on Block Genomics (on-chain holder not checked).")));
     return;
   }
 
