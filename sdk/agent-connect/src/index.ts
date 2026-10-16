@@ -1,4 +1,4 @@
-// @blockgenomics/agent-connect
+// block-genomics-connect
 //
 // The open agent-connection client for Block Genomics: any agent, on any
 // runtime, can discover the API, prove ownership of its Bitcoin block, read its

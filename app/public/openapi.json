@@ -3362,7 +3362,7 @@
     ]
   },
   "x-bg-sdk": {
-    "package": "@blockgenomics/agent-connect",
+    "package": "block-genomics-connect",
     "repo": "sdk/agent-connect",
     "docs": "docs/SDK.md",
     "cli": "block-genomics (npm)"
