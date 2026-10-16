@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useGlobalWallet, type WalletType } from "@/context/GlobalWalletContext";
 import BitmapThumbnail from "@/components/BitmapThumbnail";
 
@@ -311,8 +312,11 @@ export default function WalletConnect() {
         </button>
       )}
 
-      {/* ── Modern Wallet Connect Modal ── */}
-      {open && !isConnected && (
+      {/* ── Modern Wallet Connect Modal ──
+          Portalled to <body>: the header's backdrop-filter makes it the containing
+          block for fixed children, which pinned this overlay to the 64px header
+          box instead of the viewport (clipped off-screen on phones). */}
+      {open && !isConnected && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }} onClick={() => setOpen(false)}>
           <div
             onClick={e => e.stopPropagation()}
@@ -402,7 +406,8 @@ export default function WalletConnect() {
               </p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
