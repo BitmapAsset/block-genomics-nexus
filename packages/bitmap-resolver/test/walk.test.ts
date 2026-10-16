@@ -145,6 +145,58 @@ describe('walk: across blocks, caps, tip and the future', () => {
   });
 });
 
+describe('walk: unbound first claim (review #9)', () => {
+  it('an inscription ord calls unbound (zero-value input: no sat) makes the verdict undetermined', async () => {
+    const N = 953000;
+    const claim = revealTx({ body: `${N}.bitmap` });
+    const chain = fakeChain(N, N + 1, { [N]: [claim] });
+    const url = `${ORD}/r/inscription/${txidOf(claim)}i0`;
+    const ins = JSON.parse(chain.http[url].body as string);
+    chain.http[url] = { status: 200, body: JSON.stringify({ ...ins, sat: null, charms: ['unbound'] }) };
+    const r = await run(chain, N);
+    expect(r.verdict).toBe('undetermined');
+    expect(r.caveats).toEqual(['unbound']);
+    expect(r.candidateId).toBe(`${txidOf(claim)}i0`);
+  });
+});
+
+describe('walk: challengers against a walk (review #2)', () => {
+  const N = 954000;
+
+  function presented(chain: FakeChain, height: number) {
+    // A valid N.bitmap reveal the fake ord and Esplora place at `height`.
+    const tx = revealTx({ contentType: 'text/plain', body: `${N}.bitmap` });
+    const txid = txidOf(tx);
+    const hash = chain.hashes[height] ?? (height.toString(16).padStart(8, '0') + 'ef').repeat(7).slice(0, 64);
+    chain.http[`${ORD}/r/tx/${txid}`] = { status: 200, body: JSON.stringify(toHex(tx)) };
+    chain.http[`${ORD}/r/inscription/${txid}i0`] = {
+      status: 200,
+      body: JSON.stringify({ id: `${txid}i0`, number: 1, height, sat: 77, satpoint: `${txid}:0:0`, address: HOLDER, content_type: 'text/plain', charms: [], delegate: null, value: 546 }),
+    };
+    chain.http[`${ESP}/tx/${txid}`] = { status: 200, body: JSON.stringify({ txid, status: { confirmed: true, block_height: height, block_hash: hash }, vin: esploraVin(tx), vout: [] }) };
+    chain.http[`${ORD}/r/blockhash/${height}`] = { status: 200, body: JSON.stringify(hash) };
+    chain.http[`${ESP}/block-height/${height}`] = { status: 200, body: hash };
+    return `${txid}i0`;
+  }
+
+  it('a valid claim revealed after the walked range turns none into undetermined with a cursor, never disputed', async () => {
+    const chain = fakeChain(N, N + 2, {});
+    const id = presented(chain, N + 3); // a block that landed after the tip was read
+    const r = await run(chain, N, { walkCap: 10, challengers: [id] });
+    expect(r.verdict).toBe('undetermined');
+    expect(r.cursor).toBe(N + 3);
+    expect(r.challengers).toEqual([{ id, outcome: 'valid_no_candidate', revealHeight: N + 3 }]);
+  });
+
+  it('a valid claim inside blocks the walk scanned and found empty is disputed', async () => {
+    const chain = fakeChain(N, N + 2, {});
+    const id = presented(chain, N + 1);
+    const r = await run(chain, N, { walkCap: 10, challengers: [id] });
+    expect(r.verdict).toBe('disputed');
+    expect(r.reason).toMatch(/scanned without finding/);
+  });
+});
+
 describe('walk: sources must agree', () => {
   const N = 952000;
   const claim = revealTx({ body: `${N}.bitmap` });
@@ -304,6 +356,18 @@ describe('challengers (OCI path, 208)', () => {
     expect(r.challengers).toEqual([{ id, outcome: 'unavailable' }]);
     expect(r.verdict).toBe('undetermined');
     expect(r.reason).toMatch(/witness/);
+  });
+
+  it('a later valid claim is not called not_first when the OCI candidate is not established (review #7)', async () => {
+    const { http, stores } = context();
+    // Make ord report a different sat for the deed: the OCI candidate is no longer confirmed.
+    const insUrl = `${ORD}/r/inscription/${deed}`;
+    http[insUrl] = { status: 200, body: JSON.stringify({ ...JSON.parse(http[insUrl].body as string), sat: 1 }) };
+    const later = challenger('208.bitmap', deedHeight + 50, http);
+    const r = await resolve(208, { freshness: 'auth', limiter: fastLimiter(replayFetch(http)), stores, challengers: [later] });
+    expect(r.verdict).toBe('undetermined');
+    expect(r.challengers).toEqual([{ id: later, outcome: 'valid_no_candidate', revealHeight: deedHeight + 50 }]);
+    expect(r.ignored).toEqual([]);
   });
 
   it('a claim revealed below block 208 itself is inscribed_before_block', async () => {

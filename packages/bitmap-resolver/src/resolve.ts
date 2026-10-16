@@ -182,8 +182,9 @@ async function ociCore(ctx: Context, n: number): Promise<Core> {
   if (!check.ok) {
     return { ...base, verdict: 'undetermined', reason: `the OCI candidate ${id} fails the rule (${check.reason})`, candidate: facts };
   }
-  if (check.caveats.length > 0) {
-    return { ...base, caveats: check.caveats, verdict: 'undetermined', reason: `the rule is ambiguous for ${id} (${check.caveats.join(', ')})`, candidate: facts };
+  const caveats = withUnbound(check.caveats, facts);
+  if (caveats.length > 0) {
+    return { ...base, caveats, verdict: 'undetermined', reason: `the rule is ambiguous for ${id} (${caveats.join(', ')})`, candidate: facts };
   }
   return { ...base, verdict: 'canonical', candidate: facts };
 }
@@ -220,13 +221,14 @@ async function walkCore(ctx: Context, n: number, cap: number): Promise<Core> {
     };
   }
   const facts = await walkFacts(ctx, out.found.candidate, out.found.block, tip);
-  if (out.found.caveats.length > 0) {
+  const caveats = withUnbound(out.found.caveats, facts);
+  if (caveats.length > 0) {
     return {
       ...base,
       verdict: 'undetermined',
-      reason: `the rule is ambiguous for ${facts.id} (${out.found.caveats.join(', ')})`,
+      reason: `the rule is ambiguous for ${facts.id} (${caveats.join(', ')})`,
       candidate: facts,
-      caveats: out.found.caveats,
+      caveats,
     };
   }
   return { ...base, verdict: 'canonical', candidate: facts, caveats: [] };
@@ -268,6 +270,15 @@ async function walkFacts(ctx: Context, c: ScanCandidate, block: number, tip: num
   };
 }
 
+/**
+ * ord also leaves an inscription unbound when its input carried no value; the
+ * envelope cannot show that, ord's charm (or a missing sat) does.
+ */
+function withUnbound(caveats: Caveat[], f: RevealFacts): Caveat[] {
+  const unbound = f.charms.includes('unbound') || f.sat === null;
+  return unbound && !caveats.includes('unbound') ? [...caveats, 'unbound'] : caveats;
+}
+
 function claimFacts(f: RevealFacts) {
   return {
     body: f.bodyHex === null ? null : fromHex(f.bodyHex),
@@ -297,38 +308,51 @@ async function judgeChallengers(ctx: Context, n: number, core: Core, ids: string
   for (const id of ids) {
     if (seen.has(id) || id === core.candidate?.id) continue;
     seen.add(id);
-    let facts: RevealFacts;
     try {
       const tip = core.tip ?? (await tipHeight(ctx));
-      facts = await revealFacts(ctx, id, tip);
+      const facts = await revealFacts(ctx, id, tip);
       const check = checkClaim(claimFacts(facts), n, tip);
       if (!check.ok) {
         out.push({ id, outcome: check.reason, revealHeight: facts.revealHeight });
         core.ignored.push({ id, reason: check.reason, revealHeight: facts.revealHeight });
         continue;
       }
-      if (core.candidate && core.verdict !== 'none') {
-        if (await isEarlier(ctx, facts, core.candidate)) {
+      const cand = core.candidate;
+      if (cand) {
+        if (await isEarlier(ctx, facts, cand)) {
           out.push({ id, outcome: 'valid_earlier', revealHeight: facts.revealHeight });
           core.verdict = 'disputed';
-          core.reason = `${id} is a valid claim revealed before the candidate ${core.candidate.id}`;
-        } else {
+          core.reason = `${id} is a valid claim revealed before the candidate ${cand.id}`;
+        } else if (core.verdict === 'canonical') {
           out.push({ id, outcome: 'valid_later', revealHeight: facts.revealHeight });
           core.ignored.push({ id, reason: 'not_first', revealHeight: facts.revealHeight });
+        } else {
+          // Later than a candidate that is not established (fails the rule,
+          // carries a caveat, or is disputed): its first-ness is unknown.
+          out.push({ id, outcome: 'valid_no_candidate', revealHeight: facts.revealHeight });
         }
-      } else {
-        out.push({ id, outcome: 'valid_no_candidate', revealHeight: facts.revealHeight });
-        if (core.verdict === 'none') {
-          // The walk saw no valid claim, yet one was presented: our scan and the
-          // presented facts disagree. A human decides.
+        continue;
+      }
+      out.push({ id, outcome: 'valid_no_candidate', revealHeight: facts.revealHeight });
+      const walkedTo = core.firstness.walkedTo;
+      if (core.firstness.method === 'walk' && core.verdict !== 'disputed' && walkedTo !== undefined) {
+        if (facts.revealHeight <= walkedTo) {
+          // Inside blocks the walk scanned without finding a valid claim: the
+          // scan and the presented facts disagree. A human decides.
           core.verdict = 'disputed';
-          core.reason = `${id} is a valid claim the walk did not find`;
+          core.reason = `${id} is a valid claim in block ${facts.revealHeight}, which the walk scanned without finding it`;
+        } else if (core.verdict === 'none') {
+          // Revealed after the walked range (a block that landed since the
+          // tip was read): it may be the deed. Walk on, never dispute.
+          core.verdict = 'undetermined';
+          core.reason = `${id} is a valid claim revealed in block ${facts.revealHeight}, after the walked range (to ${walkedTo})`;
+          core.cursor = walkedTo + 1;
         }
       }
     } catch (e) {
       if (ctx.signal?.aborted) throw e;
       out.push({ id, outcome: 'unavailable' });
-      if (core.verdict === 'canonical') {
+      if (core.verdict === 'canonical' || core.verdict === 'none') {
         core.verdict = 'undetermined';
         core.reason = `could not check the presented claim ${id}: ${(e as Error).message}`;
       }

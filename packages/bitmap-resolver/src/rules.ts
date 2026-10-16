@@ -42,9 +42,11 @@ export type IgnoreReason =
  * Reasons a claim that passes the rules still cannot be called first without a
  * guess. A first claim carrying one makes the verdict `undetermined`.
  *
- * - `empty_content_encoding_tag`: tag 9 with an empty value. LiveOCI's comment
- *   says "present at all, invalid"; its code tests the decoded value, and an
- *   empty string passes.
+ * - `empty_content_encoding_tag`: tag 9 whose value decodes to '' (empty, or
+ *   a lone UTF-8 BOM). LiveOCI's comment says "present at all, invalid"; its
+ *   code tests the decoded value, and an empty string passes.
+ * - `unbound` also covers ord's zero-value-input case (charm `unbound`, no sat),
+ *   which the resolver adds from ord's facts.
  * - `unbound`: an unrecognized even tag makes ord leave the inscription unbound
  *   (no sat, no holder). Whether a later claim then wins is an open canon
  *   question.
@@ -79,7 +81,9 @@ export function checkClaim(facts: ClaimFacts, n: number, tipHeight?: number): Ru
     return { ok: false, reason: bodyReason(facts.body, n) };
   }
   if (facts.complete !== true) return { ok: false, reason: 'incomplete' };
-  if (facts.contentEncoding !== null && facts.contentEncoding.length > 0) {
+  // LiveOCI tests the tag decoded leniently (a UTF-8 BOM is dropped), so a
+  // value that decodes to '' passes its code; that case becomes a caveat.
+  if (facts.contentEncoding !== null && lenientText(facts.contentEncoding) !== '') {
     return { ok: false, reason: 'content_encoding' };
   }
   // LiveOCI tests the parsed delegate for truthiness: any non-empty value
@@ -94,6 +98,11 @@ export function checkClaim(facts: ClaimFacts, n: number, tipHeight?: number): Ru
   if (facts.contentEncoding !== null) caveats.push('empty_content_encoding_tag');
   if (facts.unrecognizedEvenField) caveats.push('unbound');
   return { ok: true, caveats };
+}
+
+/** LiveOCI's toText: lenient UTF-8, leading BOM dropped. */
+function lenientText(bytes: Uint8Array): string {
+  return new TextDecoder().decode(bytes);
 }
 
 /** Why a body is not exactly `n.bitmap`. */

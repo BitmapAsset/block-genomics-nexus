@@ -153,6 +153,10 @@ describe(`rules ${RULE_ID}`, () => {
     expect(checkClaim(facts({ contentEncoding: new Uint8Array(0) }), 208)).toEqual({ ok: true, caveats: ['empty_content_encoding_tag'] });
     expect(checkClaim(facts({ unrecognizedEvenField: true }), 208)).toEqual({ ok: true, caveats: ['unbound'] });
     expect(checkClaim(facts({ delegate: new Uint8Array(0) }), 208)).toEqual({ ok: true, caveats: [] });
+    // A lone UTF-8 BOM decodes to '' in LiveOCI's lenient toText: its code lets
+    // the claim through, so we flag it rather than reject it (review #8).
+    expect(checkClaim(facts({ contentEncoding: Uint8Array.of(0xef, 0xbb, 0xbf) }), 208)).toEqual({ ok: true, caveats: ['empty_content_encoding_tag'] });
+    expect(checkClaim(facts({ contentEncoding: Uint8Array.of(0xef, 0xbb, 0xbf, 0x62, 0x72) }), 208)).toEqual({ ok: false, reason: 'content_encoding' });
   });
 
   it('collects copies loosely but never accepts through that path', () => {
