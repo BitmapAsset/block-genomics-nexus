@@ -24,6 +24,8 @@ const WALLETS: { type: WalletType; name: string; desc: string; color: string; ic
   { type: 'unisat', name: 'Unisat', desc: 'The #1 Bitcoin wallet for Ordinals, BRC-20 & Bitmap', color: '#f7931a', icon: '🟧', url: 'https://unisat.io', glow: 'rgba(247,147,26,0.3)' },
   { type: 'xverse', name: 'Xverse', desc: 'Multi-chain Bitcoin wallet with Stacks support', color: '#a855f7', icon: '🟣', url: 'https://www.xverse.app', glow: 'rgba(168,85,247,0.3)' },
   { type: 'leather', name: 'Leather', desc: 'Secure Bitcoin & Stacks wallet by Trust Machines', color: '#d97706', icon: '🟫', url: 'https://leather.io', glow: 'rgba(217,119,6,0.3)' },
+  { type: 'magiceden', name: 'Magic Eden', desc: 'Ordinals marketplace wallet for Bitcoin & Runes', color: '#e42575', icon: '🟥', url: 'https://wallet.magiceden.io', glow: 'rgba(228,37,117,0.3)' },
+  { type: 'okx', name: 'OKX Wallet', desc: 'Multi-chain wallet with Ordinals & BRC-20 support', color: '#e2e8f0', icon: '⬛', url: 'https://www.okx.com/web3', glow: 'rgba(226,232,240,0.2)' },
 ];
 
 export default function WalletConnect() {
@@ -325,7 +327,7 @@ export default function WalletConnect() {
               background: 'linear-gradient(180deg, #0f0f1e 0%, #0a0a14 100%)',
               border: '1px solid rgba(255,255,255,0.06)',
               boxShadow: '0 -8px 60px rgba(0,255,204,0.08), 0 0 80px rgba(0,0,0,0.5)',
-              maxHeight: 'min(90vh, 500px)',
+              maxHeight: 'min(90vh, 640px)',
             }}
           >
             {/* Header */}

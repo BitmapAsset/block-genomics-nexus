@@ -3,13 +3,21 @@
 jest.mock('sats-connect', () => ({
   AddressPurpose: { Ordinals: 'ordinals', Payment: 'payment' },
   MessageSigningProtocols: { ECDSA: 'ECDSA', BIP322: 'BIP322' },
+  BitcoinNetworkType: { Mainnet: 'Mainnet' },
+  getAddress: jest.fn(),
+  signMessage: jest.fn(),
 }));
 
+import { getAddress as satsGetAddress, signMessage as satsSignMessage } from 'sats-connect';
 import {
   connectXverse,
   refreshXverseAddress,
   signWithWallet,
   connectLeather,
+  connectOkx,
+  connectMagicEden,
+  connectWalletByType,
+  detectWallets,
 } from '@/lib/wallet-utils';
 
 const ORDINALS = 'bc1pordinalsaddrxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
@@ -135,5 +143,85 @@ describe('connectLeather', () => {
     setWindow({ LeatherProvider: { request } });
 
     await expect(connectLeather()).resolves.toBe(ORDINALS);
+  });
+});
+
+describe('OKX Wallet', () => {
+  it('connects via okxwallet.bitcoin.requestAccounts and returns the first account', async () => {
+    const requestAccounts = jest.fn().mockResolvedValue([ORDINALS, PAYMENT]);
+    setWindow({ okxwallet: { bitcoin: { requestAccounts } } });
+
+    await expect(connectOkx()).resolves.toBe(ORDINALS);
+    await expect(connectWalletByType('okx')).resolves.toBe(ORDINALS);
+  });
+
+  it('signs with bip322-simple (standard base64, verified by lib/bip322)', async () => {
+    const signMessage = jest.fn().mockResolvedValue('okx-sig');
+    setWindow({ okxwallet: { bitcoin: { signMessage } } });
+
+    await expect(signWithWallet('okx', 'msg', ORDINALS)).resolves.toBe('okx-sig');
+    expect(signMessage).toHaveBeenCalledWith('msg', 'bip322-simple');
+  });
+
+  it('throws a clear error when the extension is missing', async () => {
+    setWindow({});
+    await expect(connectOkx()).rejects.toThrow('OKX Wallet not installed');
+  });
+});
+
+describe('Magic Eden Wallet', () => {
+  const meProvider = { isMagicEden: true };
+
+  it('connects through sats-connect getAddress and keeps the ordinals address', async () => {
+    (satsGetAddress as jest.Mock).mockImplementation(async (opts) => {
+      await expect(opts.getProvider()).resolves.toBe(meProvider);
+      expect(opts.payload.purposes).toEqual(['ordinals', 'payment']);
+      opts.onFinish({
+        addresses: [
+          { address: PAYMENT, purpose: 'payment' },
+          { address: ORDINALS, purpose: 'ordinals' },
+        ],
+      });
+    });
+    setWindow({ magicEden: { bitcoin: meProvider } });
+
+    await expect(connectMagicEden()).resolves.toBe(ORDINALS);
+  });
+
+  it('rejects when the user cancels the connect prompt', async () => {
+    (satsGetAddress as jest.Mock).mockImplementation(async (opts) => opts.onCancel());
+    setWindow({ magicEden: { bitcoin: meProvider } });
+
+    await expect(connectMagicEden()).rejects.toThrow('cancelled');
+  });
+
+  it('signs BIP-322 for the connected address', async () => {
+    (satsSignMessage as jest.Mock).mockImplementation(async (opts) => {
+      expect(opts.payload).toEqual(
+        expect.objectContaining({ address: ORDINALS, message: 'msg', protocol: 'BIP322' }),
+      );
+      opts.onFinish('me-sig');
+    });
+    setWindow({ magicEden: { bitcoin: meProvider } });
+
+    await expect(signWithWallet('magiceden', 'msg', ORDINALS)).resolves.toBe('me-sig');
+  });
+
+  it('requires an address to sign', async () => {
+    setWindow({ magicEden: { bitcoin: meProvider } });
+    await expect(signWithWallet('magiceden', 'msg')).rejects.toThrow('requires an address');
+  });
+});
+
+describe('detectWallets', () => {
+  it('reports Magic Eden and OKX alongside the existing wallets', () => {
+    setWindow({ magicEden: { bitcoin: { isMagicEden: true } }, okxwallet: { bitcoin: {} } });
+    expect(detectWallets()).toEqual({
+      unisat: false,
+      xverse: false,
+      leather: false,
+      magiceden: true,
+      okx: true,
+    });
   });
 });

@@ -34,6 +34,8 @@ const walletMeta = [
   { id: 'unisat' as WalletType, label: 'Unisat', icon: '🟧', color: '#f7931a' },
   { id: 'xverse' as WalletType, label: 'Xverse', icon: '🔵', color: '#4488ff' },
   { id: 'leather' as WalletType, label: 'Leather', icon: '🟤', color: '#8b6914' },
+  { id: 'magiceden' as WalletType, label: 'Magic Eden', icon: '🟥', color: '#e42575' },
+  { id: 'okx' as WalletType, label: 'OKX', icon: '⬛', color: '#e2e8f0' },
 ] as const;
 
 /* ── inscription types ── */
@@ -240,6 +242,8 @@ export default function VerifyPage() {
             unisat: 'https://unisat.io/download',
             xverse: 'https://www.xverse.app/download',
             leather: 'https://leather.io/install-extension',
+            magiceden: 'https://wallet.magiceden.io',
+            okx: 'https://www.okx.com/web3',
           };
           window.open(urls[id], '_blank');
         }

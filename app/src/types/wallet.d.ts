@@ -65,8 +65,14 @@ interface LeatherProvider {
 interface OkxWallet {
   bitcoin?: {
     requestAccounts(): Promise<string[]>;
+    getAccounts(): Promise<string[]>;
     signMessage(message: string, type?: string): Promise<string>;
   };
+}
+
+/** Magic Eden Wallet: a sats-connect BitcoinProvider at window.magicEden.bitcoin. */
+interface MagicEdenWallet {
+  bitcoin?: import('sats-connect').BitcoinProvider & { isMagicEden?: boolean };
 }
 
 interface Window {
@@ -77,4 +83,5 @@ interface Window {
     signMessage(options: { message: string; address: string }): Promise<{ signature: string }>;
   };
   okxwallet?: OkxWallet;
+  magicEden?: MagicEdenWallet;
 }

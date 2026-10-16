@@ -4,9 +4,16 @@
  * Uses official sats-connect package for Xverse wallet interactions.
  */
 
-import { AddressPurpose, MessageSigningProtocols } from 'sats-connect';
+import {
+  AddressPurpose,
+  BitcoinNetworkType,
+  MessageSigningProtocols,
+  getAddress as satsGetAddress,
+  signMessage as satsSignMessage,
+  type BitcoinProvider as SatsBitcoinProvider,
+} from 'sats-connect';
 
-export type WalletType = 'unisat' | 'xverse' | 'leather';
+export type WalletType = 'unisat' | 'xverse' | 'leather' | 'magiceden' | 'okx';
 
 interface WalletAddress {
   address: string;
@@ -24,11 +31,15 @@ interface ProviderResponse {
 
 /** Detect which wallets are installed */
 export function detectWallets(): Record<WalletType, boolean> {
-  if (typeof window === 'undefined') return { unisat: false, xverse: false, leather: false };
+  if (typeof window === 'undefined') {
+    return { unisat: false, xverse: false, leather: false, magiceden: false, okx: false };
+  }
   return {
     unisat: !!window.unisat,
     xverse: !!window.BitcoinProvider,
     leather: !!window.LeatherProvider,
+    magiceden: !!window.magicEden?.bitcoin?.isMagicEden,
+    okx: !!window.okxwallet?.bitcoin,
   };
 }
 
@@ -143,11 +154,57 @@ export async function connectLeather(): Promise<string> {
   return addr;
 }
 
+/**
+ * Connect to OKX Wallet. Its `okxwallet.bitcoin` provider mirrors Unisat's API
+ * (requestAccounts / signMessage(msg, 'bip322-simple')), and signs with
+ * whichever address type the user selected (taproot or native segwit) — both
+ * verify server-side in lib/bip322.ts.
+ */
+export async function connectOkx(): Promise<string> {
+  const provider = window.okxwallet?.bitcoin;
+  if (!provider) throw new Error('OKX Wallet not installed');
+  const accounts = await provider.requestAccounts();
+  if (!accounts?.length) throw new Error('No accounts returned from OKX Wallet');
+  return accounts[0];
+}
+
+/** Magic Eden's injected Bitcoin provider, for sats-connect's `getProvider`. */
+async function getMagicEdenProvider(): Promise<SatsBitcoinProvider | undefined> {
+  return window.magicEden?.bitcoin;
+}
+
+/**
+ * Connect to Magic Eden Wallet through the sats-connect `getAddress` flow its
+ * docs prescribe (`getProvider: () => window.magicEden.bitcoin`). Same canonical
+ * address rule as Xverse: the ordinals (taproot) address, since that is where
+ * .bitmap inscriptions live.
+ */
+export async function connectMagicEden(): Promise<string> {
+  if (!window.magicEden?.bitcoin?.isMagicEden) throw new Error('Magic Eden Wallet not installed');
+  const addresses = await new Promise<WalletAddress[]>((resolve, reject) => {
+    satsGetAddress({
+      getProvider: getMagicEdenProvider,
+      payload: {
+        purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
+        message: 'Block Genomics needs your Bitcoin address for verification.',
+        network: { type: BitcoinNetworkType.Mainnet },
+      },
+      onFinish: (response) => resolve(response.addresses),
+      onCancel: () => reject(new Error('Magic Eden connection cancelled')),
+    }).catch(reject);
+  });
+  const addr = extractXverseAddress(addresses);
+  if (!addr) throw new Error('No address returned from Magic Eden');
+  return addr;
+}
+
 /** Connect to any supported wallet by type — returns address */
 export async function connectWalletByType(type: WalletType): Promise<string> {
   if (type === 'unisat') return connectUnisat();
   if (type === 'xverse') return connectXverse();
   if (type === 'leather') return connectLeather();
+  if (type === 'magiceden') return connectMagicEden();
+  if (type === 'okx') return connectOkx();
   throw new Error('Unknown wallet type');
 }
 
@@ -203,6 +260,28 @@ export async function signWithWallet(walletType: WalletType, message: string, ad
     const sig = resp.result?.signature || resp.result?.hex;
     if (!sig) throw new Error('No signature returned from Leather');
     return sig;
+  }
+  if (walletType === 'okx') {
+    const provider = window.okxwallet?.bitcoin;
+    if (!provider) throw new Error('OKX Wallet not available');
+    return await provider.signMessage(message, 'bip322-simple');
+  }
+  if (walletType === 'magiceden') {
+    if (!address) throw new Error('Magic Eden signing requires an address — reconnect your wallet');
+    if (!window.magicEden?.bitcoin?.isMagicEden) throw new Error('Magic Eden Wallet not available');
+    return await new Promise<string>((resolve, reject) => {
+      satsSignMessage({
+        getProvider: getMagicEdenProvider,
+        payload: {
+          network: { type: BitcoinNetworkType.Mainnet },
+          address,
+          message,
+          protocol: MessageSigningProtocols.BIP322,
+        },
+        onFinish: (signature) => (signature ? resolve(signature) : reject(new Error('Magic Eden returned no signature'))),
+        onCancel: () => reject(new Error('Magic Eden signing cancelled')),
+      }).catch(reject);
+    });
   }
   throw new Error('Unknown wallet');
 }
