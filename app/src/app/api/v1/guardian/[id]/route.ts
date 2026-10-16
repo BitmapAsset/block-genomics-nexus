@@ -72,9 +72,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    // Handle API key separately (encrypt)
+    // Handle API key separately (encrypt).
+    //
+    // SECURITY (bg48 Q-14 / Q-01c): the stored key is decrypted and sent, as a
+    // bearer token, to wherever `llmEndpoint` / `agentEndpoint` points. A block
+    // can change hands while the guardian row — and the seller's encrypted key —
+    // survives the release, and the PATCH gate authorizes the LIVE owner. So the
+    // new owner could repoint the endpoint at a server they control and, on the
+    // next chat, receive the previous owner's decrypted key. Breaking the link:
+    // if the destination (endpoint/provider/host mode) changes and the caller
+    // does NOT supply a fresh key, clear the stored key. The key must be
+    // re-entered to go anywhere new; an inherited key can never be redirected.
+    const destinationChanged =
+      (body.llmEndpoint !== undefined && body.llmEndpoint !== existing.llmEndpoint) ||
+      (body.llmProvider !== undefined && body.llmProvider !== existing.llmProvider) ||
+      (body.agentEndpoint !== undefined && body.agentEndpoint !== existing.agentEndpoint) ||
+      (body.selfHosted !== undefined && body.selfHosted !== existing.selfHosted);
     if (body.llmApiKey) {
       data.llmApiKey = encryptApiKey(body.llmApiKey);
+    } else if (destinationChanged && existing.llmApiKey) {
+      data.llmApiKey = null;
     }
 
     const updated = await prisma.guardianAgent.update({ where: { id }, data });
