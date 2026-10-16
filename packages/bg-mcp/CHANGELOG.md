@@ -4,6 +4,30 @@ All notable changes to `block-genomics-mcp` are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] — 2026-10-16
+
+Security patch. There are no changes to the tool catalog: the same 35 tools,
+the same schemas and the same behaviour.
+
+### Security
+
+- `@modelcontextprotocol/sdk` floor raised from `^1.29.0` to `^1.31.0`
+  (GHSA-6qxp-vccf-f47h: the SDK's OAuth client could send credentials to an
+  authorization server chosen by the MCP server). This server never runs the
+  SDK's OAuth client, but installs now resolve to a patched SDK either way.
+- The repo lockfile now pins patched transitive versions of hono 4.13.13,
+  ip-address 10.7.4, proxy-addr 2.0.8 and fast-uri 3.1.8. npm does not ship
+  lockfiles to package consumers, so a fresh install resolves these from the
+  SDK's own ranges, all of which already admit the fixed versions (#222).
+- vitest 3 → 4.1.12 (dev only).
+
+### Changed
+
+- Input-validation errors now read `Expected number, received string at
+  height` instead of a JSON dump of the zod issues. The result is still
+  `isError` with the same `-32602` prefix. The new wording comes from the SDK
+  upgrade.
+
 ## [0.2.0] — 2026-10-16
 
 35 tools, up from 23. The catalog is now shared byte-for-byte with the remote
