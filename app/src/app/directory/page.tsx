@@ -62,7 +62,7 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
         {/* Online indicator */}
         <div className="absolute top-4 right-4 flex items-center gap-1.5">
           <div className={`w-2 h-2 rounded-full ${agent.online ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]' : 'bg-gray-500'}`} />
-          <span className="text-[10px] text-text-muted">{agent.online ? 'online' : 'offline'}</span>
+          <span className="text-[10px] text-text-secondary">{agent.online ? 'online' : 'offline'}</span>
         </div>
 
         {/* Header: Shield + Name */}
@@ -74,7 +74,7 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
             <h3 className="text-sm font-bold text-text-primary truncate group-hover:text-accent-cyan transition-colors flex items-center gap-1.5">
               {agent.displayName}
             </h3>
-            <p className="text-xs text-text-muted">@{agent.handle}</p>
+            <p className="text-xs text-text-secondary">@{agent.handle}</p>
           </div>
         </div>
 
@@ -89,7 +89,7 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
         {/* Capabilities */}
         <div className="flex flex-wrap gap-1 mb-3">
           {agent.capabilities.map((cap) => (
-            <span key={cap} className="text-[10px] px-2 py-0.5 rounded-full bg-bg-tertiary/50 text-text-muted border border-border/30">
+            <span key={cap} className="text-[10px] px-2 py-0.5 rounded-full bg-bg-tertiary/50 text-text-secondary border border-border/30">
               {cap}
             </span>
           ))}
@@ -105,7 +105,7 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
         </div>
 
         {/* Footer stats */}
-        <div className="flex items-center justify-between text-[11px] text-text-muted pt-2 border-t border-border/20">
+        <div className="flex items-center justify-between text-[11px] text-text-secondary pt-2 border-t border-border/20">
           <div className="flex items-center gap-3">
             <span>🏔️ Block #{agent.blockHeight.toLocaleString()}</span>
             {agent.parcelIndex !== null && <span>📦 Parcel #{agent.parcelIndex}</span>}
@@ -114,7 +114,7 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
         </div>
 
         {/* Verified date */}
-        <div className="text-[10px] text-text-muted mt-1.5">
+        <div className="text-[10px] text-text-secondary mt-1.5">
           ✅ Verified {agent.verifiedAt}
         </div>
       </div>
@@ -234,14 +234,14 @@ export default function DirectoryPage() {
             <div className="flex items-center justify-center gap-6 mt-6 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold text-accent-cyan">{realUsers.length}</span>
-                <span className="text-text-muted">Verified Agents</span>
+                <span className="text-text-secondary">Verified Agents</span>
               </div>
               <div className="w-px h-6 bg-border" />
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold text-green-400">
                   {realUsers.filter((a) => a.online).length}
                 </span>
-                <span className="text-text-muted">Online Now</span>
+                <span className="text-text-secondary">Online Now</span>
               </div>
             </div>
           </div>
@@ -253,19 +253,19 @@ export default function DirectoryPage() {
         {/* Search */}
         <div className="relative mb-5">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <span className="text-text-muted text-lg">🔍</span>
+            <span className="text-text-secondary text-lg">🔍</span>
           </div>
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, handle, block #, capability, or interest (gaming, art, shopping, security...)"
-            className="w-full pl-12 pr-4 py-3 bg-bg-secondary/60 border border-border rounded-xl text-text-primary text-sm placeholder-text-muted focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20 transition-all"
+            className="w-full pl-12 pr-4 py-3 bg-bg-secondary/60 border border-border rounded-xl text-text-primary text-sm placeholder-text-secondary focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20 transition-all"
           />
           {search && (
             <button
               onClick={() => setSearch('')}
-              className="absolute inset-y-0 right-0 pr-4 flex items-center text-text-muted hover:text-text-primary"
+              className="absolute inset-y-0 right-0 pr-4 flex items-center text-text-secondary hover:text-text-primary"
             >
               ✕
             </button>
@@ -281,14 +281,14 @@ export default function DirectoryPage() {
                 <button
                   key={String(val)}
                   onClick={() => setTierFilter(val as FilterTier)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  className={`inline-flex min-h-[44px] items-center px-3 text-xs font-medium rounded-md transition-all ${
                     tierFilter === val
                       ? 'bg-bg-tertiary text-text-primary shadow-sm'
-                      : 'text-text-muted hover:text-text-secondary'
+                      : 'text-text-secondary hover:text-text-secondary'
                   }`}
                 >
                   <span className={tierFilter === val ? color : ''}>{label}</span>
-                  <span className="ml-1 text-text-muted">({counts[val as keyof typeof counts]})</span>
+                  <span className="ml-1 text-text-secondary">({counts[val as keyof typeof counts]})</span>
                 </button>
               )
             )}
@@ -298,7 +298,7 @@ export default function DirectoryPage() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as 'name' | 'block' | 'date')}
-            className="px-3 py-1.5 text-xs bg-bg-secondary/40 border border-border/30 rounded-lg text-text-secondary focus:outline-none focus:border-accent-cyan/50"
+            className="min-h-[44px] px-3 text-xs bg-bg-secondary/40 border border-border/30 rounded-lg text-text-secondary focus:outline-none focus:border-accent-cyan/50"
           >
             <option value="name">Sort: Name</option>
             <option value="block">Sort: Block #</option>
@@ -308,10 +308,10 @@ export default function DirectoryPage() {
           {/* Online toggle */}
           <button
             onClick={() => setOnlineOnly(!onlineOnly)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-all ${
+            className={`flex min-h-[44px] items-center gap-1.5 px-3 text-xs rounded-lg border transition-all ${
               onlineOnly
                 ? 'bg-green-500/10 border-green-500/30 text-green-400'
-                : 'bg-bg-secondary/40 border-border/30 text-text-muted hover:text-text-secondary'
+                : 'bg-bg-secondary/40 border-border/30 text-text-secondary hover:text-text-secondary'
             }`}
           >
             <div className={`w-1.5 h-1.5 rounded-full ${onlineOnly ? 'bg-green-400' : 'bg-gray-500'}`} />
@@ -319,7 +319,7 @@ export default function DirectoryPage() {
           </button>
 
           {/* Results count */}
-          <span className="text-xs text-text-muted ml-auto">
+          <span className="text-xs text-text-secondary ml-auto">
             {filtered.length} agent{filtered.length !== 1 ? 's' : ''} found
           </span>
         </div>
@@ -328,7 +328,7 @@ export default function DirectoryPage() {
         {fetchError && (
           <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-between">
             <p className="text-sm text-red-400">Couldn&apos;t load agents. {fetchError}</p>
-            <button onClick={fetchUsers} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors">Retry</button>
+            <button onClick={fetchUsers} className="inline-flex min-h-[44px] items-center text-xs font-medium px-3 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors">Retry</button>
           </div>
         )}
 
@@ -336,7 +336,7 @@ export default function DirectoryPage() {
         {loadingUsers && realUsers.length === 0 && (
           <div className="text-center py-12">
             <div className="mx-auto w-6 h-6 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin mb-3" />
-            <p className="text-sm text-text-muted">Loading agents...</p>
+            <p className="text-sm text-text-secondary">Loading agents...</p>
           </div>
         )}
 
@@ -351,7 +351,7 @@ export default function DirectoryPage() {
           <div className="text-center py-20">
             <div className="text-4xl mb-3">🔍</div>
             <h3 className="text-lg font-semibold text-text-secondary mb-1">No agents found</h3>
-            <p className="text-sm text-text-muted">Try adjusting your search or filters</p>
+            <p className="text-sm text-text-secondary">Try adjusting your search or filters</p>
           </div>
         ) : null}
       </div>

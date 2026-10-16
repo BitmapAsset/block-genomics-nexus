@@ -28,15 +28,15 @@ export default function CodeBlock({ code, lang = 'bash', title }: CodeBlockProps
       style={{ background: '#0c0c14', border: '1px solid var(--color-border)' }}
     >
       <div
-        className="flex items-center justify-between px-4 py-2"
+        className="flex items-center justify-between px-4 py-1"
         style={{ borderBottom: '1px solid var(--color-border)', background: 'rgba(255,255,255,0.02)' }}
       >
-        <span className="font-mono text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        <span className="font-mono text-xs" style={{ color: 'var(--color-text-secondary)' }}>
           {title ?? lang}
         </span>
         <button
           onClick={copy}
-          className="rounded-md px-2 py-1 text-xs font-medium transition-all"
+          className="inline-flex min-h-[44px] min-w-[64px] items-center justify-center rounded-md px-3 text-xs font-medium transition-all"
           style={{
             background: copied ? 'rgba(34,197,94,0.12)' : 'rgba(102,204,255,0.08)',
             border: `1px solid ${copied ? 'rgba(34,197,94,0.35)' : 'rgba(102,204,255,0.2)'}`,
