@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useGlobalWallet, type WalletType } from "@/context/GlobalWalletContext";
@@ -34,6 +35,9 @@ export default function WalletConnect() {
     connect, disconnect, availableWallets, error: walletError, clearError,
   } = useGlobalWallet();
   const [open, setOpen] = useState(false);
+  // Where to go after a connect started from elsewhere (e.g. Home → My Bitmaps).
+  const [nextPath, setNextPath] = useState<string | null>(null);
+  const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click or ESC
@@ -55,9 +59,13 @@ export default function WalletConnect() {
     };
   }, [open]);
 
-  // Allow other parts of the app to open the wallet modal
+  // Allow other parts of the app to open the wallet modal (lib/open-wallet-modal)
   useEffect(() => {
-    const handler = () => setOpen(true);
+    const handler = (e: Event) => {
+      const next = (e as CustomEvent<{ next?: string } | undefined>).detail?.next;
+      setNextPath(typeof next === 'string' && next.startsWith('/') ? next : null);
+      setOpen(true);
+    };
     window.addEventListener('open-wallet-modal', handler as EventListener);
     return () => window.removeEventListener('open-wallet-modal', handler as EventListener);
   }, []);
@@ -78,15 +86,19 @@ export default function WalletConnect() {
     try {
       await connect(type);
       setOpen(false);
+      if (nextPath) {
+        router.push(nextPath);
+        setNextPath(null);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Connection failed. Please try again.';
       setConnectError(message);
     }
   };
 
-  // Clear connect error when modal closes
+  // Clear connect error (and any pending redirect) when the modal closes
   useEffect(() => {
-    if (!open) { setConnectError(null); clearError(); }
+    if (!open) { setConnectError(null); clearError(); setNextPath(null); }
   }, [open, clearError]);
 
   const isAvailable = (type: WalletType) => availableWallets.includes(type);

@@ -5,10 +5,9 @@ import { useEffect, useState } from 'react';
 /**
  * Shared block height fetcher — deduplicates mempool.space API calls.
  *
- * Multiple landing-page components (LiveBlockCount, LiveStats, RotatingTagline)
- * all need the current Bitcoin block height. Instead of each component fetching
- * independently (3 duplicate calls), this hook uses a module-level cache so only
- * one network request is made per refresh interval.
+ * Every component that needs the current Bitcoin block height (today the Home
+ * block count) shares a module-level cache, so only one network request is
+ * made per refresh interval.
  */
 
 interface CacheEntry {
