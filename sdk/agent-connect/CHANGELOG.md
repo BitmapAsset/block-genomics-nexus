@@ -4,7 +4,16 @@ All notable changes to `block-genomics-connect` are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] — 2026-10-16
+## [0.4.1] — 2026-10-16
+
+### Fixed
+
+- **0.4.0 could not be imported under Node ESM** (`ERR_MODULE_NOT_FOUND` for
+  `dist/action-message`): `experience-manifest.js` imported `./action-message`
+  without the `.js` extension. A new test loads the built `dist/index.js` with
+  plain Node so this cannot ship again. 0.4.0 is deprecated; use 0.4.1.
+
+## [0.4.0] — 2026-10-16 [DEPRECATED: does not load under Node ESM]
 
 ### Added
 
@@ -18,7 +27,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and `remove` now sign an action-bound message whose `Body:` is the canonical
   manifest hash, so a stored registration is verifiable by a third party.
   `experiences.verify(id, remote?)` returns an `ExperienceIntegrityReport`.
-  `canonicalManifest()` and `MANIFEST_VERSION` are exported.
 - New exported types: `VerifySessionOptions`, `SessionChallenge`,
   `RejectedBlock`, `VerifiedSession`, `SessionInfo`, `UsernameAvailability`,
   `ClaimedUsername`, `ExperienceIntegrityReport`.

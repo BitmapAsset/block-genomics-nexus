@@ -11,7 +11,7 @@
  * as the action-message signing core.
  */
 
-import { stableStringify, sha256Hex } from './action-message';
+import { stableStringify, sha256Hex } from './action-message.js';
 
 /** Manifest envelope schema version (NOT the operator's content version). */
 export const MANIFEST_VERSION = 1;
