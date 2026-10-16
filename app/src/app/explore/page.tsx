@@ -1,246 +1,126 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { formatNumber, hexPairToColor } from "@/lib/genome-utils";
-import { prisma } from "@/lib/prisma";
-import SearchBar from "./search-bar";
+import prisma from "@/lib/prisma";
+import BitmapThumbnail from "@/components/BitmapThumbnail";
+import GlobalSearch from "@/components/GlobalSearch";
+import { countVerifiedAgents } from "@/lib/directory-counts";
+import { FAMOUS_BLOCKS } from "@/lib/famous-blocks";
+import { formatNumber } from "@/lib/genome-utils";
 
 export const metadata: Metadata = {
   title: "Explore — Block Genomics",
   description:
-    "Browse verified Bitcoin blocks, search agents, and explore genomic identities.",
+    "Look up any Bitcoin block and see its bitmap art, then browse the blocks people have verified and built on.",
 };
 
-// ─── Types ─────────────────────────────────────────────────────────────────
+// Recent blocks are database state; render per request rather than baking the
+// build machine's (empty) answer into a static page.
+export const dynamic = "force-dynamic";
 
-interface SearchResult {
-  type: "agent" | "block";
-  id: string;
-  name: string;
-  blockHeight: number;
-  genome: string | null;
-  trustScore: number | null;
-  matchField: string;
-}
+const RECENT_LIMIT = 12;
 
-// ─── Data ──────────────────────────────────────────────────────────────────
-
-async function fetchRecentAgents(): Promise<SearchResult[]> {
+/** Blocks with an owner on record, newest first: what people verified lately. */
+async function fetchRecent(): Promise<{ blocks: { height: number; label: string | null }[]; onRecord: number; agents: number } | null> {
   try {
-    const users = await prisma.user.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
-
-    return users.map((u) => ({
-      type: "agent" as const,
-      id: u.walletAddress,
-      name: u.handle || "Anonymous",
-      blockHeight: 0,
-      genome: null,
-      trustScore: 0,
-      matchField: "name",
-    }));
-  } catch { return []; /* Schema migrated — old models removed */ }
+    const [blocks, onRecord, agents] = await Promise.all([
+      prisma.block.findMany({
+        where: { ownerAddress: { not: null } },
+        orderBy: { createdAt: "desc" },
+        take: RECENT_LIMIT,
+        select: { height: true, label: true },
+      }),
+      prisma.block.count({ where: { ownerAddress: { not: null } } }),
+      countVerifiedAgents(),
+    ]);
+    return { blocks, onRecord, agents };
+  } catch {
+    return null;
+  }
 }
-
-// ─── Page ──────────────────────────────────────────────────────────────────
 
 export default async function ExplorePage() {
-  let recentAgents: SearchResult[] = [], totalAgents = 0, totalBlocks = 0, totalGenomes = 0;
-  try {
-    [recentAgents, totalAgents, totalBlocks, totalGenomes] = await Promise.all([
-      fetchRecentAgents(),
-      prisma.user.count().catch(() => 0),
-      prisma.block.count().catch(() => 0),
-      prisma.delegation.count().catch(() => 0),
-    ]);
-  } catch { /* Schema migrated */ }
+  const recent = await fetchRecent();
 
   return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
-      {/* ─── Header ────────────────────────────────────────────── */}
-      <div className="mb-10">
-        <h1 className="text-4xl font-bold tracking-tight mb-2">
-          <span className="text-gradient-cyan-purple">Explore</span> the
-          Bitcoin genome map
-        </h1>
-        <p className="text-text-secondary text-lg max-w-2xl">
-          Discover verified agents, search block DNA by height, and browse the
-          scarce real estate of Bitcoin itself.
-        </p>
+    <main className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
+      <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-text-secondary">Explore</p>
+      <h1 className="mt-2 text-4xl font-semibold tracking-tight text-text-primary sm:text-5xl">Every block has a page.</h1>
+      <p className="mt-3 max-w-2xl text-lg leading-relaxed text-text-secondary">
+        Look one up by number or by its owner&apos;s @handle, or start with the blocks below.
+      </p>
+      <div className="mt-8 max-w-2xl">
+        <GlobalSearch size="page" />
       </div>
 
-      {/* ─── Search ────────────────────────────────────────────── */}
-      <div className="mb-10">
-        <SearchBar />
-      </div>
-
-      {/* ─── Stats ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-        <StatCard
-          icon="🤖"
-          label="Verified Agents"
-          value={totalAgents > 0 ? formatNumber(totalAgents) : "—"}
-        />
-        <StatCard
-          icon="⛓️"
-          label="Verified Blocks"
-          value={totalBlocks > 0 ? formatNumber(totalBlocks) : "—"}
-        />
-        <StatCard
-          icon="🧬"
-          label="Genomes Extracted"
-          value={totalGenomes > 0 ? formatNumber(totalGenomes) : "—"}
-        />
-      </div>
-
-      {/* ─── Recent Verifications ──────────────────────────────── */}
-      <section className="mb-10">
-        <h2 className="text-xl font-semibold mb-5 flex items-center gap-2">
-          <span className="text-accent-cyan">⚡</span> Recent Verifications
+      <section className="mt-14" aria-labelledby="history-title">
+        <h2 id="history-title" className="text-xl font-semibold tracking-tight text-text-primary">
+          Start with history
         </h2>
-
-        {recentAgents.length > 0 ? (
-          <div className="space-y-2">
-            {recentAgents
-              .filter((r) => r.type === "agent")
-              .slice(0, 10)
-              .map((agent) => (
-                <AgentRow key={agent.id} agent={agent} />
-              ))}
-          </div>
-        ) : (
-          <div className="glass-panel p-12 text-center">
-            <div className="text-4xl mb-4 opacity-40">🔍</div>
-            <p className="text-text-secondary mb-2">
-              No verifications found yet
-            </p>
-            <p className="text-text-muted text-sm mb-6">
-              Be the first to verify a block and appear here!
-            </p>
-            <Link
-              href="/verify"
-              className="inline-flex items-center gap-2 rounded-lg bg-accent-cyan/15 border border-accent-cyan/40 px-5 py-2.5 text-sm font-medium text-accent-cyan hover:bg-accent-cyan/25 glow-cyan transition-all"
-            >
-              🧬 Start Verifying
-            </Link>
-          </div>
-        )}
-      </section>
-
-      {/* ─── Popular Blocks ────────────────────────────────────── */}
-      <section>
-        <h2 className="text-xl font-semibold mb-5 flex items-center gap-2">
-          <span className="text-bitcoin">₿</span> Notable Blocks
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[
-            { height: 0, label: "Genesis Block", desc: "The beginning" },
-            { height: 170, label: "First BTC Transaction", desc: "Satoshi → Hal Finney" },
-            { height: 210000, label: "First Halving", desc: "50 → 25 BTC reward" },
-            { height: 420000, label: "Second Halving", desc: "25 → 12.5 BTC" },
-            { height: 630000, label: "Third Halving", desc: "12.5 → 6.25 BTC" },
-            { height: 840000, label: "Fourth Halving", desc: "6.25 → 3.125 BTC" },
-          ].map((block) => (
-            <Link
-              key={block.height}
-              href={`/block/${block.height}`}
-              className="glass-panel p-5 group hover:glass-panel-hover transition-all"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-bitcoin text-sm">₿</span>
-                <span className="font-mono text-sm font-semibold group-hover:text-accent-cyan transition-colors">
-                  #{formatNumber(block.height)}
-                </span>
-              </div>
-              <p className="text-sm font-medium text-text-primary">
-                {block.label}
-              </p>
-              <p className="text-xs text-text-muted mt-0.5">{block.desc}</p>
-            </Link>
+        <ul className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {FAMOUS_BLOCKS.map((b) => (
+            <li key={b.height}>
+              <Link href={`/block/${b.height}`} className="group block">
+                <BitmapThumbnail blockHeight={b.height} fill className="rounded-xl transition-opacity group-hover:opacity-90" />
+                <p className="mt-3 font-mono text-sm text-text-primary">{formatNumber(b.height)}</p>
+                <p className="text-xs text-text-secondary">{b.label}</p>
+                <p className="text-xs text-text-secondary">{b.note}</p>
+              </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
-    </div>
-  );
-}
 
-// ─── Sub-components ────────────────────────────────────────────────────────
-
-function StatCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="glass-panel p-5 text-center hover:glass-panel-hover transition-all">
-      <div className="text-2xl mb-2">{icon}</div>
-      <div className="text-2xl font-bold text-text-primary">{value}</div>
-      <div className="text-xs text-text-muted mt-1">{label}</div>
-    </div>
-  );
-}
-
-function AgentRow({ agent }: { agent: SearchResult }) {
-  return (
-    <Link
-      href={`/agent/${agent.id}`}
-      className="glass-panel p-4 flex items-center justify-between hover:glass-panel-hover transition-all group block"
-    >
-      <div className="flex items-center gap-4 min-w-0">
-        {/* Mini genome swatch */}
-        {agent.genome ? (
-          <div className="flex gap-0.5 shrink-0">
-            {[0, 2, 4, 6].map((i) => (
-              <div
-                key={i}
-                className="w-2 h-6 rounded-sm"
-                style={{
-                  backgroundColor: hexPairToColor(
-                    agent.genome!.slice(i, i + 2)
-                  ),
-                }}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="w-10 h-6 rounded bg-bg-tertiary/50" />
-        )}
-
-        <div className="min-w-0">
-          <div className="text-sm font-semibold group-hover:text-accent-cyan transition-colors truncate">
-            {agent.name || "Anonymous Agent"}
-          </div>
-          <div className="text-xs text-text-muted font-mono">
-            Block #{formatNumber(agent.blockHeight)}
-          </div>
+      <section className="mt-16" aria-labelledby="recent-title">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 id="recent-title" className="text-xl font-semibold tracking-tight text-text-primary">
+            Recently on Block Genomics
+          </h2>
+          {recent && (
+            <p className="text-sm text-text-secondary">
+              {formatNumber(recent.onRecord)} blocks on record · {formatNumber(recent.agents)} verified agents
+            </p>
+          )}
         </div>
-      </div>
-
-      <div className="flex items-center gap-4 shrink-0">
-        {agent.trustScore !== null && (
-          <div className="text-right hidden sm:block">
-            <div className="text-sm font-bold text-gradient-cyan-purple">
-              {agent.trustScore}
-            </div>
-            <div className="text-[10px] text-text-muted">Trust</div>
-          </div>
+        {recent === null ? (
+          <p className="mt-6 rounded-2xl border border-dashed border-white/[0.09] px-6 py-10 text-center text-sm text-text-secondary">
+            The Block Genomics records couldn&apos;t be loaded right now. Search still works.
+          </p>
+        ) : recent.blocks.length === 0 ? (
+          <p className="mt-6 rounded-2xl border border-dashed border-white/[0.09] px-6 py-10 text-center text-sm text-text-secondary">
+            Nobody has verified a block yet.{" "}
+            <Link href="/my-bitmaps" className="text-accent-cyan hover:underline">
+              Be the first
+            </Link>
+            .
+          </p>
+        ) : (
+          <ul className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+            {recent.blocks.map((b) => (
+              <li key={b.height}>
+                <Link href={`/block/${b.height}`} className="group block" aria-label={`${b.height}.bitmap`}>
+                  <BitmapThumbnail blockHeight={b.height} fill className="rounded-xl transition-opacity group-hover:opacity-90" />
+                  <p className="mt-2 truncate font-mono text-xs text-text-primary">{b.height}.bitmap</p>
+                </Link>
+              </li>
+            ))}
+          </ul>
         )}
-        <span className="inline-flex items-center gap-1 rounded-full bg-success/10 border border-success/30 px-2.5 py-0.5 text-xs font-medium text-success">
-          <svg width="12" height="14" viewBox="0 0 100 115" fill="none" className="inline-block">
-            <path d="M 50 18 C 30 18, 10 24, 8 36 L 8 62 C 8 82, 22 96, 50 108 C 78 96, 92 82, 92 62 L 92 36 C 90 24, 70 18, 50 18 Z" fill="#12121a" stroke="#f7931a" strokeWidth="3"/>
-            <path d="M 30 22 L 34 8 L 42 18 L 50 4 L 58 18 L 66 8 L 70 22 Z" fill="#f7931a" opacity="0.7"/>
-            <circle cx="34" cy="7" r="3" fill="#ffcc44"/><circle cx="50" cy="3" r="3.5" fill="#ffcc44"/><circle cx="66" cy="7" r="3" fill="#ffcc44"/>
-            <text x="50" y="65" textAnchor="middle" dominantBaseline="central" fill="#f7931a" fontFamily="system-ui" fontSize="42" fontWeight="bold">₿</text>
-            <path d="M 30 90 L 37 97 L 48 84" fill="none" stroke="#22ff88" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Verified
-        </span>
+      </section>
+
+      <div className="mt-14 flex flex-wrap gap-3">
+        <Link
+          href="/nexus"
+          className="inline-flex min-h-[48px] items-center rounded-full bg-bitcoin px-6 text-sm font-semibold text-black hover:brightness-110"
+        >
+          See every block on the World map
+        </Link>
+        <Link
+          href="/directory"
+          className="inline-flex min-h-[48px] items-center rounded-full border border-white/15 px-6 text-sm font-medium text-text-primary hover:bg-white/5"
+        >
+          Agent directory
+        </Link>
       </div>
-    </Link>
+    </main>
   );
 }
