@@ -71,9 +71,16 @@ export async function verifyProof(bundle: ProofBundle, opts: VerifyOptions = {})
     if (bundle.verdict === 'canonical' && !c) diffs.push('canonical verdict without canonical facts');
 
     // Shapes the resolver never produces are forgeries or bugs, not proofs.
+    // The method follows from the height, so a bundle cannot opt out of the
+    // first-ness checks by naming another (or no) method.
     const method = bundle.firstness?.method;
-    if (method === 'walk' && bundle.height < OCI_LIMIT) diffs.push(`walk bundle for ${bundle.height}: the resolver only walks from ${OCI_LIMIT}`);
-    if (method === 'oci' && bundle.height >= OCI_LIMIT) diffs.push(`oci bundle for ${bundle.height}: the OCI ends at ${OCI_LIMIT - 1}`);
+    const expectedMethod = bundle.height < OCI_LIMIT ? 'oci' : 'walk';
+    if (method !== expectedMethod) {
+      diffs.push(`firstness.method ${JSON.stringify(method ?? null)} for ${bundle.height}: the resolver uses ${expectedMethod} there`);
+    }
+    if (!['canonical', 'none', 'disputed', 'undetermined'].includes(bundle.verdict)) {
+      diffs.push(`unknown verdict ${JSON.stringify(bundle.verdict)}`);
+    }
     if (method === 'oci' && bundle.verdict === 'none') diffs.push('a none verdict from the OCI path (the OCI is not authoritative about absence)');
     if (bundle.verdict === 'disputed' || bundle.verdict === 'undetermined') {
       notes.push(`a ${bundle.verdict} bundle is checked for its hash and walked block hashes only`);

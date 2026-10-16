@@ -237,7 +237,16 @@ describe('verifyProof on walk bundles (review #4)', () => {
   it('rejects bundle shapes the resolver never produces, and says what it did not re-check', async () => {
     const r = await run(chain, N);
     const low = reseal({ ...r.proof, height: 900000 });
-    expect((await verify(low)).diffs.join('\n')).toMatch(/only walks from 942000/);
+    expect((await verify(low)).diffs.join('\n')).toMatch(/firstness.method "walk" for 900000: the resolver uses oci there/);
+    // A method the resolver never writes (or none) cannot skip the first-ness checks (third review).
+    const odd = reseal({ ...r.proof, firstness: { ...r.proof.firstness, method: 'x' as never } });
+    expect((await verify(odd)).diffs.join('\n')).toMatch(/firstness.method "x" for 955000: the resolver uses walk there/);
+    const { method: _m, ...noMethod } = r.proof.firstness;
+    void _m;
+    const missing = reseal({ ...r.proof, firstness: noMethod as never });
+    expect((await verify(missing)).ok).toBe(false);
+    const weird = reseal({ ...r.proof, verdict: 'maybe' as never });
+    expect((await verify(weird)).diffs.join('\n')).toMatch(/unknown verdict "maybe"/);
     const ociNone = reseal({ ...r.proof, verdict: 'none', canonical: null, holder: null, firstness: { method: 'oci', walked: [] } });
     expect((await verify(ociNone)).diffs.join('\n')).toMatch(/not authoritative about absence/);
     const disputed = reseal({ ...r.proof, verdict: 'disputed', canonical: null, holder: null });
