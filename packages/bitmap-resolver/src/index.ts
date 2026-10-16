@@ -23,6 +23,7 @@ export {
   OCI_MODULE_ID,
   OCI_LIMIT,
   OCI_PAGES,
+  OCI_PAGE_SHA256,
   SAT_INDICES,
   decodeOciPage,
   ociPageFor,

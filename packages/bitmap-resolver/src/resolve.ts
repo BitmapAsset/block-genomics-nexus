@@ -14,11 +14,12 @@
 //                 ambiguous for the first claim, or the walk hit its cap.
 
 import { Context, type ClientOptions } from './context.js';
-import { fromHex } from './bytes.js';
+import { fromHex, toHex } from './bytes.js';
+import { sha256 } from './sha256.js';
 import { agreedBlockHash, liveHolder, ResolveFailure, revealFacts, tipHeight, type Holder, type RevealFacts } from './facts.js';
 import { sealBundle, PROOF_FORMAT } from './proof.js';
 import { checkClaim, RULE_ID, type Caveat } from './rules.js';
-import { decodeOciPage, OCI_LIMIT, OCI_MODULE_ID, OCI_PAGES, ociPageFor, ociSat, ociSatIndex, type OciPage } from './sources/oci.js';
+import { decodeOciPage, OCI_LIMIT, OCI_MODULE_ID, OCI_PAGE_SHA256, OCI_PAGES, ociPageFor, ociSat, ociSatIndex, type OciPage } from './sources/oci.js';
 import type { CanonicalFacts, ChallengerResult, IgnoredClaim, ProofBundle, ResolveResult, Verdict } from './types.js';
 import { walk, type ScanCandidate } from './walk.js';
 
@@ -124,6 +125,11 @@ async function loadOciPage(ctx: Context, page: number): Promise<OciPage> {
   if (!bytes) {
     ctx.mark('oci', 'unreachable', `OCI page ${page} not found`);
     throw new ResolveFailure(`OCI page ${page} not found`, 'unreachable');
+  }
+  const digest = toHex(sha256(bytes));
+  if (digest !== OCI_PAGE_SHA256[page]) {
+    ctx.mark('oci', 'disagree', `OCI page ${page} hashes to ${digest}`);
+    throw new ResolveFailure(`OCI page ${page} bytes hash to ${digest}, not the pinned ${OCI_PAGE_SHA256[page]}`, 'disagree');
   }
   let decoded: OciPage;
   try {

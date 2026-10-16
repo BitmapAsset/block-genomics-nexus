@@ -14,7 +14,8 @@ import { parseTx } from './parse/block.js';
 import { parseEnvelopes } from './parse/envelope.js';
 import { computeBundleHash, PROOF_FORMAT } from './proof.js';
 import { checkClaim, RULE_ID } from './rules.js';
-import { decodeOciPage, OCI_PAGES, ociPageFor, ociSat, ociSatIndex } from './sources/oci.js';
+import { decodeOciPage, OCI_PAGE_SHA256, OCI_PAGES, ociPageFor, ociSat, ociSatIndex } from './sources/oci.js';
+import { sha256 } from './sha256.js';
 import type { ProofBundle } from './types.js';
 
 export interface VerifyOptions extends Omit<ClientOptions, 'origins'> {
@@ -93,6 +94,8 @@ export async function verifyProof(bundle: ProofBundle, opts: VerifyOptions = {})
         const bytes = await ctx.ord.content(pageId, ctx.signal);
         if (!bytes) {
           diffs.push(`OCI page ${page} not found`);
+        } else if (toHex(sha256(bytes)) !== OCI_PAGE_SHA256[page]) {
+          diffs.push(`OCI page ${page} bytes do not match the pinned hash`);
         } else {
           const decoded = decodeOciPage(page, new TextDecoder().decode(bytes));
           const sat = ociSat(decoded, bundle.height);

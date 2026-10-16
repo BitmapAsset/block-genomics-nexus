@@ -53,6 +53,8 @@ The holder is reported only when ord and Esplora agree that the output is unspen
 
 The OCI decoder is a port of the module's `fillPage()` / `getBitmapSat()` / `getBitmapSatIndex()`, quirks included. For example, pages 2 and 3 keep `slice(0, 99999)` and drop one entry. The `satIndices` table credited to @_lefrog is copied verbatim. A test checks the port against the inscribed module (46 entries, 11 page ids).
 
+Each page's sha256 is pinned (`OCI_PAGE_SHA256`, recorded 2026-10-15; every one of the 11 real pages decodes with this port). A page served with other bytes counts as a source disagreement, and the answer is `undetermined`, not a decode.
+
 ### Envelope parsing differences from LiveOCI's block parser
 
 Envelopes are parsed the way ord does it, because the inscription id is what ord, wallets and marketplaces use. LiveOCI's block parser (`bbbb2172…i0`) differs only on non-standard envelopes:

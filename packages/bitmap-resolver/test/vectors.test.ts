@@ -8,7 +8,8 @@ import { checkInBrowser } from '../src/browser.js';
 import { computeBundleHash, canonicalJson } from '../src/proof.js';
 import { memoryStores } from '../src/stores.js';
 import { RULE_ID } from '../src/rules.js';
-import type { OciPage } from '../src/sources/oci.js';
+import { OCI_PAGE_SHA256, type OciPage } from '../src/sources/oci.js';
+import { createHash } from 'node:crypto';
 import type { ProofBundle } from '../src/types.js';
 import { fastLimiter, readVector, replayFetch } from './helpers.js';
 
@@ -146,15 +147,44 @@ describe('proof bundle', () => {
 
   it('deep mode re-derives OCI first-ness from the page, and catches a wrong satIndex', async () => {
     const { bundle, v } = await bundleFor(208);
-    // A minimal page-0 text that decodes to the recorded sat at position 208.
+    // The real page 0 (2.35 MB) is not stored. A minimal page-0 text that decodes
+    // to the recorded sat at position 208 stands in, with its hash pinned for
+    // this test only.
     const pageText = JSON.stringify([[v.oci.sat], [208]]);
     const http = { ...v.http, [`https://ordinals.com/content/${v.oci.pageId}`]: { status: 200, body: pageText } };
-    const ok = await verifyProof(bundle, { limiter: fastLimiter(replayFetch(http)), deep: true });
-    expect(ok).toEqual({ ok: true, diffs: [], holderDiffs: [] });
-    const wrong = { ...bundle, canonical: { ...bundle.canonical!, satIndex: 1 } };
-    const resealed = { ...wrong, bundleHash: computeBundleHash(wrong) };
-    const bad = await verifyProof(resealed, { limiter: fastLimiter(replayFetch(http)), deep: true });
-    expect(bad.diffs.join('\n')).toMatch(/OCI satIndex 0, bundle 1/);
+    const pins = OCI_PAGE_SHA256 as string[];
+    const real = pins[0];
+    pins[0] = createHash('sha256').update(pageText).digest('hex');
+    try {
+      const ok = await verifyProof(bundle, { limiter: fastLimiter(replayFetch(http)), deep: true });
+      expect(ok).toEqual({ ok: true, diffs: [], holderDiffs: [] });
+      const wrong = { ...bundle, canonical: { ...bundle.canonical!, satIndex: 1 } };
+      const resealed = { ...wrong, bundleHash: computeBundleHash(wrong) };
+      const bad = await verifyProof(resealed, { limiter: fastLimiter(replayFetch(http)), deep: true });
+      expect(bad.diffs.join('\n')).toMatch(/OCI satIndex 0, bundle 1/);
+    } finally {
+      pins[0] = real;
+    }
+    // With the real pin, the stand-in page is rejected as not the inscribed page.
+    const pinned = await verifyProof(bundle, { limiter: fastLimiter(replayFetch(http)), deep: true });
+    expect(pinned.diffs.join('\n')).toMatch(/OCI page 0 bytes do not match the pinned hash/);
+  });
+
+  it('a page whose bytes do not hash to the pin makes the resolve undetermined, not decoded', async () => {
+    const v = readVector('heights/208.json');
+    const http = { ...v.http, [`https://ordinals.com/content/${v.oci.pageId}`]: { status: 200, body: JSON.stringify([[v.oci.sat], [208]]) } };
+    const r = await resolve(208, { freshness: 'auth', limiter: fastLimiter(replayFetch(http)), stores: memoryStores() });
+    expect(r.verdict).toBe('undetermined');
+    expect(r.reason).toMatch(/pinned/);
+    expect(r.sources.find((s) => s.name === 'oci')?.verdict).toBe('disagree');
+  });
+
+  it('every recorded page hash equals its pin', () => {
+    expect(OCI_PAGE_SHA256).toHaveLength(11);
+    for (const h of Object.keys(AUDIT).map(Number)) {
+      const v = readVector(`heights/${h}.json`);
+      expect(v.oci.pageSha256).toBe(OCI_PAGE_SHA256[v.oci.page]);
+    }
   });
 
   it('a bundle from another rule version is flagged', async () => {

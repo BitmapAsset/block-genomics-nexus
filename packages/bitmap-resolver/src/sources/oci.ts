@@ -151,3 +151,24 @@ export function ociSatIndex(n: number, page?: OciPage): number {
   }
   return SAT_INDICES[n] || 0;
 }
+
+/**
+ * sha256 of each page's /content bytes as served by ordinals.com on 2026-10-15
+ * (pages 0, 2, 4-7, 9 and 10 by scripts/record-vectors.mjs; 1, 3 and 8 by a
+ * one-off fetch, all decoded by this module). Inscription content never
+ * changes, so a page with any other hash came from a source that is wrong
+ * about it, and the resolver says so instead of decoding it.
+ */
+export const OCI_PAGE_SHA256: readonly string[] = [
+  '09c2de69d75d3ea5d5946f93fea39f5b30cbff3c6d2a58ab0fcd0bfd15e3c384',
+  '5463cc2707e0d41003e5ece74eaf5a44d622e309c2c85f6c834ffd26331bf454',
+  '9fa60b483b1ad39b300d7468620fbba913eecc336762f5013fff008328510849',
+  '96457fefddd2110e681eade29c83e2319ea0c5c5c39e4ed89d09678696dcb409',
+  '0b46bea72c30390fa67a4c8a99918139f270fd6605c8ef8b39e711d7a76eed00',
+  'adb6e75573958248e06e2d043e45d72885d73e0d109f2e342c96aac0274f3d29',
+  'd694907e8a441724bfb2aff24d43bb0959557c5333e433775adeadbdd6897280',
+  'da4cfec8e8951b192e80d5d652d8f2bdfb9577169a3a2cf2e3275bd34c482e1d',
+  'ae85b63719c6fd875df1b95a759109a02ea572f0fa44bfaa608610a889d7c14c',
+  'e7b694c24ac0fc3d9b42aa0a973f0621ffb137a436e8c4fb81b485201a3ffa8b',
+  'a402e0e193adf79d53eee25eecae971b71abae45c9c04425b2a1c36294082fd1',
+];
