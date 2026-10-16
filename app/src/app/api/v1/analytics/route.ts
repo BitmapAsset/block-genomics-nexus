@@ -1,13 +1,23 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { authenticateSession, sessionTokenFromHeaders } from '@/lib/verified-sessions';
 
 const ADMIN_WALLETS = (process.env.ADMIN_WALLETS || '').split(',').filter(Boolean);
 
 export async function GET(req: NextRequest) {
   try {
-    const wallet = req.nextUrl.searchParams.get('wallet');
-    if (!wallet || !ADMIN_WALLETS.includes(wallet)) {
+    // Admin-only analytics (users, sessions, searches, page views). A wallet
+    // ADDRESS is public (on-chain, in /users/list), so `?wallet=<admin>` was not
+    // authentication — anyone who learned an admin address got the full
+    // dashboard (bg47 E2E-05). Require a VERIFIED SESSION proving control of an
+    // admin wallet: a bg_vfy_ token (BIP-322 + live nonce) whose wallet is in
+    // ADMIN_WALLETS. The ?wallet= query param is ignored.
+    const auth = await authenticateSession(sessionTokenFromHeaders(req.headers));
+    if (!auth.ok || !auth.session) {
+      return error('This endpoint requires a verified admin session', 401);
+    }
+    if (!ADMIN_WALLETS.includes(auth.session.walletAddress)) {
       return error('Unauthorized', 403);
     }
 
