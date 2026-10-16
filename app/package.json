@@ -76,6 +76,9 @@
     "postcss": "$postcss",
     "sharp": "^0.35.5",
     "esbuild": "^0.28.1",
-    "valibot": "^1.4.2"
+    "valibot": "^1.4.2",
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "^4.3.2"
+    }
   }
 }
