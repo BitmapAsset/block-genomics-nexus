@@ -2,9 +2,12 @@
 // returned by ord's /r/block, /r/tx and Esplora's /block/<hash>/raw).
 //
 // A block authenticates itself: the header's double SHA-256 is the block hash,
-// and the header commits to every txid through the merkle root. `parseBlock`
-// recomputes both, so bytes from any source can be checked against a hash that
-// two independent sources agree on.
+// the header commits to every txid through the merkle root, and (since segwit)
+// the coinbase commits to every wtxid through the BIP141 witness commitment.
+// Txids do not cover witness data, and inscription envelopes live in the
+// witness, so the witness commitment is what makes envelope bytes trustworthy.
+// `parseBlock` recomputes all three, so bytes from any source can be checked
+// against a hash that two independent sources agree on.
 
 import { equalBytes, toReversedHex } from '../bytes.js';
 import { Sha256, sha256d } from '../sha256.js';
@@ -20,8 +23,12 @@ export interface ParsedInput {
 export interface ParsedTx {
   index: number;
   txid: string;
+  /** Hash over the full serialization incl. witness (= txid without witness). */
+  wtxid: string;
   inputs: ParsedInput[];
   outputCount: number;
+  /** Output scripts (views into the source bytes). */
+  outputScripts: Uint8Array[];
   segwit: boolean;
 }
 
@@ -41,6 +48,11 @@ export interface ParsedBlock {
   /** Merkle root recomputed from the parsed txids, display order. */
   computedMerkleRoot: string;
   merkleOk: boolean;
+  /**
+   * BIP141: the coinbase's witness commitment matches the wtxid merkle root.
+   * True for a block without witness data (nothing to commit to).
+   */
+  witnessOk: boolean;
   size: number;
 }
 
@@ -113,9 +125,10 @@ function readTx(r: Reader, index: number): ParsedTx {
   }
 
   const outputCount = r.varint();
+  const outputScripts: Uint8Array[] = [];
   for (let i = 0; i < outputCount; i++) {
     r.take(8); // value
-    r.take(r.varint()); // scriptPubKey
+    outputScripts.push(r.take(r.varint()));
   }
   const bodyEnd = r.pos;
 
@@ -138,8 +151,9 @@ function readTx(r: Reader, index: number): ParsedTx {
     h.update(bytes.subarray(start, end));
   }
   const txid = toReversedHex(sha256dFinish(h));
+  const wtxid = segwit ? toReversedHex(sha256d(bytes.subarray(start, end))) : txid;
 
-  return { index, txid, inputs, outputCount, segwit };
+  return { index, txid, wtxid, inputs, outputCount, outputScripts, segwit };
 }
 
 function sha256dFinish(inner: Sha256): Uint8Array {
@@ -171,6 +185,28 @@ function hexToBytesReversed(hex: string): Uint8Array {
   const out = new Uint8Array(32);
   for (let i = 0; i < 32; i++) out[31 - i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return out;
+}
+
+const COMMITMENT_PREFIX = [0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
+
+/**
+ * BIP141 witness commitment. Required once any transaction carries witness
+ * data: the highest-index coinbase output starting 6a24aa21a9ed holds
+ * sha256d(wtxid merkle root || witness reserved value), where the coinbase's
+ * wtxid counts as 32 zero bytes and the reserved value is the coinbase input's
+ * single 32-byte witness item.
+ */
+export function witnessCommitmentOk(txs: ParsedTx[]): boolean {
+  if (!txs.some((t) => t.segwit)) return true;
+  const coinbase = txs[0];
+  let commitment: Uint8Array | null = null;
+  for (const script of coinbase.outputScripts) {
+    if (script.length >= 38 && COMMITMENT_PREFIX.every((b, i) => script[i] === b)) commitment = script.subarray(6, 38);
+  }
+  const reserved = coinbase.inputs[0]?.witness;
+  if (!commitment || !reserved || reserved.length !== 1 || reserved[0].length !== 32) return false;
+  const wtxids = txs.map((t, i) => (i === 0 ? '00'.repeat(32) : t.wtxid));
+  return equalBytes(sha256d(merkleRoot(wtxids), reserved[0]), commitment);
 }
 
 /** Sibling hashes (display order) proving txids[index] is under the merkle root. */
@@ -240,6 +276,7 @@ export function parseBlock(bytes: Uint8Array): ParsedBlock {
     txs,
     computedMerkleRoot: toReversedHex(root),
     merkleOk: unique && equalBytes(root, headerBytes.subarray(36, 68)),
+    witnessOk: witnessCommitmentOk(txs),
     size: bytes.length,
   };
 }

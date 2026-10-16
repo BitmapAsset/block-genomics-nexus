@@ -47,6 +47,7 @@ export function scanBlockBytes(bytes: Uint8Array, height: number, expectedHash: 
   const block = parseBlock(bytes);
   if (block.hash !== expectedHash) throw new Error(`block bytes hash to ${block.hash}, expected ${expectedHash}`);
   if (!block.merkleOk) throw new Error(`merkle root mismatch in block ${height}`);
+  if (!block.witnessOk) throw new Error(`witness commitment mismatch in block ${height}`);
   const candidates: ScanCandidate[] = [];
   for (const tx of block.txs) {
     for (const env of parseEnvelopes(tx)) {
@@ -90,7 +91,7 @@ export async function blockScan(ctx: Context, height: number, tip: number): Prom
   } catch (e) {
     if (ctx.signal?.aborted) throw e;
     firstError = (e as Error).message;
-    ctx.mark('rblock', /hash|merkle|parse|unexpected|trailing/i.test(firstError) ? 'disagree' : 'unreachable', firstError);
+    ctx.mark('rblock', /hash|merkle|witness|parse|unexpected|trailing/i.test(firstError) ? 'disagree' : 'unreachable', firstError);
   }
   if (!scan) {
     // Second byte source: Esplora raw by the agreed hash.

@@ -84,6 +84,18 @@ describe('the 18 audited heights, offline', () => {
     expect(r840.verdict).toBe('canonical');
   });
 
+  it('a reveal witness that differs between ord and Esplora makes the verdict undetermined', async () => {
+    const { v, stores } = replayContext(208);
+    const txid = (v.expected.canonicalId as string).slice(0, 64);
+    const url = `https://blockstream.info/api/tx/${txid}`;
+    const body = JSON.parse(v.http[url].body);
+    body.vin[0].witness[1] = body.vin[0].witness[1].slice(0, -2) + (body.vin[0].witness[1].endsWith('00') ? '01' : '00');
+    const r = await resolve(208, { freshness: 'auth', limiter: fastLimiter(replayFetch({ ...v.http, [url]: { status: 200, body: JSON.stringify(body) } })), stores });
+    expect(r.verdict).toBe('undetermined');
+    expect(r.reason).toMatch(/witness/);
+    expect(r.sources.find((s) => s.name === 'esplora')?.verdict).toBe('disagree');
+  });
+
   it('caches immutable facts: a second resolve skips the reveal tx and OCI lookups', async () => {
     const { limiter, stores, log } = replayContext(720143);
     await resolve(720143, { freshness: 'display', limiter, stores });

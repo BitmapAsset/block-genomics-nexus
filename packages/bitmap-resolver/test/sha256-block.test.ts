@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { toHex } from '../src/bytes.js';
 import { headerHash, merkleBranch, parseBlock, parseTx, rootFromBranch } from '../src/parse/block.js';
 import { Sha256, sha256, sha256d } from '../src/sha256.js';
-import { block, coinbaseTx, readVector, segwitTx, txidOf } from './helpers.js';
+import { block, coinbaseTx, readVector, segwitBlock, segwitTx, txidOf } from './helpers.js';
 
 describe('sha256', () => {
   it('matches FIPS vectors', () => {
@@ -43,6 +43,7 @@ describe('parseBlock on real blocks 0, 170, 208', () => {
       expect(parsed.hash).toBe(b.ordHash);
       expect(parsed.hash).toBe(b.esploraHash);
       expect(parsed.merkleOk).toBe(true);
+      expect(parsed.witnessOk).toBe(true); // pre-segwit: nothing to commit to
       expect(parsed.computedMerkleRoot).toBe(parsed.header.merkleRoot);
       expect(parsed.txs.length).toBe(b.txCount);
     });
@@ -92,6 +93,25 @@ describe('synthetic blocks', () => {
     expect(parsed.hash).toBe(honest.hash);
     expect(parsed.computedMerkleRoot).toBe(parsed.header.merkleRoot);
     expect(parsed.merkleOk).toBe(false);
+  });
+
+  it('checks the BIP141 witness commitment: segwit data without it, or with a changed witness, fails', () => {
+    const t1 = segwitTx([[new Uint8Array(64), new TextEncoder().encode('hello world!!')]]);
+    const good = segwitBlock(950000, [t1]);
+    const parsed = parseBlock(good.bytes);
+    expect(parsed.merkleOk).toBe(true);
+    expect(parsed.witnessOk).toBe(true);
+    // Same-length witness swap: txids, merkle root and block hash unchanged.
+    const forged = Uint8Array.from(good.bytes);
+    forged.set(new TextEncoder().encode('950000.bitmap'), Buffer.from(forged).indexOf(Buffer.from('hello world!!')));
+    const pf = parseBlock(forged);
+    expect(pf.hash).toBe(good.hash);
+    expect(pf.merkleOk).toBe(true);
+    expect(pf.witnessOk).toBe(false);
+    // Segwit txs but a coinbase without any commitment.
+    expect(parseBlock(block([coinbaseTx(1), t1]).bytes).witnessOk).toBe(false);
+    // No witness data at all: nothing to commit to.
+    expect(parseBlock(block([coinbaseTx(2)]).bytes).witnessOk).toBe(true);
   });
 
   it('merkle branches prove inclusion', () => {

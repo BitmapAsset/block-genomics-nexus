@@ -36,7 +36,7 @@ export { OrdClient, SourceUnavailableError, DEFAULT_ORD_ORIGIN, type OrdInscript
 export { EsploraClient, DEFAULT_ESPLORA_ORIGINS } from './sources/esplora.js';
 export { Limiter, HttpError, realClock, type Clock, type FetchResult, type LimiterOptions, type HostPolicy } from './limiter.js';
 export { memoryStores, type Stores, type ImmutableStore, type TtlStore } from './stores.js';
-export { parseBlock, parseTx, merkleRoot, merkleBranch, rootFromBranch, headerHash, type ParsedBlock, type ParsedTx } from './parse/block.js';
+export { parseBlock, parseTx, merkleRoot, merkleBranch, rootFromBranch, headerHash, witnessCommitmentOk, type ParsedBlock, type ParsedTx } from './parse/block.js';
 export { parseEnvelopes, tapscriptOf, tokenize, type Envelope } from './parse/envelope.js';
 export { scanBlockBytes, type BlockScan, type ScanCandidate } from './walk.js';
 export { canonicalJson, computeBundleHash, PROOF_FORMAT } from './proof.js';

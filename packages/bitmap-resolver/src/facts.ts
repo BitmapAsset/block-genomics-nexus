@@ -1,7 +1,9 @@
 // Facts about one inscription, each from two sources where the rule needs it:
 //
-//   envelope  ord /r/tx/<txid> bytes, parsed here. The bytes authenticate
-//             themselves: their double SHA-256 must be the txid we asked for.
+//   envelope  ord /r/tx/<txid> bytes, parsed here. The txid authenticates
+//             everything but the witness (the txid must be the one we asked
+//             for); the witness, where the envelope lives, must equal the
+//             witness Esplora reports for the same tx.
 //   height    ord /r/inscription `height` and Esplora /tx/<txid> block_height,
 //             and the block hash at that height from ord and Esplora.
 //   holder    ord /r/inscription satpoint + address, Esplora outspend (unspent)
@@ -143,6 +145,16 @@ export async function revealFacts(ctx: Context, id: string, tip: number): Promis
   if (!esplora || !esplora.status?.confirmed || typeof esplora.status.block_height !== 'number') {
     ctx.mark('esplora', 'disagree', `reveal ${txid} not confirmed per esplora`);
     throw new ResolveFailure(`esplora has no confirmed reveal ${txid}`, 'disagree');
+  }
+  // Txids do not commit to witness data, so the envelope bytes need a second
+  // source: Esplora's own copy of every input's witness must match ord's.
+  for (let i = 0; i < tx.inputs.length; i++) {
+    const ours = tx.inputs[i].witness.map((w) => toHex(w));
+    const theirs = esplora.vin?.[i]?.witness ?? [];
+    if (ours.length !== theirs.length || ours.some((w, k) => w !== theirs[k])) {
+      ctx.mark('esplora', 'disagree', `witness of ${txid} input ${i} differs from ord's`);
+      throw new ResolveFailure(`the reveal witness (input ${i}) differs between ord and esplora`, 'disagree');
+    }
   }
   if (esplora.status.block_height !== ord.height) {
     ctx.mark('esplora', 'disagree', `reveal height esplora ${esplora.status.block_height} vs ord ${ord.height}`);

@@ -12,6 +12,7 @@ export const DEFAULT_ESPLORA_ORIGINS: readonly string[] = ['https://blockstream.
 export interface EsploraTx {
   txid: string;
   status: { confirmed: boolean; block_height?: number; block_hash?: string };
+  vin?: { witness?: string[] }[];
   vout: { scriptpubkey_address?: string; value: number }[];
 }
 

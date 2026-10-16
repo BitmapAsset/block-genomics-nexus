@@ -6,7 +6,7 @@ import { resolve } from '../src/resolve.js';
 import { memoryStores } from '../src/stores.js';
 import { toHex } from '../src/bytes.js';
 import type { OciPage } from '../src/sources/oci.js';
-import { ascii, block, coinbaseTx, envelope, fastLimiter, readVector, replayFetch, scriptPathWitness, segwitTx, tapscript, txidOf, type EnvelopeSpec, type HttpMap } from './helpers.js';
+import { ascii, envelope, esploraVin, fastLimiter, readVector, replayFetch, scriptPathWitness, segwitBlock, segwitTx, tapscript, txidOf, type EnvelopeSpec, type HttpMap } from './helpers.js';
 
 const ORD = 'https://ordinals.com';
 const ESP = 'https://blockstream.info/api';
@@ -28,8 +28,8 @@ function fakeChain(from: number, tip: number, txsAt: Record<number, Uint8Array[]
   let prev = '00'.repeat(32);
   let number = 100_000_000;
   for (let h = from; h <= tip; h++) {
-    const txs = [coinbaseTx(h), ...(txsAt[h] ?? [])];
-    const b = block(txs, prev);
+    const b = segwitBlock(h, txsAt[h] ?? [], prev);
+    const txs = [b.coinbase, ...(txsAt[h] ?? [])];
     prev = b.hash;
     hashes[h] = b.hash;
     bytes[h] = b.bytes;
@@ -42,7 +42,7 @@ function fakeChain(from: number, tip: number, txsAt: Record<number, Uint8Array[]
       http[`${ORD}/r/tx/${txid}`] = { status: 200, body: JSON.stringify(toHex(tx)) };
       http[`${ESP}/tx/${txid}`] = {
         status: 200,
-        body: JSON.stringify({ txid, status: { confirmed: true, block_height: h, block_hash: b.hash }, vout: [{ scriptpubkey_address: HOLDER, value: 546 }] }),
+        body: JSON.stringify({ txid, status: { confirmed: true, block_height: h, block_hash: b.hash }, vin: esploraVin(tx), vout: [{ scriptpubkey_address: HOLDER, value: 546 }] }),
       };
       http[`${ESP}/tx/${txid}/outspend/0`] = { status: 200, body: JSON.stringify({ spent: false }) };
       for (let i = 0; i < 8; i++) {
@@ -158,6 +158,36 @@ describe('walk: sources must agree', () => {
     expect(r.sources.find((s) => s.name === 'esplora')?.verdict).toBe('disagree');
   });
 
+  it('a forged witness (same-length body swap, txids unchanged) is caught and Esplora raw is used', async () => {
+    const decoy = revealTx({ contentType: 'text/plain', body: 'hello world!!' }); // 13 bytes, like "952000.bitmap"
+    const chain = fakeChain(N, N + 1, { [N]: [decoy] });
+    const good = chain.bytes[N];
+    const forged = Uint8Array.from(good);
+    const from = Buffer.from('hello world!!');
+    const at = Buffer.from(forged).indexOf(from);
+    expect(at).toBeGreaterThan(0);
+    forged.set(Buffer.from(`${N}.bitmap`), at);
+    chain.http[`${ORD}/r/block/${N}`] = { status: 200, body: JSON.stringify(toHex(forged)) };
+    chain.http[`${ESP}/block/${chain.hashes[N]}/raw`] = { status: 200, body: good };
+    const r = await run(chain, N, { walkCap: 2 });
+    // The honest block has no claim for N, so the forged one must not win.
+    expect(r.verdict).toBe('none');
+    expect(r.sources.find((s) => s.name === 'rblock')?.detail).toMatch(/witness commitment/);
+    expect(r.sources.find((s) => s.name === 'mempool-raw')?.verdict).toBe('agree');
+  });
+
+  it('a forged witness from both byte sources is undetermined, never a grant', async () => {
+    const decoy = revealTx({ contentType: 'text/plain', body: 'hello world!!' });
+    const chain = fakeChain(N, N + 1, { [N]: [decoy] });
+    const forged = Uint8Array.from(chain.bytes[N]);
+    forged.set(Buffer.from(`${N}.bitmap`), Buffer.from(forged).indexOf(Buffer.from('hello world!!')));
+    chain.http[`${ORD}/r/block/${N}`] = { status: 200, body: JSON.stringify(toHex(forged)) };
+    chain.http[`${ESP}/block/${chain.hashes[N]}/raw`] = { status: 200, body: forged };
+    const r = await run(chain, N);
+    expect(r.verdict).toBe('undetermined');
+    expect(r.canonicalId).toBeNull();
+  });
+
   it('bad bytes from ord fall back to Esplora raw by the agreed hash', async () => {
     const chain = fakeChain(N, N + 1, { [N]: [claim] });
     const good = chain.bytes[N];
@@ -218,7 +248,7 @@ describe('challengers (OCI path, 208)', () => {
       status: 200,
       body: JSON.stringify({ id: `${txid}i0`, number: 99_000_000 + height, height, sat: 5, satpoint: `${txid}:0:0`, address: HOLDER, content_type: 'text/plain', charms: [], delegate: null, value: 546 }),
     };
-    http[`${ESP}/tx/${txid}`] = { status: 200, body: JSON.stringify({ txid, status: { confirmed: true, block_height: height, block_hash: hash }, vout: [] }) };
+    http[`${ESP}/tx/${txid}`] = { status: 200, body: JSON.stringify({ txid, status: { confirmed: true, block_height: height, block_hash: hash }, vin: esploraVin(tx), vout: [] }) };
     http[`${ORD}/r/blockhash/${height}`] = { status: 200, body: JSON.stringify(hash) };
     http[`${ESP}/block-height/${height}`] = { status: 200, body: hash };
     return `${txid}i0`;
@@ -260,6 +290,20 @@ describe('challengers (OCI path, 208)', () => {
     expect(r.holder).toBeNull();
     expect(r.proof.canonical).toBeNull();
     expect(r.challengers[0].outcome).toBe('valid_earlier');
+  });
+
+  it('a challenger whose witness Esplora reports differently is unavailable, and the verdict stops being canonical', async () => {
+    const { http, stores } = context();
+    const id = challenger('208.bitmap', deedHeight + 7, http);
+    const url = `${ESP}/tx/${id.slice(0, 64)}`;
+    const body = JSON.parse(http[url].body as string);
+    const w = body.vin[0].witness[1] as string; // the tapscript
+    body.vin[0].witness[1] = w.slice(0, -2) + (w.endsWith('68') ? '69' : '68');
+    http[url] = { status: 200, body: JSON.stringify(body) };
+    const r = await resolve(208, { freshness: 'auth', limiter: fastLimiter(replayFetch(http)), stores, challengers: [id] });
+    expect(r.challengers).toEqual([{ id, outcome: 'unavailable' }]);
+    expect(r.verdict).toBe('undetermined');
+    expect(r.reason).toMatch(/witness/);
   });
 
   it('a claim revealed below block 208 itself is inscribed_before_block', async () => {

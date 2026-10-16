@@ -124,6 +124,40 @@ export function coinbaseTx(height: number): Uint8Array {
 
 export const txidOf = (tx: Uint8Array) => parseTx(tx).txid;
 
+/**
+ * A segwit block: coinbase with a BIP141 witness commitment over `txs`
+ * (reserved value 32 zero bytes), then `txs`.
+ */
+export function segwitBlock(height: number, txs: Uint8Array[], prevHash = '00'.repeat(32), time = 1_700_000_000) {
+  const reserved = new Uint8Array(32);
+  const wtxids = ['00'.repeat(32), ...txs.map((t) => parseTx(t).wtxid)];
+  const commitment = sha256d(merkleRoot(wtxids), reserved);
+  const script = cat(push(u32(height)), push(ascii(`bg${++salt}`)));
+  const commitScript = cat(Uint8Array.of(0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed), commitment);
+  const coinbase = cat(
+    u32(1),
+    Uint8Array.of(0x00, 0x01),
+    varint(1),
+    new Uint8Array(32),
+    u32(0xffffffff),
+    varint(script.length),
+    script,
+    u32(0xffffffff),
+    varint(2),
+    u64(312500000),
+    varint(1),
+    Uint8Array.of(0x51),
+    u64(0),
+    varint(commitScript.length),
+    commitScript,
+    varint(1),
+    varint(32),
+    reserved,
+    u32(0),
+  );
+  return { ...block([coinbase, ...txs], prevHash, time), coinbase };
+}
+
 /** Block bytes + hash for txs (coinbase first is the caller's job). */
 export function block(txs: Uint8Array[], prevHash = '00'.repeat(32), time = 1_700_000_000): { bytes: Uint8Array; hash: string } {
   const root = merkleRoot(txs.map((t) => txidOf(t)));
@@ -133,3 +167,6 @@ export function block(txs: Uint8Array[], prevHash = '00'.repeat(32), time = 1_70
 }
 
 export const hexJson = (bytes: Uint8Array) => JSON.stringify(toHex(bytes));
+
+/** Esplora's `vin` array (witness only) for a raw tx, as /tx/<txid> reports it. */
+export const esploraVin = (tx: Uint8Array) => parseTx(tx).inputs.map((i) => ({ witness: i.witness.map((w) => toHex(w)) }));
