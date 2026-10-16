@@ -57,35 +57,54 @@ export async function POST(req: NextRequest) {
     /* BIP-322 wallet signature verification */
     if (!verifyWalletSignature(walletAddress, message, signature)) return error('Invalid signature', 401);
 
+    // An update is authorized against the listing's OWN block. The ownership
+    // check below used to run on body.blockHeight while the upsert edited
+    // body.listingId, so the owner of any block A could re-price and re-activate
+    // a listing on block B (bg48 Q-04). Load it first; a block mismatch is refused.
+    let existing: { id: string; blockHeight: number } | null = null;
+    if (body.listingId) {
+      existing = await prisma.delegationListing.findUnique({
+        where: { id: String(body.listingId) },
+        select: { id: true, blockHeight: true },
+      });
+      if (!existing) return error('Listing not found', 404);
+      if (existing.blockHeight !== blockHeight) {
+        return error('listingId belongs to a different block than blockHeight', 400);
+      }
+    }
+
     // OWNERSHIP — asked of the chain, not of our cache. This route had the check
     // inverted: `Block.ownerAddress === walletAddress` granted outright, and the
     // chain was consulted ONLY when the cache disagreed. The cache could grant but
     // never deny, so a seller kept renting out land they had sold for as long as
     // the background sync lagged. An outage is a retryable 503, never a grant.
-    const owns = await requireLiveBlockOwner(walletAddress, blockHeight);
+    const owns = await requireLiveBlockOwner(walletAddress, existing ? existing.blockHeight : blockHeight);
     if (!owns.ok) {
       return error(owns.reason ?? 'Not the block owner', owns.status);
     }
 
-    const listing = await prisma.delegationListing.upsert({
-      where: { id: body.listingId || '' },
-      update: {
-        tier,
-        spotsTotal: spotsTotal ?? -1,
-        price30d,
-        price365d,
-        active: true,
-      },
-      create: {
-        blockHeight,
-        parcelTxIndex: parcelTxIndex ?? null,
-        ownerAddress: walletAddress,
-        tier,
-        spotsTotal: spotsTotal ?? -1,
-        price30d,
-        price365d,
-      },
-    });
+    const listing = existing
+      ? await prisma.delegationListing.update({
+          where: { id: existing.id },
+          data: {
+            tier,
+            spotsTotal: spotsTotal ?? -1,
+            price30d,
+            price365d,
+            active: true,
+          },
+        })
+      : await prisma.delegationListing.create({
+          data: {
+            blockHeight,
+            parcelTxIndex: parcelTxIndex ?? null,
+            ownerAddress: walletAddress,
+            tier,
+            spotsTotal: spotsTotal ?? -1,
+            price30d,
+            price365d,
+          },
+        });
 
     // Fire-and-forget: notify BitmapAgents on this block that a delegation
     // listing was created/updated.

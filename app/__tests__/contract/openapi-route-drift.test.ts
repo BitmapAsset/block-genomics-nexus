@@ -60,7 +60,7 @@ const UNDOCUMENTED_BY_DESIGN: Record<string, string> = {
   '/api/v1/session/username': 'browser cookie session',
   '/api/v1/session/verify': 'browser cookie session',
   '/api/v1/encryption': 'browser-side key exchange helper',
-  '/api/v1/tier/resolve': 'internal tier resolution used by the web client',
+  '/api/v1/tier/resolve': 'internal tier resolution; needs the wallet\'s own verified session',
 
   // ── Superseded aliases kept for existing callers. The documented
   //    replacements are /api/v1/blocks/{height} and /api/v1/auth/verify. ──

@@ -182,6 +182,26 @@ async function defaultLookup(keyHash: string): Promise<SandboxKeyRecord | null> 
   });
 }
 
+export type SandboxKeyLookup = (keyHash: string) => Promise<SandboxKeyRecord | null>;
+
+/**
+ * Is this a real, unrevoked sandbox key? Lookup only: charges no quota, so the
+ * rate limiter can ask without metering the caller twice. A lookup error reads
+ * as "not live", which only ever sends the caller to its IP bucket.
+ */
+export async function isLiveSandboxKey(
+  plaintextKey: string,
+  opts: { lookup?: SandboxKeyLookup } = {}
+): Promise<boolean> {
+  const keyHash = hashSandboxKey(plaintextKey);
+  try {
+    const record = await (opts.lookup ?? defaultLookup)(keyHash);
+    return !!record && !record.revokedAt && timingSafeEqualHex(record.keyHash, keyHash);
+  } catch {
+    return false;
+  }
+}
+
 /** Best-effort usage stamp. Never allowed to fail a request. */
 export async function touchSandboxKey(id: string): Promise<void> {
   try {

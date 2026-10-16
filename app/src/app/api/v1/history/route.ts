@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { success, error } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { authenticateSession, sessionTokenFromHeaders } from '@/lib/verified-sessions';
 
 const PAGE_SIZE = 25;
 
@@ -12,6 +13,17 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const wallet = searchParams.get("wallet");
   if (!wallet) return error("wallet param required", 400);
+
+  // A wallet's history (logins, challenges, delegations, transfers) is readable
+  // only by that wallet's own verified session. Addresses are public, so the
+  // query string alone made every wallet's log public (bg47 E2E-02).
+  const auth = await authenticateSession(sessionTokenFromHeaders(req.headers));
+  if (!auth.ok || !auth.session) {
+    return error(auth.reason ?? "A verified session is required to read history", auth.status);
+  }
+  if (auth.session.walletAddress !== wallet) {
+    return error("A session can only read its own wallet's history", 403);
+  }
 
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
   const typeFilter = searchParams.get("type"); // verification | delegation | transfer | all
@@ -72,15 +84,19 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    return success({
-      activities,
-      delegations,
-      transfers,
-      total,
-      page,
-      pageSize: PAGE_SIZE,
-      totalPages: Math.ceil(total / PAGE_SIZE),
-    });
+    return success(
+      {
+        activities,
+        delegations,
+        transfers,
+        total,
+        page,
+        pageSize: PAGE_SIZE,
+        totalPages: Math.ceil(total / PAGE_SIZE),
+      },
+      200,
+      { "Cache-Control": "no-store" }
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return error(msg, 500);

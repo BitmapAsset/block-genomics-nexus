@@ -1,6 +1,15 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { verifyActionBinding, hashBody } from '@/lib/action-message';
+import { consumeChallenge } from '@/lib/challenges';
+
+/**
+ * Key registration is wallet-scoped, not block-scoped; the canonical action
+ * message still carries a Block line, so it is pinned to 0 here.
+ */
+const KEY_BINDING = { action: 'encryption.register', method: 'POST', path: '/api/v1/encryption', blockHeight: 0 } as const;
+const KEY_CHALLENGE_PURPOSE = 'encryption';
 
 /**
  * GET /api/v1/encryption?wallet=<address>
@@ -47,9 +56,12 @@ export async function GET(req: NextRequest) {
  * POST /api/v1/encryption
  * Register/update your encryption public key.
  * Requires wallet address for ownership verification.
- * 
- * Body: { walletAddress: string, encryptionPubKey: string }
- * 
+ *
+ * Body: { walletAddress: string, encryptionPubKey: string, signature, message }
+ * `message` is buildActionMessage({ action: 'encryption.register', method: 'POST',
+ * path: '/api/v1/encryption', blockHeight: 0, bodyHash: hashBody(body), nonce,
+ * expiresAt }), with `nonce` from POST /api/v1/challenge { purpose: 'encryption' }.
+ *
  * SECURITY: Only the public key is stored. Never accepts private keys.
  * The public key is validated as a proper secp256k1 point before storage.
  */
@@ -83,6 +95,19 @@ export async function POST(req: NextRequest) {
     // Private keys don't start with 02 or 03, but be extra safe
     if (encryptionPubKey.length === 64) {
       return error('REJECTED — this looks like a private key. NEVER send private keys.', 400);
+    }
+
+    // ACTION BINDING + REPLAY PROTECTION (the profiles/create pattern). A wallet
+    // signature over ANY text used to be enough, so one captured or published
+    // signature let anyone replace that user's E2E key and read their future DMs
+    // (bg47 E2E-06). The signed message must now bind this action, this exact
+    // body (so this exact key) and a server-issued nonce, consumed exactly once.
+    const binding = verifyActionBinding(message, { ...KEY_BINDING, bodyHash: await hashBody(body) });
+    if (!binding.ok) {
+      return error(binding.reason || 'Invalid authorization', 401);
+    }
+    if (!(await consumeChallenge(binding.nonce!, { address: walletAddress, purpose: KEY_CHALLENGE_PURPOSE }))) {
+      return error('Invalid or already-used challenge nonce', 401);
     }
 
     // Verify user exists

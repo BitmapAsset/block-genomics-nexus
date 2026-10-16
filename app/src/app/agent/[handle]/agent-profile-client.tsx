@@ -8,6 +8,7 @@ import CrownShield, { ShieldTier } from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
+import { LIGHTNING_PAY_ENABLED } from '@/lib/lightning-pay-flag';
 
 import WebGLErrorBoundary from '@/components/WebGLErrorBoundary';
 
@@ -590,10 +591,12 @@ export default function AgentProfilePage() {
             style={{ background: copied ? 'rgba(0,255,204,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${copied ? 'rgba(0,255,204,0.3)' : 'rgba(255,255,255,0.1)'}`, color: copied ? '#00ffcc' : '#94a3b8' }}>
             {copied ? '✅ Copied!' : '📋 Copy Profile Link'}
           </button>
-          <button onClick={() => setShowZap(true)} className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110 cursor-pointer"
-            style={{ background: 'rgba(247,147,26,0.1)', border: '1px solid rgba(247,147,26,0.3)', color: '#f7931a' }}>
-            ⚡ Zap Sats
-          </button>
+          {LIGHTNING_PAY_ENABLED && (
+            <button onClick={() => setShowZap(true)} className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110 cursor-pointer"
+              style={{ background: 'rgba(247,147,26,0.1)', border: '1px solid rgba(247,147,26,0.3)', color: '#f7931a' }}>
+              ⚡ Zap Sats
+            </button>
+          )}
         </div>
       </div>
 

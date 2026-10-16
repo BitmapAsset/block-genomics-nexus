@@ -71,6 +71,7 @@ jest.mock('@/lib/ownership-gate', () => ({
     ),
 }));
 
+import crypto from 'crypto';
 import prisma from '@/lib/prisma';
 import { issueChallenge } from '@/lib/challenges';
 import { POST as HEARTBEAT } from '@/app/api/v1/guardian/heartbeat/route';
@@ -78,13 +79,16 @@ import { POST as HEARTBEAT } from '@/app/api/v1/guardian/heartbeat/route';
 /** The literal a daemon must send. Pinned here because it is a wire contract. */
 const GUARDIAN_HEARTBEAT_PURPOSE = 'guardian-heartbeat';
 
+/** The nonce shape every issuer mints (32 random bytes, hex) and the consume path looks up. */
+const mintNonce = () => crypto.randomBytes(32).toString('hex');
+
 function req(body: Record<string, unknown>) {
   return { json: async () => body } as never;
 }
 
 /** A daemon's heartbeat: fetch a nonce, sign the message it appears in, send. */
 async function freshHeartbeat(wallet = OWNER) {
-  const nonce = `nonce_${Math.random().toString(16).slice(2)}`;
+  const nonce = mintNonce();
   await issueChallenge(nonce, { address: wallet, purpose: GUARDIAN_HEARTBEAT_PURPOSE });
   return {
     guardianId: 'grd_1',
@@ -162,7 +166,7 @@ describe('guardian heartbeat refuses a replayed credential', () => {
   });
 
   it("a nonce issued to one wallet cannot be spent by another", async () => {
-    const nonce = 'nonce_for_owner';
+    const nonce = mintNonce();
     await issueChallenge(nonce, { address: OWNER, purpose: GUARDIAN_HEARTBEAT_PURPOSE });
 
     const res = await HEARTBEAT(
@@ -181,7 +185,7 @@ describe('guardian heartbeat refuses a replayed credential', () => {
   });
 
   it('a nonce minted for another purpose is not a heartbeat credential', async () => {
-    const nonce = 'nonce_for_session';
+    const nonce = mintNonce();
     await issueChallenge(nonce, { address: OWNER, purpose: 'session' });
 
     const res = await HEARTBEAT(

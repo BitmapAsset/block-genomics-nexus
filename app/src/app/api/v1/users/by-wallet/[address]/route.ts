@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
-import { logActivity } from '@/lib/activity';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function GET(
@@ -54,7 +53,8 @@ export async function GET(
       ]),
     ];
 
-    logActivity(address, 'login', { method: 'wallet_lookup' });
+    // No activity row here: this is a public read, and it used to record a
+    // "login" for whatever wallet was looked up (bg47 E2E-04).
 
     return success({
       walletAddress: user.walletAddress,

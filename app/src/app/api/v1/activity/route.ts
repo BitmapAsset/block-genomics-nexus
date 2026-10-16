@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
-import { success, error } from '@/lib/api-helpers';
+import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
 import { logActivity, logPageView, logProfileView, logSearch } from '@/lib/activity';
+import { verifyActionBinding, hashBody } from '@/lib/action-message';
+import { consumeChallenge } from '@/lib/challenges';
 
 const ALLOWED_ACTIONS = [
   'page_view', 'profile_view', 'search', 'block_view', 'parcel_view',
@@ -12,7 +14,7 @@ const ALLOWED_ACTIONS = [
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, metadata, walletAddress } = body;
+    const { action, metadata, walletAddress, signature, message } = body;
 
     if (!action || typeof action !== 'string') {
       return error('action is required', 400);
@@ -20,6 +22,31 @@ export async function POST(req: NextRequest) {
 
     if (!ALLOWED_ACTIONS.includes(action)) {
       return error('Invalid action', 400);
+    }
+
+    // Every row this route writes is attributed to a wallet, and anyone could
+    // write activity, page-view and profile-view rows for any wallet string
+    // (bg47 E2E-07). An entry now takes that wallet's signature over the
+    // canonical action message ('activity.log', Block 0, this exact body) with a
+    // one-time nonce from POST /api/v1/challenge { purpose: 'activity' }.
+    if (!walletAddress || typeof walletAddress !== 'string' || !signature || !message) {
+      return error('walletAddress, signature and message are required', 401);
+    }
+    if (!verifyWalletSignature(walletAddress, message, signature)) {
+      return error('Invalid signature', 401);
+    }
+    const binding = verifyActionBinding(message, {
+      action: 'activity.log',
+      method: 'POST',
+      path: '/api/v1/activity',
+      blockHeight: 0,
+      bodyHash: await hashBody(body),
+    });
+    if (!binding.ok) {
+      return error(binding.reason || 'Invalid authorization', 401);
+    }
+    if (!(await consumeChallenge(binding.nonce!, { address: walletAddress, purpose: 'activity' }))) {
+      return error('Invalid or already-used challenge nonce', 401);
     }
 
     // Route to specialized loggers
@@ -31,10 +58,7 @@ export async function POST(req: NextRequest) {
       await logSearch(metadata.query, metadata.resultsCount || 0, walletAddress);
     }
 
-    // Always log to general activity if wallet connected
-    if (walletAddress) {
-      await logActivity(walletAddress, action, metadata);
-    }
+    await logActivity(walletAddress, action, metadata);
 
     return success({ logged: true });
   } catch (e: unknown) {

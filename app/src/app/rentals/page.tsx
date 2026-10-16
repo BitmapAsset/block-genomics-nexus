@@ -6,6 +6,7 @@ import CrownShield, { ShieldTier } from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 import LightningPayModal from '@/components/LightningPayModal';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
+import { LIGHTNING_PAY_ENABLED } from '@/lib/lightning-pay-flag';
 
 /* ── Types ── */
 interface Listing {
@@ -132,12 +133,14 @@ function ListingCard({ listing, onPay }: { listing: Listing; onPay: (listing: Li
         >
           🟧 View Block
         </Link>
-        <button
-          onClick={() => onPay(listing, 'monthly')}
-          className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-orange-500/20 to-amber-500/20 border border-orange-500/40 text-orange-300 hover:brightness-125 transition-all cursor-pointer"
-        >
-          ⚡ Pay Lightning
-        </button>
+        {LIGHTNING_PAY_ENABLED && (
+          <button
+            onClick={() => onPay(listing, 'monthly')}
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-orange-500/20 to-amber-500/20 border border-orange-500/40 text-orange-300 hover:brightness-125 transition-all cursor-pointer"
+          >
+            ⚡ Pay Lightning
+          </button>
+        )}
       </div>
     </div>
   );

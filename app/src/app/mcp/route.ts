@@ -12,8 +12,9 @@
  */
 
 import { createMcpHandler } from '@modelcontextprotocol/server';
-import { enforceRateLimit, rateLimitIdentity } from '@/lib/api-rate-limit';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { rateLimit } from '@/lib/rate-limit';
+import { clientIpFrom } from '@/lib/rate-limit-db';
 import { bearerFrom } from '@/lib/sandbox-tier';
 import { createBgMcpServer } from '@/lib/mcp/server';
 import { resolveApiBase } from '@/lib/mcp/client';
@@ -89,8 +90,9 @@ function rateLimited(headers: Record<string, string>): Response {
 
 async function serve(request: Request): Promise<Response> {
   // Layer 1 — local, free, no I/O. Refuses a single-instance flood before it
-  // can turn into database writes.
-  if (!rateLimit(`mcp:${rateLimitIdentity(request)}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+  // can turn into database writes. Keyed on IP: a credential earns its own
+  // bucket only after it authenticates, and that lookup is I/O (Layer 2 does it).
+  if (!rateLimit(`mcp:ip:${clientIpFrom(request)}`, RATE_LIMIT, RATE_WINDOW_MS)) {
     return rateLimited({ 'Retry-After': '60' });
   }
 

@@ -9,13 +9,50 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { APPEAL_DURATION_HOURS } from '@/lib/protocol';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { verifyWalletSignature } from '@/lib/api-helpers';
+import { verifyActionBinding, hashBody } from '@/lib/action-message';
+import { consumeChallenge } from '@/lib/challenges';
+
+/**
+ * Appeals and votes decide what is shown and who is struck, and were keyed on a
+ * caller-supplied wallet string, so one caller could appeal or vote as any
+ * number of wallets (bg47 E2E-07). Each now needs that wallet's signature over
+ * the canonical action message ('brain.appeal' / 'brain.vote', Block 0, this
+ * exact body) with a one-time nonce from POST /api/v1/challenge { purpose: 'brain' }.
+ */
+const APPEAL_PATH = '/api/v1/brain/appeal';
+const BRAIN_CHALLENGE_PURPOSE = 'brain';
 
 export async function POST(req: Request) {
   try {
-    const { action, contentId, walletAddress, reason, vote } = await req.json();
+    const body = await req.json();
+    const { action, contentId, walletAddress, reason, vote, signature, message } = body;
 
     if (!walletAddress) {
       return NextResponse.json({ error: 'walletAddress required' }, { status: 400 });
+    }
+    if (action !== 'appeal' && action !== 'vote') {
+      return NextResponse.json({ error: 'Invalid action — use "appeal" or "vote"' }, { status: 400 });
+    }
+
+    if (!signature || !message) {
+      return NextResponse.json({ error: 'signature and message are required' }, { status: 401 });
+    }
+    if (!verifyWalletSignature(walletAddress, message, signature)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+    const binding = verifyActionBinding(message, {
+      action: `brain.${action}`,
+      method: 'POST',
+      path: APPEAL_PATH,
+      blockHeight: 0,
+      bodyHash: await hashBody(body),
+    });
+    if (!binding.ok) {
+      return NextResponse.json({ error: binding.reason || 'Invalid authorization' }, { status: 401 });
+    }
+    if (!(await consumeChallenge(binding.nonce!, { address: walletAddress, purpose: BRAIN_CHALLENGE_PURPOSE }))) {
+      return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
     }
 
     // ─── SUBMIT APPEAL ───
@@ -28,6 +65,13 @@ export async function POST(req: Request) {
       const verdict = await prisma.contentVerdict.findUnique({ where: { contentId } });
       if (!verdict || verdict.status === 'visible' || verdict.status === 'restored') {
         return NextResponse.json({ error: 'Content is not hidden — nothing to appeal' }, { status: 400 });
+      }
+
+      // One appeal per wallet per piece of content, ever: a resolved appeal is
+      // not re-filed by the same wallet to restart the clock.
+      const mine = await prisma.appeal.findFirst({ where: { contentId, appealedBy: walletAddress } });
+      if (mine) {
+        return NextResponse.json({ error: 'This wallet has already appealed this content', appealId: mine.id }, { status: 409 });
       }
 
       // Check if appeal already exists

@@ -3,6 +3,35 @@ import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
+import { authenticateSession, sessionTokenFromHeaders } from '@/lib/verified-sessions';
+
+/**
+ * Which DM rows a verified session may read in its conversation with `other`.
+ *
+ * A DM row records only its sender; its recipient is the owner of the block it
+ * was sent to ("Private DM with block owner"). So a row belongs to the pair when
+ * one party sent it to a block the other owns. The reader's own inbox side is
+ * further narrowed to blocks the session proved on-chain, so a stale or poisoned
+ * `Block.ownerAddress` alone cannot open someone else's inbox.
+ */
+async function dmConversationFilter(
+  me: string,
+  other: string,
+  myProvenBlocks: number[]
+): Promise<Record<string, unknown>> {
+  const [otherBlocks, myBlocks] = await Promise.all([
+    prisma.block.findMany({ where: { ownerAddress: other }, select: { height: true } }),
+    prisma.block.findMany({ where: { ownerAddress: me }, select: { height: true } }),
+  ]);
+  const proven = new Set(myProvenBlocks);
+  return {
+    channel: 'dm',
+    OR: [
+      { senderAddress: me, blockHeight: { in: otherBlocks.map((b) => b.height) } },
+      { senderAddress: other, blockHeight: { in: myBlocks.map((b) => b.height).filter((h) => proven.has(h)) } },
+    ],
+  };
+}
 
 export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-chat-history' });
@@ -18,20 +47,22 @@ export async function GET(req: NextRequest) {
     const before = url.searchParams.get('before'); // cursor: message id
 
     // Build where clause
-    const where: Record<string, unknown> = {};
+    let where: Record<string, unknown> = {};
 
     if (mode === 'dm') {
       if (!dmWith || !wallet) return error('dmWith and wallet required for DM history', 400);
-      where.channel = 'dm';
-      where.OR = [
-        { senderAddress: wallet, text: { contains: dmWith } },
-        { senderAddress: dmWith, text: { contains: wallet } },
-      ];
-      // For encrypted DMs, we match sender/recipient by address pairs
-      // Better approach: filter by participants
-      delete where.OR;
-      where.channel = 'dm';
-      where.senderAddress = { in: [wallet, dmWith] };
+      // Only one of the two parties may read a conversation, and only after
+      // proving it with a verified session. Wallet addresses are public, so the
+      // query string alone identifies nobody.
+      const auth = await authenticateSession(sessionTokenFromHeaders(req.headers));
+      if (!auth.ok || !auth.session) {
+        return error(auth.reason ?? 'A verified session is required to read direct messages', auth.status);
+      }
+      const me = auth.session.walletAddress;
+      if (me !== wallet && me !== dmWith) {
+        return error('This session belongs to neither party of this conversation', 403);
+      }
+      where = await dmConversationFilter(me, me === wallet ? dmWith : wallet, auth.session.verifiedBlocks);
     } else if (mode === 'global') {
       where.channel = 'global';
     } else {
@@ -95,7 +126,8 @@ export async function GET(req: NextRequest) {
     const hasMore = messages.length === limit;
     const oldestId = messages.length > 0 ? messages[0].id : null;
 
-    return success({ messages: data, hasMore, oldestId });
+    // A conversation is per-caller; a shared cache must never replay it to someone else.
+    return success({ messages: data, hasMore, oldestId }, 200, mode === 'dm' ? { 'Cache-Control': 'no-store' } : undefined);
   } catch (e: unknown) {
     return error(e instanceof Error ? e.message : 'Unknown error', 500);
   }
