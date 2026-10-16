@@ -5,6 +5,8 @@ import { callLLM, checkGuardianRateLimit } from '@/lib/llm-proxy';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { notifyEscalation } from '@/lib/escalation-notify';
 import { emitAgentEvent } from '@/lib/agent-events';
+import { requireSignedBlockOwner } from '@/lib/block-write-auth';
+import type { GateResult } from '@/lib/ownership-gate';
 
 /** Strip control characters to mitigate prompt injection */
 function stripControlChars(str: string): string {
@@ -113,14 +115,25 @@ export async function POST(req: NextRequest) {
         guardianId: guardian.id,
       });
 
+      // SECURITY: world actions run only for the wallet that holds this block
+      // on-chain RIGHT NOW, asked live — not for `guardian.ownerAddress`, which
+      // still names the seller after a sale until the release runs, so a former
+      // owner kept building on land they sold (bg48 Q-02). Asked lazily, once.
+      let worldGate: GateResult | null = null;
+      const actorHoldsBlock = async (): Promise<boolean> => {
+        if (!verifiedVisitorAddress) return false;
+        worldGate ??= await requireSignedBlockOwner(verifiedVisitorAddress, guardian.blockHeight);
+        return worldGate.ok;
+      };
+
       // Check if response contains world-building tool calls (JSON blocks)
       // SECURITY: Only execute world actions if the visitor IS the block owner
       // This prevents prompt injection from allowing non-owners to modify the world
       const worldActions = extractWorldActions(response);
       let finalResponse = response;
       if (worldActions.length > 0) {
-        if (verifiedVisitorAddress === guardian.ownerAddress) {
-          const results = await executeWorldActions(worldActions, parseInt(blockHeight), guardian.ownerAddress);
+        if (await actorHoldsBlock()) {
+          const results = await executeWorldActions(worldActions, guardian.blockHeight, verifiedVisitorAddress);
           finalResponse = response.replace(/```json\n\{[\s\S]*?\}\n```/g, '').trim();
           if (results.length > 0) {
             finalResponse += '\n\n' + results.map(r => r.success ? `✅ ${r.action}` : `❌ ${r.error}`).join('\n');
@@ -128,12 +141,15 @@ export async function POST(req: NextRequest) {
         } else {
           // Non-owner tried to trigger world actions — strip them silently
           finalResponse = response.replace(/```json\n\{[\s\S]*?\}\n```/g, '').trim();
+          if ((worldGate as GateResult | null)?.code === 'onchain_unavailable') {
+            finalResponse += '\n\n⚠️ On-chain ownership could not be confirmed right now, so no world changes were made.';
+          }
         }
       }
 
       // TWO-PASS BUILD SYSTEM: If the LLM didn't output JSON tool calls but the owner
       // sent a build request, make a second structured call to generate build actions.
-      if (worldActions.length === 0 && verifiedVisitorAddress === guardian.ownerAddress && isBuildRequest(message)) {
+      if (worldActions.length === 0 && isBuildRequest(message) && (await actorHoldsBlock())) {
         console.log('[Guardian Chat] Two-pass build: detected build intent, making structured call');
         try {
           const buildActions = await generateBuildActions({
@@ -146,7 +162,7 @@ export async function POST(req: NextRequest) {
           });
 
           if (buildActions.length > 0) {
-            const results = await executeWorldActions(buildActions, parseInt(blockHeight), guardian.ownerAddress);
+            const results = await executeWorldActions(buildActions, guardian.blockHeight, verifiedVisitorAddress);
             if (results.length > 0) {
               finalResponse += '\n\n' + results.map(r => r.success ? `✅ ${r.action}` : `❌ ${r.error}`).join('\n');
             }
@@ -485,8 +501,17 @@ async function executeWorldActions(actions: WorldAction[], blockHeight: number, 
         results.push({ action: `Estate "${action.name}" creation requested`, success: true });
 
       } else if (action.tool === 'remove_object' && action.id) {
-        await prisma.blockObject.update({ where: { id: action.id }, data: { visible: false } });
-        results.push({ action: `Removed object ${action.id}`, success: true });
+        // Scoped to this guardian's block: an id from another block's public
+        // world listing must not hide that block's object (bg48 Q-02).
+        const hidden = await prisma.blockObject.updateMany({
+          where: { id: action.id, blockHeight },
+          data: { visible: false },
+        });
+        results.push(
+          hidden.count === 1
+            ? { action: `Removed object ${action.id}`, success: true }
+            : { action: action.tool, success: false, error: `Object ${action.id} is not on block ${blockHeight}` }
+        );
 
       } else if (action.tool === 'list_objects') {
         const objects = await prisma.blockObject.findMany({ where: { blockHeight, visible: true } });
