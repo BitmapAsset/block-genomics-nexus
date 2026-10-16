@@ -4,6 +4,8 @@ import { verifyWalletSignature } from '@/lib/api-helpers';
 import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
+import { verifyActionBinding, hashBody } from '@/lib/action-message';
+import { consumeChallenge } from '@/lib/challenges';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,20 +83,43 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/* ─── DELETE: End a stream (owner only) ─── */
+/* ─── DELETE: End a stream (stream owner only, action-bound signature) ─── */
 export async function DELETE(req: NextRequest) {
   try {
     const body = await req.json();
-    const { blockHeight, walletAddress } = body;
+    const { blockHeight, ownerAddress, signature, message } = body;
 
-    if (!blockHeight || !walletAddress) {
+    if (!blockHeight) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // No signature needed to end — just verify wallet matches stream owner
+    // The stream owner must PROVE it. Comparing a wallet string from the body to
+    // `streamOwner` let anyone end any stream (bg47 E2E-07). Same shape as world
+    // writes (lib/world-signing.ts): a signature over the action-bound message
+    // for this block and body, with a one-time 'world' nonce consumed below.
+    if (!ownerAddress || !signature || !message) {
+      return NextResponse.json({ error: "Ending a stream requires the stream owner's signature" }, { status: 401 });
+    }
+    if (!verifyWalletSignature(ownerAddress, message, signature)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+    const binding = verifyActionBinding(message, {
+      action: 'livestream.end',
+      method: 'DELETE',
+      path: '/api/v1/livestream',
+      blockHeight,
+      bodyHash: await hashBody(body),
+    });
+    if (!binding.ok) {
+      return NextResponse.json({ error: binding.reason || 'Invalid authorization' }, { status: 401 });
+    }
+
     const block = await prisma.block.findUnique({ where: { height: blockHeight } });
-    if (!block || block.streamOwner !== walletAddress) {
+    if (!block || block.streamOwner !== ownerAddress) {
       return NextResponse.json({ error: 'Not the stream owner' }, { status: 403 });
+    }
+    if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
+      return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
     }
 
     await prisma.block.update({

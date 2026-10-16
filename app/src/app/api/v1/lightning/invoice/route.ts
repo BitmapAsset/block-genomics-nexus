@@ -3,11 +3,29 @@
  * 
  * Body: { amountUsd: string, description: string, correlationId: string }
  * Returns: { bolt11, invoiceId, quoteId, expiresAt, amountBtc, amountUsd }
+ *
+ * Every valid body creates a real charge on the platform's ZBD account, so the
+ * caller must hold a verified session (bg_vfy_) and is rate limited.
  */
 import { NextResponse } from 'next/server';
 import { createLightningInvoice } from '@/lib/lightning';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { authenticateSession, sessionTokenFromHeaders } from '@/lib/verified-sessions';
+
+const INVOICE_LIMIT = 10;
 
 export async function POST(req: Request) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-lightning-invoice', limit: INVOICE_LIMIT });
+  if (rl.response) return rl.response;
+
+  const auth = await authenticateSession(sessionTokenFromHeaders(req.headers));
+  if (!auth.ok) {
+    return NextResponse.json(
+      { error: auth.reason ?? 'A verified session is required to create an invoice' },
+      { status: auth.status }
+    );
+  }
+
   try {
     const body = await req.json();
     const { amountUsd, description, correlationId } = body;

@@ -14,6 +14,7 @@ import CrownShield, { type ShieldTier } from '../CrownShield';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { getStoredAddress, getStoredType } from '@/lib/wallet-utils';
 import { parcelCustomizeBindingString, parcelCustomizeBindingLine } from '@/lib/parcel-customize';
+import { signedWorldFetch } from '@/lib/world-signing';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import dynamic from 'next/dynamic';
@@ -5138,10 +5139,15 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const handleEndStream = useCallback(async () => {
     if (!walletAddress) return;
     try {
-      await fetch('/api/v1/livestream', {
+      // Owner-only on the server: an action-bound signature with a one-time nonce.
+      await signedWorldFetch({
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blockHeight, walletAddress }),
+        path: '/api/v1/livestream',
+        action: 'livestream.end',
+        blockHeight,
+        ownerAddress: walletAddress,
+        body: { blockHeight },
+        signMessage: walletSignMessage,
       });
     } catch (e) {
       console.error('Failed to end stream:', e);
@@ -5149,7 +5155,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
     setIsStreaming(false);
     setStreamStartTime(null);
     setStreamEmbedUrl(null);
-  }, [walletAddress, blockHeight]);
+  }, [walletAddress, blockHeight, walletSignMessage]);
 
   // Fetch real blockchain data, fall back to mock
   const [realBlock, setRealBlock] = useState<RealBlockData | null>(null);
