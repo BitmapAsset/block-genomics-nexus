@@ -29,6 +29,15 @@ function StepBadge({ n, active, done }: { n: number; active: boolean; done: bool
   );
 }
 
+/* ── on-chain holder check, as reported by POST /api/v1/auth/verify ── */
+type HolderCheck = 'live' | 'previous' | 'none';
+
+function holderCheckLabel(check: HolderCheck, blockHeight: number): string {
+  if (check === 'live') return `passed, this wallet holds ${blockHeight}.bitmap`;
+  if (check === 'previous') return 'passed on an earlier verification, not re-run this time';
+  return 'not run';
+}
+
 /* ── wallet icons ── */
 const walletMeta = [
   { id: 'unisat' as WalletType, label: 'Unisat', icon: '🟧', color: '#f7931a' },
@@ -144,6 +153,10 @@ export default function VerifyPage() {
   /* step 3 */
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
+  // Set ONLY after a BIP-322 signature succeeded in this session. `verified`
+  // alone can also come from the stored profile, which proves nothing about
+  // who is at the keyboard now.
+  const [sessionCheck, setSessionCheck] = useState<{ holderCheck: HolderCheck; blockHeight: number } | null>(null);
   const [genomeHash, setGenomeHash] = useState('');
   const [signError, setSignError] = useState('');
 
@@ -259,7 +272,7 @@ export default function VerifyPage() {
     setLocalWallet(null);
     setLocalWalletAddr('');
     setBlockInfo(null);
-    setVerified(false);
+    setVerified(false); setSessionCheck(null);
     setGenomeHash('');
     setProfileCreated(false);
     setHandle('');
@@ -341,6 +354,10 @@ export default function VerifyPage() {
 
       setGenomeHash(verifyData.data.genomeHash);
       setVerified(true);
+      const check: HolderCheck = ['live', 'previous', 'none'].includes(verifyData.data.holderCheck)
+        ? verifyData.data.holderCheck
+        : 'none';
+      setSessionCheck({ holderCheck: check, blockHeight: blockInfo.height });
       // Refresh global profile after verification
       globalWallet.refreshProfile();
     } catch (e: unknown) {
@@ -560,7 +577,7 @@ export default function VerifyPage() {
               <button
                 onClick={() => {
                   setBlockInfo(null);
-                  setVerified(false);
+                  setVerified(false); setSessionCheck(null);
                   setGenomeHash('');
                   setProfileCreated(false);
                   setHandle('');
@@ -679,7 +696,7 @@ export default function VerifyPage() {
                   <div className="text-xl font-bold text-text-primary">{blockInfo.txCount.toLocaleString()}</div>
                 </div>
                 <button
-                  onClick={() => { setBlockInfo(null); setVerified(false); setGenomeHash(''); setProfileCreated(false); }}
+                  onClick={() => { setBlockInfo(null); setVerified(false); setSessionCheck(null); setGenomeHash(''); setProfileCreated(false); }}
                   className="text-xs text-text-muted hover:text-text-primary transition-colors"
                 >
                   Change
@@ -691,7 +708,7 @@ export default function VerifyPage() {
           {/* ═══ STEP 3: Verify Ownership ═══ */}
           <section className={`glass-panel p-6 transition-opacity duration-500 ${currentStep >= 3 ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
             <div className="flex items-center gap-3 mb-4">
-              <StepBadge n={3} active={currentStep === 3} done={verified} />
+              <StepBadge n={3} active={currentStep === 3} done={!!sessionCheck} />
               <h2 className="text-lg font-semibold">Verify Ownership</h2>
             </div>
 
@@ -718,17 +735,19 @@ export default function VerifyPage() {
                 </button>
                 {signError && <p className="text-xs text-red-400 mt-3">{signError}</p>}
               </div>
-            ) : (
+            ) : sessionCheck ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-500/20 animate-pulse">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-500/20">
                     <svg className="h-6 w-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-green-400">Ownership Verified!</p>
-                    <p className="text-xs text-text-muted">BIP-322 signature confirmed on-chain</p>
+                    <p className="text-sm font-semibold text-green-400">Signature verified.</p>
+                    <p className="text-xs text-text-muted">
+                      Ownership recorded on Block Genomics; on-chain holder check: {holderCheckLabel(sessionCheck.holderCheck, sessionCheck.blockHeight)}.
+                    </p>
                   </div>
                 </div>
 
@@ -737,9 +756,44 @@ export default function VerifyPage() {
                   <code className="text-xs text-accent-cyan break-all">{genomeHash}</code>
                 </div>
 
-                <div className="flex justify-center">
-                  <CrownShield tier={1} size={80} verified glow verifiedStyle="check" />
+                {sessionCheck.holderCheck !== 'none' && (
+                  <div className="flex justify-center">
+                    <CrownShield tier={1} size={80} verified glow verifiedStyle="check" />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-text-primary">Profile on record for this wallet.</p>
+                  <p className="text-xs text-text-muted">
+                    No signature in this session, so nothing has been verified yet. Sign to re-check ownership of
+                    {blockInfo ? ` ${blockInfo.height}.bitmap` : ' your block'} on-chain.
+                  </p>
                 </div>
+
+                {genomeHash && (
+                  <div className="rounded-lg border border-border bg-bg-tertiary/20 p-4">
+                    <div className="text-xs text-text-muted mb-1">Genome Hash (recorded)</div>
+                    <code className="text-xs text-accent-cyan break-all">{genomeHash}</code>
+                  </div>
+                )}
+
+                <button
+                  onClick={signAndVerify}
+                  disabled={verifying || !blockInfo}
+                  className="rounded-lg bg-accent-purple/80 hover:bg-accent-purple px-6 py-3 text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {verifying ? (
+                    <>
+                      <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Waiting for wallet signature…
+                    </>
+                  ) : (
+                    '✍️ Sign & re-check'
+                  )}
+                </button>
+                {signError && <p className="text-xs text-red-400">{signError}</p>}
               </div>
             )}
           </section>
@@ -816,7 +870,7 @@ export default function VerifyPage() {
                 <p className="text-xs text-text-muted mb-3">Block #{blockInfo?.height.toLocaleString()} · Tier 1 — Gold</p>
                 <div className="inline-flex items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs text-green-400 mb-4">
                   <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-                  Profile Created — Saved to Blockchain Registry
+                  Profile saved on Block Genomics
                 </div>
                 <div className="flex justify-center gap-3 mt-2">
                   <Link
@@ -838,7 +892,7 @@ export default function VerifyPage() {
                     <button
                       onClick={() => {
                         setBlockInfo(null);
-                        setVerified(false);
+                        setVerified(false); setSessionCheck(null);
                         setGenomeHash('');
                         setProfileCreated(false);
                         setHandle('');

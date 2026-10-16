@@ -49,6 +49,11 @@ export async function POST(req: NextRequest) {
     // BIP-322 only proves wallet control — not bitmap ownership.
     let verifiedBlockHeight = null;
     let tier = 3; // default: no block ownership
+    // What the on-chain holder check did on THIS request, so the client can say
+    // it truthfully: 'live' = an indexer confirmed the holder just now,
+    // 'previous' = skipped because this wallet was already verified for this
+    // block, 'none' = no block claimed.
+    let holderCheck: 'live' | 'previous' | 'none' = 'none';
 
     // Check if user already exists (used for skip-on-chain and genome hash reuse)
     const existingUser = await prisma.user.findUnique({ where: { walletAddress } });
@@ -57,6 +62,7 @@ export async function POST(req: NextRequest) {
     if (blockHeight && existingUser?.verified && existingUser?.tier === 1 && existingUser?.anchorBlock === blockHeight && existingUser?.genomeHash) {
       verifiedBlockHeight = blockHeight;
       tier = 1;
+      holderCheck = 'previous';
     }
 
     if (blockHeight && tier !== 1) {
@@ -66,6 +72,7 @@ export async function POST(req: NextRequest) {
         if (ownerCheck.verified) {
           verifiedBlockHeight = blockHeight;
           tier = 1;
+          holderCheck = 'live';
         } else if (ownerCheck.unavailable) {
           // FAIL CLOSED: no live indexer could confirm the current holder. Surface
           // a retryable "temporarily unavailable" (503) instead of a hard 403, and
@@ -80,6 +87,7 @@ export async function POST(req: NextRequest) {
         if (scanResult.verified) {
           verifiedBlockHeight = blockHeight;
           tier = 1;
+          holderCheck = 'live';
         } else if (scanResult.unavailable) {
           // FAIL CLOSED, retryable: no indexer could list the wallet's holdings,
           // which is not the same answer as "this wallet holds nothing".
@@ -210,6 +218,7 @@ export async function POST(req: NextRequest) {
       genomeHash: user.genomeHash,
       tier: user.tier,
       anchorBlock: user.anchorBlock,
+      holderCheck,
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
