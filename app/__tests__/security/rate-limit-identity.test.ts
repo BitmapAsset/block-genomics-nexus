@@ -45,8 +45,16 @@ const SANDBOX = 'bg_sbx_33333333333333333333333333333333';
 const WALLET = 'bc1pwalletone000000000000000000000000000000000';
 const OTHER_WALLET = 'bc1pwallettwo000000000000000000000000000000000';
 
-/** Sessions the server actually issued, keyed by token hash, as the DB would hold them. */
-function issuedSessions(entries: Array<[string, string]>): IdentityOptions['lookupSession'] {
+/**
+ * Sessions the server actually issued, keyed by token hash, as the DB would hold
+ * them. A session earns its own wallet bucket only once it has PROVEN a block, so
+ * these carry one verified block; a read-scoped (`blocks: []`) session is covered
+ * separately in the Q-11/R3 block below.
+ */
+function issuedSessions(
+  entries: Array<[string, string]>,
+  verifiedBlocks: number[] = [840000],
+): IdentityOptions['lookupSession'] {
   const byHash = new Map<string, VerifiedSessionRecord>();
   for (const [token, walletAddress] of entries) {
     const tokenHash = hashSessionToken(token);
@@ -55,7 +63,7 @@ function issuedSessions(entries: Array<[string, string]>): IdentityOptions['look
       tokenHash,
       tokenPrefix: token.slice(0, 15),
       walletAddress,
-      verifiedBlocks: [],
+      verifiedBlocks,
       expiresAt: new Date(Date.now() + 60_000),
       revokedAt: null,
       createdAt: new Date(),
@@ -169,6 +177,36 @@ describe('Q-11: a credential-shaped header is not a bucket until it authenticate
       });
     }
     expect(new Set(keys)).toEqual(new Set(['v1-inscriptions-scan:ip:198.51.100.7']));
+  });
+
+  it('R3: a read-scoped session (blocks:[]) is charged to the IP, not a free wallet bucket', async () => {
+    const READ_SCOPED = 'bg_vfy_' + '7'.repeat(64);
+    const readScoped: IdentityOptions = {
+      lookupSession: issuedSessions([[READ_SCOPED, 'bc1preadscoped00000000000000000000000000000000']], []),
+    };
+    const id = await rateLimitIdentity(
+      req({ authorization: `Bearer ${READ_SCOPED}`, 'x-forwarded-for': '198.51.100.9' }),
+      readScoped,
+    );
+    expect(id).toBe('ip:198.51.100.9');
+  });
+
+  it('R3: many read-scoped sessions for different wallets from one IP share one bucket', async () => {
+    // session/verify mints a read-scoped session for ANY wallet with no chain
+    // check, so this is the sybil: distinct valid sessions must not become
+    // distinct buckets, or one IP amplifies past every per-identity limit.
+    const tokens = Array.from({ length: 6 }, (_, i) => `bg_vfy_${String(i).repeat(64).slice(0, 64)}`);
+    const readScoped: IdentityOptions = {
+      lookupSession: issuedSessions(
+        tokens.map((t, i) => [t, `bc1preadscoped${String(i).padEnd(32, '0')}`] as [string, string]),
+        [],
+      ),
+    };
+    const keys = new Set<string>();
+    for (const t of tokens) {
+      keys.add(await rateLimitIdentity(req({ authorization: `Bearer ${t}`, 'x-forwarded-for': '198.51.100.10' }), readScoped));
+    }
+    expect(keys).toEqual(new Set(['ip:198.51.100.10']));
   });
 
   it('charges an unknown sandbox key to the IP', async () => {
