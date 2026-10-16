@@ -146,6 +146,8 @@ Immutable answers are cached in the store, so each fact is fetched once per stor
 - block scans, keyed by hash;
 - decoded OCI pages.
 
+The default stores are process-wide and in memory, and they never evict. A long-lived process should pass its own `stores`. A decoded OCI page alone is about 100,000 numbers.
+
 Do not range-scan below 942,000 against ordinals.com. That is what the OCI is for.
 
 ## Tests
