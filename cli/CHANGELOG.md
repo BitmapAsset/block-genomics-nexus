@@ -5,7 +5,15 @@ All notable changes to the `block-genomics` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] — 2026-10-16
+
+First npm release since 0.3.0. It also carries the experience-hosting commands
+listed further down, which were dated 2026-07-15 in this file but never published.
+
+### Fixed
+- `bg verify` and `bg init` no longer call a block "unclaimed" when the CLI only
+  checked the Block Genomics registry: an unregistered block may still be held on
+  Bitcoin (#213).
 
 ### Added
 - `bg rentals <list|rent|price>` — the parcel rental (delegation) listings command.
@@ -40,13 +48,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   gets exactly one editable copy. `npm run build` and the test suite both fail
   if they drift.
 
-## [0.4.0] — 2026-07-15
+### Experience hosting (built 2026-07-15, first published in 0.4.0)
 
 Experience hosting — attach a self-hosted world (web / unreal / unity / godot /
 minecraft / vr / custom) to a block you own. Nexus registers, discovers, and
 probes health; it never hosts your world.
 
-### Added
+#### Added
 - `bg experience register [--manifest ./manifest.json] --address <bc1p>` — reads
   the manifest, fetches a single-use `experience-register` challenge, signs it
   (BIP-322), and registers the experience. Same fail-closed ownership path as

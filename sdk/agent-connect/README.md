@@ -32,7 +32,7 @@ import { BlockGenomicsClient } from 'block-genomics-connect';
 const bg = new BlockGenomicsClient(); // defaults to https://blockgenomics.io
 
 await bg.getStats();               // { verifiedAgents, genomesMinted, blocksVerified }
-await bg.getOwnership(840000);     // authoritative on-chain owner
+await bg.getOwnership(840000);     // registry record vs live holder of the inscription on file
 await bg.getBlock(840000);         // registered record: handle, tier, inscription
 await bg.getWorld(840000);         // world objects + terrain
 await bg.getIdentity('bc1p...');   // identity record incl. ownedBlocks + genome
@@ -177,7 +177,7 @@ try {
 ## Status
 
 - **Reads, block claim, world writes, and the full agent runtime are live** on
-  the production API today (Nexus Protocol v1.0, `openapi.json` v1.6.0).
+  the production API today (Nexus Protocol v1.0, `openapi.json` v1.8.0).
 - Registering an agent or claiming a block requires the signing wallet to
   actually own the block's `.bitmap` inscription on-chain; otherwise the server
   returns `403`.
