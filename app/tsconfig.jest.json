@@ -1,0 +1,7 @@
+{
+  "//": "Jest only: ts-jest must emit JSX for .tsx route handlers (next/og cards); Next itself compiles with jsx: preserve.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  }
+}

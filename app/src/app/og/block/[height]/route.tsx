@@ -310,10 +310,11 @@ export async function GET(
       headers: {
         // Mined blocks never change; let the CDN and X's image cache hold on to it.
         // Without real art (cold height, fetch timed out, or an estimate) keep it
-        // short so the CDN does not pin that card for a week.
+        // short so the CDN does not pin that card for a week. next.config.ts has no
+        // /og/ header entry on purpose: one there would override this value.
         'Cache-Control': art?.real
           ? 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800'
-          : 'public, max-age=60, s-maxage=60',
+          : 'public, max-age=60',
       },
     },
   );
