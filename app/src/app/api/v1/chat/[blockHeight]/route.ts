@@ -4,6 +4,7 @@ import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api
 import { emitAgentEvent } from '@/lib/agent-events';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
+import { authenticateSession, sessionCoversBlock, sessionTokenFromHeaders } from '@/lib/verified-sessions';
 
 export async function GET(
   req: NextRequest,
@@ -30,6 +31,21 @@ export async function GET(
     // Global chat has no block filter
     if (channel === 'global') delete where.blockHeight;
     if (after) where.createdAt = { gt: new Date(after) };
+
+    // A block's DM channel is its owner's private inbox. The owner (proved by a
+    // verified session that covers this block and matches the recorded owner)
+    // reads all of it; any other verified wallet reads only what it sent.
+    const isDm = where.channel === 'dm';
+    if (isDm) {
+      const auth = await authenticateSession(sessionTokenFromHeaders(req.headers));
+      if (!auth.ok || !auth.session) {
+        return error(auth.reason ?? 'A verified session is required to read direct messages', auth.status);
+      }
+      const me = auth.session.walletAddress;
+      const block = await prisma.block.findUnique({ where: { height: h }, select: { ownerAddress: true } });
+      const isInboxOwner = block?.ownerAddress === me && sessionCoversBlock(auth.session, h);
+      if (!isInboxOwner) where.senderAddress = me;
+    }
 
     const messages = await prisma.chatMessage.findMany({
       where,
@@ -75,7 +91,7 @@ export async function GET(
       };
     });
 
-    return success(data);
+    return success(data, 200, isDm ? { 'Cache-Control': 'no-store' } : undefined);
   } catch (e: unknown) {
     return error(e instanceof Error ? e.message : 'Unknown error', 500);
   }
