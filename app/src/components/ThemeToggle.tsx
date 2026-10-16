@@ -10,7 +10,7 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="relative p-2 rounded-lg border border-border hover:border-border-hover hover:bg-bg-tertiary/30 transition-all cursor-pointer"
+      className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-border hover:border-border-hover hover:bg-bg-tertiary/30 transition-all cursor-pointer"
       aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
       title={`Switch to ${isDark ? "light" : "dark"} mode`}
     >

@@ -76,7 +76,7 @@ export default function NotificationBell() {
       {/* Bell Button */}
       <button
         onClick={() => setOpen(!open)}
-        className="relative p-2 rounded-lg border border-border hover:border-border-hover hover:bg-bg-tertiary/30 transition-all cursor-pointer"
+        className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-border hover:border-border-hover hover:bg-bg-tertiary/30 transition-all cursor-pointer"
         aria-label="Notifications"
       >
         <svg className="w-4.5 h-4.5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">

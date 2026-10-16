@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { parseBlockQuery } from "@/lib/site-nav";
 
 interface SearchResult {
   type: "block" | "agent" | "user";
@@ -52,7 +53,8 @@ const TRENDING_BLOCKS = [
   { height: 767430, label: "Ordinals Begin" },
 ];
 
-export default function GlobalSearch() {
+/** `page`: the large search on Explore. `header`: the compact one in the bar and menu. */
+export default function GlobalSearch({ size = "header" }: { size?: "header" | "page" } = {}) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResponse["data"] | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -173,16 +175,15 @@ export default function GlobalSearch() {
       setSelectedIdx((i) => Math.max(i - 1, -1));
     } else if (e.key === "Enter") {
       e.preventDefault();
+      // A block number in any common spelling ("840000", "840,000",
+      // "#840000", "840000.bitmap", genesis "0") goes straight to its page.
+      const height = parseBlockQuery(query);
       if (selectedIdx >= 0 && allResults[selectedIdx]) {
         navigate(allResults[selectedIdx].url);
+      } else if (height !== null) {
+        navigate(`/block/${height}`);
       } else if (allResults.length > 0) {
         navigate(allResults[0].url);
-      } else {
-        // If pure number, go to block page directly
-        const num = Number(query);
-        if (!isNaN(num) && num > 0) {
-          navigate(`/block/${Math.floor(num)}`);
-        }
       }
     }
   };
@@ -228,19 +229,21 @@ export default function GlobalSearch() {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={handleFocus}
           onKeyDown={handleKeyDown}
-          placeholder="Search blocks, agents, wallets, genomes..."
-          className="w-[180px] sm:w-[260px] lg:w-[320px] xl:w-[220px] pl-9 pr-12 py-1.5 text-sm rounded-lg border border-border bg-bg-secondary/60 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[#00ffcc]/50 focus:ring-1 focus:ring-[#00ffcc]/20 transition-all"
+          placeholder="Block or @handle"
+          aria-label="Search blocks and handles"
+          className={`${size === "page" ? "w-full min-h-[56px] text-base" : "w-full lg:w-[180px] xl:w-[240px] min-h-[44px] text-sm"} pl-9 pr-12 rounded-full border border-border bg-bg-secondary/60 text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-[#00ffcc]/50 focus:ring-1 focus:ring-[#00ffcc]/20 transition-all`}
         />
         {/* Shortcut hint */}
         {!query && (
-          <kbd className="absolute right-2 hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono text-text-muted border border-border rounded bg-bg-tertiary/50">
+          <kbd className="absolute right-3 hidden lg:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono text-text-secondary border border-border rounded bg-bg-tertiary/50">
             ⌘K
           </kbd>
         )}
         {query && (
           <button
             onClick={() => { setQuery(""); setResults(null); setIsOpen(false); }}
-            className="absolute right-2 text-text-muted hover:text-text-primary text-sm cursor-pointer"
+            aria-label="Clear search"
+            className="absolute right-0 inline-flex h-11 w-11 items-center justify-center text-text-secondary hover:text-text-primary text-sm cursor-pointer"
           >
             ✕
           </button>

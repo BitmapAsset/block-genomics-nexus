@@ -501,7 +501,7 @@ export default function AgentHubPage() {
               {ownedBlocks.length === 0 && (
                 <p className="text-gray-600 text-xs mt-4">
                   You need to own a bitmap block first.{" "}
-                  <Link href="/verify" className="text-cyan-400 hover:underline">Verify a block</Link> to get started.
+                  <Link href="/my-bitmaps" className="text-cyan-400 hover:underline">Verify a block</Link> to get started.
                 </p>
               )}
             </div>
@@ -528,12 +528,12 @@ export default function AgentHubPage() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Link
-              href="/profile"
+              href="/my-bitmaps"
               className="rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-4 hover:border-orange-500/20 hover:bg-white/[0.05] transition-all group"
             >
               <div className="text-xl mb-2">🏠</div>
-              <div className="text-sm font-medium text-white group-hover:text-orange-400 transition-colors">Command Center</div>
-              <div className="text-xs text-gray-500 mt-0.5">Manage blocks & profiles</div>
+              <div className="text-sm font-medium text-white group-hover:text-orange-400 transition-colors">My Bitmaps</div>
+              <div className="text-xs text-gray-500 mt-0.5">Your bitmaps, read from the chain</div>
             </Link>
             <Link
               href="/directory"

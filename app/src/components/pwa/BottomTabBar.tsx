@@ -2,13 +2,27 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { isActivePath } from "@/lib/site-nav";
 
+const stroke = (active: boolean) => ({
+  width: 22,
+  height: 22,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: active ? 2.4 : 1.8,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+  "aria-hidden": true,
+});
+
+/** Phone navigation: the same destinations as the header, minus Developers (in the menu). */
 const tabs = [
   {
     href: "/",
     label: "Home",
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+    icon: (a: boolean) => (
+      <svg {...stroke(a)}>
         <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
         <polyline points="9 22 9 12 15 12 15 22" />
       </svg>
@@ -17,28 +31,40 @@ const tabs = [
   {
     href: "/explore",
     label: "Explore",
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+    icon: (a: boolean) => (
+      <svg {...stroke(a)}>
         <circle cx="11" cy="11" r="8" />
         <path d="M21 21l-4.35-4.35" />
       </svg>
     ),
   },
   {
-    href: "/nexus",
-    label: "Nexus",
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    href: "/my-bitmaps",
+    label: "My Bitmaps",
+    icon: (a: boolean) => (
+      <svg {...stroke(a)}>
+        <rect x="3" y="3" width="8" height="8" rx="1.5" />
+        <rect x="13" y="3" width="8" height="8" rx="1.5" />
+        <rect x="3" y="13" width="8" height="8" rx="1.5" />
+        <rect x="13" y="13" width="8" height="8" rx="1.5" />
       </svg>
     ),
-    glow: true,
   },
   {
-    href: "/profile",
-    label: "Profile",
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+    href: "/nexus",
+    label: "World",
+    icon: (a: boolean) => (
+      <svg {...stroke(a)}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
+      </svg>
+    ),
+  },
+  {
+    href: "/account",
+    label: "Account",
+    icon: (a: boolean) => (
+      <svg {...stroke(a)}>
         <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
         <circle cx="12" cy="7" r="4" />
       </svg>
@@ -49,41 +75,27 @@ const tabs = [
 export default function BottomTabBar() {
   const pathname = usePathname();
 
-  const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
-    return pathname.startsWith(href);
-  };
-
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-bg-primary/90 backdrop-blur-xl md:hidden"
+      aria-label="Primary"
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/[0.08] bg-bg-primary/90 backdrop-blur-xl md:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      <div className="flex items-center justify-around px-2 py-1">
+      <div className="flex items-stretch">
         {tabs.map((tab) => {
-          const active = isActive(tab.href);
+          const active = tab.href === "/" ? pathname === "/" : isActivePath(pathname, tab.href);
           return (
             <Link
               key={tab.href}
               href={tab.href}
-              className={`relative flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium transition-colors ${
-                active
-                  ? tab.glow
-                    ? "text-accent-cyan"
-                    : "text-bitcoin"
-                  : "text-text-muted"
+              aria-current={active ? "page" : undefined}
+              className={`relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
+                active ? "text-bitcoin" : "text-text-secondary"
               }`}
             >
-              {/* Active indicator dot */}
-              {active && (
-                <span className="absolute -top-1 left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-full bg-current" />
-              )}
+              {active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-current" aria-hidden="true" />}
               {tab.icon(active)}
-              <span>{tab.label}</span>
-              {/* Nexus glow effect */}
-              {tab.glow && active && (
-                <span className="absolute inset-0 -z-10 rounded-lg bg-accent-cyan/5" />
-              )}
+              <span className="whitespace-nowrap">{tab.label}</span>
             </Link>
           );
         })}

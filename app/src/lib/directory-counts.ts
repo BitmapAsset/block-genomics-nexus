@@ -3,9 +3,9 @@ import prisma from '@/lib/prisma';
 /**
  * Single source of truth for the public "verified agents" tally.
  *
- * A verified agent is any verified User OR any verified BlockProfile. Demo/mock
- * agents live only in the frontend directory (MOCK_AGENTS) and are never
- * persisted, so they can never enter these counts. Both /api/v1/stats and
+ * A verified agent is any verified User OR any verified BlockProfile. (The
+ * directory's generated "Demo Examples" were removed in bg57; they were never
+ * persisted and never counted here.) Both /api/v1/stats and
  * /api/v1/users/list derive their totals from here so the homepage headline and
  * the directory list cannot drift apart.
  */

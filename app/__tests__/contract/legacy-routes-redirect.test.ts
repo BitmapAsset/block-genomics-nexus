@@ -30,6 +30,21 @@ function pageExists(dest: string): boolean {
 
 const EXPECTED: Array<[string, string]> = [
   ['/nexus/parcel/:height', '/world/:height'],
+  // The three owner dashboards merged into My Bitmaps.
+  ['/portfolio', '/my-bitmaps'],
+  ['/profile', '/my-bitmaps'],
+  ['/verify', '/my-bitmaps'],
+  // Duplicate block browsers merged into Explore.
+  ['/explorer', '/explore'],
+  ['/leaderboard', '/explore'],
+  // Guessed paths from the audit's 404 list.
+  ['/world', '/nexus'],
+  ['/agents', '/directory'],
+  ['/guardians', '/my-bitmaps'],
+  ['/badges', '/account'],
+  ['/sdk', '/docs'],
+  ['/docs/sdk', '/docs'],
+  ['/whitepaper.html', '/whitepaper'],
 ];
 
 describe('legacy routes redirect', () => {
@@ -57,6 +72,19 @@ describe('legacy routes redirect', () => {
       .map((r) => r.source);
 
     expect(shadowed).toEqual([]);
+  });
+
+  it('removed the pages it redirects away from', () => {
+    for (const dir of ['portfolio', 'profile', 'verify', 'explorer', 'leaderboard']) {
+      expect(fs.existsSync(path.join(appDir, dir))).toBe(false);
+    }
+  });
+
+  it('keeps the redirect sources out of the sitemap', () => {
+    const source = fs.readFileSync(path.join(appDir, 'sitemap.ts'), 'utf8');
+    for (const p of ['/verify', '/leaderboard', '/portfolio', '/explorer', '/profile']) {
+      expect(source).not.toContain(`path: '${p}'`);
+    }
   });
 
   it('serves the world from /world/[height] and no longer from /nexus/parcel', () => {

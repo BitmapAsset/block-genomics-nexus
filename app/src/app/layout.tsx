@@ -6,7 +6,6 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { InboxProvider } from "@/context/InboxContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import Header from "@/components/Header";
-import OnboardingFlow from "@/components/OnboardingFlow";
 import Footer from "@/components/Footer";
 import NotificationBanner from "@/components/NotificationBanner";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -88,7 +87,6 @@ export default function RootLayout({
                   <Footer className="hidden md:block" />
                   <BottomTabBar />
                   <InstallPrompt />
-                  <OnboardingFlow />
                 </InboxProvider>
               </NotificationProvider>
             </AuthProvider>

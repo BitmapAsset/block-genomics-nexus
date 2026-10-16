@@ -19,56 +19,8 @@ interface VerifiedAgent {
   description: string;
   capabilities: string[];
   tags: string[];
-  isMock?: boolean;
 }
 
-/* ── Mock Data — replace with API ── */
-function generateMockAgents(): VerifiedAgent[] {
-  const names = [
-    { handle: 'satoshi_prime', displayName: 'Satoshi Prime', desc: 'Bitcoin protocol analysis & block forensics', caps: ['Protocol Analysis', 'Block Forensics', 'Transaction Tracing'], tags: ['bitcoin', 'protocol', 'forensics', 'analysis', 'security'] },
-    { handle: 'block_oracle', displayName: 'Block Oracle', desc: 'Real-time Bitcoin market intelligence agent', caps: ['Market Analysis', 'Price Prediction', 'Whale Tracking'], tags: ['market', 'trading', 'whale', 'analytics', 'finance'] },
-    { handle: 'nexus_builder', displayName: 'Nexus Builder', desc: 'Smart contract & Bitmap development agent', caps: ['Smart Contracts', 'Bitmap Dev', 'Inscription Tools'], tags: ['development', 'bitmap', 'building', 'tools', 'metaverse'] },
-    { handle: 'cipher_guard', displayName: 'Cipher Guard', desc: 'Security auditing & vulnerability detection', caps: ['Security Audit', 'Pen Testing', 'Threat Detection'], tags: ['security', 'audit', 'protection', 'enterprise', 'cybersecurity'] },
-    { handle: 'meme_weaver', displayName: 'Meme Weaver', desc: 'Cultural analysis & memetic content creation', caps: ['Content Creation', 'Trend Analysis', 'Cultural Intel'], tags: ['memes', 'culture', 'content', 'social', 'entertainment', 'gaming'] },
-    { handle: 'chain_sage', displayName: 'Chain Sage', desc: 'On-chain data analytics & research', caps: ['Data Analytics', 'Research', 'UTXO Analysis'], tags: ['research', 'data', 'analytics', 'UTXO', 'intelligence'] },
-    { handle: 'lightning_fox', displayName: 'Lightning Fox', desc: 'Lightning Network routing & payment optimization', caps: ['Lightning Routing', 'Payment Channels', 'Liquidity'], tags: ['lightning', 'payments', 'speed', 'commerce', 'shopping'] },
-    { handle: 'hash_prophet', displayName: 'Hash Prophet', desc: 'Mining operations & hashrate forecasting', caps: ['Mining Ops', 'Hashrate Analysis', 'Energy Optimization'], tags: ['mining', 'energy', 'hashrate', 'operations', 'sustainability'] },
-    { handle: 'genome_x', displayName: 'Genome X', desc: 'AI identity verification specialist', caps: ['ID Verification', 'Genome Analysis', 'Trust Scoring'], tags: ['identity', 'verification', 'trust', 'AI', 'genomics'] },
-    { handle: 'bitmap_architect', displayName: 'Bitmap Architect', desc: 'Virtual world design & block landscaping', caps: ['3D Design', 'World Building', 'Parcel Architecture'], tags: ['design', 'architecture', '3D', 'gaming', 'virtual world', 'movies'] },
-    { handle: 'ordinal_scout', displayName: 'Ordinal Scout', desc: 'Inscription discovery & rarity analysis', caps: ['Inscription Analysis', 'Rarity Scoring', 'Collection Curation'], tags: ['ordinals', 'NFT', 'art', 'collectibles', 'rarity', 'gallery'] },
-    { handle: 'node_runner', displayName: 'Node Runner', desc: 'Full node operations & network monitoring', caps: ['Node Management', 'Network Health', 'Peer Analysis'], tags: ['nodes', 'network', 'infrastructure', 'decentralization', 'monitoring'] },
-    { handle: 'deep_block', displayName: 'Deep Block', desc: 'Deep learning models trained on Bitcoin data', caps: ['Machine Learning', 'Pattern Recognition', 'Anomaly Detection'], tags: ['AI', 'machine learning', 'prediction', 'science', 'technology'] },
-    { handle: 'pixel_miner', displayName: 'Pixel Miner', desc: 'Digital art creation & NFT inscription', caps: ['Digital Art', 'Inscription Minting', 'Creative AI'], tags: ['art', 'creative', 'NFT', 'design', 'gallery', 'movies'] },
-    { handle: 'fee_optimizer', displayName: 'Fee Optimizer', desc: 'Transaction fee estimation & mempool analysis', caps: ['Fee Estimation', 'Mempool Analysis', 'Batch Optimization'], tags: ['fees', 'optimization', 'savings', 'transactions', 'efficiency', 'shopping'] },
-    { handle: 'whale_watcher', displayName: 'Whale Watcher', desc: 'Large holder tracking & movement alerts', caps: ['Whale Tracking', 'Alert Systems', 'Flow Analysis'], tags: ['whales', 'alerts', 'tracking', 'market', 'signals'] },
-    { handle: 'proof_smith', displayName: 'Proof Smith', desc: 'Cryptographic proof generation & verification', caps: ['ZK Proofs', 'BIP-322 Signing', 'Multisig'], tags: ['cryptography', 'proofs', 'privacy', 'security', 'advanced'] },
-    { handle: 'block_historian', displayName: 'Block Historian', desc: 'Bitcoin history researcher & archive keeper', caps: ['Historical Analysis', 'Block Archives', 'Timeline Research'], tags: ['history', 'research', 'education', 'archives', 'knowledge'] },
-    { handle: 'quantum_shield', displayName: 'Quantum Shield', desc: 'Post-quantum cryptography research agent', caps: ['Quantum Research', 'Crypto Upgrades', 'Security Futures'], tags: ['quantum', 'future', 'research', 'science', 'technology'] },
-    { handle: 'rune_caster', displayName: 'Rune Caster', desc: 'Runes protocol specialist & token analytics', caps: ['Runes Protocol', 'Token Analysis', 'Etching Tools'], tags: ['runes', 'tokens', 'DeFi', 'trading', 'protocol'] },
-  ];
-
-  return names.map((n, i) => {
-    const tier: ShieldTier = i < 5 ? 1 : i < 12 ? 2 : 3;
-    const blockHeight = Math.floor(Math.random() * 800000) + 100000;
-    return {
-      id: `agent-${i}`,
-      handle: n.handle,
-      displayName: n.displayName,
-      tier,
-      blockHeight,
-      parcelIndex: tier >= 2 ? Math.floor(Math.random() * 200) : null,
-      genomeHash: '0x' + Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
-      verifiedAt: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      online: Math.random() > 0.35,
-      description: n.desc,
-      capabilities: n.caps,
-      tags: n.tags,
-      isMock: true,
-    };
-  });
-}
-
-const MOCK_AGENTS = generateMockAgents();
 
 /* ── Filter Tabs ── */
 type FilterTier = 'all' | 1 | 2 | 3;
@@ -121,7 +73,6 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-text-primary truncate group-hover:text-accent-cyan transition-colors flex items-center gap-1.5">
               {agent.displayName}
-              {agent.isMock && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-text-muted flex-shrink-0">🤖 Demo</span>}
             </h3>
             <p className="text-xs text-text-muted">@{agent.handle}</p>
           </div>
@@ -205,7 +156,6 @@ export default function DirectoryPage() {
           description: u.bio || 'Verified Block Genomics member',
           capabilities: [],
           tags: ['verified', 'bitcoin', 'bitmap'],
-          isMock: false,
         })));
       } catch (err) {
         setFetchError(err instanceof Error ? err.message : 'Failed to load agents');
@@ -218,7 +168,9 @@ export default function DirectoryPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchUsers(); }, []);
 
-  const allAgents = useMemo(() => [...realUsers, ...MOCK_AGENTS], [realUsers]);
+  // Real verified agents only. The 20 generated "Demo Examples" linked to
+  // agent pages that 404 (audit P1-6) and are gone.
+  const allAgents = realUsers;
 
   const filtered = useMemo(() => {
     let agents = [...allAgents];
@@ -278,8 +230,7 @@ export default function DirectoryPage() {
               Browse all verified AI agents in the Block Genomics ecosystem.
               Every agent is backed by Bitcoin block ownership — verified on-chain, trusted by design.
             </p>
-            {/* Stats bar — headline counts reflect real on-chain verified agents only;
-                demo examples are counted separately so nothing is inflated. */}
+            {/* Stats bar — real verified agents only. */}
             <div className="flex items-center justify-center gap-6 mt-6 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold text-accent-cyan">{realUsers.length}</span>
@@ -292,15 +243,6 @@ export default function DirectoryPage() {
                 </span>
                 <span className="text-text-muted">Online Now</span>
               </div>
-              {MOCK_AGENTS.length > 0 && (
-                <>
-                  <div className="w-px h-6 bg-border" />
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl font-bold text-text-muted">{MOCK_AGENTS.length}</span>
-                    <span className="text-text-muted">Demo Examples</span>
-                  </div>
-                </>
-              )}
             </div>
           </div>
         </div>

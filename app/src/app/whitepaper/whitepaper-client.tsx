@@ -329,7 +329,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
             </div>
             <div className="flex flex-wrap justify-center gap-4 mt-8">
               <Link href="/explore" className="inline-flex items-center gap-2 rounded-lg bg-accent-cyan/15 border border-accent-cyan/40 px-6 py-3 text-sm font-medium text-accent-cyan hover:bg-accent-cyan/25 transition-all">🔍 Explore Agents</Link>
-              <Link href="/verify" className="inline-flex items-center gap-2 rounded-lg bg-accent-purple/15 border border-accent-purple/40 px-6 py-3 text-sm font-medium text-accent-purple hover:bg-accent-purple/25 transition-all">⚡ Verify Identity</Link>
+              <Link href="/my-bitmaps" className="inline-flex items-center gap-2 rounded-lg bg-accent-purple/15 border border-accent-purple/40 px-6 py-3 text-sm font-medium text-accent-purple hover:bg-accent-purple/25 transition-all">⚡ Verify Identity</Link>
             </div>
           </>
         ) : (

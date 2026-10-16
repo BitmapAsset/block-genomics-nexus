@@ -57,12 +57,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { path: '/', priority: 1.0, changeFrequency: 'daily' },
     { path: '/protocol', priority: 0.9, changeFrequency: 'monthly' },
     { path: '/docs', priority: 0.9, changeFrequency: 'weekly' },
+    { path: '/explore', priority: 0.8, changeFrequency: 'daily' },
+    { path: '/my-bitmaps', priority: 0.8, changeFrequency: 'weekly' },
     { path: '/nexus', priority: 0.8, changeFrequency: 'daily' },
     { path: '/directory', priority: 0.7, changeFrequency: 'daily' },
     { path: '/rentals', priority: 0.6, changeFrequency: 'daily' },
-    { path: '/verify', priority: 0.6, changeFrequency: 'weekly' },
     { path: '/whitepaper', priority: 0.6, changeFrequency: 'monthly' },
-    { path: '/leaderboard', priority: 0.5, changeFrequency: 'daily' },
     { path: '/history', priority: 0.4, changeFrequency: 'weekly' },
   ];
 
