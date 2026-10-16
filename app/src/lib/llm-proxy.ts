@@ -6,6 +6,7 @@
  */
 
 import prisma from '@/lib/prisma';
+import { assertSafeOutboundUrl } from '@/lib/ssrf-fetch';
 
 const MAX_CALLS_PER_HOUR = 60;
 const TIMEOUT_MS = 30000;
@@ -59,10 +60,28 @@ async function fetchWithTimeout(url: string, options: RequestInit): Promise<Resp
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    // redirect: 'error' so a 3xx on a custom endpoint cannot bounce the request
+    // (carrying the owner's bearer key) toward the internal network. Real LLM
+    // completion endpoints answer 2xx to a POST and never redirect.
+    return await fetch(url, { redirect: 'error', ...options, signal: controller.signal });
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/**
+ * Resolve the endpoint to call: a built-in provider constant is trusted as-is,
+ * but an owner-supplied `config.endpoint` is an SSRF vector (bg48 Q-15) and must
+ * pass the https-only + public-DNS guard before any request is made. Throws a
+ * non-leaky error on refusal; `callLLM` maps it to a user-facing message.
+ */
+async function resolveEndpoint(custom: string | undefined, fallback: string): Promise<string> {
+  if (!custom) return fallback;
+  const guard = await assertSafeOutboundUrl(custom);
+  if (!guard.ok || !guard.url) {
+    throw new Error(`custom endpoint rejected: ${guard.reason ?? 'failed SSRF pre-flight'}`);
+  }
+  return guard.url;
 }
 
 /**
@@ -99,7 +118,7 @@ async function callOpenAICompatible(config: LLMConfig): Promise<string> {
     xai: 'https://api.x.ai/v1/chat/completions',
   };
 
-  const url = config.endpoint || endpoints[config.provider] || endpoints.openai;
+  const url = await resolveEndpoint(config.endpoint, endpoints[config.provider] || endpoints.openai);
 
   const res = await fetchWithTimeout(url, {
     method: 'POST',
@@ -128,7 +147,7 @@ async function callOpenAICompatible(config: LLMConfig): Promise<string> {
 }
 
 async function callAnthropic(config: LLMConfig): Promise<string> {
-  const url = config.endpoint || 'https://api.anthropic.com/v1/messages';
+  const url = await resolveEndpoint(config.endpoint, 'https://api.anthropic.com/v1/messages');
 
   const res = await fetchWithTimeout(url, {
     method: 'POST',
