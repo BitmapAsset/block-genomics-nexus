@@ -189,15 +189,60 @@ describe('verifyProof on walk bundles (review #4)', () => {
     expect(v.diffs.join('\n')).toMatch(/but the bundle says none/);
   });
 
-  it('a "not mined yet" none verifies while true, and is flagged once the block exists', async () => {
+  it('a "not mined yet" none verifies while true; once mined, a claim in the new block makes it out of date', async () => {
     const r = await run(chain, N + 100);
     expect(r.verdict).toBe('none');
     expect(r.proof.firstness.walked).toEqual([]);
     expect(await verify(r.proof)).toEqual({ ok: true, diffs: [], holderDiffs: [], notes: [] });
-    const later = { ...chain.http, [`${ORD}/r/blockheight`]: { status: 200, body: String(N + 100) } };
-    const v = await verifyProof(r.proof, { limiter: fastLimiter(replayFetch(later)), stores: memoryStores() });
+    const claim = revealTx({ body: `${N + 100}.bitmap` });
+    const ahead = fakeChain(N + 100, N + 100, { [N + 100]: [claim] });
+    const v = await verifyProof(r.proof, { limiter: fastLimiter(replayFetch({ ...chain.http, ...ahead.http })), stores: memoryStores() });
     expect(v.ok).toBe(false);
-    expect(v.diffs.join('\n')).toMatch(/is mined now/);
+    expect(v.diffs.join('\n')).toMatch(/out of date/);
+    const empty = fakeChain(N + 100, N + 100, {});
+    expect(await verifyProof(r.proof, { limiter: fastLimiter(replayFetch({ ...chain.http, ...empty.http })), stores: memoryStores() })).toEqual({
+      ok: true,
+      diffs: [],
+      holderDiffs: [],
+      notes: [],
+    });
+  });
+
+  it('a none over walked blocks is out of date once a later block holds the deed (re-review #4a)', async () => {
+    const M = 957000;
+    const early = fakeChain(M, M + 1, {});
+    const r = await run(early, M, { walkCap: 5 });
+    expect(r.verdict).toBe('none');
+    expect(r.proof.checkedAtHeight).toBe(M + 1);
+    // The deed lands in M+2, after the bundle was made.
+    const deed = revealTx({ body: `${M}.bitmap` });
+    const grown = fakeChain(M, M + 2, { [M + 2]: [deed] });
+    // The grown chain stands in for the same chain later: point the bundle's walked hashes at it.
+    const bundle = reseal({ ...r.proof, firstness: { ...r.proof.firstness, walked: [M, M + 1].map((h) => ({ height: h, hash: grown.hashes[h] })) } });
+    const v = await verifyProof(bundle, { limiter: fastLimiter(replayFetch(grown.http)), stores: memoryStores() });
+    expect(v.ok).toBe(false);
+    expect(v.diffs.join('\n')).toMatch(new RegExp(`valid claim ${txidOf(deed)}i0 in block ${M + 2}.*out of date`));
+  });
+
+  it('a none says how many newer blocks it did not re-scan', async () => {
+    const M = 958000;
+    const r = await run(fakeChain(M, M, {}), M, { walkCap: 5 });
+    const grown = fakeChain(M, M + 6, {});
+    const bundle = reseal({ ...r.proof, firstness: { ...r.proof.firstness, walked: [{ height: M, hash: grown.hashes[M] }] } });
+    const v = await verifyProof(bundle, { limiter: fastLimiter(replayFetch(grown.http)), stores: memoryStores() });
+    expect(v.ok).toBe(true);
+    expect(v.notes).toEqual([`3 block(s) mined after checkedAtHeight ${M} not re-scanned; re-resolve for a current answer`]);
+  });
+
+  it('rejects bundle shapes the resolver never produces, and says what it did not re-check', async () => {
+    const r = await run(chain, N);
+    const low = reseal({ ...r.proof, height: 900000 });
+    expect((await verify(low)).diffs.join('\n')).toMatch(/only walks from 942000/);
+    const ociNone = reseal({ ...r.proof, verdict: 'none', canonical: null, holder: null, firstness: { method: 'oci', walked: [] } });
+    expect((await verify(ociNone)).diffs.join('\n')).toMatch(/not authoritative about absence/);
+    const disputed = reseal({ ...r.proof, verdict: 'disputed', canonical: null, holder: null });
+    const v = await verify(disputed);
+    expect(v.notes).toEqual(['a disputed bundle is checked for its hash and walked block hashes only']);
   });
 
   it('a long walk re-scans the first and last block and says so', async () => {
@@ -213,6 +258,18 @@ describe('verifyProof on walk bundles (review #4)', () => {
 });
 
 describe('walk: unbound first claim (review #9)', () => {
+  it('a null sat alone is not unbound (ord without a sat index reports null for everything)', async () => {
+    const N = 953500;
+    const claim = revealTx({ body: `${N}.bitmap` });
+    const chain = fakeChain(N, N + 1, { [N]: [claim] });
+    const url = `${ORD}/r/inscription/${txidOf(claim)}i0`;
+    const ins = JSON.parse(chain.http[url].body as string);
+    chain.http[url] = { status: 200, body: JSON.stringify({ ...ins, sat: null }) };
+    const r = await run(chain, N);
+    expect(r.verdict).toBe('canonical');
+    expect(r.sat).toBeNull();
+  });
+
   it('an inscription ord calls unbound (zero-value input: no sat) makes the verdict undetermined', async () => {
     const N = 953000;
     const claim = revealTx({ body: `${N}.bitmap` });

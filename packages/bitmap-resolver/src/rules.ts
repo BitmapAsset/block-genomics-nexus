@@ -45,7 +45,7 @@ export type IgnoreReason =
  * - `empty_content_encoding_tag`: tag 9 whose value decodes to '' (empty, or
  *   a lone UTF-8 BOM). LiveOCI's comment says "present at all, invalid"; its
  *   code tests the decoded value, and an empty string passes.
- * - `unbound` also covers ord's zero-value-input case (charm `unbound`, no sat),
+ * - `unbound` also covers ord's zero-value-input case (ord's `unbound` charm),
  *   which the resolver adds from ord's facts.
  * - `unbound`: an unrecognized even tag makes ord leave the inscription unbound
  *   (no sat, no holder). Whether a later claim then wins is an open canon

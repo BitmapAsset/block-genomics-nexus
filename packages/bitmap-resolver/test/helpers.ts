@@ -168,5 +168,18 @@ export function block(txs: Uint8Array[], prevHash = '00'.repeat(32), time = 1_70
 
 export const hexJson = (bytes: Uint8Array) => JSON.stringify(toHex(bytes));
 
+/** The same transaction without marker, flag and witness (what a stripping relay would serve). */
+export function stripWitness(tx: Uint8Array): Uint8Array {
+  const parsed = parseTx(tx);
+  if (!parsed.segwit) return tx;
+  const size = (n: number) => (n < 0xfd ? 1 : n <= 0xffff ? 3 : 5);
+  let witnessBytes = 0;
+  for (const input of parsed.inputs) {
+    witnessBytes += size(input.witness.length);
+    for (const item of input.witness) witnessBytes += size(item.length) + item.length;
+  }
+  return cat(tx.subarray(0, 4), tx.subarray(6, tx.length - 4 - witnessBytes), tx.subarray(tx.length - 4));
+}
+
 /** Esplora's `vin` array (witness only) for a raw tx, as /tx/<txid> reports it. */
 export const esploraVin = (tx: Uint8Array) => parseTx(tx).inputs.map((i) => ({ witness: i.witness.map((w) => toHex(w)) }));

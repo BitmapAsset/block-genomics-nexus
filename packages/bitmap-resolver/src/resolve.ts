@@ -238,10 +238,11 @@ async function walkFacts(ctx: Context, c: ScanCandidate, block: number, tip: num
 
 /**
  * ord also leaves an inscription unbound when its input carried no value; the
- * envelope cannot show that, ord's charm (or a missing sat) does.
+ * envelope cannot show that, ord's `unbound` charm does. (A null sat is not a
+ * signal: an ord without --index-sats reports null for every inscription.)
  */
 function withUnbound(caveats: Caveat[], f: RevealFacts): Caveat[] {
-  const unbound = f.charms.includes('unbound') || f.sat === null;
+  const unbound = f.charms.includes('unbound');
   return unbound && !caveats.includes('unbound') ? [...caveats, 'unbound'] : caveats;
 }
 

@@ -49,8 +49,9 @@ export interface ParsedBlock {
   computedMerkleRoot: string;
   merkleOk: boolean;
   /**
-   * BIP141: the coinbase's witness commitment matches the wtxid merkle root.
-   * True for a block without witness data (nothing to commit to).
+   * BIP141: a coinbase witness commitment, when present, matches the wtxid
+   * merkle root (so witness data cannot be swapped or stripped); without one,
+   * no transaction carries witness data.
    */
   witnessOk: boolean;
   size: number;
@@ -190,21 +191,26 @@ function hexToBytesReversed(hex: string): Uint8Array {
 const COMMITMENT_PREFIX = [0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
 /**
- * BIP141 witness commitment. Required once any transaction carries witness
- * data: the highest-index coinbase output starting 6a24aa21a9ed holds
- * sha256d(wtxid merkle root || witness reserved value), where the coinbase's
- * wtxid counts as 32 zero bytes and the reserved value is the coinbase input's
- * single 32-byte witness item.
+ * BIP141 witness commitment, Core's CheckWitnessMalleation rule. The
+ * commitment is the highest-index coinbase output starting 6a24aa21a9ed; it
+ * sits in the coinbase's non-witness data, so the txid merkle root already
+ * authenticates it.
+ * - If there is one, it must equal sha256d(wtxid merkle root || witness
+ *   reserved value), the coinbase's wtxid counting as 32 zero bytes and the
+ *   reserved value being the coinbase input's single 32-byte witness item.
+ *   A block served with its witnesses stripped fails here: the stripped
+ *   coinbase has no reserved value.
+ * - If there is none, no transaction may carry witness data.
  */
 export function witnessCommitmentOk(txs: ParsedTx[]): boolean {
-  if (!txs.some((t) => t.segwit)) return true;
   const coinbase = txs[0];
   let commitment: Uint8Array | null = null;
   for (const script of coinbase.outputScripts) {
     if (script.length >= 38 && COMMITMENT_PREFIX.every((b, i) => script[i] === b)) commitment = script.subarray(6, 38);
   }
+  if (!commitment) return !txs.some((t) => t.segwit);
   const reserved = coinbase.inputs[0]?.witness;
-  if (!commitment || !reserved || reserved.length !== 1 || reserved[0].length !== 32) return false;
+  if (!reserved || reserved.length !== 1 || reserved[0].length !== 32) return false;
   const wtxids = txs.map((t, i) => (i === 0 ? '00'.repeat(32) : t.wtxid));
   return equalBytes(sha256d(merkleRoot(wtxids), reserved[0]), commitment);
 }

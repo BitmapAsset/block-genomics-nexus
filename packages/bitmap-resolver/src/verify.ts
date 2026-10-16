@@ -22,7 +22,7 @@ import { parseTx } from './parse/block.js';
 import { parseEnvelopes } from './parse/envelope.js';
 import { computeBundleHash, PROOF_FORMAT } from './proof.js';
 import { checkClaim, RULE_ID } from './rules.js';
-import { OCI_PAGES, ociPageFor, ociSat, ociSatIndex } from './sources/oci.js';
+import { OCI_LIMIT, OCI_PAGES, ociPageFor, ociSat, ociSatIndex } from './sources/oci.js';
 import type { ProofBundle } from './types.js';
 import { scanBlockBytes } from './walk.js';
 
@@ -70,8 +70,21 @@ export async function verifyProof(bundle: ProofBundle, opts: VerifyOptions = {})
     const c = bundle.canonical;
     if (bundle.verdict === 'canonical' && !c) diffs.push('canonical verdict without canonical facts');
 
-    if (bundle.firstness?.method === 'walk' && (bundle.verdict === 'canonical' || bundle.verdict === 'none')) {
-      await checkWalk(ctx, bundle, opts.rescanLimit ?? 3, diffs, notes);
+    // Shapes the resolver never produces are forgeries or bugs, not proofs.
+    const method = bundle.firstness?.method;
+    if (method === 'walk' && bundle.height < OCI_LIMIT) diffs.push(`walk bundle for ${bundle.height}: the resolver only walks from ${OCI_LIMIT}`);
+    if (method === 'oci' && bundle.height >= OCI_LIMIT) diffs.push(`oci bundle for ${bundle.height}: the OCI ends at ${OCI_LIMIT - 1}`);
+    if (method === 'oci' && bundle.verdict === 'none') diffs.push('a none verdict from the OCI path (the OCI is not authoritative about absence)');
+    if (bundle.verdict === 'disputed' || bundle.verdict === 'undetermined') {
+      notes.push(`a ${bundle.verdict} bundle is checked for its hash and walked block hashes only`);
+    }
+
+    const rescanLimit = opts.rescanLimit ?? 3;
+    if (method === 'walk' && (bundle.verdict === 'canonical' || bundle.verdict === 'none')) {
+      await checkWalk(ctx, bundle, rescanLimit, diffs, notes);
+    }
+    if (method === 'walk' && bundle.verdict === 'none') {
+      await checkNoneStillHolds(ctx, bundle, rescanLimit, diffs, notes);
     }
 
     if (c) {
@@ -158,6 +171,54 @@ export async function verifyProof(bundle: ProofBundle, opts: VerifyOptions = {})
   return { ok: all.length === 0, diffs: all, holderDiffs, notes };
 }
 
+/**
+ * A `none` is "no valid claim up to checkedAtHeight". Blocks mined since then
+ * can hold the deed: scan up to `rescanLimit` of them (from n at the earliest)
+ * and report a valid claim as a diff; say in `notes` how many were not scanned.
+ */
+async function checkNoneStillHolds(ctx: Context, bundle: ProofBundle, rescanLimit: number, diffs: string[], notes: string[]): Promise<void> {
+  const n = bundle.height;
+  const tip = await ctx.ord.blockHeight(ctx.signal);
+  if (tip <= bundle.checkedAtHeight) return;
+  const from = Math.max(n, bundle.checkedAtHeight + 1);
+  if (from > tip) return;
+  const to = Math.min(tip, from + Math.max(1, rescanLimit) - 1);
+  for (let b = from; b <= to; b++) {
+    const hash = await ctx.ord.blockHash(b, ctx.signal);
+    const bytes = await ctx.ord.block(b, ctx.signal);
+    if (!hash || !bytes) {
+      diffs.push(`block ${b} (mined after checkedAtHeight) is not available from ord`);
+      return;
+    }
+    let scan;
+    try {
+      scan = scanBlockBytes(bytes, b, hash, 'rblock');
+    } catch (e) {
+      diffs.push(`block ${b}: ${(e as Error).message}`);
+      return;
+    }
+    for (const cand of scan.candidates) {
+      if (cand.number !== n) continue;
+      const check = checkClaim(
+        {
+          body: cand.bodyHex === null ? null : fromHex(cand.bodyHex),
+          complete: cand.complete,
+          contentEncoding: cand.contentEncodingHex === null ? null : fromHex(cand.contentEncodingHex),
+          delegate: cand.delegateHex === null ? null : fromHex(cand.delegateHex),
+          unrecognizedEvenField: cand.unrecognizedEvenField,
+          revealHeight: b,
+        },
+        n,
+      );
+      if (check.ok) {
+        diffs.push(`valid claim ${cand.id ?? cand.locator} in block ${b}, mined after checkedAtHeight ${bundle.checkedAtHeight}: this none is out of date`);
+        return;
+      }
+    }
+  }
+  if (to < tip) notes.push(`${tip - to} block(s) mined after checkedAtHeight ${bundle.checkedAtHeight} not re-scanned; re-resolve for a current answer`);
+}
+
 /** Walk bundles: contiguous coverage, then a re-scan of walked blocks. */
 async function checkWalk(ctx: Context, bundle: ProofBundle, rescanLimit: number, diffs: string[], notes: string[]): Promise<void> {
   const n = bundle.height;
@@ -171,8 +232,6 @@ async function checkWalk(ctx: Context, bundle: ProofBundle, rescanLimit: number,
     }
     // `none` without blocks: only valid for a block that was not mined yet.
     if (n <= bundle.checkedAtHeight) diffs.push(`none without walked blocks, but block ${n} existed at checkedAtHeight ${bundle.checkedAtHeight}`);
-    const tip = await ctx.ord.blockHeight(ctx.signal);
-    if (tip >= n) diffs.push(`block ${n} is mined now (tip ${tip}); this none bundle is out of date`);
     return;
   }
 

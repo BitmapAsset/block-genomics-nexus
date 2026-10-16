@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { toHex } from '../src/bytes.js';
 import { headerHash, merkleBranch, parseBlock, parseTx, rootFromBranch } from '../src/parse/block.js';
 import { Sha256, sha256, sha256d } from '../src/sha256.js';
-import { block, coinbaseTx, readVector, segwitBlock, segwitTx, txidOf } from './helpers.js';
+import { block, coinbaseTx, readVector, segwitBlock, segwitTx, stripWitness, txidOf } from './helpers.js';
 
 describe('sha256', () => {
   it('matches FIPS vectors', () => {
@@ -112,6 +112,19 @@ describe('synthetic blocks', () => {
     expect(parseBlock(block([coinbaseTx(1), t1]).bytes).witnessOk).toBe(false);
     // No witness data at all: nothing to commit to.
     expect(parseBlock(block([coinbaseTx(2)]).bytes).witnessOk).toBe(true);
+  });
+
+  it('a block served with every witness stripped fails: the commitment stays, the reserved value is gone (re-review #1)', () => {
+    const t1 = segwitTx([[new Uint8Array(64), new TextEncoder().encode('960000.bitmap')]]);
+    const good = segwitBlock(960000, [t1]);
+    const header = good.bytes.subarray(0, 80);
+    const stripped = Uint8Array.from([...header, 2, ...stripWitness(good.coinbase), ...stripWitness(t1)]);
+    const parsed = parseBlock(stripped);
+    expect(parsed.hash).toBe(good.hash);
+    expect(parsed.merkleOk).toBe(true); // txids do not cover witnesses
+    expect(parsed.txs.some((t) => t.segwit)).toBe(false);
+    expect(parsed.witnessOk).toBe(false);
+    expect(parseBlock(good.bytes).witnessOk).toBe(true);
   });
 
   it('merkle branches prove inclusion', () => {
