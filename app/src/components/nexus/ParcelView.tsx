@@ -122,6 +122,8 @@ const COLOR_PALETTE = [
 interface Props {
   blockHeight: number;
   onBack: () => void;
+  /** Start with the side panel collapsed (the fullscreen /world view). The ◀ tab reopens it. */
+  initialPanelHidden?: boolean;
 }
 
 type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street' | 'standard' | 'flyover';
@@ -4715,7 +4717,7 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
    Main Component
    ═══════════════════════════════════════════ */
 
-export default function ParcelView({ blockHeight, onBack }: Props) {
+export default function ParcelView({ blockHeight, onBack, initialPanelHidden = false }: Props) {
   const { walletAddress, isConnected, profile, signMessage: walletSignMessage, e2eReady, e2eSetup, e2eEncrypt, e2eDecrypt } = useGlobalWallet();
   const isVerified = !!(isConnected && walletAddress && profile);
   const isWalletConnected = !!(isConnected && walletAddress);
@@ -4743,7 +4745,7 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
   const [autoTour, setAutoTour] = useState(true);
   const [streetTeleport, setStreetTeleport] = useState<ParcelData | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>('properties');
-  const [panelSize, setPanelSize] = useState<PanelSize>('quarter');
+  const [panelSize, setPanelSize] = useState<PanelSize>(initialPanelHidden ? 'hidden' : 'quarter');
   const [hoveredParcel, setHoveredParcel] = useState<ParcelData | null>(null);
   const [selectedParcel, setSelectedParcel] = useState<ParcelData | null>(null);
   const [parcelNavIndex, setParcelNavIndex] = useState(0);
@@ -6008,8 +6010,8 @@ export default function ParcelView({ blockHeight, onBack }: Props) {
 
       {/* ═══ Panel Toggle (when hidden) ═══ */}
       {panelSize === 'hidden' && (
-        <button onClick={() => setPanelSize('quarter')}
-          className="absolute top-16 right-0 z-30 px-2 py-3 rounded-l-lg transition-all hover:brightness-130"
+        <button onClick={() => setPanelSize('quarter')} aria-label="Show block panel"
+          className="absolute top-16 right-0 z-30 min-h-[44px] min-w-[44px] px-3 py-3 rounded-l-lg transition-all hover:brightness-130"
           style={{ background: 'rgba(10,10,15,0.95)', border: '1px solid rgba(247,147,26,0.2)', borderRight: 'none', color: '#f7931a' }}>
           ◀
         </button>

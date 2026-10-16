@@ -128,7 +128,7 @@ function ListingCard({ listing, onPay }: { listing: Listing; onPay: (listing: Li
       {/* CTA */}
       <div className="flex gap-2">
         <Link
-          href={`/nexus/parcel/${listing.blockHeight}`}
+          href={`/world/${listing.blockHeight}`}
           className="flex-1 text-center py-2.5 rounded-lg text-sm font-semibold bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500/20 hover:border-orange-500/50 transition-all"
         >
           🟧 View Block
@@ -196,21 +196,21 @@ function GateModal({ gate, listing, onClose }: { gate: GateResult; listing: List
           icon: '👑', title: 'You Own This Block!',
           msg: `You already own Block #${gate.blockHeight.toLocaleString()}. You have full Tier 1 sovereignty — no delegation needed!`,
           btnText: '🗺️ Visit Your Block',
-          btnHref: `/nexus/parcel/${gate.blockHeight}`,
+          btnHref: `/world/${gate.blockHeight}`,
         };
       case 'already_tier1':
         return {
           icon: '⬆️', title: 'Upgrade Available',
           msg: `As a Tier 1 block owner (Block #${gate.ownedBlock.toLocaleString()}), a Tier 3 delegation would be a downgrade. Consider purchasing Tier 2 parcel access for expanded rights on Block #${listing.blockHeight.toLocaleString()}.`,
           btnText: '🟧 View Block',
-          btnHref: `/nexus/parcel/${listing.blockHeight}`,
+          btnHref: `/world/${listing.blockHeight}`,
         };
       case 'already_tier2_same_block':
         return {
           icon: '✅', title: 'You Already Have Access',
           msg: `You already have parcel access on Block #${gate.blockHeight.toLocaleString()}. No additional delegation needed!`,
           btnText: '🗺️ Visit Block',
-          btnHref: `/nexus/parcel/${gate.blockHeight}`,
+          btnHref: `/world/${gate.blockHeight}`,
         };
       default:
         return null;

@@ -176,7 +176,7 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
   const handleSearch = useCallback((height: number) => {
     // If block is beyond the map grid, navigate directly to the block viewer
     if (height >= 880000) {
-      window.location.href = `/nexus/parcel/${height}`;
+      window.location.href = `/world/${height}`;
       return;
     }
     engineRef.current?.navigateToBlock(height);

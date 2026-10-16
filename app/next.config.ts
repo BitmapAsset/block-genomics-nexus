@@ -85,6 +85,12 @@ const nextConfig: NextConfig = {
       destination: "/rentals",
       permanent: true,
     },
+    // One URL per block world: the fullscreen view lives at /world/{h}.
+    {
+      source: "/nexus/parcel/:height",
+      destination: "/world/:height",
+      statusCode: 301,
+    },
   ],
 
   // Webpack optimizations
