@@ -54,8 +54,7 @@ describe('bg56 Q-15: callLLM refuses a private custom endpoint without fetching'
 
   it('never calls fetch when the custom endpoint points at the internal network', async () => {
     const spy = jest.fn(async () => new Response('{}', { status: 200 }));
-    // @ts-expect-error test override
-    global.fetch = spy;
+    global.fetch = spy as unknown as typeof fetch;
 
     const { callLLM } = await import('@/lib/llm-proxy');
     const out = await callLLM({
