@@ -33,7 +33,7 @@ export async function runInit() {
     if (owner) {
       spinner.succeed(`Block #${blockHeight} is owned on-chain by ${owner.slice(0, 16)}…`);
     } else {
-      spinner.warn(`Block #${blockHeight} has no on-chain owner yet (unclaimed).`);
+      spinner.warn(`Block #${blockHeight} is not registered on Block Genomics yet.`);
     }
   } catch (e) {
     spinner.fail("Ownership check failed");

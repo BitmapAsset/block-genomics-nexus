@@ -225,22 +225,42 @@ describe('describeBlock()', () => {
     };
   }
 
-  it('says Unclaimed only when we actually looked and found no owner', () => {
-    expect(describeBlock(data())).toBe('Unclaimed');
+  it('says "Not yet on Block Genomics" only when we actually looked and found no record', () => {
+    // Never "Unclaimed": no row here says nothing about who holds the
+    // inscription on Bitcoin.
+    expect(describeBlock(data())).toBe('Not yet on Block Genomics');
+    expect(describeBlock(data())).not.toContain('Unclaimed');
   });
 
   it('stays silent about ownership when the lookup was degraded', () => {
-    // The regression this guards: a database blip must never publish
-    // "Unclaimed" about a block somebody owns.
+    // The regression this guards: a database blip must never publish a claim
+    // about the deed of a block somebody owns.
     expect(describeBlock(data({ degraded: true }))).toBe('');
-    expect(describeBlock(data({ degraded: true }))).not.toContain('Unclaimed');
+    expect(describeBlock(data({ degraded: true }))).not.toContain('Not yet on Block Genomics');
   });
 
-  it('names the holder when there is one', () => {
+  it('names the holder when the chain confirmed the record', () => {
     const out = describeBlock(
       data({ ownership: resolveOwnership({ ownerAddress: ALICE, inscriptionId: INSCRIPTION }, ALICE) }),
     );
     expect(out).toBe(`Held by ${shortenAddress(ALICE)}`);
+  });
+
+  it('labels an unchecked record as registered, not held', () => {
+    // No inscription id on file: the chain was never asked (the 840000 case).
+    const out = describeBlock(
+      data({ ownership: resolveOwnership({ ownerAddress: ALICE, inscriptionId: null }, null) }),
+    );
+    expect(out).toBe(`Registered to ${shortenAddress(ALICE)} (not verified)`);
+    expect(out).not.toContain('Held by');
+  });
+
+  it('labels the record, not the live holder, when the chain disagrees with it', () => {
+    const out = describeBlock(
+      data({ ownership: resolveOwnership({ ownerAddress: ALICE, inscriptionId: INSCRIPTION }, BOB) }),
+    );
+    expect(out).toBe(`Registered to ${shortenAddress(ALICE)} (not verified)`);
+    expect(out).not.toContain('Held by');
   });
 
   it('includes chain stats and build counts, singular and plural', () => {
@@ -543,12 +563,31 @@ describe('fetchBlockCardFacts()', () => {
 
     expect(await fetchBlockCardFacts(BLOCK)).toEqual({
       owner: null,
+      verified: false,
       objectCount: 0,
       claimed: false,
     });
   });
 
-  it('prefers the live deed holder for the card', async () => {
+  it('marks the card verified only on a live match with the record', async () => {
+    mockBlockFindUnique.mockResolvedValue({ ownerAddress: ALICE, inscriptionId: INSCRIPTION });
+    mockObjectCount.mockResolvedValue(7);
+    mockGetInscriptionOwner.mockResolvedValue(ALICE);
+
+    await fetchBlockCardFacts(BLOCK);
+    await settleWarm();
+
+    expect(await fetchBlockCardFacts(BLOCK)).toEqual({
+      owner: ALICE,
+      verified: true,
+      objectCount: 7,
+      claimed: true,
+    });
+  });
+
+  it('keeps the record, unverified, when the live holder differs from it', async () => {
+    // The card says "LAST RECORDED" for this; naming BOB under that label
+    // would be false, and "HELD BY" is reserved for a confirmed record.
     mockBlockFindUnique.mockResolvedValue({ ownerAddress: ALICE, inscriptionId: INSCRIPTION });
     mockObjectCount.mockResolvedValue(7);
     mockGetInscriptionOwner.mockResolvedValue(BOB);
@@ -557,18 +596,34 @@ describe('fetchBlockCardFacts()', () => {
     await settleWarm();
 
     expect(await fetchBlockCardFacts(BLOCK)).toEqual({
-      owner: BOB,
+      owner: ALICE,
+      verified: false,
       objectCount: 7,
       claimed: true,
     });
   });
 
-  it('falls back to the recorded owner when the indexer is silent', async () => {
+  it('falls back to the recorded owner, unverified, when the indexer is silent', async () => {
     mockBlockFindUnique.mockResolvedValue({ ownerAddress: ALICE, inscriptionId: INSCRIPTION });
     mockObjectCount.mockResolvedValue(2);
     mockGetInscriptionOwner.mockResolvedValue(null);
 
-    expect((await fetchBlockCardFacts(BLOCK)).owner).toBe(ALICE);
+    const facts = await fetchBlockCardFacts(BLOCK);
+    expect(facts.owner).toBe(ALICE);
+    expect(facts.verified).toBe(false);
+  });
+
+  it('never verifies a record with no inscription id on file', async () => {
+    mockBlockFindUnique.mockResolvedValue({ ownerAddress: ALICE, inscriptionId: null });
+    mockObjectCount.mockResolvedValue(0);
+
+    expect(await fetchBlockCardFacts(BLOCK)).toEqual({
+      owner: ALICE,
+      verified: false,
+      objectCount: 0,
+      claimed: true,
+    });
+    expect(mockGetInscriptionOwner).not.toHaveBeenCalled();
   });
 
   it('degrades to blank facts rather than throwing inside a crawler request', async () => {
@@ -577,6 +632,7 @@ describe('fetchBlockCardFacts()', () => {
 
     expect(await fetchBlockCardFacts(BLOCK)).toEqual({
       owner: null,
+      verified: false,
       objectCount: 0,
       claimed: false,
     });

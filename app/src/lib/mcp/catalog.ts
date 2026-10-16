@@ -67,7 +67,7 @@ export function buildToolCatalog(call: CallFn): {
     },
     {
       name: "bg_ownership_verify",
-      description: "Authoritative on-chain ownership check for a block. Compares the database owner against the live chain owner.",
+      description: "Compares the Block Genomics record with the live holder of the inscription id we have on file. Not yet a canonical first-is-valid check; returns indeterminate when no id is on file.",
       schema: { blockHeight: height },
       run: (a) => call("/api/v1/ownership/verify", { query: { blockHeight: a.blockHeight } }),
     },

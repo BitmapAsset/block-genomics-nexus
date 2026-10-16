@@ -1,0 +1,164 @@
+{
+ "recordedAt": "2026-10-15T23:41:48.686Z",
+ "networkRequests": 164,
+ "limiter": {
+  "requests": {
+   "https://ordinals.com": 174,
+   "https://blockstream.info": 97
+  },
+  "retries": 0
+ },
+ "summary": [
+  {
+   "height": 0,
+   "ms": 2034,
+   "verdict": "canonical",
+   "canonicalId": "86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732i0",
+   "holder": "bc1p7hf8x2q2zal4v64c2h34qheyz4zk8zgnv767ygkkrd5dhg9zackq4rmvhd",
+   "proofOk": true
+  },
+  {
+   "height": 208,
+   "ms": 4017,
+   "verdict": "canonical",
+   "canonicalId": "bac3a61c49f9f4c7c914f6e2d3c5f57d1c5e27c4e8df16e574ff8c736728bf8di0",
+   "holder": "bc1prp7uk5y7rzqsxesrwkkh3fwhwgjnwgl330jl92rasxc5g8eju4jsnskyhq",
+   "proofOk": true
+  },
+  {
+   "height": 95238,
+   "ms": 4580,
+   "verdict": "canonical",
+   "canonicalId": "214d0dd9b55162b584b664afdccb03c099426cd382fac091abbe135e108485b9i0",
+   "holder": "bc1p6gnhrkmxfggytctzyq6qsenkzjlvkdapmap73guy5g8kuvtkwjzq7xpr4d",
+   "proofOk": true
+  },
+  {
+   "height": 275798,
+   "ms": 4398,
+   "verdict": "canonical",
+   "canonicalId": "d98e14628284e7ca993ba15dec8492f952d63b4dbc1aaeffc527b1be2b097dd2i0",
+   "holder": "bc1p0gguvve9p06g9vz52cu2pyrt7s5pr2y8gsehlmnpsusg3nhs95ms25lfsv",
+   "proofOk": true
+  },
+  {
+   "height": 433445,
+   "ms": 4501,
+   "verdict": "canonical",
+   "canonicalId": "e16820142ec10fa1e61fbbcba6037a52fbe01704bfd7a19ab6a188f9a15b0fa1i0",
+   "holder": "bc1pkjpdzyq7emtqgyfh7yasc92w0yytvrenllknjs99mr9y6atdl7jshdk6ny",
+   "proofOk": true
+  },
+  {
+   "height": 528999,
+   "ms": 4500,
+   "verdict": "canonical",
+   "canonicalId": "820d0fa16b32e9e0506f06db59a31a435c45f331ef480772a57134be5beb2e58i0",
+   "holder": "bc1pjr3r4zkrgfhwv7uy8t2fas3jlamksgf5e6mj009ey459n80jup7qw46k4w",
+   "proofOk": true
+  },
+  {
+   "height": 563851,
+   "ms": 4499,
+   "verdict": "canonical",
+   "canonicalId": "e7dec6deaf7bf579f8f0cf8788437674846d9b099561ba73a34e93a70b4f11b1i0",
+   "holder": "bc1p0gguvve9p06g9vz52cu2pyrt7s5pr2y8gsehlmnpsusg3nhs95ms25lfsv",
+   "proofOk": true
+  },
+  {
+   "height": 612888,
+   "ms": 4537,
+   "verdict": "canonical",
+   "canonicalId": "daf63d78f6e4cbf8cc5d0b375978c9c707849b5ee0dac909813cef7db66da2d9i0",
+   "holder": "bc1p4cdhx2hkq9kutw0wvnn77ekevrm2ga9pfmq4td426js5vyhrexys80ewp6",
+   "proofOk": true
+  },
+  {
+   "height": 614347,
+   "ms": 4464,
+   "verdict": "canonical",
+   "canonicalId": "6b91079d99a80312e8cbae1effb5ac15d610d4d28d81580ee8cee18b3d18f3d9i0",
+   "holder": "bc1p4cdhx2hkq9kutw0wvnn77ekevrm2ga9pfmq4td426js5vyhrexys80ewp6",
+   "proofOk": true
+  },
+  {
+   "height": 640860,
+   "ms": 4511,
+   "verdict": "canonical",
+   "canonicalId": "a1bdd3f2722668816e482c48f2f8c9cdc35c5ecaaa4e5c8f9fcf83a16a0d69c5i0",
+   "holder": "bc1p4cdhx2hkq9kutw0wvnn77ekevrm2ga9pfmq4td426js5vyhrexys80ewp6",
+   "proofOk": true
+  },
+  {
+   "height": 718222,
+   "ms": 4406,
+   "verdict": "canonical",
+   "canonicalId": "64798e516f347e983ff22e03c5289d8696f5dd206c365a220a8056976e1f90d8i0",
+   "holder": "bc1pw9agsvt5gsazsclr2nv90nc4swmy4jg7qvvsedh5tfpg7t62zfjqxeerue",
+   "proofOk": true
+  },
+  {
+   "height": 718840,
+   "ms": 4501,
+   "verdict": "canonical",
+   "canonicalId": "cd031d5761e72f2ca1c7806fed7aae0f0ac94d7ced2c152692f9ff97aaf4afd4i0",
+   "holder": "bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978",
+   "proofOk": true
+  },
+  {
+   "height": 720143,
+   "ms": 4499,
+   "verdict": "canonical",
+   "canonicalId": "314c9f1602a18b54feecc0eca8e5724eea938b57f53df1921743dfb5b5152de5i0",
+   "holder": "bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978",
+   "proofOk": true
+  },
+  {
+   "height": 738505,
+   "ms": 4502,
+   "verdict": "canonical",
+   "canonicalId": "d5ba7c3282c250c0e8833483eced097660d4a9e940e770563968597e2df37605i0",
+   "holder": "bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978",
+   "proofOk": true
+  },
+  {
+   "height": 745506,
+   "ms": 4499,
+   "verdict": "canonical",
+   "canonicalId": "6168ba458d997ec874135f6c1a5a70ae5e14844f745f7ab1b29377f2b47469d3i0",
+   "holder": "bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978",
+   "proofOk": true
+  },
+  {
+   "height": 745966,
+   "ms": 4500,
+   "verdict": "canonical",
+   "canonicalId": "80ae7d3e42c4e57f96bbddb66794544736013fea9fed177ac104aaea378901d7i0",
+   "holder": "bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978",
+   "proofOk": true
+  },
+  {
+   "height": 840000,
+   "ms": 4492,
+   "verdict": "canonical",
+   "canonicalId": "05f8584cf4dbe34ef677f8f316fcac9e6e4ccb0e298d53fd21edaac7787660eei0",
+   "holder": "bc1pacgy5x69zafs30l7c8ym3hfhgme003jwzjkkuwqyqsxrf7j6v2gsk3xknu",
+   "proofOk": true
+  },
+  {
+   "height": 935550,
+   "ms": 4489,
+   "verdict": "canonical",
+   "canonicalId": "2c3ed0f170276e4bb9897f2dececc2383bed5369ef58949cbeb07794aae9453di0",
+   "holder": "bc1qd68lc3rxtnpay2ph0cu4rdwpanl9h2ntz3vpew",
+   "proofOk": true
+  },
+  {
+   "height": 969788,
+   "ms": 7367,
+   "verdict": "canonical",
+   "canonicalId": "2db4fa238b2dd2bef8349b751325abf39e1ae7665411d833203cdd5a9b2682b9i0",
+   "holder": "bc1qsr7pc6pevrsn88klx9fr3vrf3ermkjweuty6ez"
+  }
+ ]
+}

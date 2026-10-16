@@ -58,6 +58,9 @@ export const MORAL_CODE = [
   'No impersonation of verified identities',
 ] as const;
 export const MORAL_CODE_INSCRIPTION_ID = '119366628'; // Inscribed on Bitcoin — permanent
+// Full id of #119366628. Content endpoints take ids only: ordinals.com answers
+// /content/119366628 with 400, so anything that fetches the bytes needs this.
+export const MORAL_CODE_INSCRIPTION_ID_FULL = '8c94b5f467a8676de52c379aadc4a372526441fc0843ded7a01815ffeb3587adi0';
 export const SOUL_TEXT_INSCRIPTION_ID = '119366684'; // Soul as text — inscribed on Bitcoin
 export const SOUL_FILE_INSCRIPTION_ID = '119366692'; // SOUL.md file — inscribed on Bitcoin
 export const SOUL_JSON_INSCRIPTION_ID = '75abd6987e756f042e1ac5e714169e35f5086993bd176eac3156abc9e118291fi0'; // SOUL.json — full autonomous agent schema
