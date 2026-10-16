@@ -28,7 +28,7 @@ Any change to what the rule accepts bumps the suffix, and cached verdicts are ke
 **Ambiguity is not guessed.** If the first valid claim carries a caveat, the verdict is `undetermined`:
 
 - `empty_content_encoding_tag`: tag 9 whose value decodes to `''` (empty, or a lone UTF-8 BOM). LiveOCI's comment says "present at all, invalid", but its code tests the leniently decoded value, and an empty string passes.
-- `unbound`: ord leaves the inscription without a sat (no holder). This happens on an unrecognized even tag, or when the input carried no value (ord's `unbound` charm). Whether a later claim then wins is an open canon question.
+- `unbound`: ord leaves the inscription without a sat (no holder). This happens on an unrecognized even tag, or when the input carried no value (ord's `unbound` charm; a null sat alone is not taken as unbound, since an ord without a sat index reports null everywhere). Whether a later claim then wins is an open canon question.
 
 ## Verdicts
 
@@ -46,7 +46,7 @@ The holder is reported only when ord and Esplora agree that the output is unspen
 | need | below 942,000 | 942,000 and up |
 |---|---|---|
 | candidate | OCI module `942b5886…i0` → page → sat + satIndex → ord `/r/sat/<sat>/at/<i>` | walk: ord `/r/block/<h>`, falling back to Esplora `/block/<hash>/raw` |
-| validity | reveal tx from ord `/r/tx/<txid>`, parsed here. The non-witness bytes must hash to the txid, and every input's witness must equal the witness Esplora reports for that tx: txids do not cover witness data, and envelopes live there. | the parsed block: header hash = the hash ord **and** Esplora report for the height; merkle root recomputed; no duplicate txids; **BIP141 witness commitment** verified, which is what authenticates the envelope bytes |
+| validity | reveal tx from ord `/r/tx/<txid>`, parsed here. The non-witness bytes must hash to the txid, and every input's witness must equal the witness Esplora reports for that tx: txids do not cover witness data, and envelopes live there. | the parsed block: header hash = the hash ord **and** Esplora report for the height; merkle root recomputed; no duplicate txids; **BIP141 witness commitment** verified by Core's rule: if present it must match, so swapped or stripped witnesses fail; if absent, no witness is allowed. That is what authenticates the envelope bytes |
 | reveal height | ord `/r/inscription` `height` = Esplora `/tx/<txid>` `block_height`, and block hashes agree | the scanned block's height |
 | holder | ord `/r/inscription` satpoint + address, Esplora `/tx/<txid>/outspend/<vout>` unspent and the output's address | same |
 | tip | ord `/r/blockheight`; Esplora tip as a sanity bound (more than 3 blocks apart → undetermined) | same |
@@ -108,6 +108,8 @@ const r = await resolve(840000, { freshness: 'auth' });
 - **first-ness is re-checked.**
   - `oci` bundles (`deep`, default true): the OCI page is decoded (store first, else fetched, 1–2.4 MB, pinned hash) and must still name this sat and satIndex, and `/r/sat/<sat>/at/<i>` must be this id.
   - `walk` bundles: `walked` must run without a gap from the height to the claim (or to `checkedAtHeight` for `none`). Walked blocks are re-scanned with header, merkle and witness-commitment checks: all of them up to `rescanLimit` (default 3), else the first and the last, said in `notes`.
+  - A `none` ("no valid claim up to `checkedAtHeight`") is also checked against blocks mined since, up to `rescanLimit`. A valid claim there is a diff; blocks it did not scan are noted.
+- Bundle shapes the resolver never produces are diffs: walk below 942,000, oci at or above it, or an oci `none`. `disputed`/`undetermined` bundles are only hash-checked, and say so in `notes`.
 
 A moved holder is listed separately in `holderDiffs`. `deep: false` skips OCI first-ness and says so in `notes`. The check is against ord's view only; agreement between ord and Esplora is what `resolve()` establishes.
 
