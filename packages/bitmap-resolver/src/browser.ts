@@ -16,14 +16,16 @@ export type CheckColor = 'green' | 'amber' | 'red';
 export interface BrowserCheck {
   color: CheckColor;
   diffs: string[];
+  /** What was not re-checked (e.g. "re-scanned 2 of 9 walked blocks"); show it next to the color. */
+  notes: string[];
 }
 
 export async function checkInBrowser(height: number, bundle: ProofBundle, opts: VerifyOptions = {}): Promise<BrowserCheck> {
-  if (bundle.height !== height) return { color: 'red', diffs: [`bundle is for ${bundle.height}, not ${height}`] };
+  if (bundle.height !== height) return { color: 'red', diffs: [`bundle is for ${bundle.height}, not ${height}`], notes: [] };
   const r = await verifyProof(bundle, opts);
-  if (r.ok) return { color: 'green', diffs: [] };
+  if (r.ok) return { color: 'green', diffs: [], notes: r.notes };
   const onlyHolder = r.diffs.length === r.holderDiffs.length;
-  return { color: onlyHolder ? 'amber' : 'red', diffs: r.diffs };
+  return { color: onlyHolder ? 'amber' : 'red', diffs: r.diffs, notes: r.notes };
 }
 
 export { verifyProof } from './verify.js';

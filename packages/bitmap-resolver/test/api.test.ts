@@ -32,7 +32,7 @@ describe('public API', () => {
   it('checkInBrowser is green for an untouched bundle', async () => {
     const { limiter, stores } = ctx208();
     const r = await resolve(208, { freshness: 'auth', limiter, stores });
-    expect(await checkInBrowser(208, r.proof, { limiter, stores })).toEqual({ color: 'green', diffs: [] });
+    expect(await checkInBrowser(208, r.proof, { limiter, stores })).toEqual({ color: 'green', diffs: [], notes: [] });
     expect((await checkInBrowser(209, r.proof, { limiter, stores })).color).toBe('red');
   });
 

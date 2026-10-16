@@ -111,7 +111,7 @@ const r = await resolve(840000, { freshness: 'auth' });
 
 A moved holder is listed separately in `holderDiffs`. `deep: false` skips OCI first-ness and says so in `notes`. The check is against ord's view only; agreement between ord and Esplora is what `resolve()` establishes.
 
-`checkInBrowser(height, bundle, opts?)` → `{ color: 'green' | 'amber' | 'red', diffs }`. Amber means only the holder moved.
+`checkInBrowser(height, bundle, opts?)` → `{ color: 'green' | 'amber' | 'red', diffs, notes }`. Amber means only the holder moved. `notes` says what was not re-checked; show it next to the color.
 
 Lower-level exports: `checkClaim`, `claimedNumber`, `decodeOciPage`, `ociSat`, `ociSatIndex`, `parseBlock`, `parseTx`, `parseEnvelopes`, `scanBlockBytes`, `merkleBranch`, `rootFromBranch`, `canonicalJson`, `computeBundleHash`, `Limiter`, `OrdClient`, `EsploraClient`, `memoryStores`.
 
