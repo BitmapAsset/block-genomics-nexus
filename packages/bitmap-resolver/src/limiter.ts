@@ -136,17 +136,25 @@ class Lane {
     private readonly clock: Clock,
   ) {}
 
-  run<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  /** `fn` calls `started()` right before its request goes out; the gap counts from there. */
+  run<T>(fn: (started: () => void) => Promise<T>, signal?: AbortSignal): Promise<T> {
     const go = async (): Promise<T> => {
       const wait = this.lastStart + this.gapMs - this.clock.now();
       if (wait > 0) await this.clock.sleep(wait, signal);
-      this.lastStart = this.clock.now();
-      return fn();
+      return fn(() => {
+        this.lastStart = this.clock.now();
+      });
     };
     const p = this.chain.then(go, go);
     this.chain = p.catch(() => undefined);
     return p;
   }
+}
+
+interface Flight {
+  promise: Promise<FetchResult>;
+  controller: AbortController;
+  waiters: number;
 }
 
 export interface LimiterStats {
@@ -160,7 +168,7 @@ export class Limiter {
   private readonly random: () => number;
   private readonly buckets = new Map<string, TokenBucket>();
   private readonly lanes = new Map<string, Lane>();
-  private readonly inflight = new Map<string, Promise<FetchResult>>();
+  private readonly inflight = new Map<string, Flight>();
   private readonly counts: Record<string, number> = {};
   private retryCount = 0;
 
@@ -176,14 +184,53 @@ export class Limiter {
     return { requests: { ...this.counts }, retries: this.retryCount };
   }
 
-  /** GET with the host's limits. Resolves with any HTTP status; throws on network failure. */
+  /**
+   * GET with the host's limits. Resolves with any HTTP status; throws on
+   * network failure. Concurrent GETs of one URL share one request; each caller's
+   * signal only cancels that caller's wait, and the shared request is aborted
+   * only once every caller has left.
+   */
   get(url: string, options: RequestOptions = {}): Promise<FetchResult> {
+    if (options.signal?.aborted) return Promise.reject(abortError(options.signal));
     const key = `${options.lane ?? ''} ${url}`;
-    const existing = this.inflight.get(key);
-    if (existing) return existing;
-    const p = this.getWithRetries(url, options).finally(() => this.inflight.delete(key));
-    this.inflight.set(key, p);
-    return p;
+    let flight = this.inflight.get(key);
+    if (!flight) {
+      const controller = new AbortController();
+      const created: Flight = { controller, waiters: 0, promise: Promise.resolve() as unknown as Promise<FetchResult> };
+      created.promise = this.getWithRetries(url, { ...options, signal: controller.signal }).finally(() => {
+        if (this.inflight.get(key) === created) this.inflight.delete(key);
+      });
+      created.promise.catch(() => undefined); // a flight everyone left must not surface as unhandled
+      this.inflight.set(key, created);
+      flight = created;
+    }
+    return this.join(key, flight, options.signal);
+  }
+
+  private join(key: string, flight: Flight, signal?: AbortSignal): Promise<FetchResult> {
+    flight.waiters++;
+    if (!signal) return flight.promise;
+    return new Promise<FetchResult>((resolve, reject) => {
+      const onAbort = () => {
+        flight.waiters--;
+        if (flight.waiters === 0) {
+          if (this.inflight.get(key) === flight) this.inflight.delete(key);
+          flight.controller.abort(abortError(signal));
+        }
+        reject(abortError(signal));
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+      flight.promise.then(
+        (value) => {
+          signal.removeEventListener('abort', onAbort);
+          resolve(value);
+        },
+        (error) => {
+          signal.removeEventListener('abort', onAbort);
+          reject(error);
+        },
+      );
+    });
   }
 
   private policyFor(origin: string): HostPolicy {
@@ -215,8 +262,9 @@ export class Limiter {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       let result: FetchResult | null = null;
       try {
-        const once = async () => {
+        const once = async (started?: () => void) => {
           await this.bucket(origin).take(options.signal);
+          started?.();
           return this.fetchOnce(url, options);
         };
         result = options.lane === 'block' ? await this.lane(origin).run(once, options.signal) : await once();
@@ -225,22 +273,24 @@ export class Limiter {
         lastError = e;
       }
       if (result && result.status !== 429 && result.status < 500) return result;
-      if (attempt === maxRetries) {
+      const delay = this.backoffMs(attempt, result);
+      if (attempt === maxRetries || delay === null) {
         if (result) return result;
         throw lastError instanceof Error ? lastError : new Error(String(lastError));
       }
       this.retryCount++;
-      await this.clock.sleep(this.backoffMs(attempt, result), options.signal);
+      await this.clock.sleep(delay, options.signal);
     }
     throw new Error('unreachable');
   }
 
-  private backoffMs(attempt: number, result: FetchResult | null): number {
+  /** Delay before the next attempt, or null to give up (Retry-After longer than we will wait). */
+  private backoffMs(attempt: number, result: FetchResult | null): number | null {
     const retryAfter = result?.headers['retry-after'];
     if (retryAfter) {
       const seconds = Number(retryAfter);
       const ms = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(retryAfter) - Date.now();
-      if (Number.isFinite(ms) && ms >= 0) return Math.min(ms, this.opts.maxRetryAfterMs ?? 120_000);
+      if (Number.isFinite(ms) && ms >= 0) return ms > (this.opts.maxRetryAfterMs ?? 120_000) ? null : ms;
     }
     const base = this.opts.baseBackoffMs ?? 1000;
     const cap = this.opts.maxBackoffMs ?? 30_000;
