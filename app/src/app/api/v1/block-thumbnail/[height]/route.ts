@@ -29,7 +29,7 @@ function isNegativelyCached(height: number): boolean {
  * place on their next request (see GET). No bulk purge and no migration: a row
  * stays servable until a full live render replaces it.
  */
-const THUMBNAIL_REAL_ART_SINCE = new Date('2026-10-16T11:38:00Z');
+const THUMBNAIL_REAL_ART_SINCE = new Date('2026-10-16T21:35:00Z');
 
 /**
  * Live re-renders of stale rows in flight on this instance. The Nexus canvas

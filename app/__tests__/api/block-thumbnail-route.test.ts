@@ -73,6 +73,9 @@ const SUMMARY = Array.from({ length: 40 }, (_, i) => ({
 }));
 
 const PRE_FIX = new Date('2026-10-15T09:00:00Z');
+// Fixed and well after THUMBNAIL_REAL_ART_SINCE, which is set to the deploy time
+// at ship and so can sit minutes in the future while CI runs.
+const POST_FIX = new Date('2030-01-01T00:00:00Z');
 const OLD_BYTES = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x01]);
 
 const okText = (t: string) => ({ ok: true, text: async () => t });
@@ -177,7 +180,7 @@ describe('cache miss', () => {
 
 describe('cache hit', () => {
   it('serves a row written after the fix as-is, without calling mempool', async () => {
-    mockFindUnique.mockResolvedValue({ imageData: OLD_BYTES, createdAt: new Date() });
+    mockFindUnique.mockResolvedValue({ imageData: OLD_BYTES, createdAt: POST_FIX });
 
     const res = await call('718844.png');
 
