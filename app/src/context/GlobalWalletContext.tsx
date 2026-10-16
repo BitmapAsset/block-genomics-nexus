@@ -318,12 +318,9 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
     }
   }, [state.walletAddress]);
 
-  // Auto-resolve tier on connect
-  useEffect(() => {
-    if (state.isConnected && state.walletAddress) {
-      resolveTierFn();
-    }
-  }, [state.isConnected, state.walletAddress, resolveTierFn]);
+  // No auto-resolve on connect: /tier/resolve needs a verified session for the
+  // wallet (it used to rescan, and rewrite, whatever wallet a connect named), and
+  // a connect holds none, so the call could only ever be refused.
 
   // ═══ E2E Encryption ═══
   const [e2eReady, setE2eReady] = useState(false);

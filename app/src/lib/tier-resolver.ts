@@ -20,16 +20,17 @@ interface ScanResult {
   inscriptionId: string;
 }
 
-async function scanOnChain(address: string, baseUrl: string): Promise<ScanResult[]> {
+/** `null` means the scan could not answer — never "the wallet holds nothing". */
+async function scanOnChain(address: string, baseUrl: string): Promise<ScanResult[] | null> {
   try {
     const res = await fetch(`${baseUrl}/api/v1/inscriptions/scan?address=${encodeURIComponent(address)}`, {
       signal: AbortSignal.timeout(30000),
     });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const data = await res.json();
     return (data?.data?.inscriptions || []) as ScanResult[];
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -84,14 +85,14 @@ export async function resolveTier(
   });
   ownedParcels = dbParcels.map(p => ({ blockHeight: p.blockHeight, txIndex: p.txIndex }));
 
-  if (needsScan) {
-    const inscriptions = await scanOnChain(walletAddress, baseUrl);
+  // A failed scan keeps the cached answer: wiping it would drop a real owner to
+  // tier 0 (and start their agents' grace period) because an indexer blinked.
+  const inscriptions = needsScan ? await scanOnChain(walletAddress, baseUrl) : null;
+
+  if (inscriptions) {
     const now = new Date();
 
-    // Extract blocks and parcels from scan (retain inscriptionId so the ownership
-    // cron — which only re-checks blocks that HAVE one — can see scan-found blocks)
-    const scannedBlockRecords = inscriptions.filter(i => i.type === 'block');
-    const scannedBlocks = scannedBlockRecords.map(i => i.height);
+    const scannedBlocks = inscriptions.filter(i => i.type === 'block').map(i => i.height);
     const scannedParcels = inscriptions
       .filter(i => i.type === 'parcel' && i.parcelIndex !== undefined)
       .map(i => ({ blockHeight: i.height, txIndex: i.parcelIndex! }));
@@ -111,24 +112,11 @@ export async function resolveTier(
         },
       });
     }
-    // Update Block ownership in DB — persist inscriptionId from the scan so these
-    // wallet-scan-discovered blocks become eligible for the ownership re-check cron.
-    for (const { height, inscriptionId } of scannedBlockRecords) {
-      await prisma.block.upsert({
-        where: { height },
-        create: {
-          height,
-          ownerAddress: walletAddress,
-          lastOwnerCheck: now,
-          ...(inscriptionId && { inscriptionId }),
-        },
-        update: {
-          ownerAddress: walletAddress,
-          lastOwnerCheck: now,
-          ...(inscriptionId && { inscriptionId }),
-        },
-      });
-    }
+    // Deliberately NO Block write. `Block.ownerAddress` / `inscriptionId` change
+    // only through lib/ownership-sync, whose DB≠chain comparison is what fires
+    // the sale release. Writing the scanner's answer here made that comparison
+    // read "match" forever after a sale, and let a duplicate-inscription holder
+    // take over any block's record (bg48 Q-01).
   }
 
   // Resolve global tier (highest wins: 1 > 2 > 3 > 0)
