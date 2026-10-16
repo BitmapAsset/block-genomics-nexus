@@ -385,13 +385,26 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
           )}
         </div>
 
-        <p className="mt-7 text-[11px] font-medium uppercase tracking-[0.28em] text-text-muted">
-          Bitcoin Block
-        </p>
-        <h1 className="mt-1 text-6xl font-semibold tracking-[-0.03em] text-text-primary tabular-nums sm:text-7xl">
-          {formatNumber(height)}
-        </h1>
-        <p className="mt-2 font-mono text-xl text-bitcoin">{height}.bitmap</p>
+        <div className="mt-7 flex flex-wrap items-center gap-x-8 gap-y-5">
+          {/* Bitmap art: server-rendered PNG, cached per height */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- dynamic API PNG, already cached server-side */}
+          <img
+            src={`/api/v1/block-thumbnail/${height}.png?v=2`}
+            alt={`${height}.bitmap`}
+            width={256}
+            height={256}
+            className="h-36 w-36 shrink-0 rounded-xl border border-white/[0.08] bg-[#1d1f31] sm:h-44 sm:w-44"
+          />
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-text-muted">
+              Bitcoin Block
+            </p>
+            <h1 className="mt-1 text-6xl font-semibold tracking-[-0.03em] text-text-primary tabular-nums sm:text-7xl">
+              {formatNumber(height)}
+            </h1>
+            <p className="mt-2 font-mono text-xl text-bitcoin">{height}.bitmap</p>
+          </div>
+        </div>
 
         {data.chain && (
           <div className="mt-7">

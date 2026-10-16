@@ -51,9 +51,12 @@ self.addEventListener('fetch', (event) => {
   // Skip chrome-extension and other non-http(s)
   if (!url.protocol.startsWith('http')) return;
 
-  // API routes — network-first with cache fallback
+  // API routes — network-first with cache fallback. Bitmap thumbnails get a
+  // longer budget: a first render of an uncached height walks mempool.space
+  // server-side, and a 5s race turned that into a 503 broken image.
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(networkFirst(request, API_CACHE, 5000));
+    const timeout = url.pathname.startsWith('/api/v1/block-thumbnail/') ? 30000 : 5000;
+    event.respondWith(networkFirst(request, API_CACHE, timeout));
     return;
   }
 

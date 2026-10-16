@@ -1,0 +1,102 @@
+/**
+ * `POST /api/v1/auth/verify` reports what the on-chain holder check did.
+ *
+ * /verify used to print "BIP-322 signature confirmed on-chain" for any success,
+ * including the path where the indexer was never asked (the wallet was already
+ * verified for that block). The route now returns `holderCheck` so the page can
+ * say which of the three happened:
+ *   'live'     an indexer confirmed the holder on this request
+ *   'previous' skipped: this wallet was already verified for this block
+ *   'none'     no block claimed
+ */
+
+const mockFindUser = jest.fn();
+const mockUpsertUser = jest.fn();
+const mockScan = jest.fn();
+const mockOwnerCheck = jest.fn();
+
+jest.mock('@/lib/prisma', () => ({
+  __esModule: true,
+  default: {
+    user: {
+      findUnique: (...a: unknown[]) => mockFindUser(...(a as [])),
+      upsert: (...a: unknown[]) => mockUpsertUser(...(a as [])),
+    },
+    blockProfile: { findUnique: async () => null, findFirst: async () => ({ id: 'p' }), create: async () => ({}) },
+    block: { upsert: async () => ({}) },
+    handleHistory: { create: async () => ({}) },
+  },
+}));
+jest.mock('@/lib/bip322', () => ({ verifyBip322: () => true }));
+jest.mock('@/lib/challenges', () => ({ consumeChallengeFromMessage: async () => true }));
+jest.mock('@/lib/activity', () => ({ logActivity: () => {} }));
+jest.mock('@/lib/onchain/bitmap-ownership', () => ({
+  scanWalletForBitmap: (...a: unknown[]) => mockScan(...(a as [])),
+  verifyInscriptionOwnership: (...a: unknown[]) => mockOwnerCheck(...(a as [])),
+}));
+jest.mock('@/lib/api-rate-limit', () => ({
+  enforceRateLimit: async () => ({ response: null, headers: {} }),
+}));
+jest.mock('next/server', () => {
+  class NextResponse {
+    constructor(
+      public body: unknown,
+      public status: number,
+    ) {}
+    static json(body: unknown, init?: { status?: number }) {
+      return new NextResponse(body, init?.status ?? 200);
+    }
+  }
+  return { NextResponse, NextRequest: class {} };
+});
+
+import { POST } from '@/app/api/v1/auth/verify/route';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+const ADDR = 'bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978';
+
+const call = (body: Record<string, unknown>) =>
+  POST({ json: async () => ({ walletAddress: ADDR, signature: 'sig', message: 'msg', ...body }) } as any) as any;
+
+beforeEach(() => {
+  mockFindUser.mockReset().mockResolvedValue(null);
+  mockUpsertUser.mockReset().mockImplementation(async ({ create }: any) => ({ ...create }));
+  mockScan.mockReset();
+  mockOwnerCheck.mockReset();
+});
+
+it("reports 'live' when the wallet scan confirms the holder on this request", async () => {
+  mockScan.mockResolvedValue({ verified: true });
+  const res = await call({ blockHeight: 745506 });
+  expect(res.status).toBe(200);
+  expect(res.body.data).toEqual(expect.objectContaining({ tier: 1, holderCheck: 'live' }));
+  expect(mockScan).toHaveBeenCalledWith(ADDR, 745506);
+});
+
+it("reports 'live' when a supplied inscription id is confirmed", async () => {
+  mockOwnerCheck.mockResolvedValue({ verified: true });
+  const res = await call({ blockHeight: 745506, inscriptionId: 'abci0' });
+  expect(res.body.data.holderCheck).toBe('live');
+});
+
+it("reports 'previous' and skips the indexer when already verified for this block", async () => {
+  mockFindUser.mockResolvedValue({ verified: true, tier: 1, anchorBlock: 745506, genomeHash: 'g' });
+  mockUpsertUser.mockImplementation(async () => ({ walletAddress: ADDR, tier: 1, anchorBlock: 745506, genomeHash: 'g' }));
+  const res = await call({ blockHeight: 745506 });
+  expect(res.body.data.holderCheck).toBe('previous');
+  expect(mockScan).not.toHaveBeenCalled();
+  expect(mockOwnerCheck).not.toHaveBeenCalled();
+});
+
+it("reports 'none' when no block is claimed", async () => {
+  const res = await call({});
+  expect(res.body.data).toEqual(expect.objectContaining({ tier: 3, holderCheck: 'none' }));
+});
+
+it('still refuses (no success body) when the chain says the wallet does not hold the block', async () => {
+  mockScan.mockResolvedValue({ verified: false });
+  const res = await call({ blockHeight: 840000 });
+  expect(res.status).toBe(403);
+  expect(mockUpsertUser).not.toHaveBeenCalled();
+});

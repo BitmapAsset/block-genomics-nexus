@@ -523,3 +523,13 @@ body {
   color: #cfe8ff;
   white-space: nowrap;
 }
+
+/* Phones: long inline snippets (e.g. a full object literal) would otherwise
+   push the page wider than the viewport. Let them wrap there only. */
+@media (max-width: 639px) {
+  .doc-prose :not(pre) > code,
+  .doc-inline-code {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

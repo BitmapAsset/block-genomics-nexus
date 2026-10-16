@@ -170,17 +170,8 @@ const nextConfig: NextConfig = {
         },
       ],
     },
-    {
-      // Block share cards: a satori re-render per minute is wasted work, and
-      // unfurlers refetch these on every repost.
-      source: "/og/:path*",
-      headers: [
-        {
-          key: "Cache-Control",
-          value: "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
-        },
-      ],
-    },
+    // No entry for /og/: the share-card route sets its own Cache-Control (long
+    // only when the card carries real bitmap art), and an entry here would win.
     {
       // Remote MCP endpoint: a shared cache must never replay one client's
       // tool output — including token-authorized output — to the next caller.

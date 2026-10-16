@@ -229,7 +229,7 @@ export default function GlobalSearch() {
           onFocus={handleFocus}
           onKeyDown={handleKeyDown}
           placeholder="Search blocks, agents, wallets, genomes..."
-          className="w-[180px] sm:w-[260px] lg:w-[320px] pl-9 pr-12 py-1.5 text-sm rounded-lg border border-border bg-bg-secondary/60 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[#00ffcc]/50 focus:ring-1 focus:ring-[#00ffcc]/20 transition-all"
+          className="w-[180px] sm:w-[260px] lg:w-[320px] xl:w-[220px] pl-9 pr-12 py-1.5 text-sm rounded-lg border border-border bg-bg-secondary/60 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[#00ffcc]/50 focus:ring-1 focus:ring-[#00ffcc]/20 transition-all"
         />
         {/* Shortcut hint */}
         {!query && (

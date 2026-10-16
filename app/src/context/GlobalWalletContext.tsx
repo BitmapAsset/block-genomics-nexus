@@ -167,6 +167,9 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
               const addrs = resp.result?.addresses || [];
               const taproot = addrs.find((a: { type: string }) => a.type === 'p2tr');
               currentAddr = taproot?.address || addrs[0]?.address || null;
+            } else if (prev.walletType === 'okx' && window.okxwallet?.bitcoin) {
+              const accts = await window.okxwallet.bitcoin.getAccounts();
+              currentAddr = accts?.[0] || null;
             }
             if (currentAddr && currentAddr !== prev.walletAddress) {
               // Address changed! Update everything
@@ -205,8 +208,17 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
       setState(prev => ({ ...prev, isConnecting: true }));
       try {
         // Always get the LIVE address from the extension (not the saved one)
-        // This ensures if user switched accounts while the tab was closed, we pick up the new one
-        const address = await connectWalletByType(saved.type);
+        // This ensures if user switched accounts while the tab was closed, we pick up the new one.
+        // Exception: Magic Eden has no silent address read (sats-connect getAddress opens
+        // its approval popup), so reuse the saved address while the extension is present
+        // rather than prompting on every page load. Signing still proves the key.
+        let address: string;
+        if (saved.type === 'magiceden') {
+          if (!window.magicEden?.bitcoin?.isMagicEden) throw new Error('Magic Eden not available');
+          address = saved.address;
+        } else {
+          address = await connectWalletByType(saved.type);
+        }
         if (cancelled) return;
         if (address !== saved.address) {
           // User switched wallets since last session — use the new address

@@ -73,7 +73,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
               }
               return <p key={i}>{para}</p>;
             })}
-            <div className="flex justify-center gap-1 mt-6">
+            <div className="flex flex-wrap justify-center gap-1 mt-6">
               {palette.map((color, i) => (
                 <div key={i} className="text-center">
                   <div className="w-8 h-8 rounded-lg mb-1" style={{ backgroundColor: color, boxShadow: `0 0 12px ${color}44` }} />

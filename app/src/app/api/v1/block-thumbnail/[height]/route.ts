@@ -8,8 +8,8 @@ function getEpoch(height: number): number {
 }
 
 // Short-lived negative cache: heights whose live fetch failed (mempool down /
-// rate-limited / not-yet-mined). Avoids re-running the slow sequential mempool
-// fetches on every request for the same height during the window.
+// rate-limited / not-yet-mined). Avoids re-running the slow mempool fetches on
+// every request for the same height during the window.
 const NEGATIVE_TTL_MS = 60_000;
 const negativeCache = new Map<number, number>(); // height → expiry timestamp
 
@@ -23,55 +23,105 @@ function isNegativelyCached(height: number): boolean {
   return true;
 }
 
+/**
+ * Rows written before this instant were rendered from the first 25 transactions
+ * plus a height-seeded estimate for the rest of the block. They are refreshed in
+ * place on their next request (see GET). No bulk purge and no migration: a row
+ * stays servable until a full live render replaces it.
+ */
+const THUMBNAIL_REAL_ART_SINCE = new Date('2026-10-16T21:35:00Z');
+
+/**
+ * Live re-renders of stale rows in flight on this instance. The Nexus canvas
+ * asks for hundreds of tiles at once and every one is a stale row right after
+ * deploy; past the cap the old bytes are served short-TTL and retried later,
+ * so a page load cannot herd mempool. Cache-miss renders count toward the
+ * total but are not gated (there are no old bytes to fall back on).
+ */
+const MAX_LIVE_RENDERS = 4;
+let liveRenders = 0;
+
+/** One entry of mempool's `GET /api/v1/block/{hash}/summary` (TransactionStripped). */
+interface StrippedTx {
+  txid?: string;
+  vsize?: number;
+}
+
+/**
+ * Every transaction of the block, with its real vsize.
+ *
+ * mempool's block summary returns the whole block in one array (`txid`, `fee`,
+ * `vsize`, `value`, `rate`, `flags` per tx). A summary that is empty, shorter
+ * than the block's `tx_count`, or has a tx without a usable vsize is a failed
+ * live fetch: the caller falls back to an estimate and persists nothing.
+ */
 async function fetchBlockTxs(height: number): Promise<TxInput[]> {
   const hashRes = await fetch(`https://mempool.space/api/block-height/${height}`, {
     signal: AbortSignal.timeout(8000),
     next: { revalidate: 86400 },
   });
   if (!hashRes.ok) throw new Error('Failed to fetch block hash');
-  const hash = await hashRes.text();
+  const hash = (await hashRes.text()).trim();
+  if (!/^[0-9a-f]{64}$/i.test(hash)) throw new Error('Bad block hash');
 
-  const blockRes = await fetch(`https://mempool.space/api/block/${hash}`, {
-    signal: AbortSignal.timeout(8000),
-  });
+  // Both lookups need only the hash, so overlap them.
+  const [blockRes, summaryRes] = await Promise.all([
+    fetch(`https://mempool.space/api/block/${hash}`, {
+      signal: AbortSignal.timeout(8000),
+    }),
+    // A 3–4k-tx summary is ~0.6–0.8 MB; keep it out of the Next data cache.
+    fetch(`https://mempool.space/api/v1/block/${hash}/summary`, {
+      signal: AbortSignal.timeout(8000),
+      cache: 'no-store',
+    }),
+  ]);
   if (!blockRes.ok) throw new Error('Failed to fetch block info');
-  const block = await blockRes.json();
+  if (!summaryRes.ok) throw new Error('Failed to fetch block summary');
+  const block = (await blockRes.json()) as { tx_count?: number };
+  const summary = (await summaryRes.json()) as unknown;
 
-  const txsRes = await fetch(`https://mempool.space/api/block/${hash}/txs/0`, {
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!txsRes.ok) throw new Error('Failed to fetch txs');
-  const txsData = await txsRes.json();
-
-  interface RawMempoolTx {
-    weight?: number;
-    size?: number;
-    fee?: number;
+  if (!Array.isArray(summary) || summary.length === 0) throw new Error('Empty block summary');
+  if (typeof block.tx_count !== 'number' || summary.length !== block.tx_count) {
+    throw new Error('Incomplete block summary');
   }
 
-  const realTxs: TxInput[] = txsData.map((tx: RawMempoolTx) => ({
-    vbytes: tx.weight ? Math.ceil(tx.weight / 4) : tx.size || 250,
-  }));
-
-  const totalTx = block.tx_count;
-  if (realTxs.length < totalTx) {
-    // Estimate remaining txs
-    const fetchedWeight = txsData.reduce((s: number, tx: RawMempoolTx) => s + (tx.weight || (tx.size || 250) * 4), 0);
-    const remainingWeight = Math.max(0, (block.weight || block.size * 4) - fetchedWeight);
-    const remaining = totalTx - realTxs.length;
-    const avgWeight = remaining > 0 ? remainingWeight / remaining : 1000;
-
-    // Use seeded pseudo-random variation based on height
-    let seed = height;
-    for (let i = 0; i < remaining; i++) {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      const variation = 0.5 + (seed % 1000) / 1000; // 0.5–1.5x
-      const w = Math.max(400, Math.round(avgWeight * variation));
-      realTxs.push({ vbytes: Math.ceil(w / 4) });
+  return (summary as StrippedTx[]).map((tx) => {
+    const vsize = tx?.vsize;
+    if (typeof vsize !== 'number' || !Number.isFinite(vsize) || vsize <= 0) {
+      throw new Error('Block summary tx without vsize');
     }
-  }
+    return { vbytes: vsize };
+  });
+}
 
-  return realTxs;
+/** Full live render, counted against the in-flight cap. */
+async function renderLive(height: number): Promise<{ png: Buffer; txCount: number }> {
+  liveRenders++;
+  try {
+    const txs = await fetchBlockTxs(height);
+    return { png: renderBitmapThumbnail(txs, 256), txCount: txs.length };
+  } finally {
+    liveRenders--;
+  }
+}
+
+function longCache(epoch: number): string {
+  return epoch <= 4 ? 'public, max-age=31536000, immutable' : 'public, max-age=86400';
+}
+
+// Estimates and stale rows: short TTL, never immutable, so a later request
+// picks up the real render.
+const SHORT_CACHE = 'public, max-age=60';
+
+function pngResponse(bytes: Uint8Array, cacheControl: string, source: string): NextResponse {
+  return new NextResponse(new Uint8Array(bytes), {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/png',
+      'Cache-Control': cacheControl,
+      'X-Thumbnail-Source': source,
+    },
+  });
 }
 
 /**
@@ -126,78 +176,67 @@ export async function GET(
 
   const epoch = getEpoch(height);
 
-  // Check cache
+  // Check cache. Rows from before THUMBNAIL_REAL_ART_SINCE hold estimated art.
+  let stale: Uint8Array | null = null;
   try {
     const cached = await prisma.blockThumbnail.findUnique({
       where: { blockHeight: height },
     });
     if (cached) {
-      const maxAge = epoch <= 4 ? 31536000 : 86400;
-      return new NextResponse(new Uint8Array(cached.imageData), {
-        status: 200,
-        headers: {
-          'Content-Type': 'image/png',
-          'Cache-Control': `public, max-age=${maxAge}${epoch <= 4 ? ', immutable' : ''}`,
-        },
-      });
+      if (cached.createdAt >= THUMBNAIL_REAL_ART_SINCE) {
+        return pngResponse(cached.imageData, longCache(epoch), 'cache');
+      }
+      stale = cached.imageData;
     }
   } catch {
     // DB unavailable — render on the fly
   }
 
+  // Stale row: replace it with a full render when we can, otherwise keep
+  // serving the old bytes short-TTL so a later request retries.
+  if (stale) {
+    if (isNegativelyCached(height) || liveRenders >= MAX_LIVE_RENDERS) {
+      return pngResponse(stale, SHORT_CACHE, 'stale-estimated');
+    }
+    try {
+      const { png, txCount } = await renderLive(height);
+      await prisma.blockThumbnail
+        .update({
+          where: { blockHeight: height },
+          data: { imageData: new Uint8Array(png), txCount, createdAt: new Date() },
+        })
+        .catch(() => {}); // the render is still good to serve
+      return pngResponse(png, longCache(epoch), 'live');
+    } catch {
+      negativeCache.set(height, Date.now() + NEGATIVE_TTL_MS);
+      return pngResponse(stale, SHORT_CACHE, 'stale-estimated');
+    }
+  }
+
   // Recently-failed height: serve a deterministic estimated skeleton without
   // hitting mempool, and let the client retry after the negative window expires.
   if (isNegativelyCached(height)) {
-    const png = renderBitmapThumbnail(estimateTxs(height), 256);
-    return new NextResponse(new Uint8Array(png), {
-      status: 200,
-      headers: {
-        'Content-Type': 'image/png',
-        // Short TTL so a later real render replaces this estimate.
-        'Cache-Control': 'public, max-age=60',
-        'X-Thumbnail-Source': 'estimated',
-      },
-    });
+    return pngResponse(renderBitmapThumbnail(estimateTxs(height), 256), SHORT_CACHE, 'estimated');
   }
 
-  // Generate
+  // Generate. Only a render where every tx came from mempool is persisted.
   try {
-    const txs = await fetchBlockTxs(height);
-    const png = renderBitmapThumbnail(txs, 256);
-
-    // Save to DB (fire and forget)
-    prisma.blockThumbnail
+    const { png, txCount } = await renderLive(height);
+    await prisma.blockThumbnail
       .create({
         data: {
           blockHeight: height,
           imageData: new Uint8Array(png),
-          txCount: txs.length,
+          txCount,
           epoch,
         },
       })
-      .catch(() => {}); // don't block response
-
-    const maxAge = epoch <= 4 ? 31536000 : 86400;
-    return new NextResponse(new Uint8Array(png), {
-      status: 200,
-      headers: {
-        'Content-Type': 'image/png',
-        'Cache-Control': `public, max-age=${maxAge}${epoch <= 4 ? ', immutable' : ''}`,
-        'X-Thumbnail-Source': 'live',
-      },
-    });
+      .catch(() => {}); // the render is still good to serve
+    return pngResponse(png, longCache(epoch), 'live');
   } catch {
     // Live fetch failed — negative-cache the height and serve an estimated
     // skeleton so the map tile is populated (and we stop hammering mempool).
     negativeCache.set(height, Date.now() + NEGATIVE_TTL_MS);
-    const png = renderBitmapThumbnail(estimateTxs(height), 256);
-    return new NextResponse(new Uint8Array(png), {
-      status: 200,
-      headers: {
-        'Content-Type': 'image/png',
-        'Cache-Control': 'public, max-age=60',
-        'X-Thumbnail-Source': 'estimated',
-      },
-    });
+    return pngResponse(renderBitmapThumbnail(estimateTxs(height), 256), SHORT_CACHE, 'estimated');
   }
 }

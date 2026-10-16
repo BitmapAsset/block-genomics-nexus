@@ -40,6 +40,36 @@ function genomeBars(genome: string) {
   });
 }
 
+/** Side of the bitmap art square on the card. */
+const ART = 236;
+
+/**
+ * The block's bitmap art as a data URI, from the same server PNG the site shows
+ * (`/api/v1/block-thumbnail/{h}`). Returns null on any failure so the card still
+ * renders without it; satori would otherwise fail the whole image on a bad src.
+ * `real` is false when the route answered with an estimate (mempool missed), so
+ * the card is not cached as if its art were final.
+ */
+async function fetchBitmapArt(
+  origin: string,
+  height: number,
+): Promise<{ uri: string; real: boolean } | null> {
+  try {
+    const res = await fetch(`${origin}/api/v1/block-thumbnail/${height}.png?v=2`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok || !res.headers.get('content-type')?.startsWith('image/png')) return null;
+    const bytes = Buffer.from(await res.arrayBuffer());
+    const source = res.headers.get('x-thumbnail-source');
+    return {
+      uri: `data:image/png;base64,${bytes.toString('base64')}`,
+      real: source !== 'estimated' && source !== 'stale-estimated',
+    };
+  } catch {
+    return null;
+  }
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -50,7 +80,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ height: string }> },
 ) {
   const { height: raw } = await params;
@@ -68,9 +98,10 @@ export async function GET(
 
   // Chain header stats and the app's own facts are independent lookups; both
   // degrade to blanks rather than throwing, so overlap them.
-  const [summary, facts] = await Promise.all([
+  const [summary, facts, art] = await Promise.all([
     fetchBlockOgSummary(height),
     fetchBlockCardFacts(height),
+    fetchBitmapArt(new URL(request.url).origin, height),
   ]);
   const epochIndex = getEpochIndex(height);
   const epoch = EPOCH_LABELS[epochIndex] ?? EPOCH_LABELS[EPOCH_LABELS.length - 1];
@@ -155,57 +186,70 @@ export async function GET(
           </div>
         </div>
 
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            flex: 1,
-            justifyContent: 'center',
-            marginTop: 10,
-          }}
-        >
-          <div style={{ fontSize: 24, color: MUTED, letterSpacing: 8 }}>BITCOIN BLOCK</div>
-          {/* 108, not the 132 this started at: the holder row below has to fit in
-              the same 630px, and satori overlaps rather than shrinks on overflow. */}
+        <div style={{ display: 'flex', flex: 1, alignItems: 'center', marginTop: 10 }}>
           <div
             style={{
-              fontSize: 108,
-              color: '#ffffff',
-              lineHeight: 1.05,
-              letterSpacing: -4,
-              marginTop: 2,
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              justifyContent: 'center',
             }}
           >
-            {formatNumber(height)}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', marginTop: 6 }}>
-            <div style={{ fontSize: 40, color: BITCOIN }}>{`${height}.bitmap`}</div>
-            {summary && (
-              <div style={{ fontSize: 26, color: MUTED, marginLeft: 22 }}>
-                {`genome ${summary.genome.slice(0, 12)}…`}
-              </div>
-            )}
+            <div style={{ fontSize: 24, color: MUTED, letterSpacing: 8 }}>BITCOIN BLOCK</div>
+            {/* 108, not the 132 this started at: the holder row below has to fit in
+                the same 630px, and satori overlaps rather than shrinks on overflow. */}
+            <div
+              style={{
+                fontSize: 108,
+                color: '#ffffff',
+                lineHeight: 1.05,
+                letterSpacing: -4,
+                marginTop: 2,
+              }}
+            >
+              {formatNumber(height)}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', marginTop: 6 }}>
+              <div style={{ fontSize: 40, color: BITCOIN }}>{`${height}.bitmap`}</div>
+              {summary && (
+                <div style={{ fontSize: 26, color: MUTED, marginLeft: 22 }}>
+                  {`genome ${summary.genome.slice(0, 12)}…`}
+                </div>
+              )}
+            </div>
+
+            {/* The deed. Ownership is the headline fact about a block, so it sits
+                with the title rather than down in the stat row. "HELD BY" only
+                when the chain confirmed our record; otherwise it is our record. */}
+            <div style={{ display: 'flex', alignItems: 'center', marginTop: 16 }}>
+              {facts.owner ? (
+                <>
+                  <div style={{ display: 'flex', fontSize: 20, color: MUTED, letterSpacing: 2 }}>
+                    {facts.verified ? 'HELD BY' : 'LAST RECORDED'}
+                  </div>
+                  <div style={{ display: 'flex', fontSize: 28, color: TEXT, marginLeft: 16 }}>
+                    {shortenAddress(facts.owner, 12, 8)}
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: 'flex', fontSize: 26, color: MUTED, letterSpacing: 1 }}>
+                  Not yet on Block Genomics
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* The deed. Ownership is the headline fact about a block, so it sits
-              with the title rather than down in the stat row. "HELD BY" only
-              when the chain confirmed our record; otherwise it is our record. */}
-          <div style={{ display: 'flex', alignItems: 'center', marginTop: 16 }}>
-            {facts.owner ? (
-              <>
-                <div style={{ display: 'flex', fontSize: 20, color: MUTED, letterSpacing: 2 }}>
-                  {facts.verified ? 'HELD BY' : 'LAST RECORDED'}
-                </div>
-                <div style={{ display: 'flex', fontSize: 28, color: TEXT, marginLeft: 16 }}>
-                  {shortenAddress(facts.owner, 12, 8)}
-                </div>
-              </>
-            ) : (
-              <div style={{ display: 'flex', fontSize: 26, color: MUTED, letterSpacing: 1 }}>
-                Not yet on Block Genomics
-              </div>
-            )}
-          </div>
+          {/* The bitmap itself: same server PNG the block page shows. */}
+          {art && (
+            // eslint-disable-next-line @next/next/no-img-element -- satori renders plain <img>, not next/image
+            <img
+              src={art.uri}
+              alt=""
+              width={ART}
+              height={ART}
+              style={{ borderRadius: 16, border: '1px solid rgba(255,255,255,0.10)', marginLeft: 32 }}
+            />
+          )}
         </div>
 
         {/* Genome spectrum — deterministic from the block hash, so the card is a
@@ -265,7 +309,12 @@ export async function GET(
       height: HEIGHT,
       headers: {
         // Mined blocks never change; let the CDN and X's image cache hold on to it.
-        'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800',
+        // Without real art (cold height, fetch timed out, or an estimate) keep it
+        // short so the CDN does not pin that card for a week. next.config.ts has no
+        // /og/ header entry on purpose: one there would override this value.
+        'Cache-Control': art?.real
+          ? 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800'
+          : 'public, max-age=60',
       },
     },
   );
