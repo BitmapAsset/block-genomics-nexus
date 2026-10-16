@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -16,7 +16,7 @@ const WalletConnect = dynamic(() => import("@/components/auth/WalletConnect"), {
 
 const GlobalSearch = dynamic(() => import("@/components/GlobalSearch"), {
   ssr: false,
-  loading: () => <div className="w-[180px] sm:w-[260px] lg:w-[320px] h-[34px]" />,
+  loading: () => <div className="w-[180px] sm:w-[260px] lg:w-[320px] xl:w-[220px] h-[34px]" />,
 });
 
 const NotificationBell = dynamic(() => import("@/components/NotificationBell"), {
@@ -37,18 +37,25 @@ interface NavLinkItem {
   isRuneBolt?: boolean;
 }
 
+// Five primary destinations stay in the bar; the rest live under "More" so the
+// header fits a 1280px laptop with search, bell, theme and Connect beside it.
 const navLinks: NavLinkItem[] = [
   { href: "/nexus", label: "Nexus" },
   { href: "/portfolio", label: "Portfolio" },
+  { href: "/verify", label: "Verify" },
   { href: "/directory", label: "Directory" },
+  { href: "/docs", label: "Docs" },
+];
+
+const moreLinks: NavLinkItem[] = [
   { href: "/live", label: "TimesSquare", isLive: true },
   { href: "/rentals", label: "Rentals" },
   { href: "/history", label: "History" },
   { href: "/runebolt", label: "RuneBolt", isRuneBolt: true },
-  { href: "/verify", label: "Verify" },
-  { href: "/docs", label: "Docs" },
   { href: "/brain", label: "Brain", isBrain: true },
 ];
+
+const allLinks = [...navLinks, ...moreLinks];
 
 const nexusStyle = {
   color: '#00ffcc',
@@ -116,6 +123,57 @@ const NavLink = React.memo(function NavLink({ link }: { link: NavLinkItem }) {
   );
 });
 
+function MoreMenu({ pathname }: { pathname: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const active = moreLinks.some((l) => pathname === l.href || pathname.startsWith(`${l.href}/`));
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-all hover:text-text-primary hover:bg-bg-tertiary/50 ${active ? 'text-text-primary' : 'text-text-secondary'}`}
+      >
+        More
+        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 mt-2 w-52 rounded-xl border border-border bg-bg-primary/95 backdrop-blur-xl p-2 shadow-xl z-50 flex flex-col gap-1"
+        >
+          {moreLinks.map((link) => <NavLink key={link.href} link={link} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -146,11 +204,11 @@ export default function Header() {
           animation: 'nexusScanline 3s ease-in-out infinite',
         }} />
       )}
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-4 sm:px-6 lg:px-8">
         {/* Logo */}
-        <Link href="/" className="flex items-center group">
+        <Link href="/" className="flex shrink-0 items-center group">
           <span
-            className="text-xl sm:text-2xl font-black tracking-tight"
+            className="whitespace-nowrap text-xl sm:text-2xl font-black tracking-tight"
             style={{
               background: 'linear-gradient(135deg, #00ffcc 0%, #ffffff 30%, #aa44ff 60%, #ff8800 100%)',
               backgroundSize: '200% 200%',
@@ -166,20 +224,27 @@ export default function Header() {
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="hidden xl:flex items-center gap-1">
           {navLinks.map((link) => <NavLink key={link.href} link={link} />)}
+          <MoreMenu pathname={pathname} />
         </nav>
 
-        <div className="flex items-center gap-1.5">
-          <GlobalSearch />
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* Phones get search inside the menu instead, so Connect stays on-screen */}
+          <div className="hidden sm:block">
+            <GlobalSearch />
+          </div>
           <NotificationBell />
-          <ThemeToggle />
+          <div className="hidden sm:block">
+            <ThemeToggle />
+          </div>
           <WalletConnect />
-          {/* Mobile hamburger */}
+          {/* Hamburger below xl */}
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="md:hidden flex flex-col gap-[5px] p-2 rounded-lg hover:bg-bg-tertiary/50 transition-colors"
+            className="xl:hidden flex flex-col gap-[5px] p-2 rounded-lg hover:bg-bg-tertiary/50 transition-colors"
             aria-label="Toggle menu"
+            aria-expanded={menuOpen}
           >
             <span className={`block w-5 h-[2px] bg-text-secondary transition-all ${menuOpen ? 'rotate-45 translate-y-[7px]' : ''}`} />
             <span className={`block w-5 h-[2px] bg-text-secondary transition-all ${menuOpen ? 'opacity-0' : ''}`} />
@@ -190,11 +255,14 @@ export default function Header() {
 
       {/* Mobile menu dropdown */}
       {menuOpen && (
-        <nav className="md:hidden border-t border-border bg-bg-primary/95 backdrop-blur-xl px-4 py-3 flex flex-col gap-1">
-          <div className="pb-2">
-            <GlobalSearch />
+        <nav data-mobile-menu className="xl:hidden max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-border bg-bg-primary/95 backdrop-blur-xl px-4 py-3 flex flex-col gap-1">
+          <div className="flex items-center gap-2 pb-2 sm:hidden">
+            <div className="min-w-0 flex-1">
+              <GlobalSearch />
+            </div>
+            <ThemeToggle />
           </div>
-          {navLinks.map((link) => (
+          {allLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
