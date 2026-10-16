@@ -26,7 +26,8 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { rateLimitDurable, clientIpFrom, type RateCounter, type RateLimitResult } from '@/lib/rate-limit-db';
 import { sandboxKeyFromHeaders } from '@/lib/sandbox-tier';
-import { looksLikeSessionToken, sessionTokenFromHeaders } from '@/lib/verified-sessions';
+import { isLiveSandboxKey, type SandboxKeyLookup } from '@/lib/sandbox-keys';
+import { authenticateSession, sessionTokenFromHeaders, type SessionLookup } from '@/lib/verified-sessions';
 
 /** Default ceiling for an anonymous public read, per identity, per minute. */
 export const PUBLIC_READ_LIMIT = 120;
@@ -77,13 +78,20 @@ export const EXPERIENCE_VERIFY_LIMIT = 30;
 /** Anything exposing a `headers.get` — NextRequest, Request, or a test stub. */
 export type RateLimitedRequest = { headers: { get(name: string): string | null } };
 
-export interface RateLimitOptions {
+export interface RateLimitOptions extends IdentityOptions {
   /** Route-specific name so different routes get independent buckets. */
   bucket: string;
   limit?: number;
   windowMs?: number;
-  now?: number;
   counter?: RateCounter;
+}
+
+export interface IdentityOptions {
+  now?: number;
+  /** Override the session lookup (tests). */
+  lookupSession?: SessionLookup;
+  /** Override the sandbox-key lookup (tests). */
+  lookupSandboxKey?: SandboxKeyLookup;
 }
 
 /**
@@ -91,17 +99,31 @@ export interface RateLimitOptions {
  *
  * Credential-keyed beats IP-keyed: a whole office behind one NAT should not
  * share a bucket, and a credential is a stronger identity than a spoofable
- * `x-forwarded-for`. Credentials are hashed, never keyed in the clear — limiter
- * rows are not a place to store live secrets.
+ * `x-forwarded-for`. But only a credential that AUTHENTICATES earns a bucket of
+ * its own. Keying on the header's shape let any caller mint a fresh bucket per
+ * request with `X-BG-Session: bg_vfy_<64 random hex>`, which bypassed every
+ * limit here (bg48 Q-11). So a session is resolved to the wallet it was issued
+ * to (one bucket per wallet, however many sessions it holds), a sandbox key must
+ * be live, and anything else — a well-formed but unknown credential included —
+ * is charged to the caller's IP. A failed lookup also falls back to the IP.
+ * Wallets and keys are hashed, never keyed in the clear.
  */
-export function rateLimitIdentity(req: RateLimitedRequest): string {
+export async function rateLimitIdentity(req: RateLimitedRequest, opts: IdentityOptions = {}): Promise<string> {
   const headers = headersOf(req);
 
   const session = sessionTokenFromHeaders(headers);
-  if (looksLikeSessionToken(session)) return `vfy:${fingerprint(session as string)}`;
+  if (session) {
+    const auth = await authenticateSession(session, {
+      now: opts.now,
+      ...(opts.lookupSession ? { lookup: opts.lookupSession } : {}),
+    });
+    if (auth.ok && auth.session) return `vfy:${fingerprint(auth.session.walletAddress)}`;
+  }
 
   const sandbox = sandboxKeyFromHeaders(headers);
-  if (sandbox) return `sbx:${fingerprint(sandbox)}`;
+  if (sandbox && (await isLiveSandboxKey(sandbox, { lookup: opts.lookupSandboxKey }))) {
+    return `sbx:${fingerprint(sandbox)}`;
+  }
 
   return `ip:${clientIpFrom({ headers })}`;
 }
@@ -157,7 +179,7 @@ export async function enforceRateLimit(
   const limit = opts.limit ?? PUBLIC_READ_LIMIT;
   const windowMs = opts.windowMs ?? PUBLIC_READ_WINDOW_MS;
 
-  const result = await rateLimitDurable(`${opts.bucket}:${rateLimitIdentity(req)}`, limit, windowMs, {
+  const result = await rateLimitDurable(`${opts.bucket}:${await rateLimitIdentity(req, opts)}`, limit, windowMs, {
     now: opts.now,
     counter: opts.counter,
   });

@@ -56,11 +56,15 @@ jest.mock('@/lib/prisma', () => {
   };
 });
 
+import crypto from 'crypto';
 import prisma from '@/lib/prisma';
 import { issueChallenge, consumeChallenge, consumeChallengeFromMessage, cleanupChallenges } from '@/lib/challenges';
 
 const WALLET = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
 const WALLET2 = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa';
+
+/** What every issuer mints: 32 random bytes, lowercase hex. */
+const mint = () => crypto.randomBytes(32).toString('hex');
 
 describe('challenges (DB-backed)', () => {
   beforeEach(() => { (prisma.challenge as any).__reset(); });
@@ -98,21 +102,66 @@ describe('challenges (DB-backed)', () => {
 
   describe('consumeChallengeFromMessage', () => {
     it('consumes the nonce embedded in a signed message', async () => {
-      await issueChallenge('abc123', { address: WALLET, purpose: 'auth' });
-      const message = `Block Genomics verification: abc123`;
+      const nonce = mint();
+      await issueChallenge(nonce, { address: WALLET, purpose: 'auth' });
+      const message = `Block Genomics verification: ${nonce}`;
       expect(await consumeChallengeFromMessage(WALLET, message, { purpose: 'auth' })).toBe(true);
       // replay of the same message now fails
       expect(await consumeChallengeFromMessage(WALLET, message, { purpose: 'auth' })).toBe(false);
     });
 
     it('rejects a message for a different wallet', async () => {
-      await issueChallenge('xyz', { address: WALLET, purpose: 'auth' });
-      expect(await consumeChallengeFromMessage(WALLET2, 'sign: xyz', { purpose: 'auth' })).toBe(false);
+      const nonce = mint();
+      await issueChallenge(nonce, { address: WALLET, purpose: 'auth' });
+      expect(await consumeChallengeFromMessage(WALLET2, `sign: ${nonce}`, { purpose: 'auth' })).toBe(false);
     });
 
     it('rejects a message that does not contain a live nonce', async () => {
-      await issueChallenge('real-nonce', { address: WALLET, purpose: 'auth' });
-      expect(await consumeChallengeFromMessage(WALLET, 'sign: forged', { purpose: 'auth' })).toBe(false);
+      await issueChallenge(mint(), { address: WALLET, purpose: 'auth' });
+      expect(await consumeChallengeFromMessage(WALLET, `sign: ${mint()}`, { purpose: 'auth' })).toBe(false);
+    });
+
+    it('rejects a nonce minted for another purpose', async () => {
+      const nonce = mint();
+      await issueChallenge(nonce, { address: WALLET, purpose: 'world' });
+      expect(await consumeChallengeFromMessage(WALLET, `Block Genomics verification: ${nonce}`, { purpose: 'auth' })).toBe(false);
+    });
+
+    it('finds the nonce beside a signed body hash (action-message shape)', async () => {
+      const nonce = mint();
+      await issueChallenge(nonce, { address: WALLET, purpose: 'auth' });
+      const message = ['Block Genomics Authorization v1', `Body: ${mint()}`, `Nonce: ${nonce}`].join('\n');
+      expect(await consumeChallengeFromMessage(WALLET, message, { purpose: 'auth' })).toBe(true);
+    });
+  });
+
+  describe('SECURITY: nonce flooding (bg48 Q-10)', () => {
+    it("25 attacker-requested challenges for the victim's wallet do not lock the victim out", async () => {
+      const victimNonce = mint();
+      await issueChallenge(victimNonce, { address: WALLET, purpose: 'session' });
+      // Anyone may request challenges for any address; the old lookup scanned only
+      // the 20 newest outstanding rows, so these pushed the victim's out of view.
+      for (let i = 0; i < 25; i++) await issueChallenge(mint(), { address: WALLET, purpose: 'session' });
+      // Same-millisecond inserts would tie on createdAt; make the flood strictly newer, as it is in production.
+      const rows = await (prisma.challenge as any).findMany({ where: { address: WALLET } });
+      rows.forEach((r: any, i: number) => { r.createdAt = new Date(1_700_000_000_000 + i); });
+
+      expect(
+        await consumeChallengeFromMessage(WALLET, `Block Genomics verification: ${victimNonce}`, { purpose: 'session' })
+      ).toBe(true);
+    });
+
+    it('the flood does not make any other outstanding nonce consumable for the wrong purpose', async () => {
+      const victimNonce = mint();
+      await issueChallenge(victimNonce, { address: WALLET, purpose: 'session' });
+      for (let i = 0; i < 25; i++) await issueChallenge(mint(), { address: WALLET, purpose: 'world' });
+
+      expect(
+        await consumeChallengeFromMessage(WALLET, `Block Genomics verification: ${victimNonce}`, { purpose: 'world' })
+      ).toBe(false);
+      expect(
+        await consumeChallengeFromMessage(WALLET, `Block Genomics verification: ${victimNonce}`, { purpose: 'session' })
+      ).toBe(true);
     });
   });
 

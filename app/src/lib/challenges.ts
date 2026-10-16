@@ -67,12 +67,23 @@ export async function consumeChallenge(
 }
 
 /**
+ * Every issuer mints a nonce as 32 random bytes in lowercase hex and embeds it in
+ * the message it hands out as a standalone token (not inside a longer hex run).
+ */
+const NONCE_TOKEN = /(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])/g;
+
+/** A real message carries one nonce; a little headroom covers a signed body hash beside it. */
+const MAX_NONCE_CANDIDATES = 4;
+
+/**
  * Atomically consume the challenge whose nonce is embedded in a signed message.
  *
- * Mirrors the legacy semantics (the signed message must contain the issued
- * nonce) while remaining replay-safe: candidate nonces for the address are
- * looked up, the one present in the message is selected, then consumed via the
- * atomic per-row update above.
+ * The nonce is looked up BY VALUE: each 64-hex token in the message is tried
+ * against the atomic, address- and purpose-bound consume above. This used to
+ * scan the address's 20 newest outstanding challenges and pick one the message
+ * contained, so anyone who requested 20 challenges for a wallet pushed its real
+ * nonce out of that window and locked it out of every signed flow (bg48 Q-10).
+ * By value, how many rows are outstanding no longer matters.
  *
  * @param address The wallet address the challenge was issued to.
  * @param message The full message the wallet signed (must contain the nonce).
@@ -84,20 +95,11 @@ export async function consumeChallengeFromMessage(
   opts: { purpose?: string } = {}
 ): Promise<boolean> {
   if (!address || !message) return false;
-  const now = new Date();
-  const candidates = await prisma.challenge.findMany({
-    where: {
-      address,
-      consumedAt: null,
-      expiresAt: { gt: now },
-      ...(opts.purpose ? { purpose: opts.purpose } : {}),
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 20,
-  });
-  const match = candidates.find((c) => message.includes(c.challenge));
-  if (!match) return false;
-  return consumeChallenge(match.challenge, {});
+  const candidates = [...new Set(message.match(NONCE_TOKEN) ?? [])].slice(0, MAX_NONCE_CANDIDATES);
+  for (const nonce of candidates) {
+    if (await consumeChallenge(nonce, { address, ...(opts.purpose ? { purpose: opts.purpose } : {}) })) return true;
+  }
+  return false;
 }
 
 /**
