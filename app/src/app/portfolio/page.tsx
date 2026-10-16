@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGlobalWallet } from "@/context/GlobalWalletContext";
+import BitmapThumbnail from "@/components/BitmapThumbnail";
 
 interface BlockHolding {
   blockHeight: number;
@@ -102,9 +103,6 @@ function StatCard({
 
 /* ─── Block Thumbnail Grid Item ─── */
 function BlockThumb({ block, index }: { block: BlockHolding; index: number }) {
-  const colors = ["#f7931a", "#00ffcc", "#a855f7", "#22c55e", "#ff6b6b"];
-  const color = colors[block.blockHeight % colors.length];
-
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.8 }}
@@ -115,13 +113,12 @@ function BlockThumb({ block, index }: { block: BlockHolding; index: number }) {
         href={block.handle ? `/agent/${block.handle}` : `/block/${block.blockHeight}`}
         className="group glass-panel p-3 block hover:border-border-hover transition-all duration-300 hover:translate-y-[-2px]"
       >
-        {/* Mini thumbnail */}
-        <div
-          className="w-full aspect-square rounded-lg mb-2 flex items-center justify-center text-3xl font-bold font-mono opacity-30 group-hover:opacity-50 transition-opacity"
-          style={{ background: `linear-gradient(135deg, ${color}15, ${color}05)`, color }}
-        >
-          {block.blockHeight}
-        </div>
+        {/* Bitmap art (server-rendered PNG) */}
+        <BitmapThumbnail
+          blockHeight={block.blockHeight}
+          fill
+          className="rounded-lg mb-2 group-hover:opacity-90 transition-opacity"
+        />
 
         <div className="min-w-0">
           <div className="text-xs font-semibold text-text-primary truncate">
