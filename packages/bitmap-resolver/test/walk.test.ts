@@ -189,6 +189,17 @@ describe('verifyProof on walk bundles (review #4)', () => {
     expect(v.diffs.join('\n')).toMatch(/but the bundle says none/);
   });
 
+  it('a "not mined yet" none verifies while true, and is flagged once the block exists', async () => {
+    const r = await run(chain, N + 100);
+    expect(r.verdict).toBe('none');
+    expect(r.proof.firstness.walked).toEqual([]);
+    expect(await verify(r.proof)).toEqual({ ok: true, diffs: [], holderDiffs: [], notes: [] });
+    const later = { ...chain.http, [`${ORD}/r/blockheight`]: { status: 200, body: String(N + 100) } };
+    const v = await verifyProof(r.proof, { limiter: fastLimiter(replayFetch(later)), stores: memoryStores() });
+    expect(v.ok).toBe(false);
+    expect(v.diffs.join('\n')).toMatch(/is mined now/);
+  });
+
   it('a long walk re-scans the first and last block and says so', async () => {
     const M = 956000;
     const late = revealTx({ body: `${M}.bitmap` });
