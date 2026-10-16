@@ -3,6 +3,9 @@
 // "chain" is whatever hashes the fake ord and Esplora agree on.
 import { describe, expect, it } from 'vitest';
 import { resolve } from '../src/resolve.js';
+import { verifyProof } from '../src/verify.js';
+import { computeBundleHash } from '../src/proof.js';
+import type { ProofBundle } from '../src/types.js';
 import { memoryStores } from '../src/stores.js';
 import { toHex } from '../src/bytes.js';
 import type { OciPage } from '../src/sources/oci.js';
@@ -142,6 +145,59 @@ describe('walk: across blocks, caps, tip and the future', () => {
     const r = await run(c, N + 1, { walkCap: 5 });
     // The walk for N+1 starts at block N+1, so the reveal in block N is invisible to it.
     expect(r.verdict).toBe('none');
+  });
+});
+
+describe('verifyProof on walk bundles (review #4)', () => {
+  const N = 955000;
+  const first = revealTx({ contentType: 'text/plain', body: `${N}.bitmap` });
+  const dup = revealTx({ contentType: 'text/plain', body: `${N}.bitmap` });
+  const chain = fakeChain(N, N + 1, { [N]: [first, dup] });
+  const verify = (b: ProofBundle, extra = {}) => verifyProof(b, { limiter: fastLimiter(replayFetch(chain.http)), stores: memoryStores(), ...extra });
+  const reseal = (b: Omit<ProofBundle, 'bundleHash'> & { bundleHash?: string }) => ({ ...b, bundleHash: computeBundleHash(b as ProofBundle) }) as ProofBundle;
+
+  it('an honest walk bundle re-scans clean', async () => {
+    const r = await run(chain, N);
+    expect(r.canonicalId).toBe(`${txidOf(first)}i0`);
+    expect(await verify(r.proof)).toEqual({ ok: true, diffs: [], holderDiffs: [], notes: [] });
+  });
+
+  it('a re-sealed bundle that drops the walked blocks is caught', async () => {
+    const r = await run(chain, N);
+    const forged = reseal({ ...r.proof, firstness: { ...r.proof.firstness, walked: [] } });
+    const v = await verify(forged);
+    expect(v.ok).toBe(false);
+    expect(v.diffs.join('\n')).toMatch(/no walked blocks/);
+  });
+
+  it('a re-sealed bundle naming the later duplicate is caught by the re-scan', async () => {
+    const r = await run(chain, N);
+    const c = r.proof.canonical!;
+    const dupId = `${txidOf(dup)}i0`;
+    const ins = JSON.parse(chain.http[`${ORD}/r/inscription/${dupId}`].body as string);
+    const forged = reseal({ ...r.proof, holder: null, canonical: { ...c, id: dupId, revealTxid: txidOf(dup), number: ins.number, sat: String(ins.sat) } });
+    const v = await verify(forged);
+    expect(v.ok).toBe(false);
+    expect(v.diffs.join('\n')).toMatch(new RegExp(`first valid claim in block ${N} is ${txidOf(first)}i0`));
+  });
+
+  it('a forged none is caught when a walked block holds a valid claim', async () => {
+    const r = await run(chain, N);
+    const forged = reseal({ ...r.proof, verdict: 'none', canonical: null, holder: null, checkedAtHeight: N });
+    const v = await verify(forged);
+    expect(v.ok).toBe(false);
+    expect(v.diffs.join('\n')).toMatch(/but the bundle says none/);
+  });
+
+  it('a long walk re-scans the first and last block and says so', async () => {
+    const M = 956000;
+    const late = revealTx({ body: `${M}.bitmap` });
+    const long = fakeChain(M, M + 5, { [M + 4]: [late] });
+    const r = await run(long, M, { walkCap: 10 });
+    expect(r.proof.firstness.walked).toHaveLength(5);
+    const v = await verifyProof(r.proof, { limiter: fastLimiter(replayFetch(long.http)), stores: memoryStores() });
+    expect(v.ok).toBe(true);
+    expect(v.notes).toEqual(['re-scanned 2 of 5 walked blocks (first and last)']);
   });
 });
 

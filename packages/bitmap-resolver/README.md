@@ -27,8 +27,8 @@ Any change to what the rule accepts bumps the suffix, and cached verdicts are ke
 
 **Ambiguity is not guessed.** If the first valid claim carries a caveat, the verdict is `undetermined`:
 
-- `empty_content_encoding_tag`: tag 9 with an empty value. LiveOCI's comment says "present at all, invalid", but its code tests the decoded value, and an empty string passes.
-- `unbound`: an unrecognized even tag makes ord leave the inscription without a sat (no holder). Whether a later claim then wins is an open canon question.
+- `empty_content_encoding_tag`: tag 9 whose value decodes to `''` (empty, or a lone UTF-8 BOM). LiveOCI's comment says "present at all, invalid", but its code tests the leniently decoded value, and an empty string passes.
+- `unbound`: ord leaves the inscription without a sat (no holder). This happens on an unrecognized even tag, or when the input carried no value (ord's `unbound` charm). Whether a later claim then wins is an open canon question.
 
 ## Verdicts
 
@@ -36,7 +36,7 @@ Any change to what the rule accepts bumps the suffix, and cached verdicts are ke
 |---|---|
 | `canonical` | The candidate passes the rule on its own bytes, and reveal height and block hash agree across ord and Esplora. Below 942,000 first-ness is **OCI-asserted** (`firstness.method: "oci"`). The OCI calls itself "unvalidated, not a source of truth". From 942,000 it is **proven by the walk** (`"walk"`): every block from N to the claim was scanned and hash-verified. |
 | `none` | 942,000 and up only: the walk reached the tip with no valid claim ("no valid claim up to block X", never "unclaimed"), or block N is not mined yet. |
-| `disputed` | A valid claim earlier than the candidate was presented as a challenger. Never auto-granted. A human decides. |
+| `disputed` | A valid claim earlier than the candidate was presented as a challenger, or a valid claim sits inside blocks the walk scanned and found empty. Never auto-granted. A human decides. A valid claim revealed *after* the walked range is not a dispute; it makes `none` into `undetermined` with a `cursor`. |
 | `undetermined` | A source is unreachable or disagrees, the OCI has no entry (it is not authoritative about absence), the OCI candidate fails the rule, the first claim carries a caveat, the walk hit its cap (`cursor` says where to continue), or a `deadlineMs` passed. |
 
 The holder is reported only when ord and Esplora agree that the output is unspent and pays the address. Otherwise `holder: null` and `reason` says why. The verdict stays `canonical`, and a gate must treat a null holder as unavailable.
@@ -46,7 +46,7 @@ The holder is reported only when ord and Esplora agree that the output is unspen
 | need | below 942,000 | 942,000 and up |
 |---|---|---|
 | candidate | OCI module `942b5886…i0` → page → sat + satIndex → ord `/r/sat/<sat>/at/<i>` | walk: ord `/r/block/<h>`, falling back to Esplora `/block/<hash>/raw` |
-| validity | reveal tx from ord `/r/tx/<txid>`, parsed here. The bytes must hash to the txid. | the parsed block: header hash = the hash ord **and** Esplora report for the height; merkle root recomputed; no duplicate txids |
+| validity | reveal tx from ord `/r/tx/<txid>`, parsed here. The non-witness bytes must hash to the txid, and every input's witness must equal the witness Esplora reports for that tx: txids do not cover witness data, and envelopes live there. | the parsed block: header hash = the hash ord **and** Esplora report for the height; merkle root recomputed; no duplicate txids; **BIP141 witness commitment** verified, which is what authenticates the envelope bytes |
 | reveal height | ord `/r/inscription` `height` = Esplora `/tx/<txid>` `block_height`, and block hashes agree | the scanned block's height |
 | holder | ord `/r/inscription` satpoint + address, Esplora `/tx/<txid>/outspend/<vout>` unspent and the output's address | same |
 | tip | ord `/r/blockheight`; Esplora tip as a sanity bound (more than 3 blocks apart → undetermined) | same |
@@ -91,7 +91,7 @@ const r = await resolve(840000, { freshness: 'auth' });
 |---|---|---|
 | `freshness` | required | `'auth'` always asks for a live holder. `'display'` may use a 60 s cache. |
 | `walkCap` | 3 | Blocks walked inline above 942,000 before answering `undetermined` with a `cursor`. |
-| `challengers` | `[]` | Inscription ids presented as claims (e.g. by a wallet during verify). A valid earlier one makes the verdict `disputed`. A later one is ignored `not_first`. An invalid one is ignored with its reason. |
+| `challengers` | `[]` | Inscription ids presented as claims (e.g. by a wallet during verify). A valid earlier one makes the verdict `disputed`. A later one is ignored `not_first`, but only against a `canonical` candidate; otherwise it is `valid_no_candidate`. An invalid one is ignored with its reason. |
 | `deadlineMs` | none | Answer `undetermined` after this long. The work continues and fills the stores. |
 | `limiter` / `fetch` | process-wide | Share one `Limiter` per process. `fetch` gets its own reused limiter. |
 | `stores` | process-wide memory | `{ immutable, ttl }`. An app supplies durable ones. |
@@ -100,14 +100,16 @@ const r = await resolve(840000, { freshness: 'auth' });
 
 `holderOf(inscriptionId, freshness, opts?)` → `{ address, satpoint } | null`. ord and Esplora must agree.
 
-`verifyProof(bundle, opts?)` → `{ ok, diffs, holderDiffs }`. It recomputes `bundleHash` and re-checks against ord only, so it also runs in a browser:
+`verifyProof(bundle, opts?)` → `{ ok, diffs, holderDiffs, notes }`. It recomputes `bundleHash` and re-checks against ord only, so it also runs in a browser:
 
-- the reveal tx is re-fetched and re-parsed, and its bytes must hash to the txid;
+- the reveal tx is re-fetched and re-parsed, and its non-witness bytes must hash to the txid;
 - body and tags must still pass the rule for the height;
 - reveal height, sat and number must match;
-- walked block hashes must still be the chain's.
+- **first-ness is re-checked.**
+  - `oci` bundles (`deep`, default true): the OCI page is decoded (store first, else fetched, 1–2.4 MB, pinned hash) and must still name this sat and satIndex, and `/r/sat/<sat>/at/<i>` must be this id.
+  - `walk` bundles: `walked` must run without a gap from the height to the claim (or to `checkedAtHeight` for `none`). Walked blocks are re-scanned with header, merkle and witness-commitment checks: all of them up to `rescanLimit` (default 3), else the first and the last, said in `notes`.
 
-A moved holder is listed separately in `holderDiffs`. With `deep: true` it also re-derives OCI first-ness: it fetches and decodes the page (1–2.4 MB) and checks the sat, the satIndex and `/r/sat/<sat>/at/<i>`.
+A moved holder is listed separately in `holderDiffs`. `deep: false` skips OCI first-ness and says so in `notes`. The check is against ord's view only; agreement between ord and Esplora is what `resolve()` establishes.
 
 `checkInBrowser(height, bundle, opts?)` → `{ color: 'green' | 'amber' | 'red', diffs }`. Amber means only the holder moved.
 

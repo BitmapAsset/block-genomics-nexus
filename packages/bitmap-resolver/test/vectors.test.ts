@@ -68,8 +68,8 @@ describe('the 18 audited heights, offline', () => {
       expect(r.proof.bundleHash).toBe(computeBundleHash(r.proof));
       expect(log.some((u) => u.includes('/content/'))).toBe(false); // OCI page came from the store
 
-      const check = await verifyProof(r.proof, { limiter });
-      expect(check).toEqual({ ok: true, diffs: [], holderDiffs: [] });
+      const check = await verifyProof(r.proof, { limiter, stores });
+      expect(check).toEqual({ ok: true, diffs: [], holderDiffs: [], notes: [] });
     });
   }
 
@@ -122,27 +122,27 @@ describe('proof bundle', () => {
   });
 
   it('a tampered holder is caught (hash), and a re-sealed one is still caught (source check)', async () => {
-    const { bundle, limiter } = await bundleFor(208);
+    const { bundle, limiter, stores } = await bundleFor(208);
     const forged: ProofBundle = { ...bundle, holder: { ...bundle.holder!, address: 'bc1qforgedholder0000000000000000000000000' } };
-    const r1 = await verifyProof(forged, { limiter });
+    const r1 = await verifyProof(forged, { limiter, stores });
     expect(r1.ok).toBe(false);
     expect(r1.diffs.join('\n')).toMatch(/bundleHash/);
     const resealed = { ...forged, bundleHash: computeBundleHash(forged) };
-    const r2 = await verifyProof(resealed, { limiter });
+    const r2 = await verifyProof(resealed, { limiter, stores });
     expect(r2.ok).toBe(false);
     expect(r2.holderDiffs.join('\n')).toMatch(/holder address/);
-    expect((await checkInBrowser(208, resealed, { limiter })).color).toBe('amber');
+    expect((await checkInBrowser(208, resealed, { limiter, stores })).color).toBe('amber');
   });
 
   it('a tampered bodyHex is caught even when re-sealed', async () => {
-    const { bundle, limiter } = await bundleFor(208);
+    const { bundle, limiter, stores } = await bundleFor(208);
     const c = bundle.canonical!;
     const forged = { ...bundle, canonical: { ...c, bodyHex: Buffer.from('209.bitmap').toString('hex') } };
     const resealed = { ...forged, bundleHash: computeBundleHash(forged) };
-    const r = await verifyProof(resealed, { limiter });
+    const r = await verifyProof(resealed, { limiter, stores });
     expect(r.ok).toBe(false);
     expect(r.diffs.join('\n')).toMatch(/bodyHex/);
-    expect((await checkInBrowser(208, resealed, { limiter })).color).toBe('red');
+    expect((await checkInBrowser(208, resealed, { limiter, stores })).color).toBe('red');
   });
 
   it('a swapped id is caught even when re-sealed', async () => {
@@ -152,7 +152,7 @@ describe('proof bundle', () => {
     const forged: ProofBundle = { ...a.bundle, canonical: { ...b.bundle.canonical! } };
     const resealed = { ...forged, bundleHash: computeBundleHash(forged) };
     const merged = replayFetch({ ...a.v.http, ...b.v.http });
-    const r = await verifyProof(resealed, { limiter: fastLimiter(merged) });
+    const r = await verifyProof(resealed, { limiter: fastLimiter(merged), stores: a.stores });
     expect(r.ok).toBe(false);
     expect(r.diffs.join('\n')).toMatch(/fails the rule for 208/);
   });
@@ -168,17 +168,21 @@ describe('proof bundle', () => {
     const real = pins[0];
     pins[0] = createHash('sha256').update(pageText).digest('hex');
     try {
-      const ok = await verifyProof(bundle, { limiter: fastLimiter(replayFetch(http)), deep: true });
-      expect(ok).toEqual({ ok: true, diffs: [], holderDiffs: [] });
+      const ok = await verifyProof(bundle, { limiter: fastLimiter(replayFetch(http)), stores: memoryStores(), deep: true });
+      expect(ok).toEqual({ ok: true, diffs: [], holderDiffs: [], notes: [] });
       const wrong = { ...bundle, canonical: { ...bundle.canonical!, satIndex: 1 } };
       const resealed = { ...wrong, bundleHash: computeBundleHash(wrong) };
-      const bad = await verifyProof(resealed, { limiter: fastLimiter(replayFetch(http)), deep: true });
+      const bad = await verifyProof(resealed, { limiter: fastLimiter(replayFetch(http)), stores: memoryStores(), deep: true });
       expect(bad.diffs.join('\n')).toMatch(/OCI satIndex 0, bundle 1/);
     } finally {
       pins[0] = real;
     }
     // With the real pin, the stand-in page is rejected as not the inscribed page.
-    const pinned = await verifyProof(bundle, { limiter: fastLimiter(replayFetch(http)), deep: true });
+    const pinned = await verifyProof(bundle, { limiter: fastLimiter(replayFetch(http)), stores: memoryStores(), deep: true });
+    // deep: false skips OCI first-ness and says so.
+    const cheap = await verifyProof(bundle, { limiter: fastLimiter(replayFetch(http)), stores: memoryStores(), deep: false });
+    expect(cheap.ok).toBe(true);
+    expect(cheap.notes).toEqual(['OCI first-ness not re-checked (deep: false)']);
     expect(pinned.diffs.join('\n')).toMatch(/OCI page 0 bytes do not match the pinned hash/);
   });
 
@@ -200,9 +204,9 @@ describe('proof bundle', () => {
   });
 
   it('a bundle from another rule version is flagged', async () => {
-    const { bundle, limiter } = await bundleFor(208);
+    const { bundle, limiter, stores } = await bundleFor(208);
     const old = { ...bundle, rule: 'liveoci-alpha@0c18b83c+bg0' };
     const resealed = { ...old, bundleHash: computeBundleHash(old) };
-    expect((await verifyProof(resealed, { limiter })).diffs.join('\n')).toMatch(/rule/);
+    expect((await verifyProof(resealed, { limiter, stores })).diffs.join('\n')).toMatch(/rule/);
   });
 });

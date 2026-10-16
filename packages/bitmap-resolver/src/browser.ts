@@ -3,7 +3,8 @@
 // access-control-allow-origin: * on /r/* and /content/*). Same code as the
 // package; no inscribed module is imported.
 //
-//   green  the chain still says what the bundle says
+//   green  the chain still says what the bundle says, first-ness included
+//          (OCI page re-decoded, or walked blocks re-scanned)
 //   amber  only the holder moved since the bundle was made
 //   red    anything else differs (the diffs say what)
 

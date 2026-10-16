@@ -13,6 +13,8 @@ import { latin1, toHex, utf8OrNull } from './bytes.js';
 import type { Context } from './context.js';
 import { parseTx } from './parse/block.js';
 import { parseEnvelopes } from './parse/envelope.js';
+import { sha256 } from './sha256.js';
+import { decodeOciPage, OCI_PAGE_SHA256, OCI_PAGES, type OciPage } from './sources/oci.js';
 
 /** Confirmations before facts and block hashes are cached as immutable. */
 export const FINAL_DEPTH = 6;
@@ -265,4 +267,38 @@ async function call<T>(ctx: Context, name: 'ord' | 'esplora', fn: () => Promise<
     ctx.mark(name, 'unreachable', (e as Error).message);
     throw new ResolveFailure(`${name}: ${(e as Error).message}`, 'unreachable');
   }
+}
+
+/** A decoded OCI page: from the store, or fetched, checked against its pinned hash, decoded and stored. */
+export async function loadOciPage(ctx: Context, page: number): Promise<OciPage> {
+  const pageId = OCI_PAGES[page];
+  const key = `oci:${pageId}`;
+  const cached = (await ctx.stores.immutable.get(key)) as OciPage | undefined;
+  if (cached && typeof cached === 'object') return cached;
+  let bytes: Uint8Array | null;
+  try {
+    bytes = await ctx.ord.content(pageId, ctx.signal);
+  } catch (e) {
+    if (ctx.signal?.aborted) throw e;
+    ctx.mark('oci', 'unreachable', (e as Error).message);
+    throw new ResolveFailure(`OCI page ${page} unavailable: ${(e as Error).message}`, 'unreachable');
+  }
+  if (!bytes) {
+    ctx.mark('oci', 'unreachable', `OCI page ${page} not found`);
+    throw new ResolveFailure(`OCI page ${page} not found`, 'unreachable');
+  }
+  const digest = toHex(sha256(bytes));
+  if (digest !== OCI_PAGE_SHA256[page]) {
+    ctx.mark('oci', 'disagree', `OCI page ${page} hashes to ${digest}`);
+    throw new ResolveFailure(`OCI page ${page} bytes hash to ${digest}, not the pinned ${OCI_PAGE_SHA256[page]}`, 'disagree');
+  }
+  let decoded: OciPage;
+  try {
+    decoded = decodeOciPage(page, new TextDecoder().decode(bytes));
+  } catch (e) {
+    ctx.mark('oci', 'disagree', `OCI page ${page} did not decode`);
+    throw new ResolveFailure(`OCI page ${page} did not decode: ${(e as Error).message}`, 'disagree');
+  }
+  await ctx.stores.immutable.set(key, decoded);
+  return decoded;
 }

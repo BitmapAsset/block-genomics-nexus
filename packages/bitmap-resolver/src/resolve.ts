@@ -14,12 +14,11 @@
 //                 ambiguous for the first claim, or the walk hit its cap.
 
 import { Context, type ClientOptions } from './context.js';
-import { fromHex, toHex } from './bytes.js';
-import { sha256 } from './sha256.js';
-import { agreedBlockHash, liveHolder, ResolveFailure, revealFacts, tipHeight, type Holder, type RevealFacts } from './facts.js';
+import { fromHex } from './bytes.js';
+import { agreedBlockHash, liveHolder, loadOciPage, ResolveFailure, revealFacts, tipHeight, type Holder, type RevealFacts } from './facts.js';
 import { sealBundle, PROOF_FORMAT } from './proof.js';
 import { checkClaim, RULE_ID, type Caveat } from './rules.js';
-import { decodeOciPage, OCI_LIMIT, OCI_MODULE_ID, OCI_PAGE_SHA256, OCI_PAGES, ociPageFor, ociSat, ociSatIndex, type OciPage } from './sources/oci.js';
+import { OCI_LIMIT, OCI_MODULE_ID, ociPageFor, ociSat, ociSatIndex } from './sources/oci.js';
 import type { CanonicalFacts, ChallengerResult, IgnoredClaim, ProofBundle, ResolveResult, Verdict } from './types.js';
 import { walk, type ScanCandidate } from './walk.js';
 
@@ -107,39 +106,6 @@ async function resolveWith(ctx: Context, height: number, opts: ResolveOptions): 
     holderReason = h.reason;
   }
   return finish(ctx, height, core, holder, challengers, holderReason ?? null);
-}
-
-async function loadOciPage(ctx: Context, page: number): Promise<OciPage> {
-  const pageId = OCI_PAGES[page];
-  const key = `oci:${pageId}`;
-  const cached = (await ctx.stores.immutable.get(key)) as OciPage | undefined;
-  if (cached && typeof cached === 'object') return cached;
-  let bytes: Uint8Array | null;
-  try {
-    bytes = await ctx.ord.content(pageId, ctx.signal);
-  } catch (e) {
-    if (ctx.signal?.aborted) throw e;
-    ctx.mark('oci', 'unreachable', (e as Error).message);
-    throw new ResolveFailure(`OCI page ${page} unavailable: ${(e as Error).message}`, 'unreachable');
-  }
-  if (!bytes) {
-    ctx.mark('oci', 'unreachable', `OCI page ${page} not found`);
-    throw new ResolveFailure(`OCI page ${page} not found`, 'unreachable');
-  }
-  const digest = toHex(sha256(bytes));
-  if (digest !== OCI_PAGE_SHA256[page]) {
-    ctx.mark('oci', 'disagree', `OCI page ${page} hashes to ${digest}`);
-    throw new ResolveFailure(`OCI page ${page} bytes hash to ${digest}, not the pinned ${OCI_PAGE_SHA256[page]}`, 'disagree');
-  }
-  let decoded: OciPage;
-  try {
-    decoded = decodeOciPage(page, new TextDecoder().decode(bytes));
-  } catch (e) {
-    ctx.mark('oci', 'disagree', `OCI page ${page} did not decode`);
-    throw new ResolveFailure(`OCI page ${page} did not decode: ${(e as Error).message}`, 'disagree');
-  }
-  await ctx.stores.immutable.set(key, decoded);
-  return decoded;
 }
 
 async function ociCore(ctx: Context, n: number): Promise<Core> {
