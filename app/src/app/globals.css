@@ -533,3 +533,25 @@ body {
     overflow-wrap: anywhere;
   }
 }
+
+/* ── Genome DNA (My Bitmaps, block page) ──
+   Each rung flips on Y with a phase offset, which reads as a turning double
+   helix. The reveal fades rungs in left to right after a verification. */
+@keyframes genomeFlip {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(-1); }
+}
+@keyframes genomeRungIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes genomePanelIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.genome-rung { animation: genomeFlip 2.6s ease-in-out infinite; }
+.genome-rung.genome-rung-in { animation: genomeRungIn 420ms ease-out both, genomeFlip 2.6s ease-in-out infinite; }
+.genome-panel-in { animation: genomePanelIn 500ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .genome-rung, .genome-rung.genome-rung-in, .genome-panel-in { animation: none; }
+}
