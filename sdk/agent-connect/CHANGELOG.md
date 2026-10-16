@@ -4,6 +4,36 @@ All notable changes to `block-genomics-connect` are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-10-16
+
+### Added
+
+- **Verified sessions (#118).** `startSession(walletAddress?)` and
+  `verifySession({ blocks, ... })` run Bitcoin-native (BIP-322) verification
+  and hold the resulting `bg_vfy_` session token; `getSession()`,
+  `revokeSession()`, `sessionToken` / `setSessionToken()`, plus
+  `checkUsername(handle)` and `claimUsername(handle)`. World writes use the
+  session token when the client holds one.
+- **Signed experience manifests (#121).** `experiences.register`, `update`
+  and `remove` now sign an action-bound message whose `Body:` is the canonical
+  manifest hash, so a stored registration is verifiable by a third party.
+  `experiences.verify(id, remote?)` returns an `ExperienceIntegrityReport`.
+  `canonicalManifest()` and `MANIFEST_VERSION` are exported.
+- New exported types: `VerifySessionOptions`, `SessionChallenge`,
+  `RejectedBlock`, `VerifiedSession`, `SessionInfo`, `UsernameAvailability`,
+  `ClaimedUsername`, `ExperienceIntegrityReport`.
+
+### Changed
+
+- The bundled `openapi.json` goes from 1.4.0 to **1.8.0**, identical to the
+  spec served at `https://blockgenomics.io/openapi.json` (25 → 32 paths):
+  sessions and usernames, signed experiences and their verify route,
+  agent-session world batches (#123), parcel and terrain (#128), the advisory
+  market lane (#131), and the route sync from #126.
+- `getOwnership()` is documented as what it is: the registry record against
+  the live holder of the inscription id on file, not yet a canonical
+  first-is-valid check.
+
 ## [0.3.1] — 2026-08-09
 
 ### Fixed

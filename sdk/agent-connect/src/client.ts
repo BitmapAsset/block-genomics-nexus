@@ -355,7 +355,7 @@ export class BlockGenomicsClient {
     return this.request<Stats>('/api/v1/stats');
   }
 
-  /** Authoritative on-chain ownership for a block. GET /api/v1/ownership/verify */
+  /** Registry record vs the live holder of the inscription id on file (not yet a canonical first-is-valid check). GET /api/v1/ownership/verify */
   getOwnership(blockHeight: number): Promise<OwnershipResult> {
     return this.request<OwnershipResult>(`/api/v1/ownership/verify?blockHeight=${blockHeight}`);
   }
