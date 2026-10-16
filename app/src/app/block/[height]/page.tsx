@@ -389,7 +389,7 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
           {/* Bitmap art: server-rendered PNG, cached per height */}
           {/* eslint-disable-next-line @next/next/no-img-element -- dynamic API PNG, already cached server-side */}
           <img
-            src={`/api/v1/block-thumbnail/${height}.png`}
+            src={`/api/v1/block-thumbnail/${height}.png?v=2`}
             alt={`${height}.bitmap`}
             width={256}
             height={256}

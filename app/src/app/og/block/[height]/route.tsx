@@ -47,15 +47,24 @@ const ART = 236;
  * The block's bitmap art as a data URI, from the same server PNG the site shows
  * (`/api/v1/block-thumbnail/{h}`). Returns null on any failure so the card still
  * renders without it; satori would otherwise fail the whole image on a bad src.
+ * `real` is false when the route answered with an estimate (mempool missed), so
+ * the card is not cached as if its art were final.
  */
-async function fetchBitmapArt(origin: string, height: number): Promise<string | null> {
+async function fetchBitmapArt(
+  origin: string,
+  height: number,
+): Promise<{ uri: string; real: boolean } | null> {
   try {
-    const res = await fetch(`${origin}/api/v1/block-thumbnail/${height}.png`, {
+    const res = await fetch(`${origin}/api/v1/block-thumbnail/${height}.png?v=2`, {
       signal: AbortSignal.timeout(4000),
     });
     if (!res.ok || !res.headers.get('content-type')?.startsWith('image/png')) return null;
     const bytes = Buffer.from(await res.arrayBuffer());
-    return `data:image/png;base64,${bytes.toString('base64')}`;
+    const source = res.headers.get('x-thumbnail-source');
+    return {
+      uri: `data:image/png;base64,${bytes.toString('base64')}`,
+      real: source !== 'estimated' && source !== 'stale-estimated',
+    };
   } catch {
     return null;
   }
@@ -234,7 +243,7 @@ export async function GET(
           {art && (
             // eslint-disable-next-line @next/next/no-img-element -- satori renders plain <img>, not next/image
             <img
-              src={art}
+              src={art.uri}
               alt=""
               width={ART}
               height={ART}
@@ -300,7 +309,11 @@ export async function GET(
       height: HEIGHT,
       headers: {
         // Mined blocks never change; let the CDN and X's image cache hold on to it.
-        'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800',
+        // Without real art (cold height, fetch timed out, or an estimate) keep it
+        // short so the CDN does not pin that card for a week.
+        'Cache-Control': art?.real
+          ? 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800'
+          : 'public, max-age=60, s-maxage=60',
       },
     },
   );

@@ -30,7 +30,9 @@ export default function BitmapThumbnail({
   className?: string;
   variant?: "dark" | "light";
 }) {
-  const [failed, setFailed] = useState(false);
+  // Keyed by height so a reused tile (e.g. the wallet dropdown) retries a new block.
+  const [failedHeight, setFailedHeight] = useState<number | null>(null);
+  const failed = failedHeight === blockHeight;
   const box = fill
     ? { width: "100%", height: "auto", aspectRatio: "1 / 1" }
     : { width: size, height: size };
@@ -61,13 +63,13 @@ export default function BitmapThumbnail({
   return (
     // eslint-disable-next-line @next/next/no-img-element -- dynamic API PNG; next/image would re-encode an already-cached image
     <img
-      src={`/api/v1/block-thumbnail/${blockHeight}.png`}
+      src={`/api/v1/block-thumbnail/${blockHeight}.png?v=2`}
       alt={`${blockHeight}.bitmap`}
       width={fill ? 256 : size}
       height={fill ? 256 : size}
       loading="lazy"
       decoding="async"
-      onError={() => setFailed(true)}
+      onError={() => setFailedHeight(blockHeight)}
       className={className}
       style={{
         ...box,
