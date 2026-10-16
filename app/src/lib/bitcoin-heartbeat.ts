@@ -14,6 +14,7 @@
  */
 
 import prisma from '@/lib/prisma';
+import { assertSafeOutboundUrl } from '@/lib/ssrf-fetch';
 
 const MEMPOOL_API = 'https://mempool.space/api';
 
@@ -126,9 +127,23 @@ async function checkGuardianLLM(guardian: {
 
   // Self-hosted guardians: ping their endpoint
   if (guardian.selfHosted && guardian.agentEndpoint) {
+    // The endpoint is owner-supplied, so the per-block probe is an SSRF vector
+    // (bg48 Q-15/Q-17): guard it the same way the experience probe guards its
+    // owner URLs before any request leaves the server.
+    const guard = await assertSafeOutboundUrl(guardian.agentEndpoint);
+    if (!guard.ok || !guard.url) {
+      return {
+        guardianId: guardian.id,
+        name: guardian.name,
+        status: 'offline',
+        responseTimeMs: 0,
+        error: `endpoint blocked: ${guard.reason ?? 'failed SSRF pre-flight'}`,
+      };
+    }
     try {
-      const res = await fetch(guardian.agentEndpoint, {
+      const res = await fetch(guard.url, {
         method: 'HEAD',
+        redirect: 'error',
         signal: AbortSignal.timeout(10_000),
       });
       return {
@@ -160,12 +175,28 @@ async function checkGuardianLLM(guardian: {
     };
   }
 
+  // An owner-supplied custom endpoint is an SSRF vector carrying the bearer key;
+  // a built-in provider constant is trusted as-is (bg48 Q-15).
+  if (guardian.llmEndpoint) {
+    const guard = await assertSafeOutboundUrl(guardian.llmEndpoint);
+    if (!guard.ok) {
+      return {
+        guardianId: guardian.id,
+        name: guardian.name,
+        status: 'offline',
+        responseTimeMs: 0,
+        error: `endpoint blocked: ${guard.reason ?? 'failed SSRF pre-flight'}`,
+      };
+    }
+  }
+
   try {
     const endpoint = resolveLLMEndpoint(guardian.llmProvider, guardian.llmEndpoint);
     const body = buildTestPayload(guardian.llmProvider, guardian.llmModel);
 
     const res = await fetch(endpoint, {
       method: 'POST',
+      redirect: 'error',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${guardian.llmApiKey}`,

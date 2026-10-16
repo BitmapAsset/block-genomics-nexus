@@ -19,6 +19,14 @@ jest.mock('@/lib/prisma', () => ({
   },
 }));
 
+// These are provider-routing / error-handling unit tests. The owner-endpoint
+// SSRF guard that llm-proxy now applies to a custom endpoint is covered on its
+// own in __tests__/security/guardian-endpoint-ssrf.test.ts; here it is mocked to
+// pass so a custom endpoint still reaches (the mocked) fetch.
+jest.mock('@/lib/ssrf-fetch', () => ({
+  assertSafeOutboundUrl: async (u: string) => ({ ok: true, url: u }),
+}));
+
 import { callLLM } from '@/lib/llm-proxy';
 import { MOCK_LLM_CONFIG } from '../fixtures';
 

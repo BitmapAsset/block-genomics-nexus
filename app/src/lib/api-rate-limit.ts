@@ -107,6 +107,14 @@ export interface IdentityOptions {
  * be live, and anything else — a well-formed but unknown credential included —
  * is charged to the caller's IP. A failed lookup also falls back to the IP.
  * Wallets and keys are hashed, never keyed in the clear.
+ *
+ * A session earns its own wallet bucket only if it PROVED a block. A read-scoped
+ * session (`blocks: []`) is minted by `session/verify` for any wallet with no
+ * on-chain check (20/min/IP), so honouring it here let one IP mint ~1,200 fresh
+ * wallet buckets an hour and sail past every per-identity limit, including the
+ * amplification guards like `inscriptions/scan` (bg48 Q-11 / bg51 R3). So a
+ * read-scoped session is charged to the IP, exactly like an anonymous caller:
+ * it carries no capability the IP bucket doesn't already cover.
  */
 export async function rateLimitIdentity(req: RateLimitedRequest, opts: IdentityOptions = {}): Promise<string> {
   const headers = headersOf(req);
@@ -117,7 +125,9 @@ export async function rateLimitIdentity(req: RateLimitedRequest, opts: IdentityO
       now: opts.now,
       ...(opts.lookupSession ? { lookup: opts.lookupSession } : {}),
     });
-    if (auth.ok && auth.session) return `vfy:${fingerprint(auth.session.walletAddress)}`;
+    if (auth.ok && auth.session && auth.session.verifiedBlocks.length > 0) {
+      return `vfy:${fingerprint(auth.session.walletAddress)}`;
+    }
   }
 
   const sandbox = sandboxKeyFromHeaders(headers);
