@@ -5,13 +5,12 @@ import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { InboxProvider } from "@/context/InboxContext";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { SiteHeader, SiteFooter, LandingOnboarding } from "@/components/landing/RouteChrome";
+import { SiteHeader, SiteFooter, SiteBottomTabBar, LandingOnboarding } from "@/components/landing/RouteChrome";
 import NotificationBanner from "@/components/NotificationBanner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PageTransition from "@/components/PageTransition";
 import PWARegistration from "@/components/pwa/PWARegistration";
 import InstallPrompt from "@/components/pwa/InstallPrompt";
-import BottomTabBar from "@/components/pwa/BottomTabBar";
 import SplashScreen from "@/components/pwa/SplashScreen";
 import "./globals.css";
 
@@ -84,7 +83,7 @@ export default function RootLayout({
                     </ErrorBoundary>
                   </main>
                   <SiteFooter className="hidden md:block" />
-                  <BottomTabBar />
+                  <SiteBottomTabBar />
                   <InstallPrompt />
                   <LandingOnboarding />
                 </InboxProvider>
