@@ -230,6 +230,8 @@ export default function MyBitmapsClient() {
     async (card: BitmapCard) => {
       if (!walletAddress) return;
       const h = card.height;
+      // A recorded height the scan didn't list.
+      const unlisted = card.status === "previous" || card.status === "unscanned";
       const stale = () => walletRef.current !== walletAddress;
       const fail = (failure: VerifyFailure) => {
         if (!stale()) setRows((r) => ({ ...r, [h]: { phase: "failed", failure } }));
@@ -241,7 +243,7 @@ export default function MyBitmapsClient() {
         // didn't list: the inscription on record for this wallet, read now, so
         // the server checks its holder instead of re-scanning the wallet.
         let inscriptionId = card.inscriptionId;
-        if (!inscriptionId && (card.status === "previous" || card.status === "unscanned")) {
+        if (!inscriptionId && unlisted) {
           const row = await getJson(`/api/v1/blocks/${h}`, new AbortController().signal).catch(() => null);
           inscriptionId = row ? recordedInscription(walletAddress, row.status, row.body) : null;
         }
@@ -294,7 +296,9 @@ export default function MyBitmapsClient() {
         if (stale()) return;
         setRows((r) => ({ ...r, [h]: { phase: "done", holderCheck, inscriptionId } }));
         setNeedsVerify(false);
-        setSheet({ height: h, reveal: true });
+        // An unlisted height after a 'previous' answer: the chain was asked
+        // neither by the scan nor by the server, so no genome reveal.
+        if (!unlisted || holderCheck === "live") setSheet({ height: h, reveal: true });
         void refreshProfile();
       } catch (e) {
         fail(describeVerifyFailure(h, e, 0));
@@ -568,9 +572,15 @@ function RecordedOnly({
                       <BitmapThumbnail blockHeight={c.height} size={28} className="rounded" />
                       <span className="font-mono">{c.height}.bitmap</span>
                     </Link>
-                    {row?.phase === "done" ? (
+                    {row?.phase === "done" && row.holderCheck === "live" ? (
                       // Verified, but not listed: no live chain check of a known inscription to show it by.
                       <StatusChip verified justNow />
+                    ) : row?.phase === "done" ? (
+                      // 'previous': the signature matched, but the server didn't ask the chain again.
+                      <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-text-secondary">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                        Signature verified · not re-checked on the chain
+                      </span>
                     ) : (
                       <button
                         type="button"
