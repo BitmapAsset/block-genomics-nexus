@@ -15,6 +15,7 @@ import {
   addressType,
   describeVerifyFailure,
   isUserRejection,
+  SCAN_CAP,
   type ChainScan,
   type WalletRecords,
 } from '@/lib/my-bitmaps';
@@ -27,6 +28,7 @@ const block = (height: number, id = `${height}i0`) => ({ type: 'block' as const,
 /** The audit's test wallet: 5 held on-chain, 7 on record (0 and 840000 extra). */
 const AUDIT_SCAN: ChainScan = {
   status: 'ok',
+  capped: false,
   inscriptions: [block(738505), block(718840), block(720143), block(745506), block(745966)],
 };
 const AUDIT_RECORDS: WalletRecords = {
@@ -88,7 +90,7 @@ describe('reconcileBitmaps', () => {
       profiles: [],
       guardians: [],
     };
-    const view = reconcileBitmaps(W, { status: 'ok', inscriptions: [block(1), block(2), block(3)] }, records, true);
+    const view = reconcileBitmaps(W, { status: 'ok', capped: false, inscriptions: [block(1), block(2), block(3)] }, records, true);
     const byHeight = Object.fromEntries(view.held.map((c) => [c.height, c]));
 
     expect(byHeight[1]).toMatchObject({ status: 'verified', unlinked: false });
@@ -121,7 +123,7 @@ describe('reconcileBitmaps', () => {
   });
 
   it('a verified account alone verifies nothing: the record must still name the held inscription', () => {
-    const view = reconcileBitmaps(W, { status: 'ok', inscriptions: [block(208)] }, { recordedHeights: [], blocks: [], profiles: [], guardians: [] }, true);
+    const view = reconcileBitmaps(W, { status: 'ok', capped: false, inscriptions: [block(208)] }, { recordedHeights: [], blocks: [], profiles: [], guardians: [] }, true);
 
     expect(view.held[0]).toMatchObject({ height: 208, status: 'unverified', recordOnly: false });
   });
@@ -163,7 +165,7 @@ describe('reconcileBitmaps', () => {
   });
 
   it('shows a wallet the database has never seen (unregistered bitmaps are not invisible)', () => {
-    const view = reconcileBitmaps(W, { status: 'ok', inscriptions: [block(208)] }, {
+    const view = reconcileBitmaps(W, { status: 'ok', capped: false, inscriptions: [block(208)] }, {
       recordedHeights: [],
       blocks: [],
       profiles: [],
@@ -176,7 +178,7 @@ describe('reconcileBitmaps', () => {
   });
 
   it('reports a real empty wallet as empty, not as an outage', () => {
-    const view = reconcileBitmaps(W, { status: 'ok', inscriptions: [] }, { recordedHeights: [], blocks: [], profiles: [], guardians: [] }, true);
+    const view = reconcileBitmaps(W, { status: 'ok', capped: false, inscriptions: [] }, { recordedHeights: [], blocks: [], profiles: [], guardians: [] }, true);
 
     expect(view.scan).toBe('ok');
     expect(view.held).toEqual([]);
@@ -186,7 +188,7 @@ describe('reconcileBitmaps', () => {
   it('keeps one card per height when the wallet holds two inscriptions naming the same block', () => {
     const view = reconcileBitmaps(
       W,
-      { status: 'ok', inscriptions: [block(840000, 'firsti0'), block(840000, 'secondi0')] },
+      { status: 'ok', capped: false, inscriptions: [block(840000, 'firsti0'), block(840000, 'secondi0')] },
       { recordedHeights: [], blocks: [], profiles: [], guardians: [] },
       true,
     );
@@ -195,11 +197,44 @@ describe('reconcileBitmaps', () => {
     expect(view.held[0].inscriptionId).toBe('firsti0');
   });
 
+  // REVIEW bg57 P1-3: the scan reads the first 50 inscriptions and lists only
+  // the bitmaps among them. A capped answer proves nothing about the rest.
+  describe('when the scan may have stopped at its cap', () => {
+    const capped: ChainScan = { status: 'ok', capped: true, inscriptions: [block(718840)] };
+
+    it('files recorded heights it did not list as unscanned (maybe held), not previous', () => {
+      const view = reconcileBitmaps(W, capped, AUDIT_RECORDS, true);
+
+      expect(view.capped).toBe(true);
+      expect(view.held.map((c) => c.height)).toEqual([718840]);
+      expect(view.recordedOnly.map((c) => c.status)).toEqual(Array(6).fill('unscanned'));
+      expect(view.recordedOnly.some((c) => c.status === 'previous')).toBe(false);
+    });
+
+    it('carries the recorded inscription so Verify checks its holder directly', () => {
+      const view = reconcileBitmaps(W, capped, AUDIT_RECORDS, true);
+      const byHeight = Object.fromEntries(view.recordedOnly.map((c) => [c.height, c]));
+
+      expect(byHeight[720143]).toMatchObject({ status: 'unscanned', inscriptionId: null, recordedInscriptionId: '720143i0' });
+      // a record naming another wallet, or no row, gives nothing to check directly
+      expect(byHeight[745966].recordedInscriptionId).toBeNull();
+      expect(byHeight[0].recordedInscriptionId).toBeNull();
+    });
+
+    it('keeps today\'s "previous" when the scan is complete', () => {
+      const view = reconcileBitmaps(W, { ...capped, capped: false }, AUDIT_RECORDS, true);
+
+      expect(view.capped).toBe(false);
+      expect(view.recordedOnly.every((c) => c.status === 'previous' && c.recordedInscriptionId === null)).toBe(true);
+    });
+  });
+
   it('lists parcels separately, sorted', () => {
     const view = reconcileBitmaps(
       W,
       {
         status: 'ok',
+        capped: false,
         inscriptions: [
           { type: 'parcel', height: 840000, parcelIndex: 12, inscriptionId: 'p2' },
           { type: 'parcel', height: 840000, parcelIndex: 3, inscriptionId: 'p1' },
@@ -264,11 +299,23 @@ describe('parseScanResponse', () => {
 
     expect(scan).toEqual({
       status: 'ok',
+      capped: false,
       inscriptions: [
         { type: 'block', height: 720143, inscriptionId: 'abci0' },
         { type: 'parcel', height: 1, parcelIndex: 2, inscriptionId: 'defi0' },
       ],
     });
+  });
+
+  it('flags a scan that listed SCAN_CAP bitmaps as capped (it may have stopped early)', () => {
+    const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ type: 'block', height: 700000 + i, inscriptionId: `${i}i0` }));
+    expect(parseScanResponse(200, { success: true, data: { inscriptions: rows(50), count: 50 } })).toMatchObject({ status: 'ok', capped: true });
+    expect(parseScanResponse(200, { success: true, data: { inscriptions: rows(49), count: 49 } })).toMatchObject({ status: 'ok', capped: false });
+    // the count field is what the response exposes; trust it if it says more than it lists
+    expect(parseScanResponse(200, { success: true, data: { inscriptions: rows(1), count: 50 } })).toMatchObject({ capped: true });
+    // malformed rows still count toward the cap: the server read them
+    expect(parseScanResponse(200, { success: true, data: { inscriptions: [...rows(49), { type: 'block', height: 'x' }] } })).toMatchObject({ capped: true });
+    expect(SCAN_CAP).toBe(50);
   });
 
   it('treats 503 onchain_unavailable as an outage, not as an empty wallet', () => {
@@ -289,7 +336,7 @@ describe('parseScanResponse', () => {
       data: { inscriptions: [{ type: 'block', height: '7', inscriptionId: 'x' }, { type: 'brc20', height: 1, inscriptionId: 'y' }] },
     });
 
-    expect(scan).toEqual({ status: 'ok', inscriptions: [] });
+    expect(scan).toEqual({ status: 'ok', capped: false, inscriptions: [] });
   });
 });
 

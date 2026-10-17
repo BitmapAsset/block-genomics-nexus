@@ -19,6 +19,11 @@
  * When the scan cannot answer, nothing is called owned: the recorded heights are
  * shown as unconfirmed, never as the wallet's bitmaps (audit P0-4).
  *
+ * The scan reads at most the first SCAN_CAP inscriptions of a wallet and
+ * returns only the bitmaps among them, with no "truncated" flag. When it
+ * returns SCAN_CAP or more, it may have stopped early, so a recorded height it
+ * didn't list is "unscanned" (maybe still held), not "previous".
+ *
  * Pure functions only, so every state the page can show is unit-tested.
  */
 
@@ -29,9 +34,16 @@ export interface ScanInscription {
   inscriptionId: string;
 }
 
+/** The server scan reads the content of at most this many inscriptions per wallet. */
+export const SCAN_CAP = 50;
+
 /** Outcome of `GET /api/v1/inscriptions/scan?address=…`. */
 export type ChainScan =
-  | { status: 'ok'; inscriptions: ScanInscription[] }
+  /**
+   * `capped`: the answer listed SCAN_CAP or more bitmap inscriptions (block or
+   * parcel), so the scan may have stopped before the wallet's last one.
+   */
+  | { status: 'ok'; inscriptions: ScanInscription[]; capped: boolean }
   /** 503 `onchain_unavailable`: no indexer could list the wallet. Retryable. */
   | { status: 'unavailable' }
   /** Anything else: rate limit, 5xx, network. Retryable, but a different message. */
@@ -67,6 +79,8 @@ export type BitmapStatus =
   | 'unverified'
   /** Recorded to this wallet but not in it on-chain (sold, moved, or never held). */
   | 'previous'
+  /** Recorded to this wallet, not among the inscriptions a capped scan read: may still be held. */
+  | 'unscanned'
   /** Recorded to this wallet; the chain could not be asked. */
   | 'unconfirmed';
 
@@ -75,6 +89,12 @@ export interface BitmapCard {
   status: BitmapStatus;
   /** The `.bitmap` inscription the wallet holds; null unless held on-chain. */
   inscriptionId: string | null;
+  /**
+   * For an 'unscanned' card: the inscription the record names for this wallet,
+   * so verifying checks that inscription's holder directly instead of another
+   * capped scan. Null otherwise.
+   */
+  recordedInscriptionId: string | null;
   /** True when the record names someone else (a previous holder). */
   recordedToOther: boolean;
   /** True when the record names this wallet but not the inscription it holds (or none). */
@@ -97,6 +117,8 @@ export interface ParcelHolding {
 export interface MyBitmapsView {
   /** What the scan answered. */
   scan: ChainScan['status'];
+  /** The scan hit its cap: absences prove nothing (see SCAN_CAP). */
+  capped: boolean;
   /** Bitmaps the wallet holds on-chain, verified first, then by height. */
   held: BitmapCard[];
   /** Recorded to this wallet but not held now (or unconfirmed when the scan failed). */
@@ -142,6 +164,8 @@ export function reconcileBitmaps(
       height,
       status,
       inscriptionId,
+      recordedInscriptionId:
+        status === 'unscanned' && owner === wallet ? recordIdOf.get(height) ?? null : null,
       recordedToOther: owner !== null && owner !== wallet,
       unlinked: inscriptionId !== null && owner === wallet && recordIdOf.get(height) !== inscriptionId,
       recordOnly: !verifiedUser && recordMatches(height, inscriptionId),
@@ -156,6 +180,7 @@ export function reconcileBitmaps(
     const recordedOnly = recorded.map((h) => card(h, 'unconfirmed', null));
     return {
       scan: scan.status,
+      capped: false,
       held: [],
       recordedOnly,
       parcels: [],
@@ -184,11 +209,14 @@ export function reconcileBitmaps(
     return a.height - b.height;
   });
 
-  const recordedOnly = recorded.filter((h) => !heldIds.has(h)).map((h) => card(h, 'previous', null));
+  const recordedOnly = recorded
+    .filter((h) => !heldIds.has(h))
+    .map((h) => card(h, scan.capped ? 'unscanned' : 'previous', null));
   parcels.sort((a, b) => a.height - b.height || a.parcelIndex - b.parcelIndex);
 
   return {
     scan: 'ok',
+    capped: scan.capped,
     held,
     recordedOnly,
     parcels,
@@ -239,8 +267,10 @@ export function parseScanResponse(httpStatus: number, body: unknown): ChainScan 
   if (httpStatus !== 200 || !b?.success || !Array.isArray(b.data?.inscriptions)) {
     return { status: 'error', message: typeof b?.error === 'string' ? b.error : `HTTP ${httpStatus}` };
   }
+  const listed = b.data!.inscriptions as unknown[];
+  const count = (b.data as { count?: unknown }).count;
   const inscriptions: ScanInscription[] = [];
-  for (const raw of b.data!.inscriptions as unknown[]) {
+  for (const raw of listed) {
     const r = raw as { type?: unknown; height?: unknown; parcelIndex?: unknown; inscriptionId?: unknown };
     if ((r.type !== 'block' && r.type !== 'parcel') || typeof r.inscriptionId !== 'string') continue;
     if (typeof r.height !== 'number' || !Number.isInteger(r.height) || r.height < 0) continue;
@@ -251,7 +281,10 @@ export function parseScanResponse(httpStatus: number, body: unknown): ChainScan 
       ...(typeof r.parcelIndex === 'number' ? { parcelIndex: r.parcelIndex } : {}),
     });
   }
-  return { status: 'ok', inscriptions };
+  // The response has no total and no truncation flag; `count` is the number of
+  // bitmaps it lists. Reaching the cap is the only sign the scan stopped early.
+  const reported = Math.max(listed.length, typeof count === 'number' && Number.isFinite(count) ? count : 0);
+  return { status: 'ok', inscriptions, capped: reported >= SCAN_CAP };
 }
 
 // ── Address types ────────────────────────────────────────────────────────

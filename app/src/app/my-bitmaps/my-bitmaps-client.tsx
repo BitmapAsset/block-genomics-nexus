@@ -16,6 +16,7 @@ import {
   mergeGuardians,
   parseScanResponse,
   reconcileBitmaps,
+  SCAN_CAP,
   type BitmapCard,
   type ChainScan,
   type RecordedBlock,
@@ -31,16 +32,14 @@ const WALLET_NAMES: Record<string, string> = {
   okx: "OKX Wallet",
 };
 
-/** The scan reads at most this many inscriptions per wallet (server cap). */
-const SCAN_CAP = 50;
-
 type HolderCheck = "live" | "previous" | "none";
 
 /** Per-card verification progress in this session. */
 type VerifyRow =
   | { phase: "signing" }
   | { phase: "checking" }
-  | { phase: "done"; holderCheck: HolderCheck }
+  /** `inscriptionId`: what auth/verify checked, so a card the capped scan never listed can join the grid. */
+  | { phase: "done"; holderCheck: HolderCheck; inscriptionId: string | null }
   | { phase: "failed"; failure: VerifyFailure };
 
 const EMPTY_RECORDS: WalletRecords = { recordedHeights: [], blocks: [], profiles: [], guardians: [] };
@@ -165,13 +164,17 @@ export default function MyBitmapsClient() {
         if (parsed.status === "ok") {
           const heights = Array.from(new Set(parsed.inscriptions.filter((i) => i.type === "block").map((i) => i.height)));
           const claimed = (claimedRes?.body as { heights?: unknown })?.heights;
+          const recordedHeights = Array.isArray(stats?.ownedBlocks) ? stats!.ownedBlocks : [];
           const toRead = heightsToRead(
             heights,
             claimedRes?.status === 200 && Array.isArray(claimed) ? (claimed as number[]) : null,
-            Array.isArray(stats?.ownedBlocks) ? stats!.ownedBlocks : [],
+            recordedHeights,
           );
+          // A capped scan may have stopped before some recorded bitmaps. Their
+          // rows carry the recorded inscription, which Verify checks directly.
+          const unscanned = parsed.capped ? recordedHeights.filter((h) => Number.isInteger(h) && !heights.includes(h)) : [];
           const [res, guardians] = await Promise.all([
-            fetchBlockRows(toRead, ctrl.signal),
+            fetchBlockRows(toRead.concat(unscanned), ctrl.signal),
             fetchGuardians(toRead, ctrl.signal),
           ]);
           blockGuardians = guardians;
@@ -206,19 +209,32 @@ export default function MyBitmapsClient() {
   // inscription we sent, and a verified User.
   const view = useMemo(() => {
     if (!walletAddress || !scan) return null;
-    const sessionVerified = Object.entries(rows)
-      .filter(([, r]) => r.phase === "done")
-      .map(([h]) => Number(h));
-    const heldId = (h: number) =>
+    const done = new Map<number, string | null>();
+    for (const [h, r] of Object.entries(rows)) if (r.phase === "done") done.set(Number(h), r.inscriptionId);
+    const sessionVerified = Array.from(done.keys());
+    const scanId = (h: number) =>
       scan.status === "ok" ? scan.inscriptions.find((i) => i.type === "block" && i.height === h)?.inscriptionId ?? null : null;
+    // A recorded bitmap the capped scan never reached, verified just now: the
+    // chain check that verification ran says this wallet holds it.
+    const effectiveScan: ChainScan =
+      scan.status === "ok"
+        ? {
+            ...scan,
+            inscriptions: scan.inscriptions.concat(
+              sessionVerified
+                .filter((h) => scanId(h) === null && done.get(h))
+                .map((height) => ({ type: "block" as const, height, inscriptionId: done.get(height)! })),
+            ),
+          }
+        : scan;
     const blocks = records.blocks
       .filter((b) => !sessionVerified.includes(b.height))
-      .concat(sessionVerified.map((height) => ({ height, ownerAddress: walletAddress, inscriptionId: heldId(height) })));
+      .concat(sessionVerified.map((height) => ({ height, ownerAddress: walletAddress, inscriptionId: scanId(height) ?? done.get(height) ?? null })));
     // users/by-wallet: a 404 leaves profile null (no User); a User row can exist unverified.
     const profileVerified =
       profile?.verified === true && profile.walletAddress?.toLowerCase() === walletAddress.toLowerCase();
     const verifiedUser = (sessionVerified.length > 0 || profileVerified) && !needsVerify;
-    return reconcileBitmaps(walletAddress, scan, { ...records, blocks }, verifiedUser);
+    return reconcileBitmaps(walletAddress, effectiveScan, { ...records, blocks }, verifiedUser);
   }, [walletAddress, scan, records, rows, profile, needsVerify]);
 
   // "Verify this bitmap first" from the handle claim: bring that card's Verify
@@ -236,6 +252,9 @@ export default function MyBitmapsClient() {
     async (card: BitmapCard) => {
       if (!walletAddress) return;
       const h = card.height;
+      // Held: the inscription the scan listed. Unscanned (capped scan): the one
+      // the record names, so the server checks its holder instead of re-scanning.
+      const inscriptionId = card.inscriptionId ?? card.recordedInscriptionId;
       const stale = () => walletRef.current !== walletAddress;
       const fail = (failure: VerifyFailure) => {
         if (!stale()) setRows((r) => ({ ...r, [h]: { phase: "failed", failure } }));
@@ -273,7 +292,7 @@ export default function MyBitmapsClient() {
             signature,
             message,
             blockHeight: h,
-            ...(card.inscriptionId ? { inscriptionId: card.inscriptionId } : {}),
+            ...(inscriptionId ? { inscriptionId } : {}),
           }),
         });
         const body = await res.json().catch(() => null);
@@ -285,7 +304,7 @@ export default function MyBitmapsClient() {
           ? body.data.holderCheck
           : "none";
         if (stale()) return;
-        setRows((r) => ({ ...r, [h]: { phase: "done", holderCheck } }));
+        setRows((r) => ({ ...r, [h]: { phase: "done", holderCheck, inscriptionId } }));
         setNeedsVerify(false);
         setSheet({ height: h, reveal: true });
         void refreshProfile();
@@ -340,7 +359,7 @@ export default function MyBitmapsClient() {
       )}
 
       {!loading && view && view.scan === "ok" && view.held.length === 0 && (
-        <EmptyState address={walletAddress} walletName={walletName} />
+        <EmptyState address={walletAddress} walletName={walletName} capped={view.capped} />
       )}
 
       {!loading && view && view.scan === "ok" && view.held.length > 0 && (
@@ -386,7 +405,13 @@ export default function MyBitmapsClient() {
       )}
 
       {!loading && view && view.recordedOnly.length > 0 && (
-        <RecordedOnly cards={view.recordedOnly} unconfirmed={view.scan !== "ok"} />
+        <RecordedOnly
+          cards={view.recordedOnly}
+          unconfirmed={view.scan !== "ok"}
+          capped={view.capped}
+          rows={rows}
+          onVerify={verify}
+        />
       )}
 
       {sheet && (
@@ -479,8 +504,27 @@ function OutageState({ kind, message, onRetry }: { kind: "unavailable" | "error"
   );
 }
 
-function EmptyState({ address, walletName }: { address: string; walletName: string }) {
+function EmptyState({ address, walletName, capped }: { address: string; walletName: string; capped: boolean }) {
   const type = addressType(address);
+  if (capped) {
+    // The scan stopped at its cap (all of it parcels): absence proves nothing.
+    return (
+      <div className="mt-8 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 sm:p-8">
+        <h2 className="text-lg font-semibold text-text-primary">No bitmaps in the first {SCAN_CAP} inscriptions</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-secondary">
+          No <span className="font-mono">.bitmap</span> inscription found in the first {SCAN_CAP} inscriptions at {shortAddress(address)}. The scan reads only that many, so a bitmap further in isn&apos;t listed here. Look it up by number and open its block page.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link
+            href="/explore"
+            className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 text-sm font-medium text-text-primary hover:bg-white/5"
+          >
+            Look it up by number
+          </Link>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="mt-8 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 sm:p-8">
       <h2 className="text-lg font-semibold text-text-primary">No bitmaps in this wallet</h2>
@@ -509,14 +553,28 @@ function EmptyState({ address, walletName }: { address: string; walletName: stri
   );
 }
 
-function RecordedOnly({ cards, unconfirmed }: { cards: BitmapCard[]; unconfirmed: boolean }) {
+function RecordedOnly({
+  cards,
+  unconfirmed,
+  capped,
+  rows,
+  onVerify,
+}: {
+  cards: BitmapCard[];
+  unconfirmed: boolean;
+  capped: boolean;
+  rows: Record<number, VerifyRow>;
+  onVerify: (card: BitmapCard) => void;
+}) {
   return (
-    <details className="group mt-10 rounded-2xl border border-white/[0.07] bg-white/[0.015]" open={unconfirmed}>
+    <details className="group mt-10 rounded-2xl border border-white/[0.07] bg-white/[0.015]" open={unconfirmed || capped}>
       <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 text-sm text-text-secondary">
         <span>
           {unconfirmed
             ? `On record for this wallet, not confirmed on-chain (${cards.length})`
-            : `Previously linked, not in this wallet anymore (${cards.length})`}
+            : capped
+              ? `Not found in the first ${SCAN_CAP} inscriptions of this wallet (${cards.length})`
+              : `Previously linked, not in this wallet anymore (${cards.length})`}
         </span>
         <span className="transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
       </summary>
@@ -524,27 +582,74 @@ function RecordedOnly({ cards, unconfirmed }: { cards: BitmapCard[]; unconfirmed
         <p className="text-xs leading-relaxed text-text-secondary">
           {unconfirmed
             ? "Block Genomics has these on record for this address. Until the chain answers, none of them is shown as yours."
-            : "Block Genomics has these on record for this address, but the chain says this wallet doesn't hold them now."}
+            : capped
+              ? `Block Genomics has these on record for this address. The scan reads only the first ${SCAN_CAP} inscriptions of a wallet and didn't find them there, so they may still be in it. Verify one to check it on the chain.`
+              : "Block Genomics has these on record for this address, but the chain says this wallet doesn't hold them now."}
         </p>
-        <ul className="mt-3 flex flex-wrap gap-2">
-          {cards.map((c) => (
-            <li key={c.height}>
-              <Link
-                href={`/block/${c.height}`}
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-white/[0.08] px-3 text-xs text-text-secondary hover:border-white/20 hover:text-text-primary"
-              >
-                <BitmapThumbnail blockHeight={c.height} size={28} className="rounded" />
-                <span className="font-mono">{c.height}.bitmap</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        {capped ? (
+          <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {cards.map((c) => {
+              const row = rows[c.height];
+              const busy = row?.phase === "signing" || row?.phase === "checking";
+              return (
+                <li key={c.height} className="rounded-xl border border-white/[0.08] p-2.5" data-testid={`unscanned-${c.height}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Link
+                      href={`/block/${c.height}`}
+                      className="inline-flex min-h-[44px] min-w-0 items-center gap-2 px-1 text-xs text-text-secondary hover:text-text-primary"
+                    >
+                      <BitmapThumbnail blockHeight={c.height} size={28} className="rounded" />
+                      <span className="font-mono">{c.height}.bitmap</span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => onVerify(c)}
+                      disabled={busy}
+                      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-bitcoin px-4 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-70"
+                      data-testid={`verify-${c.height}`}
+                    >
+                      {busy && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/25 border-t-black" />}
+                      {verifyLabel(row)}
+                    </button>
+                  </div>
+                  {row?.phase === "failed" && (
+                    <p className="mt-2 px-1 text-xs leading-relaxed text-red-300" role="alert">
+                      {row.failure.message}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {cards.map((c) => (
+              <li key={c.height}>
+                <Link
+                  href={`/block/${c.height}`}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-white/[0.08] px-3 text-xs text-text-secondary hover:border-white/20 hover:text-text-primary"
+                >
+                  <BitmapThumbnail blockHeight={c.height} size={28} className="rounded" />
+                  <span className="font-mono">{c.height}.bitmap</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </details>
   );
 }
 
 /* ───────────────────────────── card ───────────────────────────── */
+
+/** The Verify button's words for each step of a verification. */
+function verifyLabel(row: VerifyRow | undefined): string {
+  if (row?.phase === "signing") return "Check your wallet…";
+  if (row?.phase === "checking") return "Verifying…";
+  if (row?.phase === "failed" && row.failure.retryable) return "Try again";
+  return "Verify · 1 signature";
+}
 
 function StatusChip({ verified, justNow }: { verified: boolean; justNow: boolean }) {
   return verified ? (
@@ -634,13 +739,7 @@ function BitmapCardView({
                 data-testid={`verify-${card.height}`}
               >
                 {busy && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/25 border-t-black" />}
-                {row?.phase === "signing"
-                  ? "Check your wallet…"
-                  : row?.phase === "checking"
-                    ? "Verifying…"
-                    : row?.phase === "failed" && row.failure.retryable
-                      ? "Try again"
-                      : "Verify · 1 signature"}
+                {verifyLabel(row)}
               </button>
               {row?.phase === "failed" && (
                 <p className="mt-2 text-xs leading-relaxed text-red-300" role="alert">
