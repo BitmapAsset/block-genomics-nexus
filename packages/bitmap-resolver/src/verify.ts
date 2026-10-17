@@ -69,6 +69,12 @@ export async function verifyProof(bundle: ProofBundle, opts: VerifyOptions = {})
 
     const c = bundle.canonical;
     if (bundle.verdict === 'canonical' && !c) diffs.push('canonical verdict without canonical facts');
+    // The resolver attaches canonical and holder facts to a canonical verdict
+    // only. Any other verdict carrying them is a forgery: checkWalk reads the
+    // facts' presence, so a `none` that kept them would verify green.
+    if (bundle.verdict !== 'canonical' && (c || bundle.holder)) {
+      diffs.push(`a ${bundle.verdict} verdict carrying canonical or holder facts (the resolver attaches them to canonical only)`);
+    }
 
     // Shapes the resolver never produces are forgeries or bugs, not proofs.
     // The method follows from the height, so a bundle cannot opt out of the
@@ -124,6 +130,10 @@ export async function verifyProof(bundle: ProofBundle, opts: VerifyOptions = {})
             bundle.height,
           );
           if (!check.ok) diffs.push(`the chain's envelope fails the rule for ${bundle.height} (${check.reason})`);
+          // A caveat makes the rule ambiguous; resolve() answers undetermined there, never canonical.
+          else if (bundle.verdict === 'canonical' && check.caveats.length > 0) {
+            diffs.push(`the chain's envelope is ambiguous under the rule for ${bundle.height} (${check.caveats.join(', ')}): not canonical`);
+          }
           if (c.bodyHex !== null && toHex(fromHex(c.bodyHex)) !== c.bodyHex) diffs.push('bodyHex is not lowercase hex');
         }
       }
@@ -163,6 +173,9 @@ export async function verifyProof(bundle: ProofBundle, opts: VerifyOptions = {})
         if (ins.height !== c.revealHeight) diffs.push(`revealHeight: ord ${ins.height}, bundle ${c.revealHeight}`);
         if (c.sat !== null && String(ins.sat) !== c.sat) diffs.push(`sat: ord ${ins.sat}, bundle ${c.sat}`);
         if (ins.number !== c.number) diffs.push(`number: ord ${ins.number}, bundle ${c.number}`);
+        if (bundle.verdict === 'canonical' && ins.charms.includes('unbound')) {
+          diffs.push(`ord calls ${c.id} unbound: the rule is ambiguous for it, not canonical`);
+        }
         if (bundle.holder) {
           if (ins.satpoint !== bundle.holder.satpoint) holderDiffs.push(`holder satpoint: now ${ins.satpoint}, bundle ${bundle.holder.satpoint}`);
           if (ins.address !== bundle.holder.address) holderDiffs.push(`holder address: now ${ins.address}, bundle ${bundle.holder.address}`);
