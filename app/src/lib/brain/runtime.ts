@@ -208,6 +208,8 @@ export async function processExpiredAppeals(
     votesFor: number;
     votesAgainst: number;
     flaggedBy: string[];
+    /** The appealed content's text. Without it no flagger is struck. */
+    contentText?: string | null;
   }>>,
   resolveAppealInDb: (appealId: string, outcome: 'restored' | 'upheld', reasoning: string) => Promise<void>,
   issueStrike: (walletAddress: string) => Promise<number>,
@@ -236,11 +238,15 @@ export async function processExpiredAppeals(
     );
     decisions.push(decision);
 
-    // If restored, check if flaggers should get strikes
-    if (outcome === 'restored') {
+    // If restored, check if flaggers should get strikes — only against the real
+    // content. analyzeContent reads empty text as clean with confidence 1, so
+    // scanning without the text approved a strike for every flagger of every
+    // restored appeal. No content, no evidence of a bad-faith flag, no strike.
+    const contentText = typeof appeal.contentText === 'string' ? appeal.contentText : '';
+    if (outcome === 'restored' && contentText.trim()) {
       for (const flaggerAddr of appeal.flaggedBy) {
         const result = analyzeContent(
-          { contentType: 'chat_message', contentId: appeal.contentId, authorAddress: flaggerAddr, createdAt: new Date() },
+          { contentType: 'chat_message', contentId: appeal.contentId, authorAddress: flaggerAddr, text: contentText, createdAt: new Date() },
           brainState.soul,
         );
         
