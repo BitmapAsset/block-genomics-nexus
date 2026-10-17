@@ -7,7 +7,7 @@ import { useGlobalWallet } from "@/context/GlobalWalletContext";
 import BitmapThumbnail from "@/components/BitmapThumbnail";
 import GenomeDNA from "@/components/GenomeDNA";
 import { openWalletModal } from "@/lib/open-wallet-modal";
-import { buildProfileClaim, checkHandle, PROFILE_CHALLENGE_PURPOSE, PROFILE_CREATE_PATH } from "@/lib/profile-claim";
+import { buildProfileClaim, checkHandle, describeClaimFailure, PROFILE_CHALLENGE_PURPOSE, PROFILE_CREATE_PATH } from "@/lib/profile-claim";
 import {
   ADDRESS_TYPE_LABEL,
   addressType,
@@ -107,7 +107,7 @@ async function fetchGuardians(heights: number[], signal: AbortSignal): Promise<W
 /* ───────────────────────────── page ───────────────────────────── */
 
 export default function MyBitmapsClient() {
-  const { isConnected, isConnecting, walletAddress, walletType, signMessage, refreshProfile } = useGlobalWallet();
+  const { isConnected, isConnecting, walletAddress, walletType, profile, signMessage, refreshProfile } = useGlobalWallet();
 
   const [scan, setScan] = useState<ChainScan | null>(null);
   const [records, setRecords] = useState<WalletRecords>(EMPTY_RECORDS);
@@ -116,6 +116,11 @@ export default function MyBitmapsClient() {
   const [reloadKey, setReloadKey] = useState(0);
   const [rows, setRows] = useState<Record<number, VerifyRow>>({});
   const [sheet, setSheet] = useState<{ height: number; reveal: boolean } | null>(null);
+  // The claim route said this wallet has no verified account (403): every card
+  // offers Verify again until a verification in this session succeeds.
+  const [needsVerify, setNeedsVerify] = useState(false);
+  // A card whose Verify button should be scrolled to and focused once it renders.
+  const [focusVerify, setFocusVerify] = useState<number | null>(null);
   // The wallet a verification started with; a switch mid-flow drops its result.
   const walletRef = useRef(walletAddress);
 
@@ -128,6 +133,8 @@ export default function MyBitmapsClient() {
     setRecordsFailed(false);
     setRows({});
     setSheet(null);
+    setNeedsVerify(false);
+    setFocusVerify(null);
   }, [walletAddress]);
 
   useEffect(() => {
@@ -195,8 +202,8 @@ export default function MyBitmapsClient() {
   }, [isConnected, walletAddress, reloadKey]);
 
   // Cards verified in this session flip to "verified" without a refetch: the
-  // server's 200 is the proof, and the record it wrote names this wallet and
-  // the inscription we sent.
+  // server's 200 is the proof, and the records it wrote name this wallet, the
+  // inscription we sent, and a verified User.
   const view = useMemo(() => {
     if (!walletAddress || !scan) return null;
     const sessionVerified = Object.entries(rows)
@@ -207,8 +214,23 @@ export default function MyBitmapsClient() {
     const blocks = records.blocks
       .filter((b) => !sessionVerified.includes(b.height))
       .concat(sessionVerified.map((height) => ({ height, ownerAddress: walletAddress, inscriptionId: heldId(height) })));
-    return reconcileBitmaps(walletAddress, scan, { ...records, blocks });
-  }, [walletAddress, scan, records, rows]);
+    // users/by-wallet: a 404 leaves profile null (no User); a User row can exist unverified.
+    const profileVerified =
+      profile?.verified === true && profile.walletAddress?.toLowerCase() === walletAddress.toLowerCase();
+    const verifiedUser = (sessionVerified.length > 0 || profileVerified) && !needsVerify;
+    return reconcileBitmaps(walletAddress, scan, { ...records, blocks }, verifiedUser);
+  }, [walletAddress, scan, records, rows, profile, needsVerify]);
+
+  // "Verify this bitmap first" from the handle claim: bring that card's Verify
+  // button into view and focus it once the card shows one.
+  useEffect(() => {
+    if (focusVerify === null) return;
+    const button = document.querySelector<HTMLButtonElement>(`[data-testid="verify-${focusVerify}"]`);
+    if (!button) return;
+    button.scrollIntoView({ block: "center", behavior: "smooth" });
+    button.focus({ preventScroll: true });
+    setFocusVerify(null);
+  }, [focusVerify, view]);
 
   const verify = useCallback(
     async (card: BitmapCard) => {
@@ -264,6 +286,7 @@ export default function MyBitmapsClient() {
           : "none";
         if (stale()) return;
         setRows((r) => ({ ...r, [h]: { phase: "done", holderCheck } }));
+        setNeedsVerify(false);
         setSheet({ height: h, reveal: true });
         void refreshProfile();
       } catch (e) {
@@ -377,6 +400,12 @@ export default function MyBitmapsClient() {
           onClaimed={(handle) =>
             setRecords((r) => ({ ...r, profiles: [...r.profiles, { blockHeight: sheet.height, handle }] }))
           }
+          onNeedsVerify={() => {
+            setNeedsVerify(true);
+            setFocusVerify(sheet.height);
+            setSheet(null);
+            void refreshProfile();
+          }}
           onClose={() => setSheet(null)}
         />
       )}
@@ -569,11 +598,13 @@ function BitmapCardView({
               : card.handle
                 ? `@${card.handle}`
                 : "Held on-chain and recorded to this wallet."
-            : card.recordedToOther
-              ? "Held by this wallet. Block Genomics still lists the previous holder."
-              : card.unlinked
-                ? "Held by this wallet. The record isn't linked to this inscription yet."
-                : "Held by this wallet on-chain. Not on Block Genomics yet."}
+            : card.recordOnly
+              ? "On record for this wallet, not yet verified by you."
+              : card.recordedToOther
+                ? "Held by this wallet. Block Genomics still lists the previous holder."
+                : card.unlinked
+                  ? "Held by this wallet. The record isn't linked to this inscription yet."
+                  : "Held by this wallet on-chain. Not on Block Genomics yet."}
         </p>
 
         <div className="mt-auto pt-3">
@@ -634,6 +665,7 @@ function GenomeSheet({
   handle,
   signMessage,
   onClaimed,
+  onNeedsVerify,
   onClose,
 }: {
   height: number;
@@ -643,6 +675,7 @@ function GenomeSheet({
   handle: string | null;
   signMessage: (message: string) => Promise<string>;
   onClaimed: (handle: string) => void;
+  onNeedsVerify: () => void;
   onClose: () => void;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -718,6 +751,7 @@ function GenomeSheet({
           handle={handle}
           signMessage={signMessage}
           onClaimed={onClaimed}
+          onNeedsVerify={onNeedsVerify}
         />
 
         <div className="mt-6 flex flex-col gap-2 sm:flex-row">
@@ -745,7 +779,7 @@ function GenomeSheet({
 type ClaimState =
   | { phase: "idle" }
   | { phase: "working"; step: string }
-  | { phase: "error"; message: string }
+  | { phase: "error"; message: string; needsVerify?: boolean }
   | { phase: "done"; handle: string };
 
 /**
@@ -759,12 +793,14 @@ function HandleClaim({
   handle,
   signMessage,
   onClaimed,
+  onNeedsVerify,
 }: {
   height: number;
   walletAddress: string;
   handle: string | null;
   signMessage: (message: string) => Promise<string>;
   onClaimed: (handle: string) => void;
+  onNeedsVerify: () => void;
 }) {
   const [input, setInput] = useState("");
   const [state, setState] = useState<ClaimState>({ phase: "idle" });
@@ -825,13 +861,8 @@ function HandleClaim({
       });
       const resBody = await res.json().catch(() => null);
       if (!res.ok || !resBody?.success) {
-        setState({
-          phase: "error",
-          message:
-            res.status === 503
-              ? "Your signature is fine, but the chain couldn't confirm the holder right now. Nothing was created. Try again in a moment."
-              : `${resBody?.error || `HTTP ${res.status}`}. Nothing was created.`,
-        });
+        const failure = describeClaimFailure(res.status, resBody?.error);
+        setState({ phase: "error", message: failure.message, needsVerify: failure.needsVerify });
         return;
       }
       setState({ phase: "done", handle: wanted });
@@ -883,6 +914,16 @@ function HandleClaim({
         <p className="mt-2 text-xs leading-relaxed text-red-300" role="alert">
           {state.message}
         </p>
+      )}
+      {state.phase === "error" && state.needsVerify && (
+        <button
+          type="button"
+          onClick={onNeedsVerify}
+          className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-full bg-bitcoin px-5 text-sm font-semibold text-black hover:brightness-110 sm:w-auto"
+          data-testid="claim-verify-first"
+        >
+          Verify this bitmap first
+        </button>
       )}
     </div>
   );

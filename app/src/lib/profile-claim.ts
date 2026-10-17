@@ -28,6 +28,36 @@ export function checkHandle(raw: string): { ok: true; handle: string } | { ok: f
   return isValidHandle(handle) ? { ok: true, handle } : { ok: false, error: HANDLE_ERROR };
 }
 
+export interface ClaimFailure {
+  /** The wallet has no verified account: the way forward is verifying the bitmap. */
+  needsVerify: boolean;
+  message: string;
+}
+
+/**
+ * One sentence for a failed claim, never an API path. The route answers 403
+ * "Wallet must be verified first via /auth/verify" when the wallet has no
+ * verified `User`; the page turns that into "verify this bitmap first".
+ */
+export function describeClaimFailure(httpStatus: number, error: unknown): ClaimFailure {
+  const text = typeof error === 'string' ? error.trim() : '';
+  if (httpStatus === 403 && /verified first/i.test(text)) {
+    return {
+      needsVerify: true,
+      message: 'Verify this bitmap first: one signature proves your wallet holds it, then you can claim a handle. Nothing was created.',
+    };
+  }
+  if (httpStatus === 503) {
+    return {
+      needsVerify: false,
+      message: "Your signature is fine, but the chain couldn't confirm the holder right now. Nothing was created. Try again in a moment.",
+    };
+  }
+  // Server sentences that name a route ("… via /auth/verify") lose the route.
+  const plain = text.replace(/\s*\bvia\s+\/\S+/gi, '').replace(/\s*\/(?:api|auth)\/\S*/gi, '').replace(/[.\s]+$/, '');
+  return { needsVerify: false, message: `${plain || `The claim failed (HTTP ${httpStatus})`}. Nothing was created.` };
+}
+
 /** Body + canonical message to sign. `nonce` comes from /api/v1/challenge. */
 export async function buildProfileClaim(
   input: ProfileClaimInput,

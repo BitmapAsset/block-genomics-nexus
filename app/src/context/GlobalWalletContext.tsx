@@ -45,6 +45,8 @@ export interface UserProfile {
   bio?: string;
   tier?: number;
   createdAt?: string;
+  /** `User.verified`: the wallet proved itself through auth/verify. A record alone is not this. */
+  verified?: boolean;
 }
 
 interface GlobalWalletState {
@@ -91,6 +93,7 @@ async function fetchProfileByWallet(address: string): Promise<UserProfile | null
       bio: u.bio,
       tier: u.tier,
       createdAt: u.createdAt,
+      verified: u.verified === true,
     };
   } catch {
     return null;

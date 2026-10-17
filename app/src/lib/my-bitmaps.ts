@@ -7,9 +7,14 @@
  * holds right now; our database is a record of past verifications and can be
  * stale in both directions. So:
  *
- *   held on-chain + recorded to this wallet   → verified
- *   held on-chain + not recorded to it        → needs one signature
- *   recorded to this wallet + not held        → "previously linked", collapsed
+ *   held on-chain + recorded to this wallet + verified account → verified
+ *   held on-chain + recorded, no verified account               → needs one signature
+ *   held on-chain + not recorded to it                          → needs one signature
+ *   recorded to this wallet + not held                          → "previously linked", collapsed
+ *
+ * "Recorded to this wallet" alone is not enough: the ownership sync moves
+ * `Block.ownerAddress` to a buyer without creating or verifying a `User`, and
+ * every owner action (handle claim, world tools) needs a verified `User`.
  *
  * When the scan cannot answer, nothing is called owned: the recorded heights are
  * shown as unconfirmed, never as the wallet's bitmaps (audit P0-4).
@@ -53,8 +58,9 @@ export interface WalletRecords {
 
 export type BitmapStatus =
   /**
-   * Held on-chain, and the record names this wallet AND the very inscription the
-   * wallet holds: the same agreement the block page's deed calls "Verified".
+   * Held on-chain, the record names this wallet AND the very inscription the
+   * wallet holds (the agreement the block page's deed calls "Verified"), and
+   * this wallet has a verified `User`.
    */
   | 'verified'
   /** Held on-chain; Block Genomics has no record of this wallet holding it. */
@@ -73,6 +79,11 @@ export interface BitmapCard {
   recordedToOther: boolean;
   /** True when the record names this wallet but not the inscription it holds (or none). */
   unlinked: boolean;
+  /**
+   * True when the record names this wallet and the held inscription, but the
+   * wallet has no verified `User` (e.g. the ownership sync recorded a buyer).
+   */
+  recordOnly: boolean;
   handle: string | null;
   guardian: { status: string; name: string | null; online: boolean } | null;
 }
@@ -99,8 +110,17 @@ const isOnline = (status: string) => status === 'active' || status === 'Online';
 /**
  * Merge the chain scan with the records. Never throws; never promotes a
  * recorded height to "held" without the chain saying so.
+ *
+ * `verifiedUser`: this wallet has a `User` with `verified: true`
+ * (`GET /api/v1/users/by-wallet/{addr}`; a 404 means no user). Without one, no
+ * card is "verified", whatever the Block rows say.
  */
-export function reconcileBitmaps(wallet: string, scan: ChainScan, records: WalletRecords): MyBitmapsView {
+export function reconcileBitmaps(
+  wallet: string,
+  scan: ChainScan,
+  records: WalletRecords,
+  verifiedUser: boolean,
+): MyBitmapsView {
   const ownerOf = new Map(records.blocks.map((b) => [b.height, b.ownerAddress]));
   const recordIdOf = new Map(records.blocks.map((b) => [b.height, b.inscriptionId ?? null]));
   const handleOf = new Map<number, string>();
@@ -112,6 +132,10 @@ export function reconcileBitmaps(wallet: string, scan: ChainScan, records: Walle
     guardianOf.set(g.blockHeight, { status: g.status, name: g.name ?? null, online: isOnline(g.status) });
   }
 
+  /** The record names this wallet and the inscription it holds. */
+  const recordMatches = (height: number, inscriptionId: string | null) =>
+    inscriptionId !== null && ownerOf.get(height) === wallet && recordIdOf.get(height) === inscriptionId;
+
   const card = (height: number, status: BitmapStatus, inscriptionId: string | null): BitmapCard => {
     const owner = ownerOf.get(height) ?? null;
     return {
@@ -120,6 +144,7 @@ export function reconcileBitmaps(wallet: string, scan: ChainScan, records: Walle
       inscriptionId,
       recordedToOther: owner !== null && owner !== wallet,
       unlinked: inscriptionId !== null && owner === wallet && recordIdOf.get(height) !== inscriptionId,
+      recordOnly: !verifiedUser && recordMatches(height, inscriptionId),
       handle: handleOf.get(height) ?? null,
       guardian: guardianOf.get(height) ?? null,
     };
@@ -152,7 +177,7 @@ export function reconcileBitmaps(wallet: string, scan: ChainScan, records: Walle
   }
 
   const held = Array.from(heldIds.entries()).map(([h, id]) =>
-    card(h, ownerOf.get(h) === wallet && recordIdOf.get(h) === id ? 'verified' : 'unverified', id),
+    card(h, verifiedUser && recordMatches(h, id) ? 'verified' : 'unverified', id),
   );
   held.sort((a, b) => {
     if (a.status !== b.status) return a.status === 'verified' ? -1 : 1;

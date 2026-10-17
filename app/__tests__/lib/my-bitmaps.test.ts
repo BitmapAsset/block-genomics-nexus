@@ -47,14 +47,14 @@ const AUDIT_RECORDS: WalletRecords = {
 
 describe('reconcileBitmaps', () => {
   it('lists exactly what the chain says the wallet holds, never the database list', () => {
-    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS);
+    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS, true);
 
     expect(view.held.map((c) => c.height).sort((a, b) => a - b)).toEqual([718840, 720143, 738505, 745506, 745966]);
     expect(view.counts.held).toBe(5);
   });
 
   it('moves database-only heights to "previously linked", not to the held grid', () => {
-    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS);
+    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS, true);
 
     expect(view.recordedOnly.map((c) => [c.height, c.status])).toEqual([
       [0, 'previous'],
@@ -64,7 +64,7 @@ describe('reconcileBitmaps', () => {
   });
 
   it('calls a held block verified only when the record names this wallet', () => {
-    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS);
+    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS, true);
     const status = Object.fromEntries(view.held.map((c) => [c.height, c.status]));
 
     expect(status).toEqual({
@@ -88,7 +88,7 @@ describe('reconcileBitmaps', () => {
       profiles: [],
       guardians: [],
     };
-    const view = reconcileBitmaps(W, { status: 'ok', inscriptions: [block(1), block(2), block(3)] }, records);
+    const view = reconcileBitmaps(W, { status: 'ok', inscriptions: [block(1), block(2), block(3)] }, records, true);
     const byHeight = Object.fromEntries(view.held.map((c) => [c.height, c]));
 
     expect(byHeight[1]).toMatchObject({ status: 'verified', unlinked: false });
@@ -96,8 +96,38 @@ describe('reconcileBitmaps', () => {
     expect(byHeight[3]).toMatchObject({ status: 'unverified', unlinked: true });
   });
 
+  // REVIEW bg57 P1-2: the ownership sync records a buyer on Block rows without
+  // creating or verifying a User; such a wallet must still be offered Verify.
+  it('calls nothing verified for a wallet with no verified account, even when the records match', () => {
+    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS, false);
+    const byHeight = Object.fromEntries(view.held.map((c) => [c.height, c]));
+
+    expect(view.counts.verified).toBe(0);
+    expect(view.held.every((c) => c.status === 'unverified')).toBe(true);
+    // record-only: the record names this wallet and the held inscription, no verified User
+    expect(byHeight[718840]).toMatchObject({ recordOnly: true, recordedToOther: false, unlinked: false });
+    expect(byHeight[720143]).toMatchObject({ recordOnly: true });
+    expect(byHeight[745506]).toMatchObject({ recordOnly: true });
+    // the other reasons keep their own wording
+    expect(byHeight[738505]).toMatchObject({ recordOnly: false, recordedToOther: false });
+    expect(byHeight[745966]).toMatchObject({ recordOnly: false, recordedToOther: true });
+  });
+
+  it('record-only match + verified account → verified', () => {
+    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS, true);
+
+    expect(view.held.filter((c) => c.status === 'verified').map((c) => c.height)).toEqual([718840, 720143, 745506]);
+    expect(view.held.some((c) => c.recordOnly)).toBe(false);
+  });
+
+  it('a verified account alone verifies nothing: the record must still name the held inscription', () => {
+    const view = reconcileBitmaps(W, { status: 'ok', inscriptions: [block(208)] }, { recordedHeights: [], blocks: [], profiles: [], guardians: [] }, true);
+
+    expect(view.held[0]).toMatchObject({ height: 208, status: 'unverified', recordOnly: false });
+  });
+
   it('flags a record that still names a previous holder', () => {
-    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS);
+    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS, true);
     const c745966 = view.held.find((c) => c.height === 745966)!;
     const c738505 = view.held.find((c) => c.height === 738505)!;
 
@@ -106,13 +136,13 @@ describe('reconcileBitmaps', () => {
   });
 
   it('puts verified cards first, each group by height', () => {
-    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS);
+    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS, true);
 
     expect(view.held.map((c) => c.height)).toEqual([718840, 720143, 745506, 738505, 745966]);
   });
 
   it('carries the held inscription id, handle and guardian onto the card', () => {
-    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS);
+    const view = reconcileBitmaps(W, AUDIT_SCAN, AUDIT_RECORDS, true);
     const card = view.held.find((c) => c.height === 720143)!;
 
     expect(card.inscriptionId).toBe('720143i0');
@@ -123,7 +153,7 @@ describe('reconcileBitmaps', () => {
 
   it('never calls anything owned when the chain could not be asked', () => {
     for (const scan of [{ status: 'unavailable' }, { status: 'error', message: 'HTTP 429' }] as ChainScan[]) {
-      const view = reconcileBitmaps(W, scan, AUDIT_RECORDS);
+      const view = reconcileBitmaps(W, scan, AUDIT_RECORDS, true);
 
       expect(view.held).toEqual([]);
       expect(view.counts).toEqual({ held: 0, verified: 0, guardians: 0 });
@@ -138,7 +168,7 @@ describe('reconcileBitmaps', () => {
       blocks: [],
       profiles: [],
       guardians: [],
-    });
+    }, true);
 
     expect(view.held).toEqual([
       expect.objectContaining({ height: 208, status: 'unverified', inscriptionId: '208i0', recordedToOther: false }),
@@ -146,7 +176,7 @@ describe('reconcileBitmaps', () => {
   });
 
   it('reports a real empty wallet as empty, not as an outage', () => {
-    const view = reconcileBitmaps(W, { status: 'ok', inscriptions: [] }, { recordedHeights: [], blocks: [], profiles: [], guardians: [] });
+    const view = reconcileBitmaps(W, { status: 'ok', inscriptions: [] }, { recordedHeights: [], blocks: [], profiles: [], guardians: [] }, true);
 
     expect(view.scan).toBe('ok');
     expect(view.held).toEqual([]);
@@ -158,6 +188,7 @@ describe('reconcileBitmaps', () => {
       W,
       { status: 'ok', inscriptions: [block(840000, 'firsti0'), block(840000, 'secondi0')] },
       { recordedHeights: [], blocks: [], profiles: [], guardians: [] },
+      true,
     );
 
     expect(view.held).toHaveLength(1);
@@ -176,6 +207,7 @@ describe('reconcileBitmaps', () => {
         ],
       },
       { recordedHeights: [], blocks: [], profiles: [], guardians: [] },
+      true,
     );
 
     expect(view.parcels.map((p) => p.parcelIndex)).toEqual([3, 12]);
