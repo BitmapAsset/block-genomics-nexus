@@ -17,6 +17,7 @@ import {
   parseScanResponse,
   readVerifyResponse,
   reconcileBitmaps,
+  recordedInscription,
   SCAN_CAP,
   type BitmapCard,
   type ChainScan,
@@ -164,18 +165,13 @@ export default function MyBitmapsClient() {
         if (parsed.status === "ok") {
           const heights = Array.from(new Set(parsed.inscriptions.filter((i) => i.type === "block").map((i) => i.height)));
           const claimed = (claimedRes?.body as { heights?: unknown })?.heights;
-          const recordedHeights = Array.isArray(stats?.ownedBlocks) ? stats!.ownedBlocks : [];
           const toRead = heightsToRead(
             heights,
             claimedRes?.status === 200 && Array.isArray(claimed) ? (claimed as number[]) : null,
-            recordedHeights,
+            Array.isArray(stats?.ownedBlocks) ? stats!.ownedBlocks : [],
           );
-          // The scan reads only the first SCAN_CAP inscriptions, so a recorded
-          // height it didn't list may still be here. Its row carries the recorded
-          // inscription, whose holder Verify then checks directly.
-          const unlisted = recordedHeights.filter((h) => Number.isInteger(h) && !heights.includes(h));
           const [res, guardians] = await Promise.all([
-            fetchBlockRows(toRead.concat(unlisted), ctrl.signal),
+            fetchBlockRows(toRead, ctrl.signal),
             fetchGuardians(toRead, ctrl.signal),
           ]);
           blockGuardians = guardians;
@@ -253,9 +249,6 @@ export default function MyBitmapsClient() {
     async (card: BitmapCard) => {
       if (!walletAddress) return;
       const h = card.height;
-      // Held: the inscription the scan listed. Unscanned (capped scan): the one
-      // the record names, so the server checks its holder instead of re-scanning.
-      const inscriptionId = card.inscriptionId ?? card.recordedInscriptionId;
       const stale = () => walletRef.current !== walletAddress;
       const fail = (failure: VerifyFailure) => {
         if (!stale()) setRows((r) => ({ ...r, [h]: { phase: "failed", failure } }));
@@ -263,6 +256,15 @@ export default function MyBitmapsClient() {
       setRows((r) => ({ ...r, [h]: { phase: "signing" } }));
 
       try {
+        // Held: the inscription the scan listed. A recorded height the scan
+        // didn't list: the inscription on record for this wallet, read now, so
+        // the server checks its holder instead of re-scanning the wallet.
+        let inscriptionId = card.inscriptionId;
+        if (!inscriptionId && (card.status === "previous" || card.status === "unscanned")) {
+          const row = await getJson(`/api/v1/blocks/${h}`, new AbortController().signal).catch(() => null);
+          inscriptionId = row ? recordedInscription(walletAddress, row.status, row.body) : null;
+        }
+
         const ch = await fetch("/api/v1/challenge", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -16,6 +16,7 @@ import {
   describeVerifyFailure,
   isUserRejection,
   readVerifyResponse,
+  recordedInscription,
   SCAN_CAP,
   type ChainScan,
   type WalletRecords,
@@ -212,26 +213,13 @@ describe('reconcileBitmaps', () => {
       expect(view.recordedOnly.some((c) => c.status === 'previous')).toBe(false);
     });
 
-    it('carries the recorded inscription so Verify checks its holder directly', () => {
-      const view = reconcileBitmaps(W, capped, AUDIT_RECORDS, true);
-      const byHeight = Object.fromEntries(view.recordedOnly.map((c) => [c.height, c]));
-
-      expect(byHeight[720143]).toMatchObject({ status: 'unscanned', inscriptionId: null, recordedInscriptionId: '720143i0' });
-      // a record naming another wallet, or no row, gives nothing to check directly
-      expect(byHeight[745966].recordedInscriptionId).toBeNull();
-      expect(byHeight[0].recordedInscriptionId).toBeNull();
-    });
-
-    it('below the cap they stay "previous", and still carry the recorded inscription to verify', () => {
+    it('below the cap they are "previous": not found, never claimed held, inscription unknown', () => {
       // The response lists only matched bitmaps, so 1 listed proves nothing about
-      // the rest of the wallet: a Verify path stays open here too.
+      // the rest of the wallet; the page keeps a Verify path for these too.
       const view = reconcileBitmaps(W, { ...capped, capped: false }, AUDIT_RECORDS, true);
-      const byHeight = Object.fromEntries(view.recordedOnly.map((c) => [c.height, c]));
 
       expect(view.capped).toBe(false);
-      expect(view.recordedOnly.every((c) => c.status === 'previous')).toBe(true);
-      expect(byHeight[720143].recordedInscriptionId).toBe('720143i0');
-      expect(byHeight[0].recordedInscriptionId).toBeNull();
+      expect(view.recordedOnly.every((c) => c.status === 'previous' && c.inscriptionId === null)).toBe(true);
     });
   });
 
@@ -253,6 +241,22 @@ describe('reconcileBitmaps', () => {
 
     expect(view.parcels.map((p) => p.parcelIndex)).toEqual([3, 12]);
     expect(view.held.map((c) => c.height)).toEqual([5]);
+  });
+});
+
+describe('recordedInscription', () => {
+  const row = (data: Record<string, unknown>) => ({ success: true, data: { height: 720143, ...data } });
+
+  it('gives the inscription on record when the row names this wallet', () => {
+    expect(recordedInscription(W, 200, row({ ownerAddress: W, inscriptionId: 'abci0' }))).toBe('abci0');
+  });
+
+  it('gives nothing for a row naming another wallet, no inscription, no row or an error', () => {
+    expect(recordedInscription(W, 200, row({ ownerAddress: OTHER, inscriptionId: 'abci0' }))).toBeNull();
+    expect(recordedInscription(W, 200, row({ ownerAddress: W, inscriptionId: null }))).toBeNull();
+    expect(recordedInscription(W, 200, row({ ownerAddress: W, inscriptionId: '' }))).toBeNull();
+    expect(recordedInscription(W, 404, { success: false, error: 'Block not found' })).toBeNull();
+    expect(recordedInscription(W, 500, null)).toBeNull();
   });
 });
 

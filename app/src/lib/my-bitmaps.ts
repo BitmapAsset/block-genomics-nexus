@@ -25,7 +25,8 @@
  * bitmaps among 200 inscriptions answers 3, exactly like a complete scan.
  * Below the cap such a height is "previous" (not found, likely moved); at the
  * cap, where the scan surely stopped early, it is "unscanned". Both keep a
- * Verify path that checks the recorded inscription's holder directly.
+ * Verify path that checks the recorded inscription's holder directly
+ * (`recordedInscription`).
  *
  * Pure functions only, so every state the page can show is unit-tested.
  */
@@ -95,12 +96,6 @@ export interface BitmapCard {
   status: BitmapStatus;
   /** The `.bitmap` inscription the wallet holds; null unless held on-chain. */
   inscriptionId: string | null;
-  /**
-   * For a 'previous' or 'unscanned' card: the inscription the record names for
-   * this wallet, so verifying checks that inscription's holder directly instead
-   * of another capped scan. Null otherwise.
-   */
-  recordedInscriptionId: string | null;
   /** True when the record names someone else (a previous holder). */
   recordedToOther: boolean;
   /** True when the record names this wallet but not the inscription it holds (or none). */
@@ -170,8 +165,6 @@ export function reconcileBitmaps(
       height,
       status,
       inscriptionId,
-      recordedInscriptionId:
-        (status === 'previous' || status === 'unscanned') && owner === wallet ? recordIdOf.get(height) ?? null : null,
       recordedToOther: owner !== null && owner !== wallet,
       unlinked: inscriptionId !== null && owner === wallet && recordIdOf.get(height) !== inscriptionId,
       recordOnly: !verifiedUser && recordMatches(height, inscriptionId),
@@ -266,6 +259,21 @@ export function mergeGuardians(
   for (const g of byOwner) merged.set(g.blockHeight, g);
   for (const g of byBlock) merged.set(g.blockHeight, g);
   return Array.from(merged.values()).sort((a, b) => a.blockHeight - b.blockHeight);
+}
+
+/**
+ * The inscription Block Genomics has on record for `wallet` at a height, from
+ * `GET /api/v1/blocks/{h}`; null unless the row names this wallet and an
+ * inscription. Verifying a height the scan didn't list sends this id, so the
+ * server checks that inscription's current holder directly instead of
+ * scanning the wallet again (its own scan stops at SCAN_CAP too).
+ */
+export function recordedInscription(wallet: string, httpStatus: number, body: unknown): string | null {
+  if (httpStatus !== 200) return null;
+  const data = (body as { data?: { ownerAddress?: unknown; inscriptionId?: unknown } } | null)?.data;
+  return data?.ownerAddress === wallet && typeof data.inscriptionId === 'string' && data.inscriptionId.length > 0
+    ? data.inscriptionId
+    : null;
 }
 
 /** Parse the scan response body + status into a ChainScan. */
