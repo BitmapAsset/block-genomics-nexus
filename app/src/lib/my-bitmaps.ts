@@ -229,6 +229,49 @@ export function reconcileBitmaps(
   };
 }
 
+/** A verification auth/verify accepted in this session (see readVerifyResponse). */
+export interface SessionVerification {
+  /** The inscription sent with it, if any. */
+  inscriptionId: string | null;
+  holderCheck: HolderCheck;
+}
+
+/**
+ * Fold this session's accepted verifications into the scan and the records,
+ * so a card flips to "verified" without a refetch: the server's answer is the
+ * proof, and the rows it wrote name this wallet and the inscription sent.
+ *
+ * A recorded height the scan didn't list joins the scan only after a live
+ * chain check of a known inscription; 'previous' re-ran no chain check, so
+ * that height stays where it was.
+ */
+export function applySessionVerifications(
+  wallet: string,
+  scan: ChainScan,
+  records: WalletRecords,
+  done: ReadonlyMap<number, SessionVerification>,
+): { scan: ChainScan; records: WalletRecords } {
+  if (done.size === 0) return { scan, records };
+  const scanId = (h: number) =>
+    scan.status === 'ok' ? scan.inscriptions.find((i) => i.type === 'block' && i.height === h)?.inscriptionId ?? null : null;
+  const heights = Array.from(done.keys());
+  const joined: ScanInscription[] = [];
+  for (const [height, v] of done) {
+    if (scanId(height) === null && v.inscriptionId && v.holderCheck === 'live') {
+      joined.push({ type: 'block', height, inscriptionId: v.inscriptionId });
+    }
+  }
+  return {
+    scan: scan.status === 'ok' && joined.length > 0 ? { ...scan, inscriptions: scan.inscriptions.concat(joined) } : scan,
+    records: {
+      ...records,
+      blocks: records.blocks
+        .filter((b) => !done.has(b.height))
+        .concat(heights.map((height) => ({ height, ownerAddress: wallet, inscriptionId: scanId(height) ?? done.get(height)!.inscriptionId }))),
+    },
+  };
+}
+
 /**
  * Which held heights need their Block row read (`GET /api/v1/blocks/{h}`).
  *

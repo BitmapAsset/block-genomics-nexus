@@ -17,6 +17,7 @@ import {
   isUserRejection,
   readVerifyResponse,
   recordedInscription,
+  applySessionVerifications,
   SCAN_CAP,
   type ChainScan,
   type WalletRecords,
@@ -241,6 +242,42 @@ describe('reconcileBitmaps', () => {
 
     expect(view.parcels.map((p) => p.parcelIndex)).toEqual([3, 12]);
     expect(view.held.map((c) => c.height)).toEqual([5]);
+  });
+});
+
+describe('applySessionVerifications', () => {
+  const merge = (scan: ChainScan, done: [number, { inscriptionId: string | null; holderCheck: 'live' | 'previous' }][]) => {
+    const m = applySessionVerifications(W, scan, AUDIT_RECORDS, new Map(done));
+    return reconcileBitmaps(W, m.scan, m.records, true);
+  };
+
+  it('flips a held card verified just now (record rewritten to this wallet and its inscription)', () => {
+    const view = merge(AUDIT_SCAN, [[738505, { inscriptionId: '738505i0', holderCheck: 'live' }]]);
+
+    expect(view.held.find((c) => c.height === 738505)?.status).toBe('verified');
+  });
+
+  it('moves a recorded height the scan did not list into the grid after a live check of its inscription', () => {
+    const scan: ChainScan = { status: 'ok', capped: false, inscriptions: [block(718840)] };
+    const view = merge(scan, [[720143, { inscriptionId: '720143i0', holderCheck: 'live' }]]);
+
+    expect(view.held.find((c) => c.height === 720143)).toMatchObject({ status: 'verified', inscriptionId: '720143i0' });
+    expect(view.recordedOnly.some((c) => c.height === 720143)).toBe(false);
+  });
+
+  it('leaves it in its list when no chain check ran (previous) or no inscription was known', () => {
+    const scan: ChainScan = { status: 'ok', capped: false, inscriptions: [block(718840)] };
+    for (const v of [{ inscriptionId: '720143i0', holderCheck: 'previous' as const }, { inscriptionId: null, holderCheck: 'live' as const }]) {
+      const view = merge(scan, [[720143, v]]);
+
+      expect(view.held.some((c) => c.height === 720143)).toBe(false);
+      expect(view.recordedOnly.some((c) => c.height === 720143)).toBe(true);
+    }
+  });
+
+  it('changes nothing without a verification', () => {
+    const m = applySessionVerifications(W, AUDIT_SCAN, AUDIT_RECORDS, new Map());
+    expect(m).toEqual({ scan: AUDIT_SCAN, records: AUDIT_RECORDS });
   });
 });
 

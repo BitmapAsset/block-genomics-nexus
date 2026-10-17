@@ -11,6 +11,7 @@ import { buildProfileClaim, checkHandle, describeClaimFailure, PROFILE_CHALLENGE
 import {
   ADDRESS_TYPE_LABEL,
   addressType,
+  applySessionVerifications,
   describeVerifyFailure,
   heightsToRead,
   mergeGuardians,
@@ -22,6 +23,7 @@ import {
   type BitmapCard,
   type ChainScan,
   type HolderCheck,
+  type SessionVerification,
   type RecordedBlock,
   type VerifyFailure,
   type WalletRecords,
@@ -201,37 +203,18 @@ export default function MyBitmapsClient() {
     return () => ctrl.abort();
   }, [isConnected, walletAddress, reloadKey]);
 
-  // Cards verified in this session flip to "verified" without a refetch: the
-  // server's 200 is the proof, and the records it wrote name this wallet, the
-  // inscription we sent, and a verified User.
+  // Cards verified in this session flip to "verified" without a refetch
+  // (applySessionVerifications); an accepted verification also made the User verified.
   const view = useMemo(() => {
     if (!walletAddress || !scan) return null;
-    const done = new Map<number, string | null>();
-    for (const [h, r] of Object.entries(rows)) if (r.phase === "done") done.set(Number(h), r.inscriptionId);
-    const sessionVerified = Array.from(done.keys());
-    const scanId = (h: number) =>
-      scan.status === "ok" ? scan.inscriptions.find((i) => i.type === "block" && i.height === h)?.inscriptionId ?? null : null;
-    // A recorded bitmap the capped scan never reached, verified just now: the
-    // chain check that verification ran says this wallet holds it.
-    const effectiveScan: ChainScan =
-      scan.status === "ok"
-        ? {
-            ...scan,
-            inscriptions: scan.inscriptions.concat(
-              sessionVerified
-                .filter((h) => scanId(h) === null && done.get(h))
-                .map((height) => ({ type: "block" as const, height, inscriptionId: done.get(height)! })),
-            ),
-          }
-        : scan;
-    const blocks = records.blocks
-      .filter((b) => !sessionVerified.includes(b.height))
-      .concat(sessionVerified.map((height) => ({ height, ownerAddress: walletAddress, inscriptionId: scanId(height) ?? done.get(height) ?? null })));
+    const done = new Map<number, SessionVerification>();
+    for (const [h, r] of Object.entries(rows)) if (r.phase === "done") done.set(Number(h), r);
+    const merged = applySessionVerifications(walletAddress, scan, records, done);
     // users/by-wallet: a 404 leaves profile null (no User); a User row can exist unverified.
     const profileVerified =
       profile?.verified === true && profile.walletAddress?.toLowerCase() === walletAddress.toLowerCase();
-    const verifiedUser = (sessionVerified.length > 0 || profileVerified) && !needsVerify;
-    return reconcileBitmaps(walletAddress, effectiveScan, { ...records, blocks }, verifiedUser);
+    const verifiedUser = (done.size > 0 || profileVerified) && !needsVerify;
+    return reconcileBitmaps(walletAddress, merged.scan, merged.records, verifiedUser);
   }, [walletAddress, scan, records, rows, profile, needsVerify]);
 
   // "Verify this bitmap first" from the handle claim: bring that card's Verify
@@ -611,7 +594,7 @@ function RecordedOnly({
                       <span className="font-mono">{c.height}.bitmap</span>
                     </Link>
                     {row?.phase === "done" ? (
-                      // Verified by a server-side scan (no inscription id to list it by).
+                      // Verified, but not listed: no live chain check of a known inscription to show it by.
                       <StatusChip verified justNow />
                     ) : (
                       <button
