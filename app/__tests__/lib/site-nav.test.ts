@@ -7,7 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 
-import { PRIMARY_NAV, SECONDARY_NAV, isActivePath, parseBlockQuery, searchTerm } from '@/lib/site-nav';
+import { PRIMARY_NAV, SECONDARY_NAV, isActivePath, parseBlockQuery, searchResultHref, searchTerm } from '@/lib/site-nav';
 
 const appDir = path.join(__dirname, '..', '..', 'src', 'app');
 const hasPage = (href: string) => fs.existsSync(path.join(appDir, ...href.split('/').filter(Boolean), 'page.tsx'));
@@ -25,6 +25,17 @@ describe('site navigation', () => {
   it('never links to a retired route', () => {
     const retired = ['/portfolio', '/profile', '/verify', '/explorer', '/leaderboard'];
     for (const l of [...PRIMARY_NAV, ...SECONDARY_NAV]) expect(retired).not.toContain(l.href);
+  });
+
+  // REVIEW bg57 P2-10: the installed app's shortcuts still opened /profile and /verify.
+  it('gives the installed app shortcuts to real pages only, none retired', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'manifest.json'), 'utf8'));
+    const urls: string[] = manifest.shortcuts.map((s: { url: string }) => s.url);
+    const retired = ['/portfolio', '/profile', '/verify', '/explorer', '/leaderboard'];
+
+    expect(urls.filter((u) => retired.includes(u))).toEqual([]);
+    expect(urls.filter((u) => !hasPage(u))).toEqual([]);
+    expect(urls).toContain('/my-bitmaps');
   });
 
   it('marks a section active on its own path and below it', () => {
@@ -77,5 +88,16 @@ describe('searchTerm (REVIEW bg57 P1-1: the box says "@handle", so "@handle" mus
   it('feeds the block shortcut the same term the request uses', () => {
     expect(parseBlockQuery(searchTerm('@840000'))).toBe(840000);
     expect(parseBlockQuery(searchTerm('@pepe'))).toBeNull();
+  });
+});
+
+describe('searchResultHref (REVIEW bg57 P2-10)', () => {
+  it('sends the API\'s retired /verify link straight to My Bitmaps', () => {
+    expect(searchResultHref('/verify')).toBe('/my-bitmaps');
+    expect(searchResultHref('/verify?block=720143')).toBe('/my-bitmaps');
+  });
+
+  it('leaves every other link alone', () => {
+    for (const url of ['/agent/pepe', '/block/840000', '/verifyx', '/my-bitmaps']) expect(searchResultHref(url)).toBe(url);
   });
 });

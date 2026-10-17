@@ -48,6 +48,15 @@ export function isActivePath(pathname: string, href: string): boolean {
 }
 
 /**
+ * Where a search result goes. The search API still links a handle-less user
+ * or agent to the retired `/verify`, which only redirects to My Bitmaps; go
+ * there directly. The API's answer is left as it is (contract unchanged).
+ */
+export function searchResultHref(url: string): string {
+  return url === '/verify' || url.startsWith('/verify?') || url.startsWith('/verify/') ? '/my-bitmaps' : url;
+}
+
+/**
  * What the search box sends: the text as typed, trimmed, with one leading "@"
  * dropped. The box invites "@handle", but handles are stored without the "@"
  * and the search API matches them as stored, so "@pepe" used to find nothing.

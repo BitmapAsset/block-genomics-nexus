@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { parseBlockQuery, searchTerm } from "@/lib/site-nav";
+import { parseBlockQuery, searchResultHref, searchTerm } from "@/lib/site-nav";
+import { latestRequest } from "@/lib/latest-request";
 
 interface SearchResult {
   type: "block" | "agent" | "user";
@@ -65,6 +66,8 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout>(null);
+  // Only the newest search may fill the dropdown (REVIEW bg57 P2-3).
+  const [latest] = useState(latestRequest);
   const router = useRouter();
 
   // Load recent searches
@@ -84,16 +87,21 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
 
   // Debounced search
   const doSearch = useCallback(async (raw: string) => {
+    const ticket = latest.begin();
     const q = searchTerm(raw);
     if (q.length < 1) {
       setResults(null);
       setIsOpen(false);
+      setLoading(false);
       return;
     }
     setLoading(true);
     try {
       const res = await fetch(`/api/v1/search?q=${encodeURIComponent(q)}&limit=8`);
       const json: SearchResponse = await res.json();
+      // A newer search, a clear or a navigation happened while this was in flight.
+      if (!latest.isCurrent(ticket)) return;
+      for (const r of [...json.data.agents, ...json.data.users]) r.url = searchResultHref(r.url);
 
       // If numeric query and no block results, add a "Go to block" option
       const num = Number(q);
@@ -110,11 +118,11 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
       setSelectedIdx(-1);
       setShowRecent(false);
     } catch {
-      setResults(null);
+      if (latest.isCurrent(ticket)) setResults(null);
     } finally {
-      setLoading(false);
+      if (latest.isCurrent(ticket)) setLoading(false);
     }
-  }, []);
+  }, [latest]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -153,13 +161,16 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
     return () => document.removeEventListener("keydown", handleKey);
   }, [query]);
 
-  const navigate = (url: string, searchTerm?: string) => {
+  const navigate = (url: string, recentTerm?: string) => {
+    // Drop any answer still in flight: it would reopen the dropdown on the next page.
+    latest.cancel();
+    setLoading(false);
     setIsOpen(false);
     setShowRecent(false);
 
     // Save to recent searches
-    if (searchTerm || query) {
-      const term = searchTerm || query;
+    if (recentTerm || query) {
+      const term = recentTerm || query;
       const updated = [term, ...recentSearches.filter((s) => s !== term)].slice(0, MAX_RECENT);
       setRecentSearches(updated);
       saveRecent(updated);
@@ -244,7 +255,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
         )}
         {query && (
           <button
-            onClick={() => { setQuery(""); setResults(null); setIsOpen(false); }}
+            onClick={() => { latest.cancel(); setLoading(false); setQuery(""); setResults(null); setIsOpen(false); }}
             aria-label="Clear search"
             className="absolute right-0 inline-flex h-11 w-11 items-center justify-center text-text-secondary hover:text-text-primary text-sm cursor-pointer"
           >

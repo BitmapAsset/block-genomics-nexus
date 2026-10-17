@@ -809,7 +809,7 @@ function GenomeSheet({
         aria-modal="true"
         aria-labelledby="genome-sheet-title"
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-white/[0.08] bg-[#0d0d14] p-5 shadow-2xl sm:max-w-2xl sm:rounded-3xl sm:p-7"
+        className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-border bg-bg-secondary p-5 shadow-2xl sm:max-w-2xl sm:rounded-3xl sm:p-7"
         data-testid="genome-sheet"
       >
         <div className="flex items-start gap-4">

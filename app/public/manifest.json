@@ -47,15 +47,9 @@
       "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
     },
     {
-      "name": "My Profile",
-      "short_name": "Profile",
-      "url": "/profile",
-      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Verify Agent",
-      "short_name": "Verify",
-      "url": "/verify",
+      "name": "My Bitmaps",
+      "short_name": "My Bitmaps",
+      "url": "/my-bitmaps",
       "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
     }
   ],

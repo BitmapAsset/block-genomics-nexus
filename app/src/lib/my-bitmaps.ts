@@ -189,8 +189,10 @@ export function reconcileBitmaps(
   }
 
   // One card per height: a wallet can hold two inscriptions naming the same
-  // block (a later one is invalid under the bitmap first-is-valid rule), and the
-  // server decides which one counts at verify time. Keep the first listed.
+  // block, and only the first "N.bitmap" inscription is valid under the bitmap
+  // first-is-valid rule. Nothing checks that yet, not this scan and not
+  // auth/verify (REVIEW bg57 P0-A; a separate server wave adds the check), so
+  // the first one listed here is not necessarily the valid one.
   const heldIds = new Map<number, string>();
   const parcels: ParcelHolding[] = [];
   for (const insc of scan.inscriptions) {
