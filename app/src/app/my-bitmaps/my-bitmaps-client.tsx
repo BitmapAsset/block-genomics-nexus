@@ -601,10 +601,10 @@ function RecordedOnly({
                         type="button"
                         onClick={() => onVerify(c)}
                         disabled={busy}
-                        className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-bitcoin px-4 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-70"
+                        className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full border border-white/15 px-4 text-sm font-medium text-text-primary transition hover:bg-white/5 disabled:opacity-70"
                         data-testid={`verify-${c.height}`}
                       >
-                        {busy && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/25 border-t-black" />}
+                        {busy && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-accent-cyan" />}
                         {verifyLabel(row)}
                       </button>
                     )}
