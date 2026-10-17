@@ -170,11 +170,12 @@ export default function MyBitmapsClient() {
             claimedRes?.status === 200 && Array.isArray(claimed) ? (claimed as number[]) : null,
             recordedHeights,
           );
-          // A capped scan may have stopped before some recorded bitmaps. Their
-          // rows carry the recorded inscription, which Verify checks directly.
-          const unscanned = parsed.capped ? recordedHeights.filter((h) => Number.isInteger(h) && !heights.includes(h)) : [];
+          // The scan reads only the first SCAN_CAP inscriptions, so a recorded
+          // height it didn't list may still be here. Its row carries the recorded
+          // inscription, whose holder Verify then checks directly.
+          const unlisted = recordedHeights.filter((h) => Number.isInteger(h) && !heights.includes(h));
           const [res, guardians] = await Promise.all([
-            fetchBlockRows(toRead.concat(unscanned), ctrl.signal),
+            fetchBlockRows(toRead.concat(unlisted), ctrl.signal),
             fetchGuardians(toRead, ctrl.signal),
           ]);
           blockGuardians = guardians;
@@ -298,7 +299,8 @@ export default function MyBitmapsClient() {
         const body = await res.json().catch(() => null);
         // Only a holder check that ran for this block counts; a 200 that checked
         // nothing ('none') is "Couldn't verify": no override, no genome sheet.
-        const outcome = readVerifyResponse(h, res.status, body);
+        // Without an inscription id the server scans the wallet, capped like ours.
+        const outcome = readVerifyResponse(h, res.status, body, { byScan: !inscriptionId });
         if (!outcome.ok) {
           fail(outcome.failure);
           // A 200 still changed the account on the server; keep the context in step.
@@ -579,7 +581,7 @@ function RecordedOnly({
             ? `On record for this wallet, not confirmed on-chain (${cards.length})`
             : capped
               ? `Not found in the first ${SCAN_CAP} inscriptions of this wallet (${cards.length})`
-              : `Previously linked, not in this wallet anymore (${cards.length})`}
+              : `Previously linked, not found in this wallet (${cards.length})`}
         </span>
         <span className="transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
       </summary>
@@ -589,15 +591,15 @@ function RecordedOnly({
             ? "Block Genomics has these on record for this address. Until the chain answers, none of them is shown as yours."
             : capped
               ? `Block Genomics has these on record for this address. The scan reads only the first ${SCAN_CAP} inscriptions of a wallet and didn't find them there, so they may still be in it. Verify one to check it on the chain.`
-              : "Block Genomics has these on record for this address, but the chain says this wallet doesn't hold them now."}
+              : `Block Genomics has these on record for this address, but the wallet scan didn't find them. It reads up to ${SCAN_CAP} inscriptions per wallet, so if one is still here, verify it to check it on the chain.`}
         </p>
-        {capped ? (
+        {!unconfirmed ? (
           <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {cards.map((c) => {
               const row = rows[c.height];
               const busy = row?.phase === "signing" || row?.phase === "checking";
               return (
-                <li key={c.height} className="rounded-xl border border-white/[0.08] p-2.5" data-testid={`unscanned-${c.height}`}>
+                <li key={c.height} className="rounded-xl border border-white/[0.08] p-2.5" data-testid={`recorded-only-${c.height}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Link
                       href={`/block/${c.height}`}
@@ -606,16 +608,21 @@ function RecordedOnly({
                       <BitmapThumbnail blockHeight={c.height} size={28} className="rounded" />
                       <span className="font-mono">{c.height}.bitmap</span>
                     </Link>
-                    <button
-                      type="button"
-                      onClick={() => onVerify(c)}
-                      disabled={busy}
-                      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-bitcoin px-4 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-70"
-                      data-testid={`verify-${c.height}`}
-                    >
-                      {busy && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/25 border-t-black" />}
-                      {verifyLabel(row)}
-                    </button>
+                    {row?.phase === "done" ? (
+                      // Verified by a server-side scan (no inscription id to list it by).
+                      <StatusChip verified justNow />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onVerify(c)}
+                        disabled={busy}
+                        className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-bitcoin px-4 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-70"
+                        data-testid={`verify-${c.height}`}
+                      >
+                        {busy && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/25 border-t-black" />}
+                        {verifyLabel(row)}
+                      </button>
+                    )}
                   </div>
                   {row?.phase === "failed" && (
                     <p className="mt-2 px-1 text-xs leading-relaxed text-red-300" role="alert">

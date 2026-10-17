@@ -222,11 +222,16 @@ describe('reconcileBitmaps', () => {
       expect(byHeight[0].recordedInscriptionId).toBeNull();
     });
 
-    it('keeps today\'s "previous" when the scan is complete', () => {
+    it('below the cap they stay "previous", and still carry the recorded inscription to verify', () => {
+      // The response lists only matched bitmaps, so 1 listed proves nothing about
+      // the rest of the wallet: a Verify path stays open here too.
       const view = reconcileBitmaps(W, { ...capped, capped: false }, AUDIT_RECORDS, true);
+      const byHeight = Object.fromEntries(view.recordedOnly.map((c) => [c.height, c]));
 
       expect(view.capped).toBe(false);
-      expect(view.recordedOnly.every((c) => c.status === 'previous' && c.recordedInscriptionId === null)).toBe(true);
+      expect(view.recordedOnly.every((c) => c.status === 'previous')).toBe(true);
+      expect(byHeight[720143].recordedInscriptionId).toBe('720143i0');
+      expect(byHeight[0].recordedInscriptionId).toBeNull();
     });
   });
 
@@ -369,6 +374,15 @@ describe('describeVerifyFailure', () => {
     const notHeld = describeVerifyFailure(720143, new Error('x'), 403);
     expect(notHeld).toMatchObject({ kind: 'not-held', retryable: false });
     expect(notHeld.message).toContain('720143.bitmap');
+  });
+
+  it('says "not found in the first 50", not "not held", when the server only scanned (no inscription id sent)', () => {
+    const f = describeVerifyFailure(720143, new Error('No .bitmap inscription for block 720143 found in this wallet.'), 403, { byScan: true });
+
+    expect(f).toMatchObject({ kind: 'not-held', retryable: false });
+    expect(f.message).toContain('first 50 inscriptions');
+    expect(f.message).not.toMatch(/doesn't hold/);
+    expect(readVerifyResponse(720143, 403, { success: false }, { byScan: true })).toMatchObject({ ok: false, failure: { message: f.message } });
   });
 
   it('maps 401 to a fresh-signature retry', () => {

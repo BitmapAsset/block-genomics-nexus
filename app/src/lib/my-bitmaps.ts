@@ -10,7 +10,7 @@
  *   held on-chain + recorded to this wallet + verified account → verified
  *   held on-chain + recorded, no verified account               → needs one signature
  *   held on-chain + not recorded to it                          → needs one signature
- *   recorded to this wallet + not held                          → "previously linked", collapsed
+ *   recorded to this wallet + not listed by the scan            → "previously linked", with Verify
  *
  * "Recorded to this wallet" alone is not enough: the ownership sync moves
  * `Block.ownerAddress` to a buyer without creating or verifying a `User`, and
@@ -20,9 +20,12 @@
  * shown as unconfirmed, never as the wallet's bitmaps (audit P0-4).
  *
  * The scan reads at most the first SCAN_CAP inscriptions of a wallet and
- * returns only the bitmaps among them, with no "truncated" flag. When it
- * returns SCAN_CAP or more, it may have stopped early, so a recorded height it
- * didn't list is "unscanned" (maybe still held), not "previous".
+ * returns only the bitmaps among them, with no "truncated" flag and no total.
+ * So a recorded height it didn't list is never proven gone: a wallet with 3
+ * bitmaps among 200 inscriptions answers 3, exactly like a complete scan.
+ * Below the cap such a height is "previous" (not found, likely moved); at the
+ * cap, where the scan surely stopped early, it is "unscanned". Both keep a
+ * Verify path that checks the recorded inscription's holder directly.
  *
  * Pure functions only, so every state the page can show is unit-tested.
  */
@@ -77,9 +80,12 @@ export type BitmapStatus =
   | 'verified'
   /** Held on-chain; Block Genomics has no record of this wallet holding it. */
   | 'unverified'
-  /** Recorded to this wallet but not in it on-chain (sold, moved, or never held). */
+  /**
+   * Recorded to this wallet, not listed by a scan below the cap: likely sold or
+   * moved, but the scan reads only the first SCAN_CAP inscriptions, so not proven.
+   */
   | 'previous'
-  /** Recorded to this wallet, not among the inscriptions a capped scan read: may still be held. */
+  /** Recorded to this wallet, not among the inscriptions a capped scan read: may well still be held. */
   | 'unscanned'
   /** Recorded to this wallet; the chain could not be asked. */
   | 'unconfirmed';
@@ -90,9 +96,9 @@ export interface BitmapCard {
   /** The `.bitmap` inscription the wallet holds; null unless held on-chain. */
   inscriptionId: string | null;
   /**
-   * For an 'unscanned' card: the inscription the record names for this wallet,
-   * so verifying checks that inscription's holder directly instead of another
-   * capped scan. Null otherwise.
+   * For a 'previous' or 'unscanned' card: the inscription the record names for
+   * this wallet, so verifying checks that inscription's holder directly instead
+   * of another capped scan. Null otherwise.
    */
   recordedInscriptionId: string | null;
   /** True when the record names someone else (a previous holder). */
@@ -165,7 +171,7 @@ export function reconcileBitmaps(
       status,
       inscriptionId,
       recordedInscriptionId:
-        status === 'unscanned' && owner === wallet ? recordIdOf.get(height) ?? null : null,
+        (status === 'previous' || status === 'unscanned') && owner === wallet ? recordIdOf.get(height) ?? null : null,
       recordedToOther: owner !== null && owner !== wallet,
       unlinked: inscriptionId !== null && owner === wallet && recordIdOf.get(height) !== inscriptionId,
       recordOnly: !verifiedUser && recordMatches(height, inscriptionId),
@@ -331,8 +337,17 @@ export function isUserRejection(err: unknown): boolean {
  * Turn a failed step into one honest sentence. `httpStatus` is the
  * `/api/v1/auth/verify` status when the failure came from the server, else
  * undefined (the wallet threw before anything was sent).
+ *
+ * `byScan`: no inscription id was sent, so the server looked for the block by
+ * scanning the wallet, which reads only the first SCAN_CAP inscriptions; its
+ * 403 then means "not found there", not "not held".
  */
-export function describeVerifyFailure(height: number, err: unknown, httpStatus?: number): VerifyFailure {
+export function describeVerifyFailure(
+  height: number,
+  err: unknown,
+  httpStatus?: number,
+  { byScan = false }: { byScan?: boolean } = {},
+): VerifyFailure {
   if (httpStatus === undefined) {
     if (isUserRejection(err)) {
       return { kind: 'rejected', message: 'You declined the signature in your wallet. Nothing was recorded.', retryable: true };
@@ -354,7 +369,9 @@ export function describeVerifyFailure(height: number, err: unknown, httpStatus?:
   if (httpStatus === 403) {
     return {
       kind: 'not-held',
-      message: `The chain says this wallet doesn't hold ${height}.bitmap right now, so it can't be verified.`,
+      message: byScan
+        ? `The chain check didn't find ${height}.bitmap in the first ${SCAN_CAP} inscriptions of this wallet, so it can't be verified from here.`
+        : `The chain says this wallet doesn't hold ${height}.bitmap right now, so it can't be verified.`,
       retryable: false,
     };
   }
@@ -384,11 +401,16 @@ export type VerifyOutcome = { ok: true; holderCheck: HolderCheck } | { ok: false
  * the holder just now) or 'previous' (this wallet was already verified for
  * this block) and, when the body names an anchor block, this block.
  */
-export function readVerifyResponse(height: number, httpStatus: number, body: unknown): VerifyOutcome {
+export function readVerifyResponse(
+  height: number,
+  httpStatus: number,
+  body: unknown,
+  opts: { byScan?: boolean } = {},
+): VerifyOutcome {
   const b = body as { success?: boolean; error?: unknown; data?: { holderCheck?: unknown; anchorBlock?: unknown } } | null;
   if (httpStatus < 200 || httpStatus > 299 || !b?.success) {
     const text = typeof b?.error === 'string' && b.error ? b.error : `HTTP ${httpStatus}`;
-    return { ok: false, failure: describeVerifyFailure(height, new Error(text), httpStatus) };
+    return { ok: false, failure: describeVerifyFailure(height, new Error(text), httpStatus, opts) };
   }
   const check = b.data?.holderCheck;
   const anchor = b.data?.anchorBlock;
