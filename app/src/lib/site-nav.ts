@@ -48,6 +48,16 @@ export function isActivePath(pathname: string, href: string): boolean {
 }
 
 /**
+ * What the search box sends: the text as typed, trimmed, with one leading "@"
+ * dropped. The box invites "@handle", but handles are stored without the "@"
+ * and the search API matches them as stored, so "@pepe" used to find nothing.
+ * "@" alone leaves an empty term, which means no request at all.
+ */
+export function searchTerm(raw: string): string {
+  return raw.trim().replace(/^@/, '').trim();
+}
+
+/**
  * A search box entry that names one block, in any common spelling:
  * "840000", "840,000", "#840000", "840000.bitmap", "0". Null otherwise.
  */

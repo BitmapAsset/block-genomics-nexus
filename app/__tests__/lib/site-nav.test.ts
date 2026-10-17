@@ -7,7 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 
-import { PRIMARY_NAV, SECONDARY_NAV, isActivePath, parseBlockQuery } from '@/lib/site-nav';
+import { PRIMARY_NAV, SECONDARY_NAV, isActivePath, parseBlockQuery, searchTerm } from '@/lib/site-nav';
 
 const appDir = path.join(__dirname, '..', '..', 'src', 'app');
 const hasPage = (href: string) => fs.existsSync(path.join(appDir, ...href.split('/').filter(Boolean), 'page.tsx'));
@@ -55,5 +55,27 @@ describe('parseBlockQuery', () => {
 
   it.each(['pepe', '@pepe', 'bc1pxyz', '840000:3.bitmap', '-1', '1.5', '', '99999999999'])('%s → null', (q) => {
     expect(parseBlockQuery(q)).toBeNull();
+  });
+});
+
+describe('searchTerm (REVIEW bg57 P1-1: the box says "@handle", so "@handle" must find it)', () => {
+  it.each([
+    ['@elonmusk', 'elonmusk'],
+    ['elonmusk', 'elonmusk'],
+    ['  @pepe ', 'pepe'],
+    ['@ pepe', 'pepe'],
+    ['@@pepe', '@pepe'], // one "@" only
+    ['840000.bitmap', '840000.bitmap'],
+  ])('%j → %j', (raw, term) => {
+    expect(searchTerm(raw)).toBe(term);
+  });
+
+  it.each(['@', ' @ ', '', '   '])('%j is empty: no request, no "No results"', (raw) => {
+    expect(searchTerm(raw)).toBe('');
+  });
+
+  it('feeds the block shortcut the same term the request uses', () => {
+    expect(parseBlockQuery(searchTerm('@840000'))).toBe(840000);
+    expect(parseBlockQuery(searchTerm('@pepe'))).toBeNull();
   });
 });

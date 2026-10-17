@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { parseBlockQuery } from "@/lib/site-nav";
+import { parseBlockQuery, searchTerm } from "@/lib/site-nav";
 
 interface SearchResult {
   type: "block" | "agent" | "user";
@@ -79,9 +79,12 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
 
   // Detect if query looks like a genome hash (64 char hex)
   const isGenomeHash = /^[a-f0-9]{64}$/i.test(query.trim());
+  // What is actually searched: "@pepe" looks up "pepe". The input keeps what was typed.
+  const term = searchTerm(query);
 
   // Debounced search
-  const doSearch = useCallback(async (q: string) => {
+  const doSearch = useCallback(async (raw: string) => {
+    const q = searchTerm(raw);
     if (q.length < 1) {
       setResults(null);
       setIsOpen(false);
@@ -177,7 +180,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
       e.preventDefault();
       // A block number in any common spelling ("840000", "840,000",
       // "#840000", "840000.bitmap", genesis "0") goes straight to its page.
-      const height = parseBlockQuery(query);
+      const height = parseBlockQuery(term);
       if (selectedIdx >= 0 && allResults[selectedIdx]) {
         navigate(allResults[selectedIdx].url);
       } else if (height !== null) {
@@ -335,7 +338,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
             )}
 
             {/* No results */}
-            {!loading && allResults.length === 0 && query.length > 0 && !isGenomeHash && (
+            {!loading && allResults.length === 0 && term.length > 0 && !isGenomeHash && (
               <div className="px-4 py-3 text-sm text-text-muted">No results for &ldquo;{query}&rdquo;</div>
             )}
 
