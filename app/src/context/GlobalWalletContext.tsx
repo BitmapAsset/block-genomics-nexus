@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import type { TierResolution } from "@/lib/tier-resolver";
+import type { BlockProfileHandle } from "@/lib/public-handle";
 import {
   type WalletType,
   detectWallets,
@@ -45,6 +46,10 @@ export interface UserProfile {
   bio?: string;
   tier?: number;
   createdAt?: string;
+  /** `User.verified`: the wallet proved itself through auth/verify. A record alone is not this. */
+  verified?: boolean;
+  /** Handles claimed on this wallet's blocks (My Bitmaps' claim sets these, not `handle`). */
+  blockProfiles?: BlockProfileHandle[];
 }
 
 interface GlobalWalletState {
@@ -91,6 +96,12 @@ async function fetchProfileByWallet(address: string): Promise<UserProfile | null
       bio: u.bio,
       tier: u.tier,
       createdAt: u.createdAt,
+      verified: u.verified === true,
+      blockProfiles: Array.isArray(u.blockProfiles)
+        ? u.blockProfiles
+            .filter((p: { blockHeight?: unknown; handle?: unknown }) => Number.isInteger(p?.blockHeight) && typeof p?.handle === "string")
+            .map((p: BlockProfileHandle) => ({ blockHeight: p.blockHeight, handle: p.handle }))
+        : [],
     };
   } catch {
     return null;

@@ -1,23 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useGlobalWallet, type WalletType } from "@/context/GlobalWalletContext";
-import BitmapThumbnail from "@/components/BitmapThumbnail";
+import { resolvePublicHandle } from "@/lib/public-handle";
+import { safeNextPath } from "@/lib/site-nav";
 
 function truncateAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
-}
-
-interface BlockProfileInfo {
-  id: string;
-  blockHeight: number;
-  handle: string;
-  displayName?: string;
-  tier?: number;
-  verified?: boolean;
-  isPrimary?: boolean;
 }
 
 const WALLETS: { type: WalletType; name: string; desc: string; color: string; icon: string; url: string; glow: string }[] = [
@@ -30,10 +22,15 @@ const WALLETS: { type: WalletType; name: string; desc: string; color: string; ic
 
 export default function WalletConnect() {
   const {
-    isConnected, isConnecting, walletAddress, walletType,
+    isConnected, isConnecting, walletAddress, walletType, profile,
     connect, disconnect, availableWallets, error: walletError, clearError,
   } = useGlobalWallet();
   const [open, setOpen] = useState(false);
+  // User.handle first, else a handle claimed on one of the wallet's blocks.
+  const publicHandle = resolvePublicHandle(profile);
+  // Where to go after a connect started from elsewhere (e.g. Home → My Bitmaps).
+  const [nextPath, setNextPath] = useState<string | null>(null);
+  const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click or ESC
@@ -55,9 +52,13 @@ export default function WalletConnect() {
     };
   }, [open]);
 
-  // Allow other parts of the app to open the wallet modal
+  // Allow other parts of the app to open the wallet modal (lib/open-wallet-modal)
   useEffect(() => {
-    const handler = () => setOpen(true);
+    const handler = (e: Event) => {
+      const next = (e as CustomEvent<{ next?: string } | undefined>).detail?.next;
+      setNextPath(safeNextPath(next));
+      setOpen(true);
+    };
     window.addEventListener('open-wallet-modal', handler as EventListener);
     return () => window.removeEventListener('open-wallet-modal', handler as EventListener);
   }, []);
@@ -78,23 +79,24 @@ export default function WalletConnect() {
     try {
       await connect(type);
       setOpen(false);
+      if (nextPath) {
+        router.push(nextPath);
+        setNextPath(null);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Connection failed. Please try again.';
       setConnectError(message);
     }
   };
 
-  // Clear connect error when modal closes
+  // Clear connect error (and any pending redirect) when the modal closes
   useEffect(() => {
-    if (!open) { setConnectError(null); clearError(); }
+    if (!open) { setConnectError(null); clearError(); setNextPath(null); }
   }, [open, clearError]);
 
   const isAvailable = (type: WalletType) => availableWallets.includes(type);
 
   const [addressCopied, setAddressCopied] = useState(false);
-  const [blockProfiles, setBlockProfiles] = useState<BlockProfileInfo[]>([]);
-  const [ownedBlocks, setOwnedBlocks] = useState<number[]>([]);
-  const [loadingProfiles, setLoadingProfiles] = useState(false);
 
   const copyAddress = () => {
     if (!walletAddress) return;
@@ -103,29 +105,6 @@ export default function WalletConnect() {
     setTimeout(() => setAddressCopied(false), 2000);
   };
 
-  const fetchWalletData = useCallback(async () => {
-    if (!walletAddress) return;
-    setLoadingProfiles(true);
-    try {
-      const resp = await fetch(`/api/v1/users/by-wallet/${walletAddress}`);
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.success && data.data) {
-          setBlockProfiles(data.data.blockProfiles || []);
-          setOwnedBlocks(data.data.ownedBlocks || []);
-        }
-      }
-    } catch { /* ignore */ }
-    setLoadingProfiles(false);
-  }, [walletAddress]);
-
-  // Fetch block data every time dropdown opens (catches newly created profiles)
-  useEffect(() => {
-    if (open && isConnected && walletAddress) {
-      fetchWalletData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   return (
     <>
@@ -133,10 +112,11 @@ export default function WalletConnect() {
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setOpen(prev => !prev)}
-            className="flex items-center gap-2 rounded-full border border-accent-cyan/30 bg-accent-cyan/5 px-3 py-1.5 text-sm font-medium text-text-primary hover:border-accent-cyan/50 transition-all"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-accent-cyan/30 bg-accent-cyan/5 px-3.5 text-sm font-medium text-text-primary hover:border-accent-cyan/50 transition-all"
           >
-            {/* Green dot */}
-            <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
+            <span className="h-2 w-2 rounded-full bg-green-400 flex-shrink-0" aria-hidden="true" />
             <span className="hidden sm:inline text-xs font-mono text-accent-cyan">
               {walletAddress ? truncateAddress(walletAddress) : ''}
             </span>
@@ -144,171 +124,56 @@ export default function WalletConnect() {
               {walletAddress ? `${walletAddress.slice(0, 4)}…${walletAddress.slice(-4)}` : ''}
             </span>
           </button>
-          {open && (() => {
-            // Derive primary from blockProfiles (isPrimary flag, or first)
-            const primaryBp = blockProfiles.find(bp => bp.isPrimary) || blockProfiles[0] || null;
-            // Blocks that have profiles
-            const profiledBlocks = new Set(blockProfiles.map(bp => bp.blockHeight));
-            // Blocks without profiles
-            const unprofiledBlocks = ownedBlocks.filter(b => !profiledBlocks.has(b));
-            // Other block profiles (not the primary)
-            const otherProfiles = blockProfiles.filter(bp => bp !== primaryBp);
-
-            return (
-            <div className="absolute right-0 mt-2 w-80 rounded-xl p-2 shadow-xl z-50" style={{ background: 'rgba(12,12,20,0.95)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}>
-              {/* Wallet address - copyable */}
-              <button onClick={copyAddress} className="w-full text-left rounded-lg px-3 py-2 hover:bg-white/5 transition-colors group">
-                <p className="text-[10px] uppercase tracking-wider" style={{ color: '#64748b' }}>
-                  {addressCopied ? '✅ Copied!' : 'Wallet Address · Click to copy'}
+          {open && (
+            // The bitmap list lives on My Bitmaps, read from the chain. This menu
+            // used to list database blocks (some no longer held), and fetching
+            // them logged a fake "login" for the wallet on every open.
+            <div
+              role="menu"
+              className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-2xl p-2 shadow-xl z-50"
+              style={{ background: 'rgba(12,12,20,0.97)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}
+            >
+              <div className="px-3 pb-2 pt-1.5">
+                <p className="text-[11px] uppercase tracking-wider text-text-secondary">
+                  Connected with {walletType ? WALLETS.find(w => w.type === walletType)?.name || 'a wallet' : 'a wallet'}
                 </p>
-                <p className="text-xs font-mono mt-0.5 break-all leading-relaxed" style={{ color: '#e2e8f0' }}>
-                  {walletAddress}
-                </p>
-                <p className="text-[10px] mt-1" style={{ color: '#475569' }}>
-                  via {walletType ? WALLETS.find(w => w.type === walletType)?.name || 'Wallet' : 'Wallet'}
-                </p>
-              </button>
-
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
-
-              {/* Command Center link */}
-              <Link
-                href="/profile"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-white/5 transition-colors"
-                style={{ color: '#e2e8f0' }}
-                onClick={() => setOpen(false)}
+                <p className="mt-1 break-all font-mono text-xs leading-relaxed text-text-primary">{walletAddress}</p>
+              </div>
+              <button
+                role="menuitem"
+                onClick={copyAddress}
+                className="flex min-h-[44px] w-full items-center rounded-xl px-3 text-left text-sm text-text-primary hover:bg-white/5"
               >
-                <span className="text-base">⚡</span>
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-semibold">Command Center</span>
-                  <p className="text-[10px]" style={{ color: '#64748b' }}>Manage your digital empire</p>
-                </div>
+                {addressCopied ? 'Address copied' : 'Copy address'}
+              </button>
+              <div className="my-1 border-t border-white/[0.06]" />
+              <Link role="menuitem" href="/my-bitmaps" onClick={() => setOpen(false)} className="flex min-h-[44px] items-center rounded-xl px-3 text-sm font-medium text-text-primary hover:bg-white/5">
+                My Bitmaps
               </Link>
-
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
-
-              {/* Primary profile — derived from blockProfiles, not GlobalWalletContext */}
-              {primaryBp && (
-                <Link
-                  href={`/agent/${primaryBp.handle}`}
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-white/5 transition-colors"
-                  style={{ color: '#e2e8f0' }}
-                  onClick={() => setOpen(false)}
-                >
-                  <span className="text-base">👑</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-semibold truncate">@{primaryBp.handle}</span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'rgba(250,204,21,0.1)', color: '#facc15', border: '1px solid rgba(250,204,21,0.2)' }}>Primary</span>
-                    </div>
-                    <p className="text-[10px] mt-0.5" style={{ color: '#64748b' }}>Block #{primaryBp.blockHeight.toLocaleString()}</p>
-                  </div>
-                  <span style={{ color: '#475569' }}>→</span>
+              <Link role="menuitem" href="/account" onClick={() => setOpen(false)} className="flex min-h-[44px] items-center rounded-xl px-3 text-sm text-text-primary hover:bg-white/5">
+                Account
+              </Link>
+              {publicHandle && (
+                <Link role="menuitem" href={`/agent/${publicHandle.handle}`} onClick={() => setOpen(false)} className="flex min-h-[44px] items-center rounded-xl px-3 text-sm text-text-primary hover:bg-white/5">
+                  Public profile <span className="ml-1.5 text-text-secondary">@{publicHandle.handle}</span>
                 </Link>
               )}
-
-              {/* Your Blocks section */}
-              {(otherProfiles.length > 0 || unprofiledBlocks.length > 0) && (
-                <>
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
-                  <p className="text-[9px] uppercase tracking-widest px-3 pt-2 pb-1" style={{ color: '#475569' }}>Your Blocks</p>
-                  <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                    {/* Block profiles */}
-                    {otherProfiles.map(bp => (
-                      <Link
-                        key={bp.id}
-                        href={`/agent/${bp.handle}`}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-white/5 transition-colors"
-                        style={{ color: '#e2e8f0' }}
-                        onClick={() => setOpen(false)}
-                      >
-                        <BitmapThumbnail blockHeight={bp.blockHeight} size={36} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium truncate">Block #{bp.blockHeight.toLocaleString()}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[11px]" style={{ color: '#94a3b8' }}>@{bp.handle}</span>
-                            {bp.tier != null && (
-                              <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.05)', color: '#64748b' }}>Tier {bp.tier}</span>
-                            )}
-                          </div>
-                        </div>
-                        <span style={{ color: '#475569' }}>→</span>
-                      </Link>
-                    ))}
-                    {/* Unprofiled blocks */}
-                    {unprofiledBlocks.map(blockHeight => {
-                      // Check if this block actually has a profile (may have been created under a different wallet query path)
-                      const matchedProfile = blockProfiles.find(bp => bp.blockHeight === blockHeight);
-                      return (
-                        <div key={blockHeight} className="flex items-center gap-2.5 rounded-lg px-3 py-2">
-                          <BitmapThumbnail blockHeight={blockHeight} size={36} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium" style={{ color: '#e2e8f0' }}>Block #{blockHeight.toLocaleString()}</p>
-                            <p className="text-[11px]" style={{ color: '#64748b' }}>
-                              {matchedProfile ? `@${matchedProfile.handle}` : 'No Profile'}
-                            </p>
-                          </div>
-                          {matchedProfile ? (
-                            <Link
-                              href={`/agent/${matchedProfile.handle}`}
-                              className="text-[10px] font-medium px-2 py-1 rounded-md hover:bg-white/10 transition-colors"
-                              style={{ color: '#facc15', border: '1px solid rgba(250,204,21,0.2)' }}
-                              onClick={() => setOpen(false)}
-                            >
-                              View →
-                            </Link>
-                          ) : (
-                            <Link
-                              href="/verify"
-                              className="text-[10px] font-medium px-2 py-1 rounded-md hover:bg-white/10 transition-colors"
-                              style={{ color: '#00ffc8', border: '1px solid rgba(0,255,200,0.2)' }}
-                              onClick={() => setOpen(false)}
-                            >
-                              Create →
-                            </Link>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-
-              {loadingProfiles && (
-                <p className="text-[10px] text-center py-2" style={{ color: '#475569' }}>Loading blocks…</p>
-              )}
-
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
-
-              <Link
-                href="/verify"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/5 transition-colors"
-                style={{ color: '#e2e8f0' }}
-                onClick={() => setOpen(false)}
-              >
-                <span>{primaryBp ? '⚙️' : '✨'}</span>
-                {primaryBp ? 'Verify / Settings' : 'Verify / Create Profile'}
-              </Link>
-
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="my-1" />
-
-              {/* Disconnect */}
+              <div className="my-1 border-t border-white/[0.06]" />
               <button
+                role="menuitem"
                 onClick={() => { disconnect(); setOpen(false); }}
-                className="flex items-center gap-2 w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-red-500/10"
-                style={{ color: '#f87171' }}
+                className="flex min-h-[44px] w-full items-center rounded-xl px-3 text-left text-sm text-red-300 hover:bg-red-500/10"
               >
-                <span>🔌</span> Disconnect
+                Disconnect
               </button>
             </div>
-            );
-          })()}
+          )}
         </div>
       ) : (
         <button
           onClick={() => setOpen(true)}
           disabled={isConnecting}
-          className="flex items-center gap-2 rounded-lg border border-accent-cyan/30 bg-accent-cyan/5 px-4 py-2 text-sm font-medium text-accent-cyan hover:bg-accent-cyan/10 hover:border-accent-cyan/50 transition-all disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-accent-cyan/30 bg-accent-cyan/5 px-4 text-sm font-medium text-accent-cyan hover:bg-accent-cyan/10 hover:border-accent-cyan/50 transition-all disabled:opacity-50"
         >
           {isConnecting ? "Connecting…" : "Connect"}
         </button>
@@ -334,9 +199,9 @@ export default function WalletConnect() {
             <div className="px-6 pt-5 pb-3 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold" style={{ color: '#e2e8f0' }}>Connect Wallet</h2>
-                <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>Choose a Bitcoin wallet to continue</p>
+                <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Choose a Bitcoin wallet to continue</p>
               </div>
-              <button onClick={() => setOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors" style={{ color: '#64748b' }}>✕</button>
+              <button onClick={() => setOpen(false)} aria-label="Close" className="-mr-2 w-11 h-11 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors" style={{ color: '#94a3b8' }}>✕</button>
             </div>
 
             {/* Wallet Options */}
@@ -372,10 +237,10 @@ export default function WalletConnect() {
                         {available ? (
                           <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'rgba(34,197,94,0.1)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.2)' }}>Detected</span>
                         ) : (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'rgba(255,255,255,0.04)', color: '#64748b', border: '1px solid rgba(255,255,255,0.08)' }}>Install ↗</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'rgba(255,255,255,0.04)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.08)' }}>Install ↗</span>
                         )}
                       </div>
-                      <p className="text-[11px] mt-0.5" style={{ color: '#64748b' }}>{w.desc}</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: '#94a3b8' }}>{w.desc}</p>
                     </div>
                     <div className="text-lg" style={{ color: available ? w.color : '#334155' }}>→</div>
                   </button>
@@ -402,7 +267,7 @@ export default function WalletConnect() {
 
             {/* Footer */}
             <div className="px-6 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-              <p className="text-[10px] text-center" style={{ color: '#475569' }}>
+              <p className="text-[11px] text-center" style={{ color: '#94a3b8' }}>
                 🔒 Block Genomics never accesses your private keys.
                 <br />Wallet connection is read-only for verification.
               </p>

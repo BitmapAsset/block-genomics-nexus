@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { parseBlockQuery, searchResultHref, searchTerm } from "@/lib/site-nav";
+import { latestRequest } from "@/lib/latest-request";
 
 interface SearchResult {
   type: "block" | "agent" | "user";
@@ -52,7 +54,8 @@ const TRENDING_BLOCKS = [
   { height: 767430, label: "Ordinals Begin" },
 ];
 
-export default function GlobalSearch() {
+/** `page`: the large search on Explore. `header`: the compact one in the bar and menu. */
+export default function GlobalSearch({ size = "header" }: { size?: "header" | "page" } = {}) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResponse["data"] | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -63,6 +66,8 @@ export default function GlobalSearch() {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout>(null);
+  // Only the newest search may fill the dropdown (REVIEW bg57 P2-3).
+  const [latest] = useState(latestRequest);
   const router = useRouter();
 
   // Load recent searches
@@ -77,18 +82,26 @@ export default function GlobalSearch() {
 
   // Detect if query looks like a genome hash (64 char hex)
   const isGenomeHash = /^[a-f0-9]{64}$/i.test(query.trim());
+  // What is actually searched: "@pepe" looks up "pepe". The input keeps what was typed.
+  const term = searchTerm(query);
 
   // Debounced search
-  const doSearch = useCallback(async (q: string) => {
+  const doSearch = useCallback(async (raw: string) => {
+    const ticket = latest.begin();
+    const q = searchTerm(raw);
     if (q.length < 1) {
       setResults(null);
       setIsOpen(false);
+      setLoading(false);
       return;
     }
     setLoading(true);
     try {
       const res = await fetch(`/api/v1/search?q=${encodeURIComponent(q)}&limit=8`);
       const json: SearchResponse = await res.json();
+      // A newer search, a clear or a navigation happened while this was in flight.
+      if (!latest.isCurrent(ticket)) return;
+      for (const r of [...json.data.agents, ...json.data.users]) r.url = searchResultHref(r.url);
 
       // If numeric query and no block results, add a "Go to block" option
       const num = Number(q);
@@ -105,11 +118,11 @@ export default function GlobalSearch() {
       setSelectedIdx(-1);
       setShowRecent(false);
     } catch {
-      setResults(null);
+      if (latest.isCurrent(ticket)) setResults(null);
     } finally {
-      setLoading(false);
+      if (latest.isCurrent(ticket)) setLoading(false);
     }
-  }, []);
+  }, [latest]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -148,13 +161,16 @@ export default function GlobalSearch() {
     return () => document.removeEventListener("keydown", handleKey);
   }, [query]);
 
-  const navigate = (url: string, searchTerm?: string) => {
+  const navigate = (url: string, recentTerm?: string) => {
+    // Drop any answer still in flight: it would reopen the dropdown on the next page.
+    latest.cancel();
+    setLoading(false);
     setIsOpen(false);
     setShowRecent(false);
 
     // Save to recent searches
-    if (searchTerm || query) {
-      const term = searchTerm || query;
+    if (recentTerm || query) {
+      const term = recentTerm || query;
       const updated = [term, ...recentSearches.filter((s) => s !== term)].slice(0, MAX_RECENT);
       setRecentSearches(updated);
       saveRecent(updated);
@@ -173,16 +189,15 @@ export default function GlobalSearch() {
       setSelectedIdx((i) => Math.max(i - 1, -1));
     } else if (e.key === "Enter") {
       e.preventDefault();
+      // A block number in any common spelling ("840000", "840,000",
+      // "#840000", "840000.bitmap", genesis "0") goes straight to its page.
+      const height = parseBlockQuery(term);
       if (selectedIdx >= 0 && allResults[selectedIdx]) {
         navigate(allResults[selectedIdx].url);
+      } else if (height !== null) {
+        navigate(`/block/${height}`);
       } else if (allResults.length > 0) {
         navigate(allResults[0].url);
-      } else {
-        // If pure number, go to block page directly
-        const num = Number(query);
-        if (!isNaN(num) && num > 0) {
-          navigate(`/block/${Math.floor(num)}`);
-        }
       }
     }
   };
@@ -228,19 +243,21 @@ export default function GlobalSearch() {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={handleFocus}
           onKeyDown={handleKeyDown}
-          placeholder="Search blocks, agents, wallets, genomes..."
-          className="w-[180px] sm:w-[260px] lg:w-[320px] xl:w-[220px] pl-9 pr-12 py-1.5 text-sm rounded-lg border border-border bg-bg-secondary/60 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[#00ffcc]/50 focus:ring-1 focus:ring-[#00ffcc]/20 transition-all"
+          placeholder="Block or @handle"
+          aria-label="Search blocks and handles"
+          className={`${size === "page" ? "w-full min-h-[56px] text-base" : "w-full lg:w-[180px] xl:w-[240px] min-h-[44px] text-sm"} pl-9 pr-12 rounded-full border border-border bg-bg-secondary/60 text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-[#00ffcc]/50 focus:ring-1 focus:ring-[#00ffcc]/20 transition-all`}
         />
         {/* Shortcut hint */}
         {!query && (
-          <kbd className="absolute right-2 hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono text-text-muted border border-border rounded bg-bg-tertiary/50">
+          <kbd className="absolute right-3 hidden lg:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono text-text-secondary border border-border rounded bg-bg-tertiary/50">
             ⌘K
           </kbd>
         )}
         {query && (
           <button
-            onClick={() => { setQuery(""); setResults(null); setIsOpen(false); }}
-            className="absolute right-2 text-text-muted hover:text-text-primary text-sm cursor-pointer"
+            onClick={() => { latest.cancel(); setLoading(false); setQuery(""); setResults(null); setIsOpen(false); }}
+            aria-label="Clear search"
+            className="absolute right-0 inline-flex h-11 w-11 items-center justify-center text-text-secondary hover:text-text-primary text-sm cursor-pointer"
           >
             ✕
           </button>
@@ -332,7 +349,7 @@ export default function GlobalSearch() {
             )}
 
             {/* No results */}
-            {!loading && allResults.length === 0 && query.length > 0 && !isGenomeHash && (
+            {!loading && allResults.length === 0 && term.length > 0 && !isGenomeHash && (
               <div className="px-4 py-3 text-sm text-text-muted">No results for &ldquo;{query}&rdquo;</div>
             )}
 

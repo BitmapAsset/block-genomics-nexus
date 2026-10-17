@@ -148,7 +148,7 @@ export default function LivePage() {
               The Bitmap universe is quiet. Be the first to go live — own a block, click TimesSquare, and start streaming.
             </p>
             <Link
-              href="/verify"
+              href="/my-bitmaps"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all"
               style={{ background: 'rgba(255,51,51,0.15)', border: '1.5px solid rgba(255,51,51,0.4)', color: '#ff6b6b' }}
             >
@@ -161,7 +161,7 @@ export default function LivePage() {
             {(tab === 'all' || tab === 'streams') && filteredStreams.map(stream => (
               <Link
                 key={`stream-${stream.blockHeight}`}
-                href={`/nexus/parcel/${stream.blockHeight}`}
+                href={`/world/${stream.blockHeight}`}
                 className="group rounded-xl overflow-hidden transition-all hover:scale-[1.02]"
                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,51,51,0.2)' }}
               >
@@ -206,7 +206,7 @@ export default function LivePage() {
             {(tab === 'all' || tab === 'games') && filteredGames.map(game => (
               <Link
                 key={`game-${game.blockHeight}`}
-                href={`/nexus/parcel/${game.blockHeight}`}
+                href={`/world/${game.blockHeight}`}
                 className="group rounded-xl overflow-hidden transition-all hover:scale-[1.02]"
                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,255,136,0.2)' }}
               >

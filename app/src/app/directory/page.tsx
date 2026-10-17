@@ -19,56 +19,8 @@ interface VerifiedAgent {
   description: string;
   capabilities: string[];
   tags: string[];
-  isMock?: boolean;
 }
 
-/* ── Mock Data — replace with API ── */
-function generateMockAgents(): VerifiedAgent[] {
-  const names = [
-    { handle: 'satoshi_prime', displayName: 'Satoshi Prime', desc: 'Bitcoin protocol analysis & block forensics', caps: ['Protocol Analysis', 'Block Forensics', 'Transaction Tracing'], tags: ['bitcoin', 'protocol', 'forensics', 'analysis', 'security'] },
-    { handle: 'block_oracle', displayName: 'Block Oracle', desc: 'Real-time Bitcoin market intelligence agent', caps: ['Market Analysis', 'Price Prediction', 'Whale Tracking'], tags: ['market', 'trading', 'whale', 'analytics', 'finance'] },
-    { handle: 'nexus_builder', displayName: 'Nexus Builder', desc: 'Smart contract & Bitmap development agent', caps: ['Smart Contracts', 'Bitmap Dev', 'Inscription Tools'], tags: ['development', 'bitmap', 'building', 'tools', 'metaverse'] },
-    { handle: 'cipher_guard', displayName: 'Cipher Guard', desc: 'Security auditing & vulnerability detection', caps: ['Security Audit', 'Pen Testing', 'Threat Detection'], tags: ['security', 'audit', 'protection', 'enterprise', 'cybersecurity'] },
-    { handle: 'meme_weaver', displayName: 'Meme Weaver', desc: 'Cultural analysis & memetic content creation', caps: ['Content Creation', 'Trend Analysis', 'Cultural Intel'], tags: ['memes', 'culture', 'content', 'social', 'entertainment', 'gaming'] },
-    { handle: 'chain_sage', displayName: 'Chain Sage', desc: 'On-chain data analytics & research', caps: ['Data Analytics', 'Research', 'UTXO Analysis'], tags: ['research', 'data', 'analytics', 'UTXO', 'intelligence'] },
-    { handle: 'lightning_fox', displayName: 'Lightning Fox', desc: 'Lightning Network routing & payment optimization', caps: ['Lightning Routing', 'Payment Channels', 'Liquidity'], tags: ['lightning', 'payments', 'speed', 'commerce', 'shopping'] },
-    { handle: 'hash_prophet', displayName: 'Hash Prophet', desc: 'Mining operations & hashrate forecasting', caps: ['Mining Ops', 'Hashrate Analysis', 'Energy Optimization'], tags: ['mining', 'energy', 'hashrate', 'operations', 'sustainability'] },
-    { handle: 'genome_x', displayName: 'Genome X', desc: 'AI identity verification specialist', caps: ['ID Verification', 'Genome Analysis', 'Trust Scoring'], tags: ['identity', 'verification', 'trust', 'AI', 'genomics'] },
-    { handle: 'bitmap_architect', displayName: 'Bitmap Architect', desc: 'Virtual world design & block landscaping', caps: ['3D Design', 'World Building', 'Parcel Architecture'], tags: ['design', 'architecture', '3D', 'gaming', 'virtual world', 'movies'] },
-    { handle: 'ordinal_scout', displayName: 'Ordinal Scout', desc: 'Inscription discovery & rarity analysis', caps: ['Inscription Analysis', 'Rarity Scoring', 'Collection Curation'], tags: ['ordinals', 'NFT', 'art', 'collectibles', 'rarity', 'gallery'] },
-    { handle: 'node_runner', displayName: 'Node Runner', desc: 'Full node operations & network monitoring', caps: ['Node Management', 'Network Health', 'Peer Analysis'], tags: ['nodes', 'network', 'infrastructure', 'decentralization', 'monitoring'] },
-    { handle: 'deep_block', displayName: 'Deep Block', desc: 'Deep learning models trained on Bitcoin data', caps: ['Machine Learning', 'Pattern Recognition', 'Anomaly Detection'], tags: ['AI', 'machine learning', 'prediction', 'science', 'technology'] },
-    { handle: 'pixel_miner', displayName: 'Pixel Miner', desc: 'Digital art creation & NFT inscription', caps: ['Digital Art', 'Inscription Minting', 'Creative AI'], tags: ['art', 'creative', 'NFT', 'design', 'gallery', 'movies'] },
-    { handle: 'fee_optimizer', displayName: 'Fee Optimizer', desc: 'Transaction fee estimation & mempool analysis', caps: ['Fee Estimation', 'Mempool Analysis', 'Batch Optimization'], tags: ['fees', 'optimization', 'savings', 'transactions', 'efficiency', 'shopping'] },
-    { handle: 'whale_watcher', displayName: 'Whale Watcher', desc: 'Large holder tracking & movement alerts', caps: ['Whale Tracking', 'Alert Systems', 'Flow Analysis'], tags: ['whales', 'alerts', 'tracking', 'market', 'signals'] },
-    { handle: 'proof_smith', displayName: 'Proof Smith', desc: 'Cryptographic proof generation & verification', caps: ['ZK Proofs', 'BIP-322 Signing', 'Multisig'], tags: ['cryptography', 'proofs', 'privacy', 'security', 'advanced'] },
-    { handle: 'block_historian', displayName: 'Block Historian', desc: 'Bitcoin history researcher & archive keeper', caps: ['Historical Analysis', 'Block Archives', 'Timeline Research'], tags: ['history', 'research', 'education', 'archives', 'knowledge'] },
-    { handle: 'quantum_shield', displayName: 'Quantum Shield', desc: 'Post-quantum cryptography research agent', caps: ['Quantum Research', 'Crypto Upgrades', 'Security Futures'], tags: ['quantum', 'future', 'research', 'science', 'technology'] },
-    { handle: 'rune_caster', displayName: 'Rune Caster', desc: 'Runes protocol specialist & token analytics', caps: ['Runes Protocol', 'Token Analysis', 'Etching Tools'], tags: ['runes', 'tokens', 'DeFi', 'trading', 'protocol'] },
-  ];
-
-  return names.map((n, i) => {
-    const tier: ShieldTier = i < 5 ? 1 : i < 12 ? 2 : 3;
-    const blockHeight = Math.floor(Math.random() * 800000) + 100000;
-    return {
-      id: `agent-${i}`,
-      handle: n.handle,
-      displayName: n.displayName,
-      tier,
-      blockHeight,
-      parcelIndex: tier >= 2 ? Math.floor(Math.random() * 200) : null,
-      genomeHash: '0x' + Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
-      verifiedAt: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      online: Math.random() > 0.35,
-      description: n.desc,
-      capabilities: n.caps,
-      tags: n.tags,
-      isMock: true,
-    };
-  });
-}
-
-const MOCK_AGENTS = generateMockAgents();
 
 /* ── Filter Tabs ── */
 type FilterTier = 'all' | 1 | 2 | 3;
@@ -110,7 +62,7 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
         {/* Online indicator */}
         <div className="absolute top-4 right-4 flex items-center gap-1.5">
           <div className={`w-2 h-2 rounded-full ${agent.online ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]' : 'bg-gray-500'}`} />
-          <span className="text-[10px] text-text-muted">{agent.online ? 'online' : 'offline'}</span>
+          <span className="text-[10px] text-text-secondary">{agent.online ? 'online' : 'offline'}</span>
         </div>
 
         {/* Header: Shield + Name */}
@@ -121,9 +73,8 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-text-primary truncate group-hover:text-accent-cyan transition-colors flex items-center gap-1.5">
               {agent.displayName}
-              {agent.isMock && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-text-muted flex-shrink-0">🤖 Demo</span>}
             </h3>
-            <p className="text-xs text-text-muted">@{agent.handle}</p>
+            <p className="text-xs text-text-secondary">@{agent.handle}</p>
           </div>
         </div>
 
@@ -138,7 +89,7 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
         {/* Capabilities */}
         <div className="flex flex-wrap gap-1 mb-3">
           {agent.capabilities.map((cap) => (
-            <span key={cap} className="text-[10px] px-2 py-0.5 rounded-full bg-bg-tertiary/50 text-text-muted border border-border/30">
+            <span key={cap} className="text-[10px] px-2 py-0.5 rounded-full bg-bg-tertiary/50 text-text-secondary border border-border/30">
               {cap}
             </span>
           ))}
@@ -154,7 +105,7 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
         </div>
 
         {/* Footer stats */}
-        <div className="flex items-center justify-between text-[11px] text-text-muted pt-2 border-t border-border/20">
+        <div className="flex items-center justify-between text-[11px] text-text-secondary pt-2 border-t border-border/20">
           <div className="flex items-center gap-3">
             <span>🏔️ Block #{agent.blockHeight.toLocaleString()}</span>
             {agent.parcelIndex !== null && <span>📦 Parcel #{agent.parcelIndex}</span>}
@@ -163,7 +114,7 @@ function AgentCard({ agent }: { agent: VerifiedAgent }) {
         </div>
 
         {/* Verified date */}
-        <div className="text-[10px] text-text-muted mt-1.5">
+        <div className="text-[10px] text-text-secondary mt-1.5">
           ✅ Verified {agent.verifiedAt}
         </div>
       </div>
@@ -205,7 +156,6 @@ export default function DirectoryPage() {
           description: u.bio || 'Verified Block Genomics member',
           capabilities: [],
           tags: ['verified', 'bitcoin', 'bitmap'],
-          isMock: false,
         })));
       } catch (err) {
         setFetchError(err instanceof Error ? err.message : 'Failed to load agents');
@@ -218,7 +168,9 @@ export default function DirectoryPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchUsers(); }, []);
 
-  const allAgents = useMemo(() => [...realUsers, ...MOCK_AGENTS], [realUsers]);
+  // Real verified agents only. The 20 generated "Demo Examples" linked to
+  // agent pages that 404 (audit P1-6) and are gone.
+  const allAgents = realUsers;
 
   const filtered = useMemo(() => {
     let agents = [...allAgents];
@@ -278,29 +230,19 @@ export default function DirectoryPage() {
               Browse all verified AI agents in the Block Genomics ecosystem.
               Every agent is backed by Bitcoin block ownership — verified on-chain, trusted by design.
             </p>
-            {/* Stats bar — headline counts reflect real on-chain verified agents only;
-                demo examples are counted separately so nothing is inflated. */}
+            {/* Stats bar — real verified agents only. */}
             <div className="flex items-center justify-center gap-6 mt-6 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold text-accent-cyan">{realUsers.length}</span>
-                <span className="text-text-muted">Verified Agents</span>
+                <span className="text-text-secondary">Verified Agents</span>
               </div>
               <div className="w-px h-6 bg-border" />
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold text-green-400">
                   {realUsers.filter((a) => a.online).length}
                 </span>
-                <span className="text-text-muted">Online Now</span>
+                <span className="text-text-secondary">Online Now</span>
               </div>
-              {MOCK_AGENTS.length > 0 && (
-                <>
-                  <div className="w-px h-6 bg-border" />
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl font-bold text-text-muted">{MOCK_AGENTS.length}</span>
-                    <span className="text-text-muted">Demo Examples</span>
-                  </div>
-                </>
-              )}
             </div>
           </div>
         </div>
@@ -311,19 +253,19 @@ export default function DirectoryPage() {
         {/* Search */}
         <div className="relative mb-5">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <span className="text-text-muted text-lg">🔍</span>
+            <span className="text-text-secondary text-lg">🔍</span>
           </div>
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, handle, block #, capability, or interest (gaming, art, shopping, security...)"
-            className="w-full pl-12 pr-4 py-3 bg-bg-secondary/60 border border-border rounded-xl text-text-primary text-sm placeholder-text-muted focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20 transition-all"
+            className="w-full pl-12 pr-4 py-3 bg-bg-secondary/60 border border-border rounded-xl text-text-primary text-sm placeholder-text-secondary focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20 transition-all"
           />
           {search && (
             <button
               onClick={() => setSearch('')}
-              className="absolute inset-y-0 right-0 pr-4 flex items-center text-text-muted hover:text-text-primary"
+              className="absolute inset-y-0 right-0 pr-4 flex items-center text-text-secondary hover:text-text-primary"
             >
               ✕
             </button>
@@ -339,14 +281,14 @@ export default function DirectoryPage() {
                 <button
                   key={String(val)}
                   onClick={() => setTierFilter(val as FilterTier)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  className={`inline-flex min-h-[44px] items-center px-3 text-xs font-medium rounded-md transition-all ${
                     tierFilter === val
                       ? 'bg-bg-tertiary text-text-primary shadow-sm'
-                      : 'text-text-muted hover:text-text-secondary'
+                      : 'text-text-secondary hover:text-text-secondary'
                   }`}
                 >
                   <span className={tierFilter === val ? color : ''}>{label}</span>
-                  <span className="ml-1 text-text-muted">({counts[val as keyof typeof counts]})</span>
+                  <span className="ml-1 text-text-secondary">({counts[val as keyof typeof counts]})</span>
                 </button>
               )
             )}
@@ -356,7 +298,7 @@ export default function DirectoryPage() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as 'name' | 'block' | 'date')}
-            className="px-3 py-1.5 text-xs bg-bg-secondary/40 border border-border/30 rounded-lg text-text-secondary focus:outline-none focus:border-accent-cyan/50"
+            className="min-h-[44px] px-3 text-xs bg-bg-secondary/40 border border-border/30 rounded-lg text-text-secondary focus:outline-none focus:border-accent-cyan/50"
           >
             <option value="name">Sort: Name</option>
             <option value="block">Sort: Block #</option>
@@ -366,10 +308,10 @@ export default function DirectoryPage() {
           {/* Online toggle */}
           <button
             onClick={() => setOnlineOnly(!onlineOnly)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-all ${
+            className={`flex min-h-[44px] items-center gap-1.5 px-3 text-xs rounded-lg border transition-all ${
               onlineOnly
                 ? 'bg-green-500/10 border-green-500/30 text-green-400'
-                : 'bg-bg-secondary/40 border-border/30 text-text-muted hover:text-text-secondary'
+                : 'bg-bg-secondary/40 border-border/30 text-text-secondary hover:text-text-secondary'
             }`}
           >
             <div className={`w-1.5 h-1.5 rounded-full ${onlineOnly ? 'bg-green-400' : 'bg-gray-500'}`} />
@@ -377,7 +319,7 @@ export default function DirectoryPage() {
           </button>
 
           {/* Results count */}
-          <span className="text-xs text-text-muted ml-auto">
+          <span className="text-xs text-text-secondary ml-auto">
             {filtered.length} agent{filtered.length !== 1 ? 's' : ''} found
           </span>
         </div>
@@ -386,7 +328,7 @@ export default function DirectoryPage() {
         {fetchError && (
           <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-between">
             <p className="text-sm text-red-400">Couldn&apos;t load agents. {fetchError}</p>
-            <button onClick={fetchUsers} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors">Retry</button>
+            <button onClick={fetchUsers} className="inline-flex min-h-[44px] items-center text-xs font-medium px-3 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors">Retry</button>
           </div>
         )}
 
@@ -394,7 +336,7 @@ export default function DirectoryPage() {
         {loadingUsers && realUsers.length === 0 && (
           <div className="text-center py-12">
             <div className="mx-auto w-6 h-6 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin mb-3" />
-            <p className="text-sm text-text-muted">Loading agents...</p>
+            <p className="text-sm text-text-secondary">Loading agents...</p>
           </div>
         )}
 
@@ -409,7 +351,7 @@ export default function DirectoryPage() {
           <div className="text-center py-20">
             <div className="text-4xl mb-3">🔍</div>
             <h3 className="text-lg font-semibold text-text-secondary mb-1">No agents found</h3>
-            <p className="text-sm text-text-muted">Try adjusting your search or filters</p>
+            <p className="text-sm text-text-secondary">Try adjusting your search or filters</p>
           </div>
         ) : null}
       </div>

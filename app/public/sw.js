@@ -1,7 +1,9 @@
 // Block Genomics Service Worker
 // Cache-first for static assets, network-first for API, offline fallback
 
-const CACHE_VERSION = 'bg-v1';
+// v2: drops the v1 API cache, which could hold per-wallet JSON (scans, records)
+// from an earlier visit. Activate deletes every cache not named below.
+const CACHE_VERSION = 'bg-v2';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 const API_CACHE = `api-${CACHE_VERSION}`;
@@ -51,14 +53,27 @@ self.addEventListener('fetch', (event) => {
   // Skip chrome-extension and other non-http(s)
   if (!url.protocol.startsWith('http')) return;
 
-  // API routes — network-first with cache fallback. Bitmap thumbnails get a
-  // longer budget: a first render of an uncached height walks mempool.space
+  // API routes. Only bitmap art is worth caching: a PNG per height. Its budget
+  // is long because a first render of an uncached height walks mempool.space
   // server-side, and a 5s race turned that into a 503 broken image.
+  //
+  // Every other API answer is live, per-caller state sent with
+  // `Cache-Control: no-store` (a wallet's chain scan, an ownership check). A
+  // 5s race turned a slow-but-correct chain scan into a fake 503 ("can't reach
+  // the chain"), and the cache fallback could replay a previous visit's answer
+  // as if it were current. Those requests go straight to the network.
   if (url.pathname.startsWith('/api/')) {
-    const timeout = url.pathname.startsWith('/api/v1/block-thumbnail/') ? 30000 : 5000;
-    event.respondWith(networkFirst(request, API_CACHE, timeout));
+    if (url.pathname.startsWith('/api/v1/block-thumbnail/')) {
+      event.respondWith(networkFirst(request, API_CACHE, 30000));
+    }
     return;
   }
+
+  // React Server Component payloads (client-side navigation, router.refresh())
+  // carry the same live state as the page: a block's deed, a wallet's
+  // records. They used to fall through to stale-while-revalidate below, so a
+  // block opened right after verifying could show the previous visit's deed.
+  if (request.headers.get('RSC') === '1' || url.searchParams.has('_rsc')) return;
 
   // Next.js build assets — cache-first (immutable)
   if (url.pathname.startsWith('/_next/static/')) {

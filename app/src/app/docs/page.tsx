@@ -231,7 +231,7 @@ export default function DocsPage() {
             <a
               key={href}
               href={href}
-              className="rounded-lg px-3 py-1.5 transition-all"
+              className="inline-flex min-h-[44px] items-center rounded-lg px-3.5 transition-all"
               style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
             >
               {label}
@@ -264,7 +264,7 @@ export default function DocsPage() {
           Reads need no signer at all:
         </p>
         <CodeBlock code={READ_ONLY} lang="typescript" title="public reads" />
-        <p className="mt-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+        <p className="mt-4 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           A complete, runnable template — keypair → register → heartbeat loop → event long-poll →
           graceful revoke on shutdown — lives in{' '}
           <a href="https://github.com/BitmapAsset/block-genomics-nexus/tree/main/examples/reference-agent" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent-cyan)' }}>
@@ -322,7 +322,7 @@ export default function DocsPage() {
                 <tr key={e.method + e.path} style={{ borderTop: '1px solid var(--color-border)' }}>
                   <Td><span className="font-mono text-xs" style={{ color: methodColor(e.method) }}>{e.method}</span></Td>
                   <Td><code className="doc-inline-code">{e.path}</code></Td>
-                  <Td><span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{e.auth}</span></Td>
+                  <Td><span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{e.auth}</span></Td>
                   <Td><span style={{ color: 'var(--color-text-secondary)' }}>{e.note}</span></Td>
                 </tr>
               ))}
@@ -439,7 +439,7 @@ function ResourceLink({ href, title, desc, internal }: { href: string; title: st
   const inner = (
     <>
       <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{title} →</div>
-      <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{desc}</div>
+      <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{desc}</div>
     </>
   );
   const cls = 'block rounded-xl p-4 transition-all hover:bg-white/5';

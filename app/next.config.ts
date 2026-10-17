@@ -85,6 +85,33 @@ const nextConfig: NextConfig = {
       destination: "/rentals",
       permanent: true,
     },
+    // One URL per block world: the fullscreen view lives at /world/{h}.
+    {
+      source: "/nexus/parcel/:height",
+      destination: "/world/:height",
+      statusCode: 301,
+    },
+    // Five-screen rebuild (bg57). The three owner dashboards became My Bitmaps;
+    // the duplicate block browsers became Explore. Their URLs are in posts and
+    // bookmarks, so each answers 301 instead of 404. Query strings carry over
+    // (e.g. /verify?block=720143).
+    ...[
+      ["/portfolio", "/my-bitmaps"],
+      ["/profile", "/my-bitmaps"],
+      ["/verify", "/my-bitmaps"],
+      ["/explorer", "/explore"],
+      ["/leaderboard", "/explore"],
+      // Paths people guess that never had a page (audit 404 list).
+      ["/world", "/nexus"],
+      ["/agents", "/directory"],
+      ["/guardians", "/my-bitmaps"],
+      ["/guardian", "/my-bitmaps"],
+      ["/badges", "/account"],
+      ["/badge", "/account"],
+      ["/sdk", "/docs"],
+      ["/docs/sdk", "/docs"],
+      ["/whitepaper.html", "/whitepaper"],
+    ].map(([source, destination]) => ({ source, destination, statusCode: 301 as const })),
   ],
 
   // Webpack optimizations

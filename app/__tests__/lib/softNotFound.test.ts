@@ -75,7 +75,7 @@ describe('soft 404 guard', () => {
     // for a bad param is a 200 by construction. These pages must validate on the
     // server and call notFound() instead.
     for (const segment of [
-      join(APP_DIR, 'nexus', 'parcel', '[height]'),
+      join(APP_DIR, 'world', '[height]'),
       join(APP_DIR, 'agent', '[handle]'),
     ]) {
       const page = read(segment, 'page.tsx');
