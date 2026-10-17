@@ -5,8 +5,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { InboxProvider } from "@/context/InboxContext";
 import { ThemeProvider } from "@/context/ThemeContext";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+import { SiteHeader, SiteFooter, LandingOnboarding } from "@/components/landing/RouteChrome";
 import NotificationBanner from "@/components/NotificationBanner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PageTransition from "@/components/PageTransition";
@@ -77,16 +76,17 @@ export default function RootLayout({
                 <InboxProvider>
                   <SplashScreen />
                   <PWARegistration />
-                  <Header />
+                  <SiteHeader />
                   <NotificationBanner />
                   <main className="flex-1 pb-16 md:pb-0">
                     <ErrorBoundary>
                       <PageTransition>{children}</PageTransition>
                     </ErrorBoundary>
                   </main>
-                  <Footer className="hidden md:block" />
+                  <SiteFooter className="hidden md:block" />
                   <BottomTabBar />
                   <InstallPrompt />
+                  <LandingOnboarding />
                 </InboxProvider>
               </NotificationProvider>
             </AuthProvider>
