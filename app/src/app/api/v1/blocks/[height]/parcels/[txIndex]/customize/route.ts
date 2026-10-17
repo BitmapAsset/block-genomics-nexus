@@ -72,18 +72,17 @@ export async function POST(
     const delegation = await prisma.delegation.findFirst({
       where: { blockHeight: h, delegateeAddress: walletAddress, active: true, endDate: { gte: new Date() } },
     });
-    const isParcelOwner = !!parcel && parcel.ownerAddress === walletAddress;
 
     // Block ownership is asked of the chain, not of `Block.ownerAddress` plus the
     // verified-`User` snapshot. Both are caches a background sync refreshes, so
     // between an on-chain sale and the next run they still named the seller.
     //
-    // Asked only where it can change the answer: an EXISTING parcel is already
-    // customizable by its parcel owner or an active delegate, so paying an
-    // indexer round-trip to re-confirm what those facts settle on their own would
-    // put every delegate write at the mercy of indexer uptime for nothing.
-    // Initializing a parcel is a claim on new land and always asks.
-    if (!parcel || (!isParcelOwner && !delegation)) {
+    // Skipped only for an active delegate on an EXISTING parcel: a sale cancels
+    // delegations, so that fact settles the answer without an indexer
+    // round-trip. `Parcel.ownerAddress` does not: it is whoever initialized the
+    // parcel, which is always the block owner AT THAT TIME and never moves on a
+    // sale, so trusting it let a seller keep customizing parcels on sold land.
+    if (!parcel || !delegation) {
       const owns = await requireLiveBlockOwner(walletAddress, h);
       if (!owns.ok) {
         return error(
