@@ -595,7 +595,7 @@ function RecordedOnly({
                     )}
                   </div>
                   {row?.phase === "failed" && (
-                    <p className="mt-2 px-1 text-xs leading-relaxed text-red-300" role="alert">
+                    <p className="mt-2 px-1 text-xs leading-relaxed text-red-300 [.light_&]:text-red-700" role="alert">
                       {row.failure.message}
                     </p>
                   )}
@@ -724,7 +724,7 @@ function BitmapCardView({
                 {verifyLabel(row)}
               </button>
               {row?.phase === "failed" && (
-                <p className="mt-2 text-xs leading-relaxed text-red-300" role="alert">
+                <p className="mt-2 text-xs leading-relaxed text-red-300 [.light_&]:text-red-700" role="alert">
                   {row.failure.message}
                 </p>
               )}
@@ -809,7 +809,7 @@ function GenomeSheet({
         </div>
 
         {justVerified && (
-          <p className="mt-5 rounded-xl border border-green-500/20 bg-green-500/[0.06] px-4 py-3 text-sm leading-relaxed text-green-300">
+          <p className="mt-5 rounded-xl border border-green-500/20 bg-green-500/[0.06] px-4 py-3 text-sm leading-relaxed text-green-300 [.light_&]:text-green-700">
             {holderCheck === "live"
               ? `Verified. Your wallet signed, and the chain confirms it holds ${height}.bitmap. Recorded on Block Genomics.`
               : `Signature verified. This wallet was already verified for ${height}.bitmap, so the chain check wasn't re-run.`}
@@ -990,7 +990,7 @@ function HandleClaim({
         </button>
       </div>
       {state.phase === "error" && (
-        <p className="mt-2 text-xs leading-relaxed text-red-300" role="alert">
+        <p className="mt-2 text-xs leading-relaxed text-red-300 [.light_&]:text-red-700" role="alert">
           {state.message}
         </p>
       )}
