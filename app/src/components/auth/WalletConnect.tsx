@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useGlobalWallet, type WalletType } from "@/context/GlobalWalletContext";
 import { resolvePublicHandle } from "@/lib/public-handle";
+import { safeNextPath } from "@/lib/site-nav";
 
 function truncateAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -55,7 +56,7 @@ export default function WalletConnect() {
   useEffect(() => {
     const handler = (e: Event) => {
       const next = (e as CustomEvent<{ next?: string } | undefined>).detail?.next;
-      setNextPath(typeof next === 'string' && next.startsWith('/') ? next : null);
+      setNextPath(safeNextPath(next));
       setOpen(true);
     };
     window.addEventListener('open-wallet-modal', handler as EventListener);

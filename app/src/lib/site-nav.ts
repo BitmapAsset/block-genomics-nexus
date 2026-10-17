@@ -48,6 +48,14 @@ export function isActivePath(pathname: string, href: string): boolean {
 }
 
 /**
+ * A same-site path to go to after connecting, or null. "//host" and "/\\host"
+ * are other sites to a browser, so only a single leading "/" counts.
+ */
+export function safeNextPath(next: unknown): string | null {
+  return typeof next === 'string' && /^\/(?![/\\])/.test(next) ? next : null;
+}
+
+/**
  * Where a search result goes. The search API still links a handle-less user
  * or agent to the retired `/verify`, which only redirects to My Bitmaps; go
  * there directly. The API's answer is left as it is (contract unchanged).

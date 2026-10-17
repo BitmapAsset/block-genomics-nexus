@@ -7,7 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 
-import { PRIMARY_NAV, SECONDARY_NAV, isActivePath, parseBlockQuery, searchResultHref, searchTerm } from '@/lib/site-nav';
+import { PRIMARY_NAV, SECONDARY_NAV, isActivePath, parseBlockQuery, safeNextPath, searchResultHref, searchTerm } from '@/lib/site-nav';
 
 const appDir = path.join(__dirname, '..', '..', 'src', 'app');
 const hasPage = (href: string) => fs.existsSync(path.join(appDir, ...href.split('/').filter(Boolean), 'page.tsx'));
@@ -99,5 +99,15 @@ describe('searchResultHref (REVIEW bg57 P2-10)', () => {
 
   it('leaves every other link alone', () => {
     for (const url of ['/agent/pepe', '/block/840000', '/verifyx', '/my-bitmaps']) expect(searchResultHref(url)).toBe(url);
+  });
+});
+
+describe('safeNextPath (REVIEW bg57 P2-11: "//host" passed the post-connect check)', () => {
+  it.each(['/my-bitmaps', '/account', '/block/840000?tab=world', '/'])('%s stays on this site', (p) => {
+    expect(safeNextPath(p)).toBe(p);
+  });
+
+  it.each(['//evil.example', '/\\evil.example', 'https://evil.example', 'my-bitmaps', '', undefined, null, 42])('%p is refused', (p) => {
+    expect(safeNextPath(p)).toBeNull();
   });
 });

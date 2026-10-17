@@ -380,11 +380,12 @@ export default function AccountClient() {
         </Section>
 
         <Section title="Agent sessions" id="sessions">
-          <AgentSession walletAddress={walletAddress} signMessage={signMessage} />
+          {/* keyed by wallet: a switch in place must not keep the last wallet's token on screen */}
+          <AgentSession key={walletAddress} walletAddress={walletAddress} signMessage={signMessage} />
         </Section>
 
         <Section title="Agent tokens" id="agent-tokens">
-          <AgentToken walletAddress={walletAddress} signMessage={signMessage} />
+          <AgentToken key={walletAddress} walletAddress={walletAddress} signMessage={signMessage} />
         </Section>
 
         <Section title="Badge" id="badges">
