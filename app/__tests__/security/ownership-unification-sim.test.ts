@@ -88,7 +88,7 @@ jest.mock('@/lib/onchain/ord', () => ({
 // can only pass or fail on the ownership decision.
 jest.mock('@/lib/api-helpers', () => {
   const actual = jest.requireActual('@/lib/api-helpers');
-  return { ...actual, verifyWalletSignature: () => true };
+  return { ...actual, verifyWalletSignature: () => true, verifyUnboundWalletSignature: () => true };
 });
 
 jest.mock('@/lib/agent-protocol', () => {
