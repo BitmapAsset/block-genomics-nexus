@@ -64,6 +64,7 @@ jest.mock('@/lib/ownership-gate', () => ({
 
 import prisma from '@/lib/prisma';
 import { PATCH } from '@/app/api/v1/guardian/[id]/route';
+import { POST } from '@/app/api/v1/guardian/route';
 import { makeWallet, sign } from '../helpers/wallet-sim';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -123,5 +124,48 @@ describe('bg56 Q-14: inherited guardian key cannot be redirected', () => {
     const res: any = await PATCH(patchReq(BUYER, { name: 'Renamed' }), { params });
     expect(res.status).toBe(200);
     expect(await storedKey()).toBe('enc(sk-SELLER-SECRET)');
+  });
+});
+
+// bg58: the create/update upsert must apply the same rule, or POST is the way around PATCH.
+describe('bg58: POST /guardian upsert cannot redirect a stored key either', () => {
+  const OWNER = makeWallet('p2tr');
+  const postReq = (body: Record<string, unknown>) => {
+    const message = `guardian-config:${BLOCK}:${OWNER.address}:${Date.now()}`;
+    const signature = sign(OWNER.privKey, OWNER.address, message);
+    return {
+      json: async () => ({ blockHeight: BLOCK, ownerAddress: OWNER.address, name: 'Mine', signature, message, ...body }),
+    } as any;
+  };
+  const ownKey = async () =>
+    (await db.guardianAgent.findUnique({ where: { blockHeight_ownerAddress: { blockHeight: BLOCK, ownerAddress: OWNER.address } } }))
+      .llmApiKey;
+
+  beforeEach(async () => {
+    chainOwner = { [BLOCK]: OWNER.address };
+    await db.guardianAgent.create({
+      data: {
+        blockHeight: BLOCK, ownerAddress: OWNER.address, status: 'active', name: 'Mine', soulMd: 'x',
+        llmProvider: 'openai', llmModel: 'gpt-x', llmApiKey: 'enc(sk-OWNER)', llmEndpoint: null,
+      },
+    });
+  });
+
+  it('clears the stored key when POST repoints llmEndpoint without a fresh key', async () => {
+    const res: any = await POST(postReq({ llmEndpoint: 'https://attacker.example/v1' }));
+    expect(res.status).toBe(200);
+    expect(await ownKey()).toBeNull();
+  });
+
+  it('keeps the key when POST re-sends the same destination', async () => {
+    const res: any = await POST(postReq({ llmProvider: 'openai', llmEndpoint: null }));
+    expect(res.status).toBe(200);
+    expect(await ownKey()).toBe('enc(sk-OWNER)');
+  });
+
+  it('stores a fresh key sent alongside a new endpoint', async () => {
+    const res: any = await POST(postReq({ llmEndpoint: 'https://mine.example/v1', llmApiKey: 'sk-NEW' }));
+    expect(res.status).toBe(200);
+    expect(await ownKey()).toBe('enc(sk-NEW)');
   });
 });
