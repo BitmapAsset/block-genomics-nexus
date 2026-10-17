@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
@@ -40,6 +41,11 @@ export async function POST(req: NextRequest) {
     if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
+
+    // The block's deed decides who may build on it, as for quest PATCH/DELETE —
+    // a tier earned on some other block grants nothing here.
+    const gate = await requireLiveBlockOwner(ownerAddress, blockHeight);
+    if (!gate.ok) return gateDenialResponse(gate);
 
     const user = await prisma.user.findUnique({ where: { walletAddress: ownerAddress } });
     if (!user || user.tier > 2) {
