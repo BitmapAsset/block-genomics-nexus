@@ -6,6 +6,7 @@ import { useGlobalWallet } from "@/context/GlobalWalletContext";
 import ThemeToggle from "@/components/ThemeToggle";
 import { openWalletModal } from "@/lib/open-wallet-modal";
 import { ADDRESS_TYPE_LABEL, addressType, describeVerifyFailure, parseScanResponse } from "@/lib/my-bitmaps";
+import { badgeId as badgeIdFor, resolvePublicHandle } from "@/lib/public-handle";
 
 const WALLET_NAMES: Record<string, string> = {
   unisat: "Unisat",
@@ -314,15 +315,18 @@ export default function AccountClient() {
   }
 
   const type = addressType(walletAddress);
-  const badgeId = profile?.handle || walletAddress;
+  // User.handle first, else the handle claimed on a block in My Bitmaps (REVIEW bg57 P1-5).
+  const publicHandle = resolvePublicHandle(profile);
+  const handle = publicHandle?.handle ?? null;
+  const badgeId = badgeIdFor(publicHandle, walletAddress);
   const badgeUrl = `https://blockgenomics.io/api/v1/badge/${badgeId}.svg`;
-  const profileUrl = profile?.handle ? `https://blockgenomics.io/agent/${profile.handle}` : "https://blockgenomics.io";
+  const profileUrl = handle ? `https://blockgenomics.io/agent/${handle}` : "https://blockgenomics.io";
 
   return (
     <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8 sm:py-14">
       <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-text-secondary">Account</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
-        {profile?.handle ? `@${profile.handle}` : "Your account"}
+        {handle ? `@${handle}` : "Your account"}
       </h1>
       <p className="mt-2 text-sm text-text-secondary">
         {walletType ? WALLET_NAMES[walletType] ?? "Wallet" : "Wallet"} · {ADDRESS_TYPE_LABEL[type]} address
@@ -352,17 +356,19 @@ export default function AccountClient() {
         </Section>
 
         <Section title="Public identity">
-          {profile?.handle ? (
+          {publicHandle && profile ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm text-text-primary">
-                  {profile.displayName && profile.displayName !== profile.handle ? `${profile.displayName} · ` : ""}@{profile.handle}
+                  {publicHandle.source === "user"
+                    ? `${profile.displayName && profile.displayName !== publicHandle.handle ? `${profile.displayName} · ` : ""}@${publicHandle.handle}`
+                    : `@${publicHandle.handle} · from ${publicHandle.blockHeight!.toLocaleString("en-US")}.bitmap`}
                 </p>
                 <p className="mt-1 text-xs text-text-secondary">
                   {profile.anchorBlock ? `Anchored to ${profile.anchorBlock}.bitmap` : "No anchor block on record"}
                 </p>
               </div>
-              <Link href={`/agent/${profile.handle}`} className={secondary}>
+              <Link href={`/agent/${publicHandle.handle}`} className={secondary}>
                 View public profile
               </Link>
             </div>

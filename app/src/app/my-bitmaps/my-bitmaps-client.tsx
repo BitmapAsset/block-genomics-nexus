@@ -425,9 +425,11 @@ export default function MyBitmapsClient() {
           row={rows[sheet.height]}
           handle={view?.held.find((c) => c.height === sheet.height)?.handle ?? null}
           signMessage={signMessage}
-          onClaimed={(handle) =>
-            setRecords((r) => ({ ...r, profiles: [...r.profiles, { blockHeight: sheet.height, handle }] }))
-          }
+          onClaimed={(handle) => {
+            setRecords((r) => ({ ...r, profiles: [...r.profiles, { blockHeight: sheet.height, handle }] }));
+            // Account and the wallet menu read the claimed handle from the profile.
+            void refreshProfile();
+          }}
           onNeedsVerify={() => {
             setNeedsVerify(true);
             setFocusVerify(sheet.height);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useGlobalWallet, type WalletType } from "@/context/GlobalWalletContext";
+import { resolvePublicHandle } from "@/lib/public-handle";
 
 function truncateAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -24,6 +25,8 @@ export default function WalletConnect() {
     connect, disconnect, availableWallets, error: walletError, clearError,
   } = useGlobalWallet();
   const [open, setOpen] = useState(false);
+  // User.handle first, else a handle claimed on one of the wallet's blocks.
+  const publicHandle = resolvePublicHandle(profile);
   // Where to go after a connect started from elsewhere (e.g. Home → My Bitmaps).
   const [nextPath, setNextPath] = useState<string | null>(null);
   const router = useRouter();
@@ -149,9 +152,9 @@ export default function WalletConnect() {
               <Link role="menuitem" href="/account" onClick={() => setOpen(false)} className="flex min-h-[44px] items-center rounded-xl px-3 text-sm text-text-primary hover:bg-white/5">
                 Account
               </Link>
-              {profile?.handle && (
-                <Link role="menuitem" href={`/agent/${profile.handle}`} onClick={() => setOpen(false)} className="flex min-h-[44px] items-center rounded-xl px-3 text-sm text-text-primary hover:bg-white/5">
-                  Public profile <span className="ml-1.5 text-text-secondary">@{profile.handle}</span>
+              {publicHandle && (
+                <Link role="menuitem" href={`/agent/${publicHandle.handle}`} onClick={() => setOpen(false)} className="flex min-h-[44px] items-center rounded-xl px-3 text-sm text-text-primary hover:bg-white/5">
+                  Public profile <span className="ml-1.5 text-text-secondary">@{publicHandle.handle}</span>
                 </Link>
               )}
               <div className="my-1 border-t border-white/[0.06]" />
