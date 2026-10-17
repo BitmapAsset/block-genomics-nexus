@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
+import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
 import { calculateDelegationFee } from '@/lib/protocol';
 
 export async function POST(req: NextRequest) {
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     if (![30, 365].includes(durationDays)) return error('durationDays must be 30 or 365', 400);
 
     /* BIP-322 wallet signature verification */
-    if (!verifyWalletSignature(walletAddress, message, signature)) return error('Invalid signature', 401);
+    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) return error('Invalid signature', 401);
 
     const listing = await prisma.delegationListing.findUnique({ where: { id: listingId } });
     if (!listing || !listing.active) return error('Listing not found or inactive', 404);

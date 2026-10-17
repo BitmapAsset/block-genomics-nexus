@@ -14,6 +14,8 @@ const mockFindUser = jest.fn();
 const mockUpsertUser = jest.fn();
 const mockScan = jest.fn();
 const mockOwnerCheck = jest.fn();
+const mockFindBlock = jest.fn();
+const mockUpsertBlock = jest.fn();
 
 jest.mock('@/lib/prisma', () => ({
   __esModule: true,
@@ -23,7 +25,10 @@ jest.mock('@/lib/prisma', () => ({
       upsert: (...a: unknown[]) => mockUpsertUser(...(a as [])),
     },
     blockProfile: { findUnique: async () => null, findFirst: async () => ({ id: 'p' }), create: async () => ({}) },
-    block: { upsert: async () => ({}) },
+    block: {
+      findUnique: (...a: unknown[]) => mockFindBlock(...(a as [])),
+      upsert: (...a: unknown[]) => mockUpsertBlock(...(a as [])),
+    },
     handleHistory: { create: async () => ({}) },
   },
 }));
@@ -64,6 +69,8 @@ beforeEach(() => {
   mockUpsertUser.mockReset().mockImplementation(async ({ create }: any) => ({ ...create }));
   mockScan.mockReset();
   mockOwnerCheck.mockReset();
+  mockFindBlock.mockReset().mockResolvedValue({ height: 745506, ownerAddress: ADDR });
+  mockUpsertBlock.mockReset().mockResolvedValue({});
 });
 
 it("reports 'live' when the wallet scan confirms the holder on this request", async () => {
@@ -99,4 +106,35 @@ it('still refuses (no success body) when the chain says the wallet does not hold
   const res = await call({ blockHeight: 840000 });
   expect(res.status).toBe(403);
   expect(mockUpsertUser).not.toHaveBeenCalled();
+});
+
+// ─── a cached verification never rewrites the block's owner (bg58) ──────────
+
+const BUYER = 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq';
+const seller = { verified: true, tier: 1, anchorBlock: 745506, genomeHash: 'g' };
+
+it("does not skip the chain when our block record already names another wallet", async () => {
+  mockFindUser.mockResolvedValue(seller);
+  mockFindBlock.mockResolvedValue({ height: 745506, ownerAddress: BUYER });
+  mockScan.mockResolvedValue({ verified: false });
+  const res = await call({ blockHeight: 745506 });
+  expect(mockScan).toHaveBeenCalledWith(ADDR, 745506);
+  expect(res.status).toBe(403);
+  expect(mockUpsertBlock).not.toHaveBeenCalled();
+});
+
+it("a 'previous' answer leaves the block record alone", async () => {
+  mockFindUser.mockResolvedValue(seller);
+  mockUpsertUser.mockImplementation(async () => ({ walletAddress: ADDR, tier: 1, anchorBlock: 745506, genomeHash: 'g' }));
+  const res = await call({ blockHeight: 745506, inscriptionId: 'dupi0' });
+  expect(res.body.data.holderCheck).toBe('previous');
+  expect(mockUpsertBlock).not.toHaveBeenCalled();
+});
+
+it('a live holder check still records the block owner', async () => {
+  mockScan.mockResolvedValue({ verified: true });
+  await call({ blockHeight: 745506 });
+  expect(mockUpsertBlock).toHaveBeenCalledWith(
+    expect.objectContaining({ where: { height: 745506 }, update: expect.objectContaining({ ownerAddress: ADDR }) }),
+  );
 });

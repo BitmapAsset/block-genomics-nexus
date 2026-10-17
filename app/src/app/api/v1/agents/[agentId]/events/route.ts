@@ -27,6 +27,9 @@ export async function GET(
     // Legacy (pre-token) agents keep working via the grace path with a warning.
     const auth = checkAgentToken(agent, req.headers.get('authorization'));
     if (!auth.ok) return error(auth.reason || 'Unauthorized', auth.status);
+    // Same as heartbeat/brief: revoking an agent (DELETE) keeps its key hash, so
+    // the token alone would still read the private event stream.
+    if (agent.status !== 'active') return error('Agent is not active', 403);
 
     const where: Record<string, unknown> = { agentId };
     if (since) {

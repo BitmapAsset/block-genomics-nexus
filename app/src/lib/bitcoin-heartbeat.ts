@@ -15,6 +15,7 @@
 
 import prisma from '@/lib/prisma';
 import { assertSafeOutboundUrl } from '@/lib/ssrf-fetch';
+import { decryptApiKey } from '@/lib/key-encryption';
 
 const MEMPOOL_API = 'https://mempool.space/api';
 
@@ -190,6 +191,22 @@ async function checkGuardianLLM(guardian: {
     }
   }
 
+  // The column holds the AES ciphertext (guardian create/PATCH encrypt it).
+  // Sending it as-is made every BYOK probe a 401 → 'offline' → paused (bg48
+  // Q-17). An unreadable key is a configuration problem, not an outage.
+  let apiKey: string;
+  try {
+    apiKey = decryptApiKey(guardian.llmApiKey);
+  } catch {
+    return {
+      guardianId: guardian.id,
+      name: guardian.name,
+      status: 'degraded',
+      responseTimeMs: 0,
+      error: 'Stored LLM API key could not be decrypted',
+    };
+  }
+
   try {
     const endpoint = resolveLLMEndpoint(guardian.llmProvider, guardian.llmEndpoint);
     const body = buildTestPayload(guardian.llmProvider, guardian.llmModel);
@@ -199,8 +216,11 @@ async function checkGuardianLLM(guardian: {
       redirect: 'error',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${guardian.llmApiKey}`,
-        ...(guardian.llmProvider === 'xai' ? { 'Authorization': `Bearer ${guardian.llmApiKey}` } : {}),
+        // Same per-provider auth as the chat path (llm-proxy): Anthropic takes
+        // x-api-key, not a Bearer token.
+        ...(guardian.llmProvider === 'anthropic'
+          ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+          : { Authorization: `Bearer ${apiKey}` }),
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15_000),

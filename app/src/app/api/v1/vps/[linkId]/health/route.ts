@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
+import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
 
 export async function POST(
   _req: NextRequest,
@@ -22,7 +22,7 @@ export async function POST(
       return error('Authentication required', 401);
     }
     if (link.walletAddress !== ownerAddress) return error('Not the VPS owner', 403);
-    if (!verifyWalletSignature(ownerAddress, message, signature)) {
+    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
       return error('Invalid signature', 401);
     }
 

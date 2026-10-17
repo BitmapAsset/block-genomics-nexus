@@ -47,8 +47,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     const existing = await prisma.guardianAgent.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ error: 'Guardian not found' }, { status: 404 });
-    const { verifyWalletSignature } = await import('@/lib/api-helpers');
-    if (!verifyWalletSignature(ownerAddress, message, signature)) {
+    const { verifyUnboundWalletSignature } = await import('@/lib/api-helpers');
+    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
     // The height comes from the stored guardian, never the request body, so a
@@ -114,8 +114,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
     const target = await prisma.guardianAgent.findUnique({ where: { id } });
     if (!target) return NextResponse.json({ error: 'Guardian not found' }, { status: 404 });
-    const { verifyWalletSignature } = await import('@/lib/api-helpers');
-    if (!verifyWalletSignature(ownerAddress, message, signature)) {
+    const { verifyUnboundWalletSignature } = await import('@/lib/api-helpers');
+    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
     const gate = await requireLiveBlockOwner(ownerAddress, target.blockHeight);

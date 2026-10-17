@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
+import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function PATCH(req: NextRequest) {
     if (!signature || !message) {
       return error('signature and message are required', 401);
     }
-    if (!verifyWalletSignature(walletAddress, message, signature)) {
+    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
       return error('Invalid signature', 401);
     }
 

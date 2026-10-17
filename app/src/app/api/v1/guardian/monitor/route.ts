@@ -7,7 +7,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
-import { verifyWalletSignature } from '@/lib/api-helpers';
+import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
 import { generateMonitorToken, revokeMonitorToken } from '@/lib/monitor-tokens';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       return error('Missing required fields: guardianId, ownerAddress, signature, message');
     }
 
-    if (!verifyWalletSignature(ownerAddress, message, signature)) {
+    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
       return error('Invalid signature', 401);
     }
 
@@ -48,7 +48,7 @@ export async function DELETE(req: NextRequest) {
       return error('Missing required fields: guardianId, ownerAddress, signature, message');
     }
 
-    if (!verifyWalletSignature(ownerAddress, message, signature)) {
+    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
       return error('Invalid signature', 401);
     }
 

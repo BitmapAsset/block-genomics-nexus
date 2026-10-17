@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyWalletSignature } from '@/lib/api-helpers';
+import { verifyWalletSignature, verifyUnboundWalletSignature } from '@/lib/api-helpers';
 import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify wallet signature
-    const verified = await verifyWalletSignature(walletAddress, message, signature);
+    const verified = verifyUnboundWalletSignature(walletAddress, message, signature);
     if (!verified) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }

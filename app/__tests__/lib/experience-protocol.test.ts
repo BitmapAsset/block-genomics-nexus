@@ -105,6 +105,10 @@ describe('assertSafePublicUrl', () => {
     ['https://[::1]', false],                       // IPv6 loopback
     ['https://[fd00::1]', false],                   // IPv6 unique-local
     ['https://[fe80::1]', false],                   // IPv6 link-local
+    ['https://[::ffff:127.0.0.1]', false],          // mapped loopback; URL rewrites it to [::ffff:7f00:1] (bg58)
+    ['https://[::ffff:169.254.169.254]', false],    // mapped cloud metadata (bg58)
+    ['https://[fe81::1]', false],                   // rest of fe80::/10 (bg58)
+    ['https://[2606:4700:4700::1111]', true],       // public v6 literal still allowed
     ['https://2130706433', false],                  // decimal-encoded 127.0.0.1
     ['https://0x7f000001', false],                  // hex-encoded 127.0.0.1
     ['not a url', false],
@@ -123,6 +127,21 @@ describe('isPrivateIp', () => {
     expect(isPrivateIp('8.8.8.8')).toBe(false);
     expect(isPrivateIp('1.1.1.1')).toBe(false);
     expect(isPrivateIp('2606:4700:4700::1111')).toBe(false); // public v6
+  });
+
+  it('reads IPv6 by prefix, whatever the spelling (bg58)', () => {
+    for (const ip of [
+      '::ffff:7f00:1', '::ffff:a9fe:a9fe', '::ffff:0a00:0001', // IPv4-mapped, hex form
+      '::127.0.0.1', '::7f00:1',                               // IPv4-compatible
+      '64:ff9b::7f00:1', '64:ff9b:1::1',                       // NAT64, local-use NAT64
+      '2002:7f00:1::1', '2001:0:4136:e378::1', '2001:db8::1',  // 6to4 of loopback, Teredo, documentation
+      'fe81::1', 'febf::1', 'fec0::1', 'fc00::1', 'ff02::1', '::', '0:0:0:0:0:0:0:1', 'fe80::1%eth0',
+    ]) {
+      expect([ip, isPrivateIp(ip)]).toEqual([ip, true]);
+    }
+    for (const ip of ['2606:4700:4700::1111', '2001:4860:4860::8888', '::ffff:8.8.8.8', '64:ff9b::808:808', '2002:808:808::1']) {
+      expect([ip, isPrivateIp(ip)]).toEqual([ip, false]);
+    }
   });
 });
 

@@ -116,17 +116,57 @@ function isPrivateIPv4(ip: string): boolean {
   );
 }
 
+/**
+ * Expand an IPv6 address (already accepted by `net.isIP`) into its eight
+ * 16-bit groups, folding a dotted IPv4 tail into the last two. Null when it
+ * cannot be read, which callers treat as unsafe.
+ */
+function expandIPv6(ip: string): number[] | null {
+  let s = ip;
+  const zone = s.indexOf('%');
+  if (zone >= 0) s = s.slice(0, zone);
+  const v4 = s.match(/^(.*:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (v4) {
+    const p = v4[2].split('.').map(Number);
+    if (p.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+    s = `${v4[1]}${((p[0] << 8) | p[1]).toString(16)}:${((p[2] << 8) | p[3]).toString(16)}`;
+  }
+  const halves = s.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const fill = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (fill < 0) return null;
+  const groups = [...head, ...Array<string>(fill).fill('0'), ...tail].map((h) => (/^[0-9a-f]{1,4}$/.test(h) ? parseInt(h, 16) : NaN));
+  if (groups.length !== 8 || groups.some((g) => Number.isNaN(g))) return null;
+  return groups;
+}
+
+/**
+ * Classify by numeric prefix, not by spelling. WHATWG URL parsing rewrites
+ * `[::ffff:127.0.0.1]` to `[::ffff:7f00:1]`, so a check that only matched the
+ * dotted form let a mapped loopback or metadata address through as public.
+ */
 function isPrivateIPv6(ip: string): boolean {
-  const lower = ip.toLowerCase().replace(/^\[|\]$/g, '');
-  // IPv4-mapped (::ffff:a.b.c.d) and NAT64 (64:ff9b::a.b.c.d) — unwrap + recheck.
-  const mapped = lower.match(/(?:::ffff:|64:ff9b::)(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return isPrivateIPv4(mapped[1]);
-  if (lower === '::1' || lower === '::') return true;          // loopback / unspecified
-  if (lower.startsWith('fe80') || lower.startsWith('fe9') ||
-      lower.startsWith('fea') || lower.startsWith('feb')) return true; // fe80::/10 link-local
-  if (/^f[cd]/.test(lower)) return true;                        // fc00::/7 unique-local
-  if (/^fec/.test(lower)) return true;                          // fec0::/10 deprecated site-local
-  if (lower.startsWith('ff')) return true;                      // ff00::/8 multicast
+  const g = expandIPv6(ip.toLowerCase().replace(/^\[|\]$/g, ''));
+  if (!g) return true;
+  const zeros = (n: number) => g.slice(0, n).every((x) => x === 0);
+  const tailV4 = () => isPrivateIPv4(`${g[6] >> 8}.${g[6] & 255}.${g[7] >> 8}.${g[7] & 255}`);
+
+  if (zeros(8)) return true;                                    // :: unspecified
+  if (zeros(7) && g[7] === 1) return true;                      // ::1 loopback
+  if (zeros(5) && g[5] === 0xffff) return tailV4();              // ::ffff:0:0/96 IPv4-mapped
+  if (zeros(6)) return tailV4();                                // ::/96 IPv4-compatible (deprecated)
+  if (g[0] === 0x64 && g[1] === 0xff9b && g[2] === 0 && g[3] === 0 && g[4] === 0 && g[5] === 0) return tailV4(); // 64:ff9b::/96 NAT64
+  if (g[0] === 0x64 && g[1] === 0xff9b && g[2] === 1) return true; // 64:ff9b:1::/48 local-use NAT64
+  if (g[0] === 0x2002) return isPrivateIPv4(`${g[1] >> 8}.${g[1] & 255}.${g[2] >> 8}.${g[2] & 255}`); // 2002::/16 6to4
+  if (g[0] === 0x2001 && g[1] === 0) return true;               // 2001::/32 Teredo (obfuscated IPv4 inside)
+  if (g[0] === 0x2001 && g[1] === 0x0db8) return true;          // 2001:db8::/32 documentation
+  if (g[0] === 0x0100 && g[1] === 0 && g[2] === 0 && g[3] === 0) return true; // 100::/64 discard
+  if ((g[0] & 0xffc0) === 0xfe80) return true;                  // fe80::/10 link-local
+  if ((g[0] & 0xffc0) === 0xfec0) return true;                  // fec0::/10 deprecated site-local
+  if ((g[0] & 0xfe00) === 0xfc00) return true;                  // fc00::/7 unique-local
+  if ((g[0] & 0xff00) === 0xff00) return true;                  // ff00::/8 multicast
   return false;
 }
 

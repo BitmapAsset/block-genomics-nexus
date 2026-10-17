@@ -264,6 +264,48 @@ describe('verifyProof on walk bundles (review #4)', () => {
     expect(v.ok).toBe(true);
     expect(v.notes).toEqual(['re-scanned 2 of 5 walked blocks (first and last)']);
   });
+
+  it('a none that keeps the canonical facts is a forgery (bg58)', async () => {
+    const r = await run(chain, N);
+    const forged = reseal({ ...r.proof, verdict: 'none', checkedAtHeight: N });
+    const v = await verify(forged);
+    expect(v.ok).toBe(false);
+    expect(v.diffs.join('\n')).toMatch(/a none verdict carrying canonical or holder facts/);
+  });
+
+  it('a canonical bundle for a claim ord now calls unbound does not verify (bg58)', async () => {
+    const r = await run(chain, N);
+    const url = `${ORD}/r/inscription/${txidOf(first)}i0`;
+    const ins = JSON.parse(chain.http[url].body as string);
+    const http = { ...chain.http, [url]: { status: 200, body: JSON.stringify({ ...ins, charms: ['unbound'] }) } };
+    const v = await verifyProof(r.proof, { limiter: fastLimiter(replayFetch(http)), stores: memoryStores() });
+    expect(v.ok).toBe(false);
+    expect(v.diffs.join('\n')).toMatch(/unbound: the rule is ambiguous/);
+  });
+
+  it('a canonical bundle sealed for a caveated claim does not verify (bg58)', async () => {
+    const M = 954000;
+    // An unrecognized even tag (30) makes the claim ambiguous: resolve() says undetermined.
+    const odd = revealTx({ contentType: 'text/plain', fields: [[30, Uint8Array.of(1)]], body: `${M}.bitmap` });
+    const amb = fakeChain(M, M + 1, { [M]: [odd] });
+    const r = await run(amb, M);
+    expect(r.verdict).toBe('undetermined');
+    // Forge the canonical bundle the resolver refused to write, from an honest one's shape.
+    const plain = revealTx({ contentType: 'text/plain', body: `${M}.bitmap` });
+    const clean = fakeChain(M, M + 1, { [M]: [plain] });
+    const honest = (await run(clean, M)).proof;
+    const id = `${txidOf(odd)}i0`;
+    const ins = JSON.parse(amb.http[`${ORD}/r/inscription/${id}`].body as string);
+    const forged = reseal({
+      ...honest,
+      firstness: { ...honest.firstness, walked: r.proof.firstness.walked },
+      canonical: { ...honest.canonical!, id, revealTxid: txidOf(odd), number: ins.number, sat: String(ins.sat) },
+      holder: null,
+    });
+    const v = await verifyProof(forged, { limiter: fastLimiter(replayFetch(amb.http)), stores: memoryStores() });
+    expect(v.ok).toBe(false);
+    expect(v.diffs.join('\n')).toMatch(/ambiguous under the rule/);
+  });
 });
 
 describe('walk: unbound first claim (review #9)', () => {
@@ -402,6 +444,17 @@ describe('walk: sources must agree', () => {
     expect(r.holder).toBeNull();
     expect(r.proof.holder).toBeNull();
     expect(r.reason).toMatch(/holder unavailable/);
+  });
+
+  it('no holder when Esplora answers the outspend without a spent flag (bg58)', async () => {
+    for (const body of ['{}', '[]', '{"spent":null}']) {
+      const chain = fakeChain(N, N + 1, { [N]: [claim] });
+      chain.http[`${ESP}/tx/${txidOf(claim)}/outspend/0`] = { status: 200, body };
+      const r = await run(chain, N);
+      expect(r.verdict, body).toBe('canonical');
+      expect(r.holder, body).toBeNull();
+      expect(r.proof.holder, body).toBeNull();
+    }
   });
 
   it('answers undetermined at the deadline and keeps working in the background', async () => {

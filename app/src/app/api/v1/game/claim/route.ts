@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { processReward, calculateLevel, checkAchievements } from '@/lib/game-logic';
-import { verifyWalletSignature } from '@/lib/api-helpers';
+import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     if (!signature || !message) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
-    if (!verifyWalletSignature(walletAddress, message, signature)) {
+    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 

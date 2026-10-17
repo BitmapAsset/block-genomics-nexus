@@ -58,11 +58,17 @@ export async function POST(req: NextRequest) {
     // Check if user already exists (used for skip-on-chain and genome hash reuse)
     const existingUser = await prisma.user.findUnique({ where: { walletAddress } });
 
-    // Skip on-chain check if user already verified for this block (e.g. Step 4 profile creation after Step 3 verify)
+    // Skip on-chain check if user already verified for this block (e.g. Step 4 profile creation after Step 3 verify).
+    // Only while our block record still names this wallet: a buyer who verified
+    // here (rather than through ownership sync) leaves the seller's anchor in
+    // place, and the seller's cached verification must not outrank that.
     if (blockHeight && existingUser?.verified && existingUser?.tier === 1 && existingUser?.anchorBlock === blockHeight && existingUser?.genomeHash) {
-      verifiedBlockHeight = blockHeight;
-      tier = 1;
-      holderCheck = 'previous';
+      const recorded = await prisma.block.findUnique({ where: { height: blockHeight } });
+      if (recorded?.ownerAddress === walletAddress) {
+        verifiedBlockHeight = blockHeight;
+        tier = 1;
+        holderCheck = 'previous';
+      }
     }
 
     if (blockHeight && tier !== 1) {
@@ -164,8 +170,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Create/update block record only if ownership was verified on-chain
-    if (verifiedBlockHeight) {
+    // Create/update block record only if ownership was verified on-chain ON THIS
+    // REQUEST. A 'previous' answer is the wallet's own cached verification, not
+    // proof of the current holder, so it never rewrites the block's owner.
+    if (verifiedBlockHeight && holderCheck === 'live') {
       await prisma.block.upsert({
         where: { height: verifiedBlockHeight },
         update: {

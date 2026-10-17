@@ -88,7 +88,7 @@ jest.mock('@/lib/onchain/ord', () => ({
 // can only pass or fail on the ownership decision.
 jest.mock('@/lib/api-helpers', () => {
   const actual = jest.requireActual('@/lib/api-helpers');
-  return { ...actual, verifyWalletSignature: () => true };
+  return { ...actual, verifyWalletSignature: () => true, verifyUnboundWalletSignature: () => true };
 });
 
 jest.mock('@/lib/agent-protocol', () => {
@@ -281,6 +281,26 @@ describe('a stale cache does not authorize a write', () => {
     expect(res.status).toBeGreaterThanOrEqual(400);
     expect(res.status).not.toBe(400); // not the binding check — the ownership check
     expect(db.__rows('parcel')).toHaveLength(0);
+  });
+
+  it('parcel customize: the seller cannot re-customize a parcel they initialized before the sale (bg58)', async () => {
+    const crypto = await import('crypto');
+    const { parcelCustomizeBindingString, parcelCustomizeBindingLine } = await import('@/lib/parcel-customize');
+    const TX = 5;
+    await db.parcel.create({ data: { blockHeight: BLOCK, txIndex: TX, ownerAddress: SELLER, customColor: '#00ff00' } });
+    const fields = { customColor: '#ff0000' };
+    const bindingHash = crypto.createHash('sha256').update(parcelCustomizeBindingString(BLOCK, TX, fields)).digest('hex');
+    const message = parcelCustomizeBindingLine(bindingHash, BLOCK, TX);
+
+    const { POST } = await import('@/app/api/v1/blocks/[height]/parcels/[txIndex]/customize/route');
+    const res = await POST(
+      jsonReq({ walletAddress: SELLER, signature: 'sig', message, ...fields }) as never,
+      { params: Promise.resolve({ height: String(BLOCK), txIndex: String(TX) }) },
+    );
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).not.toBe(400);
+    expect(db.__rows('parcel')[0].customColor).toBe('#00ff00');
   });
 
   it('delegations/listings: the seller cannot rent out sold land', async () => {

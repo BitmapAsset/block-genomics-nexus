@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { FLAG_THRESHOLD_SOFT, FLAG_THRESHOLD_HARD } from '@/lib/protocol';
-import { verifyWalletSignature } from '@/lib/api-helpers';
+import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function POST(req: Request) {
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     if (!signature || !message) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
-    if (!verifyWalletSignature(walletAddress, message, signature)) {
+    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 

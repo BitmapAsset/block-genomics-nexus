@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api-helpers';
+import { success, error, sanitizeString, verifyUnboundWalletSignature } from '@/lib/api-helpers';
 import { emitAgentEvent } from '@/lib/agent-events';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
@@ -117,7 +117,7 @@ export async function POST(
 
     // Verify wallet signature
     if (!signature || !message) return error('Authentication required', 401);
-    if (!verifyWalletSignature(senderAddress, message, signature)) {
+    if (!verifyUnboundWalletSignature(senderAddress, message, signature)) {
       return error('Invalid signature', 401);
     }
 

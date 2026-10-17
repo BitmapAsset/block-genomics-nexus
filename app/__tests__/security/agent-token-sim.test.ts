@@ -133,6 +133,14 @@ describe('SIM: agent API-token auth (OPEN-1)', () => {
     expect(Array.isArray((withAuth.body as any).data)).toBe(true);
   });
 
+  it('events GET: a revoked agent cannot read its stream with its old token (bg58)', async () => {
+    const { agentId, token } = await registerAgent(1013);
+    // DELETE /agents/[id] sets status 'revoked' and leaves the key hash in place.
+    await db.bitmapAgent.update({ where: { id: agentId }, data: { status: 'revoked' } });
+    const res = await eventsGET(req(null, { url: 'http://test.local/?limit=10', auth: `Bearer ${token}` }), ctx(agentId));
+    expect(res.status).toBe(403);
+  });
+
   it('brief POST: requires a valid token', async () => {
     const { agentId, token } = await registerAgent(1004);
     const briefBody = { period: 'p', summary: 's', stats: { visitors: 0, dms: 0, offers: 0, actions: 0 } };

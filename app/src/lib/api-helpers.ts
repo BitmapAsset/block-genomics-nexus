@@ -65,3 +65,30 @@ export function isValidBitcoinAddress(address: string): boolean {
 export function verifyWalletSignature(address: string, message: string, signature: string): boolean {
   return verifyBip322(address, message, signature);
 }
+
+/** The header every action-bound message starts with (`lib/action-message.ts`). */
+const ACTION_MESSAGE_HEADER = /^\s*Block Genomics Authorization\b/;
+
+/** A 64-hex token: the shape of every server-issued challenge nonce (`lib/challenges.ts`). */
+const NONCE_TOKEN = /(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])/i;
+
+/**
+ * Signature check for the legacy routes that consume no nonce and verify no
+ * action binding (the E2E-06 class), where any message the wallet signed passes.
+ *
+ * Those routes must at least refuse the message shapes the server issues for its
+ * bound flows: an action-bound `Block Genomics Authorization` message, or any
+ * message carrying a challenge nonce. Signatures over exactly those shapes are
+ * published on purpose — an experience's `manifestSignature` + `manifestMessage`
+ * is a public attestation — and without this check anyone could lift one and
+ * present it here as the owner. No client of these routes signs either shape.
+ *
+ * Not a replacement for binding: a signature over an ad-hoc string is still
+ * replayable on these routes until each one moves to `verifyActionBinding` +
+ * `consumeChallenge`.
+ */
+export function verifyUnboundWalletSignature(address: string, message: string, signature: string): boolean {
+  if (typeof message !== 'string') return false;
+  if (ACTION_MESSAGE_HEADER.test(message) || NONCE_TOKEN.test(message)) return false;
+  return verifyBip322(address, message, signature);
+}
