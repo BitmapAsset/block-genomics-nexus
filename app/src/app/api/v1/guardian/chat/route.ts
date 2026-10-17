@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { decryptApiKey } from '@/lib/key-encryption';
 import { callLLM, checkGuardianRateLimit } from '@/lib/llm-proxy';
-import { verifyWalletSignature } from '@/lib/api-helpers';
+import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
 import { notifyEscalation } from '@/lib/escalation-notify';
 import { emitAgentEvent } from '@/lib/agent-events';
 import { requireSignedBlockOwner } from '@/lib/block-write-auth';
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     // This prevents spoofing the visitor identity for owner-only actions
     let verifiedVisitorAddress = visitorAddress;
     if (visitorAddress && signature && signedMessage) {
-      if (!verifyWalletSignature(visitorAddress, signedMessage, signature)) {
+      if (!verifyUnboundWalletSignature(visitorAddress, signedMessage, signature)) {
         verifiedVisitorAddress = undefined; // Treat as anonymous if sig fails
       }
     } else {

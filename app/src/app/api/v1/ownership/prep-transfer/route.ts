@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
+import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
 import { wipeGuardianMemories, type MemoryWipeOption } from '@/lib/ownership-sync';
 import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify signature
-    if (!verifyWalletSignature(walletAddress, message, signature)) {
+    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
       return error('Invalid signature', 401);
     }
 

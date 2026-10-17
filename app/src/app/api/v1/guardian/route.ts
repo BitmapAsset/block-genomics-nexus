@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { encryptApiKey, maskApiKey } from '@/lib/key-encryption';
 import { generateGuardianBundle, GUARDIAN_PROTOCOL_VERSION } from '@/lib/guardian-templates';
-import { verifyWalletSignature } from '@/lib/api-helpers';
+import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     if (!signature || !signedMessage) {
       return NextResponse.json({ error: 'Wallet signature required' }, { status: 401 });
     }
-    if (!verifyWalletSignature(ownerAddress, signedMessage, signature)) {
+    if (!verifyUnboundWalletSignature(ownerAddress, signedMessage, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 

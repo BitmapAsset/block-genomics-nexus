@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, sanitizeString, verifyWalletSignature } from '@/lib/api-helpers';
+import { success, error, sanitizeString, verifyUnboundWalletSignature } from '@/lib/api-helpers';
 import { emitAgentEvent } from '@/lib/agent-events';
 import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     if (price30d < 0 || price365d < 0) return error('Prices must be non-negative', 400);
 
     /* BIP-322 wallet signature verification */
-    if (!verifyWalletSignature(walletAddress, message, signature)) return error('Invalid signature', 401);
+    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) return error('Invalid signature', 401);
 
     // An update is authorized against the listing's OWN block. The ownership
     // check below used to run on body.blockHeight while the upsert edited

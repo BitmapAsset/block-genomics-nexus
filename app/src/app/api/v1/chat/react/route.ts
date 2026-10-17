@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
+import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
 
 const ALLOWED_EMOJIS = ['❤️', '😂', '🔥', '👍', '👎', '🤯'];
 
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     if (!emoji || !ALLOWED_EMOJIS.includes(emoji)) return error('Invalid emoji', 400);
     if (!walletAddress || typeof walletAddress !== 'string') return error('walletAddress required', 400);
     if (!signature || !message) return error('Authentication required', 401);
-    if (!verifyWalletSignature(walletAddress, message, signature)) {
+    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
       return error('Invalid signature', 401);
     }
 

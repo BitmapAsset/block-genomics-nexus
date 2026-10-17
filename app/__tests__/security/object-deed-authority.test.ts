@@ -103,6 +103,7 @@ jest.mock('@/lib/onchain/bitmap-ownership', () => ({
 // denial can only ever come from the ownership decision under test.
 jest.mock('@/lib/api-helpers', () => ({
   verifyWalletSignature: () => true,
+  verifyUnboundWalletSignature: () => true,
   sanitizeString: (s: string) => s,
   success: (data: unknown, status = 200, headers?: Record<string, string>) =>
     // eslint-disable-next-line @typescript-eslint/no-require-imports

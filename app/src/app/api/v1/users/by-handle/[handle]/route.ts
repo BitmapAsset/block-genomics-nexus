@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, verifyWalletSignature } from '@/lib/api-helpers';
+import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
 import { logActivity, logProfileView } from '@/lib/activity';
 import { normalizeHandle } from '@/lib/handle';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
@@ -114,7 +114,7 @@ export async function PATCH(
 
     // Verify wallet signature
     if (!signature || !message) return error('Authentication required', 401);
-    if (!verifyWalletSignature(walletAddress, message, signature)) {
+    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
       return error('Invalid signature', 401);
     }
 
