@@ -311,7 +311,7 @@ export const ADDRESS_TYPE_LABEL: Record<AddressType, string> = {
 
 // ── Verification outcome copy ────────────────────────────────────────────
 
-export type VerifyFailureKind = 'rejected' | 'not-held' | 'chain-unavailable' | 'expired' | 'other';
+export type VerifyFailureKind = 'rejected' | 'not-held' | 'chain-unavailable' | 'expired' | 'unchecked' | 'other';
 
 export interface VerifyFailure {
   kind: VerifyFailureKind;
@@ -365,4 +365,41 @@ export function describeVerifyFailure(height: number, err: unknown, httpStatus?:
   }
   const text = err instanceof Error ? err.message : '';
   return { kind: 'other', message: text || 'Verification failed. Try again.', retryable: true };
+}
+
+/** How auth/verify established the holder on a request it accepted. */
+export type HolderCheck = 'live' | 'previous';
+
+export type VerifyOutcome = { ok: true; holderCheck: HolderCheck } | { ok: false; failure: VerifyFailure };
+
+/**
+ * Read `POST /api/v1/auth/verify`'s answer for block `height`.
+ *
+ * A 200 alone is not a verification. The route answers 200 with
+ * `holderCheck: 'none'` when it checked no block at all (today: height 0,
+ * whose falsy height skips the ownership check on the server), and that must
+ * not read "Verified". Success is `holderCheck` 'live' (an indexer confirmed
+ * the holder just now) or 'previous' (this wallet was already verified for
+ * this block) and, when the body names an anchor block, this block.
+ */
+export function readVerifyResponse(height: number, httpStatus: number, body: unknown): VerifyOutcome {
+  const b = body as { success?: boolean; error?: unknown; data?: { holderCheck?: unknown; anchorBlock?: unknown } } | null;
+  if (httpStatus < 200 || httpStatus > 299 || !b?.success) {
+    const text = typeof b?.error === 'string' && b.error ? b.error : `HTTP ${httpStatus}`;
+    return { ok: false, failure: describeVerifyFailure(height, new Error(text), httpStatus) };
+  }
+  const check = b.data?.holderCheck;
+  const anchor = b.data?.anchorBlock;
+  const otherBlock = typeof anchor === 'number' && anchor !== height;
+  if ((check === 'live' || check === 'previous') && !otherBlock) return { ok: true, holderCheck: check };
+  return {
+    ok: false,
+    failure: {
+      kind: 'unchecked',
+      message: otherBlock && (check === 'live' || check === 'previous')
+        ? `Couldn't verify this block. The server's answer was about ${anchor}.bitmap, not ${height}.bitmap, so this one isn't verified.`
+        : `Couldn't verify this block. Your wallet signed, but the server didn't check the chain for ${height}.bitmap, so it isn't verified.`,
+      retryable: false,
+    },
+  };
 }

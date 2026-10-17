@@ -15,6 +15,7 @@ import {
   addressType,
   describeVerifyFailure,
   isUserRejection,
+  readVerifyResponse,
   SCAN_CAP,
   type ChainScan,
   type WalletRecords,
@@ -379,5 +380,51 @@ describe('describeVerifyFailure', () => {
       expect(isUserRejection(new Error(msg))).toBe(true);
     }
     expect(isUserRejection(new Error('Network error'))).toBe(false);
+  });
+});
+
+// REVIEW bg57 P1-4: auth/verify answers 200 with holderCheck 'none' when it
+// checked no block (height 0 today). That must not read "Verified just now".
+describe('readVerifyResponse', () => {
+  const ok = (data: Record<string, unknown>) => ({ success: true, data: { verified: true, walletAddress: W, tier: 1, ...data } });
+
+  it('accepts a live holder check for this block', () => {
+    expect(readVerifyResponse(738505, 200, ok({ anchorBlock: 738505, holderCheck: 'live' }))).toEqual({ ok: true, holderCheck: 'live' });
+  });
+
+  it('accepts a previous verification of this block', () => {
+    expect(readVerifyResponse(720143, 200, ok({ anchorBlock: 720143, holderCheck: 'previous' }))).toEqual({ ok: true, holderCheck: 'previous' });
+  });
+
+  it('rejects the 200 the route gives for 0.bitmap (holderCheck none, another anchor, tier 3)', () => {
+    const out = readVerifyResponse(0, 200, ok({ handle: 'elonmusk', tier: 3, anchorBlock: 745506, holderCheck: 'none' }));
+
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.failure.kind).toBe('unchecked');
+    expect(out.failure.message).toMatch(/^Couldn't verify this block\./);
+    expect(out.failure.message).toContain('0.bitmap');
+    expect(out.failure.message).not.toMatch(/Verified just now|Recorded on|chain confirms/);
+  });
+
+  it('rejects a 200 that does not say how the holder was checked', () => {
+    for (const data of [{}, { holderCheck: 'LIVE' }, { holderCheck: true }]) {
+      expect(readVerifyResponse(718840, 200, ok(data))).toMatchObject({ ok: false, failure: { kind: 'unchecked' } });
+    }
+    expect(readVerifyResponse(718840, 200, null)).toMatchObject({ ok: false });
+  });
+
+  it('rejects an answer about another block', () => {
+    const out = readVerifyResponse(718840, 200, ok({ anchorBlock: 720143, holderCheck: 'live' }));
+
+    expect(out).toMatchObject({ ok: false, failure: { kind: 'unchecked' } });
+    if (!out.ok) expect(out.failure.message).toContain('720143.bitmap, not 718840.bitmap');
+  });
+
+  it('keeps the honest failure for every error status', () => {
+    expect(readVerifyResponse(1, 403, { success: false, error: 'Ownership verification failed' })).toMatchObject({ ok: false, failure: { kind: 'not-held' } });
+    expect(readVerifyResponse(1, 503, { success: false })).toMatchObject({ ok: false, failure: { kind: 'chain-unavailable' } });
+    expect(readVerifyResponse(1, 401, { success: false, error: 'Invalid signature' })).toMatchObject({ ok: false, failure: { kind: 'expired' } });
+    expect(readVerifyResponse(1, 200, { success: false, error: 'Odd' })).toMatchObject({ ok: false, failure: { kind: 'other', message: 'Odd' } });
   });
 });

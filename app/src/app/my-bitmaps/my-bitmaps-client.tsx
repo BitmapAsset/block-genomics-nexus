@@ -15,10 +15,12 @@ import {
   heightsToRead,
   mergeGuardians,
   parseScanResponse,
+  readVerifyResponse,
   reconcileBitmaps,
   SCAN_CAP,
   type BitmapCard,
   type ChainScan,
+  type HolderCheck,
   type RecordedBlock,
   type VerifyFailure,
   type WalletRecords,
@@ -31,8 +33,6 @@ const WALLET_NAMES: Record<string, string> = {
   magiceden: "Magic Eden",
   okx: "OKX Wallet",
 };
-
-type HolderCheck = "live" | "previous" | "none";
 
 /** Per-card verification progress in this session. */
 type VerifyRow =
@@ -296,13 +296,16 @@ export default function MyBitmapsClient() {
           }),
         });
         const body = await res.json().catch(() => null);
-        if (!res.ok || !body?.success) {
-          fail(describeVerifyFailure(h, new Error(body?.error || `HTTP ${res.status}`), res.status));
+        // Only a holder check that ran for this block counts; a 200 that checked
+        // nothing ('none') is "Couldn't verify": no override, no genome sheet.
+        const outcome = readVerifyResponse(h, res.status, body);
+        if (!outcome.ok) {
+          fail(outcome.failure);
+          // A 200 still changed the account on the server; keep the context in step.
+          if (res.ok) void refreshProfile();
           return;
         }
-        const holderCheck: HolderCheck = ["live", "previous", "none"].includes(body.data?.holderCheck)
-          ? body.data.holderCheck
-          : "none";
+        const holderCheck = outcome.holderCheck;
         if (stale()) return;
         setRows((r) => ({ ...r, [h]: { phase: "done", holderCheck, inscriptionId } }));
         setNeedsVerify(false);
@@ -830,9 +833,7 @@ function GenomeSheet({
           <p className="mt-5 rounded-xl border border-green-500/20 bg-green-500/[0.06] px-4 py-3 text-sm leading-relaxed text-green-300">
             {holderCheck === "live"
               ? `Verified. Your wallet signed, and the chain confirms it holds ${height}.bitmap. Recorded on Block Genomics.`
-              : holderCheck === "previous"
-                ? `Signature verified. This wallet was already verified for ${height}.bitmap, so the chain check wasn't re-run.`
-                : "Signature verified."}
+              : `Signature verified. This wallet was already verified for ${height}.bitmap, so the chain check wasn't re-run.`}
           </p>
         )}
 
