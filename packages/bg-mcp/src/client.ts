@@ -17,6 +17,19 @@ export const SESSION_TOKEN = process.env.BG_SESSION_TOKEN;
  */
 export const BEARER = AGENT_TOKEN ?? SESSION_TOKEN;
 
+/**
+ * Routes that only accept a `bg_vfy_` session token. Sending the agent token
+ * there is a guaranteed 401, so when both credentials are configured these
+ * routes must get the session token, not {@link BEARER}.
+ */
+const SESSION_ROUTES = ["/api/v1/session", "/api/v1/world"];
+
+/** The credential a given API path accepts, preferring the one it was built for. */
+export function bearerFor(path: string): string | undefined {
+  const sessionRoute = SESSION_ROUTES.some((r) => path === r || path.startsWith(r + "/"));
+  return sessionRoute ? SESSION_TOKEN ?? AGENT_TOKEN : BEARER;
+}
+
 export const WRITES_ENABLED = process.env.BG_ENABLE_WRITES === "1";
 
 export type Query = Record<string, string | number | boolean | undefined | null>;
@@ -33,13 +46,14 @@ export async function call(
   const headers: Record<string, string> = { accept: "application/json, image/svg+xml;q=0.9, */*;q=0.8" };
   if (opts.body !== undefined) headers["content-type"] = "application/json";
   if (opts.auth) {
-    if (!BEARER) {
+    const bearer = bearerFor(path);
+    if (!bearer) {
       throw new Error(
         "No credential configured. Set BG_AGENT_TOKEN for agent runtime tools, or BG_SESSION_TOKEN " +
           "with a bg_vfy_ token from bg_verify_submit for ownership-gated tools.",
       );
     }
-    headers.authorization = `Bearer ${BEARER}`;
+    headers.authorization = `Bearer ${bearer}`;
   }
 
   const res = await fetch(url, {

@@ -319,3 +319,34 @@ describe("write tools", () => {
     expect(required("bg_auth_verify", "message")).toBe(true);
   });
 });
+
+// ─── credential selection with both tokens configured ────────────────────────
+
+describe("credential selection when agent and session tokens are both set", () => {
+  const BOTH = { BG_AGENT_TOKEN: TOKEN, BG_SESSION_TOKEN: SESSION };
+
+  it("owner tools send the session token, not the agent token", async () => {
+    const { activeTools } = await loadTools(BOTH);
+    const { calls } = fetchMock(() => ({ body: env({}) }));
+    const tools = activeTools();
+    await byName(tools, "bg_my_blocks").run({});
+    await byName(tools, "bg_claim_username").run({ handle: "satoshi" });
+    await byName(tools, "bg_session_revoke").run({});
+    await byName(tools, "bg_world_create").run({ blockHeight: 840000, type: "tree", x: 1, y: 1 });
+    expect(calls.map((c) => new URL(c.url).pathname)).toEqual([
+      "/api/v1/session",
+      "/api/v1/session/username",
+      "/api/v1/session",
+      "/api/v1/world",
+    ]);
+    for (const c of calls) expect(c.headers.authorization).toBe(`Bearer ${SESSION}`);
+  });
+
+  it("agent runtime tools keep sending the agent token", async () => {
+    const { activeTools } = await loadTools(BOTH);
+    const { calls } = fetchMock(() => ({ body: env([]) }));
+    await byName(activeTools(), "bg_agent_events").run({ agentId: "clagent01" });
+    await byName(activeTools(), "bg_agent_heartbeat").run({ agentId: "clagent01" });
+    for (const c of calls) expect(c.headers.authorization).toBe(`Bearer ${TOKEN}`);
+  });
+});
