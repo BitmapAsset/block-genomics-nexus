@@ -1,183 +1,201 @@
 import Link from "next/link";
-import BitmapThumbnail from "@/components/BitmapThumbnail";
-import { HomeCta, BlockCountFact } from "@/components/home/HomeClient";
-import { FAMOUS_BLOCKS } from "@/lib/famous-blocks";
+import LandingPage from "@/components/LandingPage";
+import RotatingTagline from "@/components/RotatingTagline";
+import LiveBlockCount from "@/components/LiveBlockCount";
+import LiveStats from "@/components/LiveStats";
 
-// Static shell: the only live values (wallet state, chain height) render client-side.
-export const dynamic = "force-static";
+// Force static generation — no server-side DB queries needed for landing page
+export const dynamic = 'force-static';
 
-
-const FACTS = [
-  {
-    title: <BlockCountFact />,
-    copy: "Each one is a bitmap: a plot of digital land, numbered by its height, with one owner at a time.",
-  },
-  {
-    title: "Proof of work",
-    copy: "Each one was mined with real energy. None can be copied, forged or issued again.",
-  },
-  {
-    title: "Your wallet is the deed",
-    copy: "Ownership is an ordinals inscription. Whoever holds it holds the block.",
-  },
-];
-
-const DEV_PATHS = [
-  {
-    name: "MCP",
-    line: "https://blockgenomics.io/mcp",
-    copy: "Point any MCP client at it: blocks, owners, genomes and verification as tools.",
-    href: "/mcp",
-    cta: "Tools and config",
-  },
-  {
-    name: "SDK",
-    line: "npm i block-genomics-connect",
-    copy: "Typed client for agents: verify a wallet, read blocks, run a session.",
-    href: "https://www.npmjs.com/package/block-genomics-connect",
-    cta: "npm",
-  },
-  {
-    name: "API",
-    line: "GET /api/v1/blocks/840000",
-    copy: "Plain REST with an OpenAPI spec. Reads are public; writes are signed.",
-    href: "/openapi.json",
-    cta: "OpenAPI",
-  },
-];
-
-export default function HomePage() {
+export default async function HomePage() {
   return (
-    <div className="mx-auto w-full max-w-6xl px-5 sm:px-8">
-      {/* ── Hero: one promise, one action ── */}
-      <section className="grid items-center gap-10 py-12 sm:py-20 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
-        <div className="order-2 lg:order-1">
-          <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-text-secondary">Block Genomics</p>
-          <h1 className="mt-4 text-5xl font-semibold leading-[1.02] tracking-[-0.035em] text-text-primary sm:text-7xl">
-            Your bitmap,
-            <br />
-            alive.
-          </h1>
-          <p className="mt-6 max-w-xl text-lg leading-relaxed text-text-secondary">
-            Connect a wallet to see every bitmap it holds. Verify one with a single signature, get its genome, and walk
-            through its world.
-          </p>
-          <div className="mt-8">
-            <HomeCta />
-          </div>
-          <p className="mt-6 text-sm text-text-secondary">
-            Works with Unisat, Xverse, Leather, Magic Eden and OKX. Looking needs no signature.
-          </p>
-        </div>
+    <div className="relative min-h-screen overflow-hidden">
+      <LandingPage>
+        <div className="relative min-h-screen flex flex-col items-center px-4 pt-[15vh] sm:pt-[18vh]">
 
-        {/* Real art, server-rendered from each block's transactions */}
-        <div className="order-1 lg:order-2" aria-label="Bitmap art of famous blocks">
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <Link
-              href="/block/840000"
-              className="col-span-2 row-span-2 block overflow-hidden rounded-2xl border border-white/[0.08]"
-              aria-label="840000.bitmap, the fourth halving"
-            >
-              <BitmapThumbnail blockHeight={840000} fill className="rounded-none" />
-            </Link>
-            {[0, 210000].map((h) => (
+          {/* Hero */}
+          <div className="text-center max-w-4xl mx-auto w-full">
+            {/* Brand name — massive, powerful */}
+            <h1 className="relative mb-4">
+              <span
+                className="block text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-none"
+                style={{
+                  background: 'linear-gradient(135deg, #00ccff 0%, #ffffff 40%, #b44dff 70%, #00ccff 100%)',
+                  backgroundSize: '200% 200%',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  filter: 'drop-shadow(0 0 40px rgba(0,204,255,0.3)) drop-shadow(0 0 80px rgba(180,77,255,0.15))',
+                  animation: 'brandShimmer 6s ease-in-out infinite',
+                }}
+              >
+                BLOCK
+              </span>
+              <span
+                className="block text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-none -mt-1 sm:-mt-2 md:-mt-3"
+                style={{
+                  background: 'linear-gradient(135deg, #b44dff 0%, #ffffff 40%, #00ccff 70%, #f7931a 100%)',
+                  backgroundSize: '200% 200%',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  filter: 'drop-shadow(0 0 40px rgba(180,77,255,0.3)) drop-shadow(0 0 80px rgba(0,204,255,0.15))',
+                  animation: 'brandShimmer 6s ease-in-out infinite reverse',
+                }}
+              >
+                GENOMICS
+              </span>
+            </h1>
+
+            <p className="text-lg sm:text-xl md:text-2xl font-medium text-text-secondary mb-6 tracking-wide h-8 sm:h-9" style={{ textShadow: '0 2px 16px rgba(0,0,0,0.95)' }}>
+              <RotatingTagline />
+            </p>
+
+            <p className="text-sm sm:text-base text-text-muted mb-10 max-w-xl mx-auto leading-relaxed" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>
+              Own a Bitcoin block. Build a world on it. Give it a mind.
+              Welcome to sovereign digital land — where every block is territory,
+              every owner is king, and every AI agent has a soul.
+            </p>
+
+            <p className="text-sm sm:text-base font-semibold mb-8 tracking-wide" style={{ color: '#00ffcc', textShadow: '0 0 20px rgba(0,255,204,0.4), 0 2px 12px rgba(0,0,0,0.9)' }}>
+              ⚡ ENTER the Nexus ⚡
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
-                key={h}
-                href={`/block/${h}`}
-                className="block overflow-hidden rounded-2xl border border-white/[0.08]"
-                aria-label={`${h}.bitmap`}
+                href="/verify"
+                className="flex items-center gap-2 rounded-lg bg-accent-cyan px-6 py-3 text-sm font-semibold text-bg-primary hover:bg-accent-cyan/90 transition-colors glow-cyan backdrop-blur-sm"
               >
-                <BitmapThumbnail blockHeight={h} fill className="rounded-none" />
+                Verify a Block
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
               </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── The three Bitmap facts ── */}
-      <section className="border-t border-white/[0.06] py-14 sm:py-20" aria-labelledby="facts-title">
-        <h2 id="facts-title" className="text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl">
-          What a bitmap is
-        </h2>
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          {FACTS.map((f, i) => (
-            <div key={i} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
-              <h3 className="text-lg font-semibold text-text-primary">{f.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-text-secondary">{f.copy}</p>
+              <Link
+                href="/explore"
+                className="rounded-lg border border-accent-purple/40 backdrop-blur-sm bg-accent-purple/10 px-6 py-3 text-sm font-semibold text-accent-purple hover:bg-accent-purple/20 hover:border-accent-purple/60 transition-colors"
+              >
+                Try Demo — No Wallet Needed
+              </Link>
+              <Link
+                href="/nexus"
+                className="rounded-lg border border-border backdrop-blur-sm bg-bg-primary/30 px-6 py-3 text-sm font-medium text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
+              >
+                Explore the Nexus
+              </Link>
             </div>
-          ))}
-        </div>
-        <a
-          href="https://github.com/Blockamoto/gitbook"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-6 inline-flex min-h-[44px] items-center text-sm font-medium text-accent-cyan underline-offset-4 hover:underline"
-        >
-          The Bitmap standard ↗
-        </a>
-      </section>
-
-      {/* ── Look around ── */}
-      <section className="border-t border-white/[0.06] py-14 sm:py-20" aria-labelledby="history-title">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <h2 id="history-title" className="text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl">
-            Start with history
-          </h2>
-          <Link
-            href="/explore"
-            className="inline-flex min-h-[44px] items-center text-sm font-medium text-text-primary underline-offset-4 hover:underline"
-          >
-            Explore all blocks →
-          </Link>
-        </div>
-        <ul className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {FAMOUS_BLOCKS.map((b) => (
-            <li key={b.height}>
-              <Link href={`/block/${b.height}`} className="group block">
-                <BitmapThumbnail blockHeight={b.height} fill className="rounded-xl transition-opacity group-hover:opacity-90" />
-                <p className="mt-3 font-mono text-sm text-text-primary">{b.height.toLocaleString("en-US")}</p>
-                <p className="text-xs text-text-secondary">{b.label}</p>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {/* ── Developers: the secondary path ── */}
-      <section className="border-t border-white/[0.06] py-14 sm:py-20" aria-labelledby="dev-title">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-text-secondary">For developers</p>
-            <h2 id="dev-title" className="mt-2 text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl">
-              Build on it
-            </h2>
           </div>
-          <Link
-            href="/docs"
-            className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 text-sm font-medium text-text-primary hover:bg-white/5"
-          >
-            Developer docs
-          </Link>
-        </div>
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          {DEV_PATHS.map((d) => (
-            <div key={d.name} className="flex flex-col rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
-              <h3 className="text-base font-semibold text-text-primary">{d.name}</h3>
-              <code className="mt-3 block overflow-x-auto whitespace-nowrap rounded-lg bg-black/30 px-3 py-2 font-mono text-xs text-accent-cyan">
-                {d.line}
-              </code>
-              <p className="mt-3 flex-1 text-sm leading-relaxed text-text-secondary">{d.copy}</p>
-              <a
-                href={d.href}
-                {...(d.href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                className="mt-4 inline-flex min-h-[44px] items-center text-sm font-medium text-text-primary underline-offset-4 hover:underline"
+
+          {/* What is Block Genomics */}
+          <section className="mt-20 w-full max-w-4xl">
+            <div className="glass-panel p-8 backdrop-blur-md bg-bg-secondary/50">
+              <p className="text-xs uppercase tracking-[0.3em] text-accent-cyan mb-3">
+                What is Block Genomics?
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-semibold mb-4">
+                Sovereign identity anchored in Bitcoin
+              </h2>
+              <p className="text-text-secondary leading-relaxed">
+                Each Bitcoin block is a thermodynamic artifact — real energy, real
+                history, real scarcity. Block Genomics binds AI identity to owned
+                Bitmaps, creating genomes that cannot be forged or duplicated. One
+                block. One genome. One seat at the table.
+              </p>
+            </div>
+          </section>
+
+          {/* How it works */}
+          <section className="mt-12 w-full max-w-4xl">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[
+                { title: "Claim a Bitcoin block", copy: "Own a Bitmap and anchor your identity to a specific block height." },
+                { title: "Extract the genome", copy: "We derive a 256-bit fingerprint from the block header — your unforgeable DNA." },
+                { title: "Verify in one proof", copy: "Sign a BIP-322 challenge to prove ownership and earn a trust score." },
+              ].map((step, i) => (
+                <div key={step.title} className="glass-panel p-6 backdrop-blur-md bg-bg-secondary/50">
+                  <div className="text-xs text-accent-purple mb-2">Step {i + 1}</div>
+                  <h3 className="text-lg font-semibold mb-2 text-text-primary">{step.title}</h3>
+                  <p className="text-sm text-text-secondary leading-relaxed">{step.copy}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Vision teaser */}
+          <section className="mt-12 w-full max-w-4xl">
+            <div className="glass-panel p-8 backdrop-blur-md bg-bg-secondary/50 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-accent-purple mb-3">
+                  The Vision
+                </p>
+                <h2 className="text-2xl font-semibold mb-3">
+                  The Nexus is the gateway
+                </h2>
+                <p className="text-text-secondary leading-relaxed">
+                  Every block is a door you can walk through. The Nexus is a living
+                  map of Bitcoin — digital real estate where verified agents build
+                  worlds, economies, and services on provable ownership.
+                </p>
+              </div>
+              <Link
+                href="/nexus"
+                className="inline-flex items-center justify-center rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
               >
-                {d.cta} {d.href.startsWith("http") ? "↗" : "→"}
+                Enter the Map
+              </Link>
+            </div>
+          </section>
+
+          {/* Built on Bitmap */}
+          <section className="mt-12 w-full max-w-4xl">
+            <div className="glass-panel p-8 backdrop-blur-md bg-bg-secondary/50 text-center">
+              <p className="text-xs uppercase tracking-[0.3em] text-accent-cyan mb-3">
+                Built on Bitmap
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-semibold mb-4">
+                Powered by the{" "}
+                <span className="text-gradient-cyan-purple">Bitmap Standard</span>
+              </h2>
+              <p className="text-text-secondary leading-relaxed max-w-2xl mx-auto mb-6">
+                Bitmap is the consensus standard that transforms every Bitcoin block
+                into claimable digital real estate. By inscribing a block height onto
+                a satoshi, anyone can own a piece of Bitcoin&apos;s history — forever.
+                Block Genomics builds on this breakthrough, turning Bitmap ownership
+                into verifiable identity and sovereign digital worlds.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+                <div className="p-4 rounded-lg border border-border/50 bg-bg-primary/30">
+                  <div className="text-2xl mb-2">🏔️</div>
+                  <div className="text-lg font-bold text-text-primary"><LiveBlockCount /></div>
+                  <div className="text-xs text-text-muted mt-1">Bitcoin Blocks as Digital Land</div>
+                </div>
+                <div className="p-4 rounded-lg border border-border/50 bg-bg-primary/30">
+                  <div className="text-2xl mb-2">⛏️</div>
+                  <div className="text-lg font-bold text-text-primary">Proof of Work</div>
+                  <div className="text-xs text-text-muted mt-1">Every Block Backed by Real Energy</div>
+                </div>
+                <div className="p-4 rounded-lg border border-border/50 bg-bg-primary/30">
+                  <div className="text-2xl mb-2">♾️</div>
+                  <div className="text-lg font-bold text-text-primary">Permanent</div>
+                  <div className="text-xs text-text-muted mt-1">Inscribed On-Chain Forever</div>
+                </div>
+              </div>
+              <a
+                href="https://github.com/Blockamoto/gitbook"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 mt-6 text-sm text-accent-cyan hover:text-accent-cyan/80 transition-colors"
+              >
+                Learn more about Bitmap
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
               </a>
             </div>
-          ))}
+          </section>
+
+          {/* Stats */}
+          <LiveStats />
         </div>
-      </section>
+      </LandingPage>
     </div>
   );
 }
