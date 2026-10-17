@@ -49,10 +49,12 @@ export function isActivePath(pathname: string, href: string): boolean {
 
 /**
  * A same-site path to go to after connecting, or null. "//host" and "/\\host"
- * are other sites to a browser, so only a single leading "/" counts.
+ * are other sites to a browser, so only a single leading "/" counts. The URL
+ * parser drops every tab and newline first, which turns "/\t/host" into
+ * "//host", so a path holding one is refused too.
  */
 export function safeNextPath(next: unknown): string | null {
-  return typeof next === 'string' && /^\/(?![/\\])/.test(next) ? next : null;
+  return typeof next === 'string' && /^\/(?![/\\])/.test(next) && !/[\t\n\r]/.test(next) ? next : null;
 }
 
 /**

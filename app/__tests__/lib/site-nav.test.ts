@@ -110,4 +110,11 @@ describe('safeNextPath (REVIEW bg57 P2-11: "//host" passed the post-connect chec
   it.each(['//evil.example', '/\\evil.example', 'https://evil.example', 'my-bitmaps', '', undefined, null, 42])('%p is refused', (p) => {
     expect(safeNextPath(p)).toBeNull();
   });
+
+  // REVIEW bg57-r2 P2-r2-1: the URL parser strips tabs and newlines, so these
+  // are "//evil.example/x" to a browser.
+  it.each(['/\t/evil.example/x', '/\n/evil.example/x', '/\r/evil.example/x', '/\t\\evil.example/x'])('%j is refused', (p) => {
+    expect(new URL(p, 'https://blockgenomics.io').host).toBe('evil.example');
+    expect(safeNextPath(p)).toBeNull();
+  });
 });
