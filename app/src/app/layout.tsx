@@ -5,14 +5,12 @@ import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { InboxProvider } from "@/context/InboxContext";
 import { ThemeProvider } from "@/context/ThemeContext";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+import { SiteHeader, SiteFooter, SiteBottomTabBar, LandingOnboarding } from "@/components/landing/RouteChrome";
 import NotificationBanner from "@/components/NotificationBanner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PageTransition from "@/components/PageTransition";
 import PWARegistration from "@/components/pwa/PWARegistration";
 import InstallPrompt from "@/components/pwa/InstallPrompt";
-import BottomTabBar from "@/components/pwa/BottomTabBar";
 import SplashScreen from "@/components/pwa/SplashScreen";
 import "./globals.css";
 
@@ -77,16 +75,17 @@ export default function RootLayout({
                 <InboxProvider>
                   <SplashScreen />
                   <PWARegistration />
-                  <Header />
+                  <SiteHeader />
                   <NotificationBanner />
                   <main className="flex-1 pb-16 md:pb-0">
                     <ErrorBoundary>
                       <PageTransition>{children}</PageTransition>
                     </ErrorBoundary>
                   </main>
-                  <Footer className="hidden md:block" />
-                  <BottomTabBar />
+                  <SiteFooter className="hidden md:block" />
+                  <SiteBottomTabBar />
                   <InstallPrompt />
+                  <LandingOnboarding />
                 </InboxProvider>
               </NotificationProvider>
             </AuthProvider>
