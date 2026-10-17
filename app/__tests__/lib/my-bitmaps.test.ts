@@ -18,6 +18,8 @@ import {
   readVerifyResponse,
   recordedInscription,
   applySessionVerifications,
+  describeEmptyScan,
+  shortAddress,
   SCAN_CAP,
   type ChainScan,
   type WalletRecords,
@@ -399,6 +401,46 @@ describe('addressType', () => {
     ['not an address', 'unknown'],
   ])('%s → %s', (addr, expected) => {
     expect(addressType(addr)).toBe(expected);
+  });
+});
+
+// REVIEW bg57-r2 P1-3: `count` is the number of bitmaps listed, so a wallet
+// whose bitmaps all sit past the first 50 inscriptions answers `count: 0`,
+// below the cap. The empty state must not state an empty wallet as a chain fact.
+describe('describeEmptyScan', () => {
+  it('owner wallet, scan {inscriptions: [], count: 0}: hedged, nothing asserted about the chain', () => {
+    const scan = parseScanResponse(200, { success: true, data: { inscriptions: [], count: 0 } });
+    const view = reconcileBitmaps(W, scan, AUDIT_RECORDS, true);
+
+    // below the cap, no block listed: the empty state, above the 7 recorded heights
+    expect(view).toMatchObject({ scan: 'ok', capped: false, held: [] });
+    expect(view.recordedOnly.map((c) => c.status)).toEqual(Array(7).fill('previous'));
+
+    const copy = describeEmptyScan(W, 'Unisat');
+    expect(copy.heading).toBe('No bitmaps found');
+    expect(copy.body).toBe(
+      "No .bitmap inscription found in the first 50 inscriptions at bc1ps8…ae8978. The scan reads only that many, so a bitmap further in isn't listed here. If yours sits in another wallet, connect that one.",
+    );
+    expect(`${copy.heading} ${copy.body}`).not.toMatch(/in this wallet|chain shows|no \.bitmap inscription at/i);
+  });
+
+  it('keeps the address-type hint for a SegWit wallet', () => {
+    const copy = describeEmptyScan(OTHER, 'Xverse');
+
+    expect(copy.body).toMatch(/^No \.bitmap inscription found in the first 50 inscriptions at bc1qar…wf5mdq\. The scan reads only that many/);
+    expect(copy.body).toContain(
+      'Bitmaps usually sit on a Taproot address (bc1p…), and Xverse connected with its Native SegWit address. Switch Xverse to your Taproot or Ordinals address, then connect again.',
+    );
+  });
+
+  it('a capped scan with no block (50 parcels) reaches the same empty state; the words take no cap input', () => {
+    const parcels = Array.from({ length: 50 }, (_, i) => ({ type: 'parcel', height: 718840, parcelIndex: i, inscriptionId: `p${i}i0` }));
+    const view = reconcileBitmaps(W, parseScanResponse(200, { success: true, data: { inscriptions: parcels, count: 50 } }), AUDIT_RECORDS, true);
+
+    expect(view).toMatchObject({ scan: 'ok', capped: true, held: [] });
+    expect(view.recordedOnly.map((c) => c.status)).toEqual(Array(7).fill('unscanned'));
+    expect(describeEmptyScan).toHaveLength(2); // (address, walletName)
+    expect(shortAddress(W)).toBe('bc1ps8…ae8978');
   });
 });
 

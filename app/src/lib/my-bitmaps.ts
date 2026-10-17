@@ -368,6 +368,32 @@ export const ADDRESS_TYPE_LABEL: Record<AddressType, string> = {
   unknown: 'Bitcoin',
 };
 
+/** An address as the page shows it: `bc1ps8…ae8978`. */
+export function shortAddress(a: string): string {
+  return `${a.slice(0, 6)}…${a.slice(-6)}`;
+}
+
+// ── Empty scan copy ──────────────────────────────────────────────────────
+
+/**
+ * The words for a scan that listed no block. The same for every such scan:
+ * `count` is the number of bitmaps listed, so `count: 0` below the cap proves
+ * no more than a capped answer does. A wallet whose bitmaps all sit past the
+ * first SCAN_CAP inscriptions answers exactly like an empty one (REVIEW bg57-r2
+ * P1-3). The address type only adds a hint.
+ */
+export function describeEmptyScan(address: string, walletName: string): { heading: string; body: string } {
+  const type = addressType(address);
+  const hint =
+    type === 'taproot'
+      ? 'If yours sits in another wallet, connect that one.'
+      : `Bitmaps usually sit on a Taproot address (bc1p…), and ${walletName} connected with its ${ADDRESS_TYPE_LABEL[type]} address. Switch ${walletName} to your Taproot or Ordinals address, then connect again.`;
+  return {
+    heading: 'No bitmaps found',
+    body: `No .bitmap inscription found in the first ${SCAN_CAP} inscriptions at ${shortAddress(address)}. The scan reads only that many, so a bitmap further in isn't listed here. ${hint}`,
+  };
+}
+
 // ── Verification outcome copy ────────────────────────────────────────────
 
 export type VerifyFailureKind = 'rejected' | 'not-held' | 'chain-unavailable' | 'expired' | 'unchecked' | 'other';

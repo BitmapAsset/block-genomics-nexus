@@ -12,6 +12,7 @@ import {
   ADDRESS_TYPE_LABEL,
   addressType,
   applySessionVerifications,
+  describeEmptyScan,
   describeVerifyFailure,
   heightsToRead,
   mergeGuardians,
@@ -20,6 +21,7 @@ import {
   reconcileBitmaps,
   recordedInscription,
   SCAN_CAP,
+  shortAddress,
   type BitmapCard,
   type ChainScan,
   type HolderCheck,
@@ -46,10 +48,6 @@ type VerifyRow =
   | { phase: "failed"; failure: VerifyFailure };
 
 const EMPTY_RECORDS: WalletRecords = { recordedHeights: [], blocks: [], profiles: [], guardians: [] };
-
-function shortAddress(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-6)}`;
-}
 
 async function getJson(url: string, signal: AbortSignal): Promise<{ status: number; body: unknown }> {
   const res = await fetch(url, { signal });
@@ -349,7 +347,7 @@ export default function MyBitmapsClient() {
       )}
 
       {!loading && view && view.scan === "ok" && view.held.length === 0 && (
-        <EmptyState address={walletAddress} walletName={walletName} capped={view.capped} />
+        <EmptyState address={walletAddress} walletName={walletName} />
       )}
 
       {!loading && view && view.scan === "ok" && view.held.length > 0 && (
@@ -496,42 +494,19 @@ function OutageState({ kind, message, onRetry }: { kind: "unavailable" | "error"
   );
 }
 
-function EmptyState({ address, walletName, capped }: { address: string; walletName: string; capped: boolean }) {
-  const type = addressType(address);
-  if (capped) {
-    // The scan stopped at its cap (all of it parcels): absence proves nothing.
-    return (
-      <div className="mt-8 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 sm:p-8">
-        <h2 className="text-lg font-semibold text-text-primary">No bitmaps in the first {SCAN_CAP} inscriptions</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-secondary">
-          No <span className="font-mono">.bitmap</span> inscription found in the first {SCAN_CAP} inscriptions at {shortAddress(address)}. The scan reads only that many, so a bitmap further in isn&apos;t listed here. Look it up by number and open its block page.
-        </p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Link
-            href="/explore"
-            className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 text-sm font-medium text-text-primary hover:bg-white/5"
-          >
-            Look it up by number
-          </Link>
-        </div>
-      </div>
-    );
-  }
+/** A scan that listed no block, at the cap or below it: never proof of an empty wallet (describeEmptyScan). */
+function EmptyState({ address, walletName }: { address: string; walletName: string }) {
+  const copy = describeEmptyScan(address, walletName);
   return (
     <div className="mt-8 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 sm:p-8">
-      <h2 className="text-lg font-semibold text-text-primary">No bitmaps in this wallet</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-secondary">
-        The chain shows no <span className="font-mono">.bitmap</span> inscription at {shortAddress(address)}.
-        {type !== "taproot" &&
-          ` Bitmaps usually sit on a Taproot address (bc1p…), and ${walletName} connected with its ${ADDRESS_TYPE_LABEL[type]} address. Switch ${walletName} to your Taproot or Ordinals address, then connect again.`}
-        {type === "taproot" && " If yours sits in another wallet, connect that one."}
-      </p>
+      <h2 className="text-lg font-semibold text-text-primary">{copy.heading}</h2>
+      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-secondary">{copy.body}</p>
       <div className="mt-5 flex flex-wrap gap-3">
         <Link
           href="/explore"
           className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 text-sm font-medium text-text-primary hover:bg-white/5"
         >
-          Look around first
+          Look it up by number
         </Link>
         <button
           type="button"
