@@ -446,6 +446,17 @@ describe('walk: sources must agree', () => {
     expect(r.reason).toMatch(/holder unavailable/);
   });
 
+  it('no holder when Esplora answers the outspend without a spent flag (bg58)', async () => {
+    for (const body of ['{}', '[]', '{"spent":null}']) {
+      const chain = fakeChain(N, N + 1, { [N]: [claim] });
+      chain.http[`${ESP}/tx/${txidOf(claim)}/outspend/0`] = { status: 200, body };
+      const r = await run(chain, N);
+      expect(r.verdict, body).toBe('canonical');
+      expect(r.holder, body).toBeNull();
+      expect(r.proof.holder, body).toBeNull();
+    }
+  });
+
   it('answers undetermined at the deadline and keeps working in the background', async () => {
     const chain = fakeChain(N, N + 1, { [N]: [claim] });
     const slow = replayFetch(chain.http);

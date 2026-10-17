@@ -242,6 +242,12 @@ async function holderUncached(ctx: Context, id: string): Promise<{ holder: Holde
       ctx.mark('esplora', 'disagree', `${outTxid}:${vout} is spent per esplora`);
       return { holder: null, reason: 'the output ord names is already spent per esplora (indexer lag?)' };
     }
+    // Fail closed: only an explicit `spent: false` is evidence the output is
+    // unspent. A 200 carrying `{}`, `[]` or `spent: null` says nothing.
+    if (spend.spent !== false) {
+      ctx.mark('esplora', 'disagree', `esplora outspend for ${outTxid}:${vout} has no spent flag`);
+      return { holder: null, reason: `esplora gave no spent status for output ${outTxid}:${vout}` };
+    }
     const address = tx.vout?.[vout]?.scriptpubkey_address;
     if (address !== ins.address) {
       ctx.mark('esplora', 'disagree', `output address ${address} vs ord ${ins.address}`);
