@@ -5,7 +5,7 @@
 # green before this workflow was added; jobs run in parallel and finish in ~2 min.
 #
 # Job names double as branch-protection status checks: sdk, mcp, cli, app,
-# lint, typecheck, example, build, secrets, migrations, resolver. Keep every
+# lint, typecheck, example, build, secrets, migrations, resolver, workflows. Keep every
 # `name:` stable; renaming one silently orphans its required check.
 #
 # Every job carries a 15-minute timeout (the slowest, `build`, takes ~2 min).
@@ -291,3 +291,20 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  workflows:
+    name: workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Lints every file in .github/workflows (syntax, expressions, runner
+    # labels, `needs` graphs) and shellchecks each `run:` block. A broken
+    # workflow otherwise only shows up when its trigger fires, which for
+    # release.yml, migrate-production.yml and post-deploy-smoke.yml means
+    # in the middle of a release, a migration or a production deploy.
+    steps:
+      - uses: actions/checkout@v4
+      # The official image bundles shellcheck. Tag plus digest: the digest is
+      # what runs, the tag says which release it is.
+      - uses: docker://rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+        with:
+          args: -color
