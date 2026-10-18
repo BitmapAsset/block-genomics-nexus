@@ -1,0 +1,94 @@
+# Read-only smoke test of https://blockgenomics.io after every production
+# deploy.
+#
+# Vercel's GitHub integration reports each deploy as a GitHub deployment. The
+# project that serves blockgenomics.io reports under the environment name
+# "Production – app" (with an en dash); "Production – workspace" is a second
+# Vercel project on the same repo and does not serve the site, so it is
+# ignored. Vercel does not set `production_environment`, which is why the
+# filter matches the environment name.
+#
+# The probes live in .github/scripts/prod-smoke.sh: plain GETs, no secrets, so
+# they can be run by hand from any machine as well.
+#
+# On failure the job fails and opens (or comments on) ONE issue labelled
+# `prod-smoke-failed` carrying the probe table. The next green run closes it.
+# The workflow never rolls back by itself: rollback is a human decision
+# (Vercel → Deployments → previous production deploy → Promote / Instant
+# Rollback), described in docs/RUNBOOK-CICD.md.
+
+name: Post-deploy smoke
+
+on:
+  deployment_status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: prod-smoke
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production – app')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # A newer production deploy supersedes an in-flight smoke of the previous
+    # one. Job-level on purpose: every Vercel status event (preview, pending,
+    # the other project) starts a run of this workflow, and a workflow-level
+    # group would let those skipped runs cancel a real smoke mid-flight.
+    concurrency:
+      group: prod-smoke
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      issues: write
+    env:
+      SMOKE_BASE_URL: https://blockgenomics.io
+      SMOKE_REPORT: smoke-report.md
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      LABEL: prod-smoke-failed
+      DEPLOY_SHA: ${{ github.event.deployment.sha || github.sha }}
+      DEPLOY_URL: ${{ github.event.deployment_status.environment_url || 'manual run' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe production
+        id: probe
+        run: bash .github/scripts/prod-smoke.sh
+
+      - name: Publish the probe table to the run summary
+        if: always() && steps.probe.outcome != 'skipped'
+        run: cat "$SMOKE_REPORT" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open or update the prod-smoke-failed issue
+        if: failure() && steps.probe.outcome == 'failure'
+        run: |
+          gh label create "$LABEL" --color B60205 \
+            --description "Post-deploy production smoke test failed" --force
+          {
+            echo "Post-deploy smoke failed for \`$DEPLOY_SHA\` (deployment: $DEPLOY_URL)."
+            echo
+            echo "Run: $RUN_URL"
+            echo
+            cat "$SMOKE_REPORT"
+            echo
+            echo "Rollback path: docs/RUNBOOK-CICD.md#rollback. This issue closes itself on the next green smoke run."
+          } > issue-body.md
+          existing=$(gh issue list --label "$LABEL" --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file issue-body.md
+          else
+            gh issue create --title "Production smoke test failed" --label "$LABEL" --body-file issue-body.md
+          fi
+
+      - name: Close any open prod-smoke-failed issue
+        if: success()
+        run: |
+          for n in $(gh issue list --label "$LABEL" --state open --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "Smoke is green again for \`$DEPLOY_SHA\`: $RUN_URL"
+          done
