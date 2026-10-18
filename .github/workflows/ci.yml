@@ -27,12 +27,13 @@ on:
 permissions:
   contents: read
 
-# One run per ref. A new push to a PR cancels that PR's stale run (it can no
-# longer merge anyway). Pushes to main are never cancelled: every merge commit
-# keeps its own complete verdict, so a red main can always be bisected to the
-# commit that broke it.
+# PRs: one group per PR ref, so a new push cancels that PR's stale run (it can
+# no longer merge anyway). main: one group per commit sha, so no main run ever
+# shares a group with another and none is cancelled, running or pending. Every
+# merge commit keeps its own complete verdict, so a red main can always be
+# bisected to the commit that broke it.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
