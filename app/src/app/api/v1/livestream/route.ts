@@ -6,6 +6,7 @@ import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
 import { consumeChallenge } from '@/lib/challenges';
+import { getStreamEmbedUrl } from '@/lib/stream-embed';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
     streamUrl: block.streamUrl,
     streamType: block.streamType,
     startedAt: block.streamStartedAt,
-    embedUrl: getEmbedUrl(block.streamUrl),
+    embedUrl: getStreamEmbedUrl(block.streamUrl),
   });
 }
 
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate URL
-    const embed = getEmbedUrl(streamUrl);
+    const embed = getStreamEmbedUrl(streamUrl);
     if (!embed) {
       return NextResponse.json({ error: 'Unsupported stream URL. Use YouTube, Twitch, or Kick.' }, { status: 400 });
     }
@@ -135,40 +136,5 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: 'Failed to end stream' }, { status: 500 });
-  }
-}
-
-/* ─── Helpers ─── */
-function getEmbedUrl(url: string): string | null {
-  try {
-    const u = new URL(url);
-
-    // YouTube
-    if (u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be')) {
-      let videoId = u.searchParams.get('v');
-      if (!videoId && u.hostname.includes('youtu.be')) videoId = u.pathname.slice(1);
-      if (!videoId) {
-        // YouTube live URL: youtube.com/live/VIDEO_ID
-        const liveMatch = u.pathname.match(/\/live\/([a-zA-Z0-9_-]+)/);
-        if (liveMatch) videoId = liveMatch[1];
-      }
-      if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`;
-    }
-
-    // Twitch
-    if (u.hostname.includes('twitch.tv')) {
-      const channel = u.pathname.split('/').filter(Boolean)[0];
-      if (channel) return `https://player.twitch.tv/?channel=${channel}&parent=blockgenomics.io&autoplay=true&muted=true`;
-    }
-
-    // Kick
-    if (u.hostname.includes('kick.com')) {
-      const channel = u.pathname.split('/').filter(Boolean)[0];
-      if (channel) return `https://player.kick.com/${channel}`;
-    }
-
-    return null;
-  } catch {
-    return null;
   }
 }
