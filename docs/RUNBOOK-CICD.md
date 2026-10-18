@@ -153,3 +153,50 @@ noisier) queries.
 Once the first analysis is in, a code-scanning merge gate can be added under
 Settings → Rules → Rulesets → *Require code scanning results* (CodeQL,
 alerts of severity High or higher).
+
+## Required status checks on `main`
+
+Branch protection requires five checks today: `sdk`, `mcp`, `cli`, `app`,
+`secrets`. The other seven CI jobs (`typecheck`, `lint`, `build`,
+`migrations`, `resolver`, `example`, `workflows`) run on every PR but a red
+one does not block the merge button. Every job in `ci.yml` should be
+required:
+
+```bash
+gh api -X PATCH repos/BitmapAsset/block-genomics-nexus/branches/main/protection/required_status_checks \
+  --input - <<'EOF_JSON'
+{
+  "strict": true,
+  "checks": [
+    { "context": "sdk",        "app_id": 15368 },
+    { "context": "mcp",        "app_id": 15368 },
+    { "context": "resolver",   "app_id": 15368 },
+    { "context": "cli",        "app_id": 15368 },
+    { "context": "typecheck",  "app_id": 15368 },
+    { "context": "app",        "app_id": 15368 },
+    { "context": "migrations", "app_id": 15368 },
+    { "context": "lint",       "app_id": 15368 },
+    { "context": "example",    "app_id": 15368 },
+    { "context": "build",      "app_id": 15368 },
+    { "context": "secrets",    "app_id": 15368 },
+    { "context": "workflows",  "app_id": 15368 }
+  ]
+}
+EOF_JSON
+```
+
+`app_id` 15368 is GitHub Actions, so only a real Actions job can satisfy a
+check; a commit status from anything else with the same name cannot.
+
+**Apply this only after the change that adds a job name is merged and has
+run green on `main`.** A required check that no workflow on a PR's branch
+produces never reports, so the PR waits forever at "Expected — waiting for
+status to be reported". Every open PR whose branch predates the new job
+(today, all open Dependabot PRs) would be stuck until rebased, and if the
+change were reverted, `main` itself would become unmergeable. Order:
+merge, confirm the job ran green on `main`, then run the call above.
+
+Verify: `gh api repos/BitmapAsset/block-genomics-nexus/branches/main/protection/required_status_checks --jq '[.checks[].context]'`.
+
+When a job is renamed or removed in `ci.yml`, update this list in the same
+change window, or merges stall.
