@@ -53,14 +53,21 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # GET /repos/{owner}/{repo}/environments/{name} is an "Actions" read in
+    # GitHub's token permissions table, so grant it explicitly.
+    permissions:
+      contents: read
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
       - name: production-db must exist with a required reviewer
         run: |
-          if ! rules=$(gh api "repos/$GH_REPO/environments/production-db" --jq '[.protection_rules[].type] | join(",")'); then
-            echo "::error::Environment production-db does not exist. Create it first: docs/RUNBOOK-CICD.md#production-database-migrations"
+          err="$(mktemp)"
+          if ! rules=$(gh api "repos/$GH_REPO/environments/production-db" --jq '[.protection_rules[].type] | join(",")' 2>"$err"); then
+            echo "::error::Could not read environment production-db: $(tr '\n' ' ' <"$err")"
+            echo "A 404 means it does not exist yet. Create it first: docs/RUNBOOK-CICD.md#production-database-migrations"
             exit 1
           fi
           echo "production-db protection rules: ${rules:-none}"
