@@ -34,8 +34,7 @@ export async function POST(req: NextRequest) {
       return error('A session can only resolve the tier of its own wallet', 403);
     }
 
-    const baseUrl = req.nextUrl.origin;
-    const resolution = await resolveTier(walletAddress, { force: !!force, baseUrl });
+    const resolution = await resolveTier(walletAddress, { force: !!force });
 
     return success(resolution);
   } catch (e: unknown) {

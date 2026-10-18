@@ -9,8 +9,8 @@
  *   - a holder of a duplicate `N.bitmap` took over block N's record outright.
  * A failed scan also returned [], which wiped a real owner's tier.
  *
- * Here the scanner (the route's own `/inscriptions/scan` over HTTP) is stubbed
- * with `global.fetch`; the database is in-memory.
+ * Here the scanner (`scanAddressForBitmaps`, which the resolver calls
+ * in-process) is stubbed; the database is in-memory.
  */
 
 const REAL_OWNER = 'bc1prealowner00000000000000000000000000000000';
@@ -49,13 +49,17 @@ jest.mock('@/lib/api-rate-limit', () => ({
   PUBLIC_READ_LIMIT: 120,
 }));
 
+const scanMock = jest.fn();
+jest.mock('@/lib/inscription-scan', () => ({
+  scanAddressForBitmaps: (...args: unknown[]) => scanMock(...args),
+}));
+
 import prisma from '@/lib/prisma';
 import { mintVerifiedSession } from '@/lib/verified-sessions';
 import { POST as RESOLVE } from '@/app/api/v1/tier/resolve/route';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const db = prisma as any;
-const fetchMock = jest.fn();
 
 function resolveReq(body: Record<string, unknown>, token?: string) {
   return {
@@ -67,21 +71,17 @@ function resolveReq(body: Record<string, unknown>, token?: string) {
 
 /** What the scanner reports for the wallet: the attacker's cheap duplicate `208.bitmap`. */
 function scannerReportsDuplicate() {
-  fetchMock.mockResolvedValue({
+  scanMock.mockResolvedValue({
     ok: true,
-    json: async () => ({ data: { inscriptions: [{ type: 'block', height: BLOCK, inscriptionId: 'dup_i0' }] } }),
+    inscriptions: [{ type: 'block', height: BLOCK, inscriptionId: 'dup_i0', label: `${BLOCK}.bitmap` }],
   });
 }
 
 const blockRow = () => db.block.findUnique({ where: { height: BLOCK } });
 
-beforeAll(() => {
-  (global as any).fetch = fetchMock;
-});
-
 beforeEach(async () => {
   db.__reset();
-  fetchMock.mockReset();
+  scanMock.mockReset();
   await db.block.create({ data: { height: BLOCK, ownerAddress: REAL_OWNER, inscriptionId: 'real_i0' } });
   await db.user.create({ data: { walletAddress: REAL_OWNER, ownedBlocks: [BLOCK], resolvedTier: 1, lastOnChainCheck: new Date() } });
   await db.user.create({ data: { walletAddress: ATTACKER, ownedBlocks: [], resolvedTier: 0, lastOnChainCheck: null } });
@@ -93,7 +93,7 @@ describe('POST /tier/resolve — who may call it', () => {
     const res: any = await RESOLVE(resolveReq({ walletAddress: ATTACKER, force: true }));
 
     expect(res.status).toBe(401);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(scanMock).not.toHaveBeenCalled();
     expect((await blockRow()).ownerAddress).toBe(REAL_OWNER);
   });
 
@@ -103,7 +103,7 @@ describe('POST /tier/resolve — who may call it', () => {
     const res: any = await RESOLVE(resolveReq({ walletAddress: REAL_OWNER, force: true }, token));
 
     expect(res.status).toBe(403);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(scanMock).not.toHaveBeenCalled();
     expect((await db.user.findUnique({ where: { walletAddress: REAL_OWNER } })).resolvedTier).toBe(1);
   });
 });
@@ -115,7 +115,7 @@ describe('tier computation is read-only for Block', () => {
     const res: any = await RESOLVE(resolveReq({ walletAddress: ATTACKER, force: true }, token));
 
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(scanMock).toHaveBeenCalledTimes(1);
     expect((await res.json()).data.ownedBlocks).toEqual([BLOCK]);
 
     const block = await blockRow();
@@ -125,7 +125,7 @@ describe('tier computation is read-only for Block', () => {
   });
 
   it('a failed scan keeps the cached tier instead of wiping it', async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
+    scanMock.mockResolvedValue({ ok: false, reason: 'list_unavailable' });
     const { token } = await mintVerifiedSession(REAL_OWNER, [BLOCK]);
     const res: any = await RESOLVE(resolveReq({ walletAddress: REAL_OWNER, force: true }, token));
 
