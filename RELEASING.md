@@ -49,7 +49,15 @@ Release is left untouched.
 ## One-time setup: npm Trusted Publisher, per package
 
 Do this once for each of the three packages, signed in to npmjs.com as a
-maintainer of the package:
+maintainer of the package.
+
+**Do it in the same sitting as the first `v*` release.** A newly created
+trusted publisher must complete its first successful publish within 2 days;
+if it does not, it expires and can no longer be used or edited, and every
+publish leg fails until it is deleted and recreated
+([docs.npmjs.com/trusted-publishers](https://docs.npmjs.com/trusted-publishers)).
+So: configure the three publishers, push the release tag right away, then
+check that each package page shows the *Provenance* badge.
 
 1. npmjs.com → the package → **Settings** → **Trusted Publisher** →
    *Select your publisher*: **GitHub Actions**.
