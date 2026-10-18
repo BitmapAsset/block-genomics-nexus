@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { scanAddressForBitmaps, type BitmapResult } from '@/lib/inscription-scan';
 
 export interface TierResolution {
   globalTier: 0 | 1 | 2 | 3;
@@ -13,22 +14,17 @@ export interface TierResolution {
 
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-interface ScanResult {
-  type: 'block' | 'parcel';
-  height: number;
-  parcelIndex?: number;
-  inscriptionId: string;
-}
-
-/** `null` means the scan could not answer — never "the wallet holds nothing". */
-async function scanOnChain(address: string, baseUrl: string): Promise<ScanResult[] | null> {
+/**
+ * `null` means the scan could not answer — never "the wallet holds nothing".
+ *
+ * In-process, not an HTTP call to our own `/inscriptions/scan`: that call went
+ * to the origin of the request being served, so a forged Host header chose the
+ * server that answered, and its answer became the wallet's tier.
+ */
+async function scanOnChain(address: string): Promise<BitmapResult[] | null> {
   try {
-    const res = await fetch(`${baseUrl}/api/v1/inscriptions/scan?address=${encodeURIComponent(address)}`, {
-      signal: AbortSignal.timeout(30000),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return (data?.data?.inscriptions || []) as ScanResult[];
+    const scan = await scanAddressForBitmaps(address);
+    return scan.ok ? scan.inscriptions : null;
   } catch {
     return null;
   }
@@ -42,14 +38,13 @@ async function scanOnChain(address: string, baseUrl: string): Promise<ScanResult
  *
  * @param walletAddress - Bitcoin wallet address to resolve
  * @param options.force - Skip stale check and force on-chain re-scan
- * @param options.baseUrl - API base URL for inscription scanning
  * @returns Full tier resolution with owned assets, previous tier, and change info
  */
 export async function resolveTier(
   walletAddress: string,
-  options: { force?: boolean; baseUrl?: string } = {}
+  options: { force?: boolean } = {}
 ): Promise<TierResolution> {
-  const { force = false, baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000' } = options;
+  const { force = false } = options;
 
   // Get or create user
   const user = await prisma.user.findUnique({ where: { walletAddress } });
@@ -87,7 +82,7 @@ export async function resolveTier(
 
   // A failed scan keeps the cached answer: wiping it would drop a real owner to
   // tier 0 (and start their agents' grace period) because an indexer blinked.
-  const inscriptions = needsScan ? await scanOnChain(walletAddress, baseUrl) : null;
+  const inscriptions = needsScan ? await scanOnChain(walletAddress) : null;
 
   if (inscriptions) {
     const now = new Date();

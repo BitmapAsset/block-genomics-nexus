@@ -1,30 +1,59 @@
+import crypto from 'crypto';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { batchVerifyOwnership } from '@/lib/ownership-sync';
+import { bearerFrom } from '@/lib/sandbox-tier';
 
-const OWNERSHIP_SYNC_SECRET = process.env.OWNERSHIP_SYNC_SECRET;
-if (!OWNERSHIP_SYNC_SECRET) console.warn('[ownership/cron] OWNERSHIP_SYNC_SECRET not set — cron endpoint disabled');
+if (!process.env.CRON_SECRET && !process.env.OWNERSHIP_SYNC_SECRET) {
+  console.warn('[ownership/cron] neither CRON_SECRET nor OWNERSHIP_SYNC_SECRET set — cron endpoint disabled');
+}
+
+/**
+ * Constant-time secret check. Both sides are hashed first, so timingSafeEqual
+ * always compares two 32-byte digests and the length of the real secret never
+ * shows up in the timing.
+ */
+function secretMatches(provided: string | null, secret: string | undefined): boolean {
+  if (!provided || !secret) return false;
+  const a = crypto.createHash('sha256').update(provided).digest();
+  const b = crypto.createHash('sha256').update(secret).digest();
+  return crypto.timingSafeEqual(a, b);
+}
 
 /**
  * GET /api/v1/ownership/cron
  * Called by Vercel cron every 15 minutes
  * Checks up to 10 blocks per run
+ *
+ * Accepted credentials, read from the environment on every request (an empty
+ * value counts as unset):
+ *   - `Authorization: Bearer <CRON_SECRET>` — what Vercel cron sends. Header
+ *     only; Vercel never puts it in the URL.
+ *   - `Authorization: Bearer <OWNERSHIP_SYNC_SECRET>`, or the legacy
+ *     `?secret=<OWNERSHIP_SYNC_SECRET>` — the original manual trigger, kept as
+ *     an alias so existing callers keep working.
  */
 export async function GET(req: NextRequest) {
   try {
-    // Verify cron secret — FAIL CLOSED: if the secret is unset, an unauthenticated
-    // request would compare undefined !== undefined and pass. Refuse instead.
-    if (!OWNERSHIP_SYNC_SECRET) {
-      console.error('[ownership-cron] OWNERSHIP_SYNC_SECRET not set — refusing request');
+    const cronSecret = process.env.CRON_SECRET || undefined;
+    const syncSecret = process.env.OWNERSHIP_SYNC_SECRET || undefined;
+
+    // FAIL CLOSED: with no secret configured there is nothing to authenticate
+    // against, so refuse before any database work rather than run unguarded.
+    if (!cronSecret && !syncSecret) {
+      console.error('[ownership-cron] neither CRON_SECRET nor OWNERSHIP_SYNC_SECRET set — refusing request');
       return error('Cron endpoint disabled: secret not configured', 503);
     }
 
-    const authHeader = req.headers.get('authorization');
-    const cronSecret = req.nextUrl.searchParams.get('secret');
-    const providedSecret = authHeader?.replace('Bearer ', '') || cronSecret;
+    const bearer = bearerFrom(req.headers.get('authorization'));
+    const querySecret = req.nextUrl.searchParams.get('secret');
+    const authorized =
+      secretMatches(bearer, cronSecret) ||
+      secretMatches(bearer, syncSecret) ||
+      secretMatches(querySecret, syncSecret);
 
-    if (providedSecret !== OWNERSHIP_SYNC_SECRET) {
+    if (!authorized) {
       return error('Unauthorized', 401);
     }
 

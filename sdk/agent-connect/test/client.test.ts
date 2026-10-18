@@ -301,6 +301,24 @@ describe('base URL', () => {
     await bg.getBlockAgents(1);
     expect(calls[0].url).toBe('https://staging.blockgenomics.io/api/v1/agents/block/1');
   });
+
+  it('strips every trailing slash and nothing else', () => {
+    const { fetchImpl } = harness(() => ({ body: env([]) }));
+    const base = (baseUrl: string) => new BlockGenomicsClient({ baseUrl, fetch: fetchImpl }).baseUrl;
+    expect(base('https://a.example///')).toBe('https://a.example');
+    expect(base('https://a.example/v1//x/')).toBe('https://a.example/v1//x');
+    expect(base('https://a.example')).toBe('https://a.example');
+    expect(base('///')).toBe('');
+  });
+
+  // CodeQL js/polynomial-redos #2: `/\/+$/` took ~5 s on a 40 KB run of slashes.
+  it('trims a pathological baseUrl in linear time', () => {
+    const { fetchImpl } = harness(() => ({ body: env([]) }));
+    const started = performance.now();
+    const bg = new BlockGenomicsClient({ baseUrl: 'https://a.example/' + '/'.repeat(40_000) + 'x', fetch: fetchImpl });
+    expect(performance.now() - started).toBeLessThan(250);
+    expect(bg.baseUrl.endsWith('x')).toBe(true);
+  });
 });
 
 // ─── experiences (self-hosted worlds) ────────────────────────────────────────

@@ -121,7 +121,7 @@ jobs:
       # so it installs fresh from the lockfile (same reasoning as release.yml).
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: 22
 
       # Same lockfile as CI, so this is the same Prisma CLI that replayed the
       # chain in the `migrations` job.

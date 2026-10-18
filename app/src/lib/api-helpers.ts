@@ -38,13 +38,48 @@ export function error(message: string, status = 400): NextResponse<ErrorResponse
   return NextResponse.json({ success: false as const, error: safeMessage }, { status });
 }
 
+/** After `<`, these start a tag, end tag, comment/doctype or processing instruction. */
+const TAG_OPENER = /[A-Za-z!/?]/;
+
 /**
  * Sanitize user input: trim whitespace, truncate to maxLength, strip HTML tags.
+ *
+ * Every `<…>` span is removed, and so is every `<` left over that could still
+ * open a tag (followed by a letter, `/`, `!`, `?`, or nothing). The single
+ * `.replace(/<[^>]*>/g, '')` this replaces kept `<img src=x onerror=…` whenever
+ * no `>` followed it, and that turns into a live tag the moment a consumer
+ * appends markup (CodeQL js/incomplete-multi-character-sanitization). A `<`
+ * that HTML reads as text (`a < b`, `<3`) is kept. One linear pass.
+ *
  * @param str - Raw user input
  * @param maxLength - Maximum allowed length (default 500)
  */
 export function sanitizeString(str: string, maxLength = 500): string {
-  return str.trim().slice(0, maxLength).replace(/<[^>]*>/g, '');
+  const s = str.trim().slice(0, maxLength);
+  let out = '';
+  let closeAhead = true;
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] !== '<') {
+      out += s[i++];
+      continue;
+    }
+    if (closeAhead) {
+      const close = s.indexOf('>', i + 1);
+      if (close !== -1) {
+        i = close + 1; // a whole tag
+        continue;
+      }
+      closeAhead = false; // no '>' anywhere after here
+    }
+    // A '<' that nothing can close. Take its whole run at once, so dropping one
+    // '<' cannot leave another touching the letter that follows.
+    let j = i;
+    while (j < s.length && s[j] === '<') j++;
+    if (j < s.length && !TAG_OPENER.test(s[j])) out += s.slice(i, j);
+    i = j;
+  }
+  return out;
 }
 
 /**

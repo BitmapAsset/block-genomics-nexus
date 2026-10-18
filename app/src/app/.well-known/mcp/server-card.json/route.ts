@@ -10,9 +10,9 @@
  * the real tool list the way a checked-in JSON file would.
  */
 
-import { z } from 'zod';
 import { SERVER_INFO, bgTools } from '@/lib/mcp/server';
 import { createCall } from '@/lib/mcp/client';
+import { mcpToolEntry } from '@/lib/mcp/manifest';
 
 export const dynamic = 'force-static';
 
@@ -21,13 +21,7 @@ const CANONICAL_BASE = 'https://blockgenomics.io';
 export function GET() {
   // The catalog is built around a call function it never invokes here; only the
   // declarative half (name, description, schema) is read.
-  const tools = bgTools(createCall({ base: CANONICAL_BASE })).map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    inputSchema: z.toJSONSchema(
-      Object.keys(tool.schema).length === 0 ? z.strictObject({}) : z.object(tool.schema),
-    ),
-  }));
+  const tools = bgTools(createCall({ base: CANONICAL_BASE })).map(mcpToolEntry);
 
   return Response.json(
     {

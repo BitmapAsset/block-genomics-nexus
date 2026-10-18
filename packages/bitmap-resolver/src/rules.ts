@@ -116,9 +116,26 @@ export function bodyReason(body: Uint8Array | null, n: number): IgnoreReason {
     if (trimmed === `${number}.bitmap`) return 'whitespace';
     if (trimmed === number) return 'bare_number';
   }
-  const lead = /^0+(\d+)\.bitmap$/.exec(text);
-  if (lead && Number(text.slice(0, -'.bitmap'.length)) === n) return 'leading_zero';
+  if (hasLeadingZeroDigits(text) && Number(text.slice(0, -'.bitmap'.length)) === n) return 'leading_zero';
   return 'body_mismatch';
+}
+
+/**
+ * True for `<digits>.bitmap` whose digits are two or more and start with `0`:
+ * exactly the strings `/^0+(\d+)\.bitmap$/` matches. That regex let `0+` and
+ * `\d+` split a run of zeros every possible way, so a body of zeros took
+ * quadratic time to reject (40 KB ≈ 6 s; a 390 KB inscription, minutes). Body
+ * bytes come from anyone who can inscribe, so this is a linear scan instead.
+ */
+function hasLeadingZeroDigits(text: string): boolean {
+  if (!text.endsWith('.bitmap')) return false;
+  const digits = text.length - '.bitmap'.length;
+  if (digits < 2 || text.charCodeAt(0) !== 0x30) return false;
+  for (let i = 1; i < digits; i++) {
+    const c = text.charCodeAt(i);
+    if (c < 0x30 || c > 0x39) return false;
+  }
+  return true;
 }
 
 /**

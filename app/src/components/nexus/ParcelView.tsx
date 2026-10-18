@@ -15,6 +15,7 @@ import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { getStoredAddress, getStoredType } from '@/lib/wallet-utils';
 import { parcelCustomizeBindingString, parcelCustomizeBindingLine } from '@/lib/parcel-customize';
 import { signedWorldFetch } from '@/lib/world-signing';
+import { streamPlatform } from '@/lib/stream-embed';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import dynamic from 'next/dynamic';
@@ -3263,12 +3264,10 @@ function LivestreamModal({ onClose, blockHeight, parcelIndex, isStreaming, onSta
     if (!streamUrl.trim()) { setError('Paste your stream URL'); return; }
     if (!walletAddress) { setError('Connect wallet first'); return; }
 
-    // Quick client-side URL validation
+    // Quick client-side URL validation (same host rule the route enforces)
     try {
       const u = new URL(streamUrl);
-      const valid = u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be') ||
-                    u.hostname.includes('twitch.tv') || u.hostname.includes('kick.com');
-      if (!valid) { setError('Use a YouTube, Twitch, or Kick URL'); return; }
+      if (!streamPlatform(u)) { setError('Use a YouTube, Twitch, or Kick URL'); return; }
     } catch { setError('Invalid URL'); return; }
 
     setLoading(true);

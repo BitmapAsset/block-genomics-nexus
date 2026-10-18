@@ -158,6 +158,17 @@ export interface ExperiencesApi {
   verify(id: string, remote?: boolean): Promise<ExperienceIntegrityReport>;
 }
 
+/**
+ * `url` without its trailing `/`s. A scan from the end, not `/\/+$/`: the regex
+ * retries the slash run from every start position, so a long run of `/` not at
+ * the end costs quadratic time (CodeQL js/polynomial-redos).
+ */
+function stripTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 0x2f) end--;
+  return url.slice(0, end);
+}
+
 export class BlockGenomicsClient {
   readonly baseUrl: string;
   private readonly signer?: BitcoinSigner;
@@ -166,7 +177,7 @@ export class BlockGenomicsClient {
   private _sessionToken?: string;
 
   constructor(opts: ClientOptions = {}) {
-    this.baseUrl = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
+    this.baseUrl = stripTrailingSlashes(opts.baseUrl ?? DEFAULT_BASE_URL);
     this.signer = opts.signer;
     this._sessionToken = opts.sessionToken;
     const f = opts.fetch ?? globalThis.fetch;

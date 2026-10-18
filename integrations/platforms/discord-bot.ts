@@ -9,6 +9,7 @@
  *   @blockgenomics/sdk (or HTTP calls to the BG API)
  *   ioredis ^5.x
  *   express ^4.x (for OAuth callback)
+ *   express-rate-limit ^7.x (per-IP limit on the public callback)
  *   jose ^5.x (JWT verification)
  *
  * Environment:
@@ -33,6 +34,7 @@ import {
   type ColorResolvable,
 } from 'discord.js';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import crypto from 'node:crypto';
 import Redis from 'ioredis';
 import * as jose from 'jose';
@@ -747,8 +749,20 @@ class BlockGenomicsBot {
   private setupCallbackServer(): void {
     this.app.use(express.json());
 
+    // /callback is a public URL by design (the BG verification flow redirects
+    // browsers to it), and every hit costs a Redis read, a JWT verification and
+    // Discord API calls. Cap it per client IP. Behind a reverse proxy, also set
+    // `this.app.set('trust proxy', 1)` so the limiter sees the client's IP and
+    // not the proxy's.
+    const callbackLimiter = rateLimit({
+      windowMs: 60_000,
+      limit: 30,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+    });
+
     // OAuth callback from BG verification flow
-    this.app.get('/callback', async (req, res) => {
+    this.app.get('/callback', callbackLimiter, async (req, res) => {
       const { state, jwt: token } = req.query as { state: string; jwt: string };
 
       if (!state || !token) {
@@ -851,7 +865,12 @@ class BlockGenomicsBot {
         .update(`${timestamp}.${body}`)
         .digest('hex');
 
-      if (!crypto.timingSafeEqual(Buffer.from(signature?.replace('sha256=', '') ?? ''), Buffer.from(expectedSig))) {
+      // timingSafeEqual throws on unequal lengths. In this async handler that
+      // is an unhandled rejection, which ends the process, so any request with
+      // a short signature header could take the bot down. Check length first.
+      const provided = Buffer.from(signature?.replace('sha256=', '') ?? '');
+      const expected = Buffer.from(expectedSig);
+      if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
         res.status(401).send('Invalid signature');
         return;
       }

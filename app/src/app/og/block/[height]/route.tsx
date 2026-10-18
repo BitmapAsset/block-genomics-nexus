@@ -9,6 +9,7 @@
 
 import { ImageResponse } from 'next/og';
 import { parseBlockParam } from '@/lib/blockDeepLink';
+import { getBlockThumbnail } from '@/lib/block-thumbnail';
 import { fetchBlockOgSummary } from '@/lib/blockOgData';
 import { fetchBlockCardFacts, shortenAddress } from '@/lib/blockPageData';
 import { EPOCH_LABELS, getEpochColor, getEpochIndex } from '@/lib/bitmapStandard';
@@ -43,30 +44,37 @@ function genomeBars(genome: string) {
 /** Side of the bitmap art square on the card. */
 const ART = 236;
 
+/** How long the card waits for its art before rendering without it. */
+const ART_TIMEOUT_MS = 4000;
+
 /**
- * The block's bitmap art as a data URI, from the same server PNG the site shows
- * (`/api/v1/block-thumbnail/{h}`). Returns null on any failure so the card still
- * renders without it; satori would otherwise fail the whole image on a bad src.
- * `real` is false when the route answered with an estimate (mempool missed), so
- * the card is not cached as if its art were final.
+ * The block's bitmap art as a data URI: the same PNG the site shows
+ * (`/api/v1/block-thumbnail/{h}`), produced in-process. It used to be fetched
+ * from that route at the origin of this request, which let the caller's Host
+ * header choose the server the card requested (CodeQL js/request-forgery).
+ * Returns null on any failure or after ART_TIMEOUT_MS so the card still renders
+ * without it; satori would otherwise fail the whole image on a bad src. `real`
+ * is false when the art is an estimate (mempool missed), so the card is not
+ * cached as if its art were final.
  */
-async function fetchBitmapArt(
-  origin: string,
-  height: number,
-): Promise<{ uri: string; real: boolean } | null> {
+async function fetchBitmapArt(height: number): Promise<{ uri: string; real: boolean } | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const res = await fetch(`${origin}/api/v1/block-thumbnail/${height}.png?v=2`, {
-      signal: AbortSignal.timeout(4000),
-    });
-    if (!res.ok || !res.headers.get('content-type')?.startsWith('image/png')) return null;
-    const bytes = Buffer.from(await res.arrayBuffer());
-    const source = res.headers.get('x-thumbnail-source');
+    const thumbnail = await Promise.race([
+      getBlockThumbnail(height),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), ART_TIMEOUT_MS);
+      }),
+    ]);
+    if (!thumbnail) return null;
     return {
-      uri: `data:image/png;base64,${bytes.toString('base64')}`,
-      real: source !== 'estimated' && source !== 'stale-estimated',
+      uri: `data:image/png;base64,${Buffer.from(thumbnail.png).toString('base64')}`,
+      real: thumbnail.source !== 'estimated' && thumbnail.source !== 'stale-estimated',
     };
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -80,7 +88,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ height: string }> },
 ) {
   const { height: raw } = await params;
@@ -101,7 +109,7 @@ export async function GET(
   const [summary, facts, art] = await Promise.all([
     fetchBlockOgSummary(height),
     fetchBlockCardFacts(height),
-    fetchBitmapArt(new URL(request.url).origin, height),
+    fetchBitmapArt(height),
   ]);
   const epochIndex = getEpochIndex(height);
   const epoch = EPOCH_LABELS[epochIndex] ?? EPOCH_LABELS[EPOCH_LABELS.length - 1];
