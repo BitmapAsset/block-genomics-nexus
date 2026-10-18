@@ -5,7 +5,12 @@
 # green before this workflow was added; jobs run in parallel and finish in ~2 min.
 #
 # Job names double as branch-protection status checks: sdk, mcp, cli, app,
-# lint, typecheck, example, build, secrets, migrations, resolver.
+# lint, typecheck, example, build, secrets, migrations, resolver. Keep every
+# `name:` stable; renaming one silently orphans its required check.
+#
+# Every job carries a 15-minute timeout (the slowest, `build`, takes ~2 min).
+# The GitHub default is 360 minutes, so a hung step would otherwise hold the
+# PR and a runner for six hours.
 #
 # `app` (jest), `lint` (eslint) and `build` (next build) are separate jobs rather
 # than steps of one: they are independent failure modes, and as steps a lint
@@ -22,14 +27,19 @@ on:
 permissions:
   contents: read
 
+# One run per ref. A new push to a PR cancels that PR's stale run (it can no
+# longer merge anyway). Pushes to main are never cancelled: every merge commit
+# keeps its own complete verdict, so a red main can always be bisected to the
+# commit that broke it.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   sdk:
     name: sdk
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: sdk/agent-connect
@@ -47,6 +57,7 @@ jobs:
   mcp:
     name: mcp
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: packages/bg-mcp
@@ -65,6 +76,7 @@ jobs:
   resolver:
     name: resolver
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: packages/bitmap-resolver
@@ -84,6 +96,7 @@ jobs:
   cli:
     name: cli
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: cli
@@ -102,6 +115,7 @@ jobs:
   typecheck:
     name: typecheck
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: app
@@ -127,6 +141,7 @@ jobs:
   app:
     name: app
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: app
@@ -147,6 +162,7 @@ jobs:
   migrations:
     name: migrations
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: app
@@ -203,6 +219,7 @@ jobs:
   lint:
     name: lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: app
@@ -221,6 +238,7 @@ jobs:
   example:
     name: example
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: examples/reference-agent
@@ -241,6 +259,7 @@ jobs:
   build:
     name: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: app
@@ -262,6 +281,7 @@ jobs:
   secrets:
     name: secrets
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
