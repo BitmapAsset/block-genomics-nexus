@@ -83,17 +83,21 @@ jobs:
     defaults:
       run:
         working-directory: app
+    # schema.prisma reads `url` and `directUrl` from DATABASE_POSTGRES_PRISMA_URL
+    # and DATABASE_POSTGRES_URL_NON_POOLING; migrate uses `directUrl`. Both get
+    # the same direct (non-pooled) connection string: see the runbook for which
+    # Supabase URL to use. They are set only on the steps that talk to the
+    # database, never job-wide, so `npm ci` and its dependencies' install
+    # scripts never see the production URL.
     env:
-      # schema.prisma reads `url` and `directUrl` from these two variables;
-      # migrate uses `directUrl`. Both get the same direct (non-pooled)
-      # connection string: see the runbook for which Supabase URL to use.
-      DATABASE_POSTGRES_URL_NON_POOLING: ${{ secrets.DATABASE_URL }}
-      DATABASE_POSTGRES_PRISMA_URL: ${{ secrets.DATABASE_URL }}
       MODE: ${{ inputs.mode }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Mask the connection details
+        env:
+          DATABASE_POSTGRES_URL_NON_POOLING: ${{ secrets.DATABASE_URL }}
+          DATABASE_POSTGRES_PRISMA_URL: ${{ secrets.DATABASE_URL }}
         run: |
           if [ -z "$DATABASE_POSTGRES_URL_NON_POOLING" ]; then
             echo "::error::The production-db environment has no DATABASE_URL secret. See docs/RUNBOOK-CICD.md."
@@ -106,17 +110,20 @@ jobs:
             }
           '
 
+      # No dependency cache: this job holds the production database secret,
+      # so it installs fresh from the lockfile (same reasoning as release.yml).
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: app/package-lock.json
 
       # Same lockfile as CI, so this is the same Prisma CLI that replayed the
       # chain in the `migrations` job.
       - run: npm ci
 
       - name: Status before
+        env:
+          DATABASE_POSTGRES_URL_NON_POOLING: ${{ secrets.DATABASE_URL }}
+          DATABASE_POSTGRES_PRISMA_URL: ${{ secrets.DATABASE_URL }}
         run: |
           set +e
           bash ../.github/scripts/migrate-status.sh "Status before ($MODE)"
@@ -130,8 +137,14 @@ jobs:
 
       - name: prisma migrate deploy
         if: inputs.mode == 'deploy'
+        env:
+          DATABASE_POSTGRES_URL_NON_POOLING: ${{ secrets.DATABASE_URL }}
+          DATABASE_POSTGRES_PRISMA_URL: ${{ secrets.DATABASE_URL }}
         run: npx prisma migrate deploy
 
       - name: Status after (must be up to date)
         if: inputs.mode == 'deploy'
+        env:
+          DATABASE_POSTGRES_URL_NON_POOLING: ${{ secrets.DATABASE_URL }}
+          DATABASE_POSTGRES_PRISMA_URL: ${{ secrets.DATABASE_URL }}
         run: bash ../.github/scripts/migrate-status.sh "Status after deploy"
