@@ -56,10 +56,10 @@ tables first, remove them in a later release).
    gh secret set DATABASE_URL --env production-db --repo BitmapAsset/block-genomics-nexus
    ```
 
-   Use the **Supabase session pooler** string (host
-   `aws-0-<region>.pooler.supabase.com`, port **5432**, user
-   `postgres.<project-ref>`): the same value as the Vercel variable
-   `DATABASE_POSTGRES_URL_NON_POOLING`. Do not use the transaction pooler on
+   Use the **Supabase session pooler** string: copy the exact
+   `DATABASE_POSTGRES_URL_NON_POOLING` value from Vercel (port **5432**,
+   user `postgres.<project-ref>`). Do not retype the host; its prefix varies
+   between Supabase projects. Do not use the transaction pooler on
    port 6543 (Prisma migrate needs a session for its advisory lock), and do
    not use the direct host `db.<project-ref>.supabase.co`, which resolves to
    IPv6 only and is unreachable from GitHub-hosted runners.
