@@ -132,3 +132,24 @@ migrations are kept backward compatible (see above).
 environment variable, so that variable must exist in the Production
 environment of the **app** project. Check: Vercel → app → Settings →
 Environment Variables → `CRON_SECRET` (Production).
+
+## Code scanning (CodeQL)
+
+CodeQL runs through GitHub's **default setup**, not a workflow file: GitHub
+picks the languages (JavaScript/TypeScript and GitHub Actions here), keeps
+the queries current, and scans every push to `main`, every pull request, and
+weekly. There is nothing to maintain. Enable it once:
+
+```bash
+gh api -X PATCH repos/BitmapAsset/block-genomics-nexus/code-scanning/default-setup \
+  -f state=configured -f query_suite=default
+```
+
+Verify: `gh api repos/BitmapAsset/block-genomics-nexus/code-scanning/default-setup --jq .state`
+prints `configured`, and Security → Code scanning shows the first analysis
+after a few minutes. Switch `query_suite` to `extended` for more (and
+noisier) queries.
+
+Once the first analysis is in, a code-scanning merge gate can be added under
+Settings → Rules → Rulesets → *Require code scanning results* (CodeQL,
+alerts of severity High or higher).
