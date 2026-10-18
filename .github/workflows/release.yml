@@ -1,37 +1,21 @@
-# Tag-triggered npm publish for the two public packages in this tree:
+# Tag-triggered release for the three public npm packages in this tree:
 #   - block-genomics-connect  (sdk/agent-connect)
 #   - block-genomics-mcp      (packages/bg-mcp)
+#   - block-genomics          (cli)
+# followed by a GitHub Release with auto-generated notes.
 #
-# ---------------------------------------------------------------------------
-# ONE-TIME SETUP REQUIRED BEFORE THIS WORKFLOW CAN PUBLISH
-# ---------------------------------------------------------------------------
-# This uses npm Trusted Publishing (OIDC). There is no NPM_TOKEN anywhere in
-# this repo, and there should never be one. Instead, npmjs.com must be told to
-# trust this exact workflow. Do this once per package:
+# How to cut a release, and the one-time npm Trusted Publisher setup for each
+# package, are in RELEASING.md. In short:
 #
-#   npmjs.com -> the package -> Settings -> Publishing access
-#     -> "Trusted publisher" -> GitHub Actions, then enter EXACTLY:
-#
-#       Organization or user:  BitmapAsset
-#       Repository:            block-genomics-nexus
-#       Workflow filename:     release.yml
-#       Environment name:      (leave blank)
-#
-# Repeat for both `block-genomics-connect` and `block-genomics-mcp`.
-# Until that is configured, the publish steps will fail with a 404/403 — that
-# failure means "trusted publisher not set up yet", not "bad workflow".
-#
-# Trusted Publishing also requires npm >= 11.5.1, so each publish job upgrades
-# npm before running `npm publish`. Provenance is attested automatically; the
-# explicit --provenance flag keeps the intent visible.
-#
-# ---------------------------------------------------------------------------
-# TAGGING
-# ---------------------------------------------------------------------------
-# Any `v*` tag runs this workflow. Both packages are considered, but a package
-# is skipped when the version in its package.json is already on the registry —
-# so bumping only one package and tagging `v0.3.2` will not fail the other.
-# Bump the package version, commit, then tag.
+#   * Publishing uses npm Trusted Publishing (OIDC). There is no NPM_TOKEN in
+#     this repo and there should never be one. Until npmjs.com trusts this
+#     workflow for a package, that package's publish leg fails with a 404/403:
+#     that means "trusted publisher not set up yet", not "bad workflow".
+#   * Any `v*` tag on a commit that is on `main` runs this. Every package is
+#     considered; a package whose package.json version is already on npm is
+#     skipped, so bumping one package does not fail the others.
+#   * The GitHub Release is created only after every publish leg succeeded or
+#     skipped, so a Release never announces a package that failed to publish.
 
 name: Release
 
@@ -43,13 +27,33 @@ on:
 permissions:
   contents: read
 
+# Never run two releases of the same tag at once, never cancel one midway.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      # A tag can point at any commit, including one on an unmerged branch that
+      # never passed review. Only release what is already on main.
+      - name: Tagged commit must be on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main. Tag a commit on main."
+            exit 1
+          fi
+      # No dependency cache anywhere in this workflow: a release builds from a
+      # clean install, so nothing restored from an earlier run can end up in
+      # a published tarball (cache poisoning).
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
       - name: sdk tests
@@ -58,75 +62,91 @@ jobs:
       - name: mcp tests
         working-directory: packages/bg-mcp
         run: npm ci && npm test
+      - name: cli tests
+        working-directory: cli
+        # `npm test` is bare `vitest`; `vitest run` can never enter watch mode.
+        run: npm ci && npm run build && npx vitest run
 
-  publish-connect:
-    name: publish block-genomics-connect
+  publish:
+    name: publish ${{ matrix.package }}
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      # One package failing (for example, no trusted publisher yet) must not
+      # cancel the others mid-publish.
+      fail-fast: false
+      matrix:
+        include:
+          - package: block-genomics-connect
+            dir: sdk/agent-connect
+          - package: block-genomics-mcp
+            dir: packages/bg-mcp
+          - package: block-genomics
+            dir: cli
     permissions:
       contents: read
       id-token: write
     defaults:
       run:
-        working-directory: sdk/agent-connect
+        working-directory: ${{ matrix.dir }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # npm Trusted Publishing requires Node >= 22.14 and npm >= 11.5.1
+      # (docs.npmjs.com/trusted-publishers). The previous Node 20 + `npm@latest`
+      # combination met neither: Node 20 is below the floor, and npm@latest is
+      # now npm 12, which refuses to run on Node 20 at all. The tests above
+      # still run on Node 20, the floor CI tests.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org
-      - name: Upgrade npm for trusted publishing
-        run: npm install -g npm@latest
-      - name: Skip if this version is already published
+      # Pinned to the npm 11 line so a future npm major cannot break a release.
+      - name: Pin npm for trusted publishing
+        run: npm install -g npm@11 && npm --version
+      - name: Check the package and skip if this version is already published
         id: check
+        env:
+          EXPECTED: ${{ matrix.package }}
         run: |
           name=$(node -p "require('./package.json').name")
           version=$(node -p "require('./package.json').version")
+          if [ "$name" != "$EXPECTED" ]; then
+            echo "::error::$PWD/package.json is $name, expected $EXPECTED"
+            exit 1
+          fi
           if npm view "$name@$version" version >/dev/null 2>&1; then
             echo "$name@$version is already on npm — skipping."
             echo "publish=false" >> "$GITHUB_OUTPUT"
           else
+            echo "Publishing $name@$version."
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Build
         if: steps.check.outputs.publish == 'true'
         run: npm ci && npm run build
-      - name: Publish
+      - name: Publish with provenance
         if: steps.check.outputs.publish == 'true'
         run: npm publish --provenance --access public
 
-  publish-mcp:
-    name: publish block-genomics-mcp
-    needs: test
+  github-release:
+    name: github-release
+    needs: publish
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
-      contents: read
-      id-token: write
-    defaults:
-      run:
-        working-directory: packages/bg-mcp
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
-      - name: Upgrade npm for trusted publishing
-        run: npm install -g npm@latest
-      - name: Skip if this version is already published
-        id: check
+      # Idempotent: re-running the workflow for a tag that already has a
+      # Release leaves that Release (and any hand edits to it) alone.
+      - name: Create the GitHub Release with generated notes
         run: |
-          name=$(node -p "require('./package.json').name")
-          version=$(node -p "require('./package.json').version")
-          if npm view "$name@$version" version >/dev/null 2>&1; then
-            echo "$name@$version is already on npm — skipping."
-            echo "publish=false" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — leaving it unchanged."
           else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
+            gh release create "$TAG" --verify-tag --generate-notes --title "$TAG"
           fi
-      - name: Build
-        if: steps.check.outputs.publish == 'true'
-        run: npm ci && npm run build
-      - name: Publish
-        if: steps.check.outputs.publish == 'true'
-        run: npm publish --provenance --access public

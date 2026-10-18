@@ -1,0 +1,157 @@
+# Applies Prisma migrations to the PRODUCTION database, behind a human approval.
+#
+# Manual only (workflow_dispatch), main branch only, and bound to the GitHub
+# Environment `production-db`, whose required reviewer must approve before the
+# job can read the database secret or start at all. Setup (one time, two
+# minutes): docs/RUNBOOK-CICD.md#production-database-migrations.
+#
+# Two modes:
+#   status  read-only. Prints `prisma migrate status` and lists the pending
+#           migrations in the run summary. Run this first.
+#   deploy  status, then `prisma migrate deploy` (applies EVERY pending
+#           migration, in order), then status again, which must report the
+#           database up to date or the job fails.
+#
+# The CI `migrations` job has already replayed the whole chain against an
+# empty Postgres and checked it for drift on every PR, so what reaches this
+# workflow is a chain that is known to apply cleanly from scratch.
+#
+# The connection string comes only from the environment secret DATABASE_URL.
+# It is never echoed: Actions masks the secret value, and the first step also
+# masks its host, user and password individually, because Prisma prints the
+# host:port when it connects.
+
+name: Migrate production database
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "status = read-only report; deploy = apply every pending migration"
+        type: choice
+        options:
+          - status
+          - deploy
+        default: status
+
+permissions:
+  contents: read
+
+# Never two migration runs at once, and never cancel one halfway.
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+jobs:
+  # GitHub silently creates a missing environment, with no protection rules,
+  # the first time a job references it. This job runs first, outside the
+  # environment, and refuses to continue unless production-db already exists
+  # with a required reviewer and a branch policy, so a run before the
+  # one-time setup can never reach an unprotected database job.
+  preflight:
+    name: preflight
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # GET /repos/{owner}/{repo}/environments/{name} is an "Actions" read in
+    # GitHub's token permissions table, so grant it explicitly.
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: production-db must exist with a required reviewer
+        run: |
+          err="$(mktemp)"
+          if ! rules=$(gh api "repos/$GH_REPO/environments/production-db" --jq '[.protection_rules[].type] | join(",")' 2>"$err"); then
+            echo "::error::Could not read environment production-db: $(tr '\n' ' ' <"$err")"
+            echo "A 404 means it does not exist yet. Create it first: docs/RUNBOOK-CICD.md#production-database-migrations"
+            exit 1
+          fi
+          echo "production-db protection rules: ${rules:-none}"
+          case ",$rules," in
+            *,required_reviewers,*) ;;
+            *) echo "::error::production-db has no required reviewer. See docs/RUNBOOK-CICD.md."; exit 1 ;;
+          esac
+          case ",$rules," in
+            *,branch_policy,*) ;;
+            *) echo "::error::production-db has no deployment branch policy. See docs/RUNBOOK-CICD.md."; exit 1 ;;
+          esac
+
+  migrate:
+    name: migrate-production
+    needs: preflight
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production-db
+    defaults:
+      run:
+        working-directory: app
+    # schema.prisma reads `url` and `directUrl` from DATABASE_POSTGRES_PRISMA_URL
+    # and DATABASE_POSTGRES_URL_NON_POOLING; migrate uses `directUrl`. Both get
+    # the same direct (non-pooled) connection string: see the runbook for which
+    # Supabase URL to use. They are set only on the steps that talk to the
+    # database, never job-wide, so `npm ci` and its dependencies' install
+    # scripts never see the production URL.
+    env:
+      MODE: ${{ inputs.mode }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Mask the connection details
+        env:
+          DATABASE_POSTGRES_URL_NON_POOLING: ${{ secrets.DATABASE_URL }}
+          DATABASE_POSTGRES_PRISMA_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_POSTGRES_URL_NON_POOLING" ]; then
+            echo "::error::The production-db environment has no DATABASE_URL secret. See docs/RUNBOOK-CICD.md."
+            exit 1
+          fi
+          node -e '
+            const u = new URL(process.env.DATABASE_POSTGRES_URL_NON_POOLING);
+            for (const v of [u.hostname, u.username, decodeURIComponent(u.password)]) {
+              if (v) console.log("::add-mask::" + v);
+            }
+          '
+
+      # No dependency cache: this job holds the production database secret,
+      # so it installs fresh from the lockfile (same reasoning as release.yml).
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      # Same lockfile as CI, so this is the same Prisma CLI that replayed the
+      # chain in the `migrations` job.
+      - run: npm ci
+
+      - name: Status before
+        env:
+          DATABASE_POSTGRES_URL_NON_POOLING: ${{ secrets.DATABASE_URL }}
+          DATABASE_POSTGRES_PRISMA_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set +e
+          bash ../.github/scripts/migrate-status.sh "Status before ($MODE)"
+          code=$?
+          set -e
+          case "$code" in
+            0)  echo "Nothing to apply." ;;
+            10) if [ "$MODE" = deploy ]; then echo "Pending migrations will be applied next."; fi ;;
+            *)  exit 1 ;;
+          esac
+
+      - name: prisma migrate deploy
+        if: inputs.mode == 'deploy'
+        env:
+          DATABASE_POSTGRES_URL_NON_POOLING: ${{ secrets.DATABASE_URL }}
+          DATABASE_POSTGRES_PRISMA_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma migrate deploy
+
+      - name: Status after (must be up to date)
+        if: inputs.mode == 'deploy'
+        env:
+          DATABASE_POSTGRES_URL_NON_POOLING: ${{ secrets.DATABASE_URL }}
+          DATABASE_POSTGRES_PRISMA_URL: ${{ secrets.DATABASE_URL }}
+        run: bash ../.github/scripts/migrate-status.sh "Status after deploy"

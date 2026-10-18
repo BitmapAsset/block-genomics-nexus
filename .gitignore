@@ -34,6 +34,8 @@ coverage/
 
 # Logs
 *.log
+# Written by .github/scripts/prod-smoke.sh when run by hand
+smoke-report.md
 npm-debug.log*
 
 # OS files

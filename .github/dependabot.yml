@@ -7,7 +7,10 @@
 #
 # Grouping: minor+patch version updates arrive as ONE PR per directory, majors
 # stay separate (they need a human), and security fixes arrive as ONE PR per
-# directory instead of one PR per package.
+# directory instead of one PR per package. The minor+patch group covers
+# dependencies and devDependencies together, which is already the
+# lowest-noise shape; splitting devDependencies out would add PRs, not
+# remove them. Nothing auto-merges.
 version: 2
 
 updates:
@@ -122,6 +125,31 @@ updates:
           - "minor"
           - "patch"
       npm-packages-bg-mcp-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # Installed and tested by the `resolver` job in ci.yml, but had no entry
+  # here, so its dependencies never received version or grouped updates.
+  - package-ecosystem: "npm"
+    directory: "/packages/bitmap-resolver"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    groups:
+      npm-packages-bitmap-resolver-minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      npm-packages-bitmap-resolver-security:
         applies-to: security-updates
         patterns:
           - "*"
