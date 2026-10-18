@@ -6,7 +6,11 @@
 # Run from app/. Exit codes:
 #   0  database is up to date
 #   10 migrations are pending (names listed, and added to the job summary)
-#   1  anything else: unreachable, auth failure, failed migration, drift
+#   1  anything else: unreachable, auth failure, failed migration, or a
+#      local history that diverges from the database's migrations table
+#
+# `prisma migrate status` compares migration histories only; it never checks
+# the schema itself for drift. Drift is caught by the CI `migrations` job.
 #
 # Usage: bash ../.github/scripts/migrate-status.sh "<label for the summary>"
 
@@ -32,9 +36,14 @@ if [ "$code" -eq 0 ] && grep -q "Database schema is up to date" "$out"; then
   exit 0
 fi
 
-if grep -q "have not yet been applied" "$out" && ! grep -qE "^Error: |failed to apply|drift" "$out"; then
+# Pending only for Prisma's "database is behind" report. A diverged history
+# ("... are different", "... not found locally") also lists unapplied
+# migrations, but deploying onto it would be wrong, so it falls through to 1.
+pending_re='^Following migrations? have not yet been applied'
+if grep -qE "$pending_re" "$out" &&
+  ! grep -qE "^Error: |failed to apply|are different|not found locally" "$out"; then
   # The names follow the "have not yet been applied:" line, up to a blank line.
-  pending="$(awk '/have not yet been applied/{on=1; next} on && NF==0{exit} on{print}' "$out")"
+  pending="$(awk -v re="$pending_re" '$0 ~ re{on=1; next} on && NF==0{exit} on{print}' "$out")"
   count="$(printf '%s\n' "$pending" | grep -c .)"
   echo "::notice::$label: $count pending migration(s)"
   summary "### $label" "" "$count pending migration(s):" "" '```' "$pending" '```' ""
