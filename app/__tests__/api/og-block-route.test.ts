@@ -3,10 +3,14 @@
  * fetch for `/block/[height]`.
  *
  * A card is only cached long when it carries real bitmap art. A card rendered
- * without art (thumbnail fetch failed or timed out) or with estimated art gets a
+ * without art (thumbnail failed or timed out) or with estimated art gets a
  * one-minute cache, so a CDN cannot pin an art-less card for a week. The header
  * is the route's alone: next.config.ts must not carry an /og/ entry, because a
  * config entry overrides a Cache-Control the handler set.
+ *
+ * The art comes from lib/block-thumbnail in-process (never over HTTP at the
+ * request's origin; see __tests__/security/og-block-ssrf.test.ts), so that
+ * module is what is stubbed here.
  */
 
 const mockImageResponse = jest.fn();
@@ -29,17 +33,22 @@ jest.mock('@/lib/blockPageData', () => ({
   shortenAddress: (a: string) => a,
 }));
 
+const mockThumbnail = jest.fn();
+jest.mock('@/lib/block-thumbnail', () => ({
+  getBlockThumbnail: (...a: unknown[]) => mockThumbnail(...a),
+}));
+
 import nextConfig from '../../next.config';
 import { GET } from '@/app/og/block/[height]/route';
 
 const LONG = 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800';
 const SHORT = 'public, max-age=60';
 
-/** The thumbnail route's answer: a PNG tagged with how its art was produced. */
+/** The thumbnail module's answer: a PNG tagged with how its art was produced. */
 const thumbnail = (source: string) => ({
-  ok: true,
-  headers: new Headers({ 'content-type': 'image/png', 'x-thumbnail-source': source }),
-  arrayBuffer: async () => Uint8Array.from([0x89, 0x50, 0x4e, 0x47]).buffer,
+  png: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]),
+  cacheControl: 'public, max-age=60',
+  source,
 });
 
 async function cacheControlFor(height: string): Promise<string> {
@@ -49,46 +58,42 @@ async function cacheControlFor(height: string): Promise<string> {
   return res.headers['Cache-Control'];
 }
 
-const realFetch = global.fetch;
-const mockFetch = jest.fn();
-
 beforeEach(() => {
-  mockFetch.mockReset();
+  mockThumbnail.mockReset();
   mockImageResponse.mockReset();
-  global.fetch = mockFetch as unknown as typeof fetch;
 });
 
-afterAll(() => {
-  global.fetch = realFetch;
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 describe('GET /og/block/[height] Cache-Control', () => {
   it('caches a card with real art long', async () => {
-    mockFetch.mockResolvedValue(thumbnail('cache'));
+    mockThumbnail.mockResolvedValue(thumbnail('cache'));
     expect(await cacheControlFor('840000')).toBe(LONG);
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:3110/api/v1/block-thumbnail/840000.png?v=2',
-      expect.anything(),
-    );
+    expect(mockThumbnail).toHaveBeenCalledWith(840000);
   });
 
   it('caches a freshly rendered (live) card long', async () => {
-    mockFetch.mockResolvedValue(thumbnail('live'));
+    mockThumbnail.mockResolvedValue(thumbnail('live'));
     expect(await cacheControlFor('840000')).toBe(LONG);
   });
 
-  it('caches an art-less card (thumbnail fetch timed out) for one minute', async () => {
-    mockFetch.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'));
-    expect(await cacheControlFor('840000')).toBe(SHORT);
+  it('caches an art-less card (thumbnail timed out after 4 s) for one minute', async () => {
+    jest.useFakeTimers();
+    mockThumbnail.mockReturnValue(new Promise(() => {}));
+    const pending = cacheControlFor('840000');
+    await jest.advanceTimersByTimeAsync(4000);
+    expect(await pending).toBe(SHORT);
   });
 
-  it('caches an art-less card (thumbnail route errored) for one minute', async () => {
-    mockFetch.mockResolvedValue({ ok: false, headers: new Headers(), arrayBuffer: async () => new ArrayBuffer(0) });
+  it('caches an art-less card (thumbnail errored) for one minute', async () => {
+    mockThumbnail.mockRejectedValue(new Error('render failed'));
     expect(await cacheControlFor('840000')).toBe(SHORT);
   });
 
   it.each(['estimated', 'stale-estimated'])('caches a card with %s art for one minute', async (source) => {
-    mockFetch.mockResolvedValue(thumbnail(source));
+    mockThumbnail.mockResolvedValue(thumbnail(source));
     expect(await cacheControlFor('123457')).toBe(SHORT);
   });
 });
