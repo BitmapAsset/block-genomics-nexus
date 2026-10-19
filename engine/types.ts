@@ -439,3 +439,49 @@ export const MAX_BLOCK_WEIGHT = 4_000_000;
 
 /** Engine version string */
 export const ENGINE_VERSION = '1.0.0';
+
+// =============================================================================
+// BITMAP RESOLVER
+// =============================================================================
+
+/** An N.bitmap deed held by an address (see bitmap-resolver.ts). */
+export interface Bitmap {
+  inscriptionId: string;
+  number: number;
+  /** The inscription body, trimmed (e.g. "840000.bitmap"). */
+  content: string;
+  blockHeight: number;
+  owner: string;
+  contentType: string | null;
+  /** Block height the inscription was revealed in. */
+  revealHeight: number;
+}
+
+/** An N.bitmap-looking inscription held by the address that is not the deed. */
+export interface ExcludedBitmap {
+  inscriptionId: string;
+  blockHeight: number;
+  /** The resolver's verdict for the height ('canonical' when another inscription is the deed). */
+  verdict: string;
+  reason: string;
+}
+
+export interface BitmapResolutionResult {
+  address: string;
+  bitmaps: Bitmap[];
+  excluded: ExcludedBitmap[];
+  /** Esplora lists the UTXOs, ord recursion names their inscriptions. */
+  source: 'ord';
+  resolvedAt: number;
+}
+
+export interface OwnershipVerification {
+  inscriptionId: string;
+  address: string;
+  isOwner: boolean;
+  /** Current holder when ord and Esplora agree, else null. */
+  holder: string | null;
+  checkedAt: number;
+  source: 'ord+esplora';
+  reason?: string;
+}

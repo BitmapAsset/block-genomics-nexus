@@ -5,7 +5,8 @@
 
 const BG = {
   API: 'https://mempool.space/api',
-  HIRO_API: 'https://api.hiro.so/ordinals/v1',
+  // ord recursion endpoints (/r/...) carry ord's compatibility promise.
+  ORD: 'https://ordinals.com',
   
   // State
   wallet: {
@@ -100,7 +101,7 @@ const BG = {
         this.wallet.address = ordinals?.address || payment?.address;
         this.wallet.publicKey = ordinals?.publicKey;
         
-        await this.fetchHiroInscriptions(this.wallet.ordinalsAddress);
+        await this.fetchOrdInscriptions(this.wallet.ordinalsAddress);
         
         return { success: true, address: this.wallet.address };
       }
@@ -156,29 +157,50 @@ const BG = {
     }
   },
   
-  async fetchHiroInscriptions(address) {
+  // Address -> inscriptions, from the same chain-truth sources the app uses:
+  // Esplora (mempool.space) lists the UTXOs, ord recursion on ordinals.com
+  // names the inscriptions on each and serves their bodies. This replaced the
+  // Hiro Ordinals API, which was shut down on 2026-03-09 (HTTP 410, issue #211).
+  // Detection only: it finds "N.bitmap" bodies the wallet holds. Which copy is
+  // the deed (first-is-valid) is decided server-side by the app's resolver.
+  async fetchOrdInscriptions(address) {
     try {
-      let allInscriptions = [];
-      let offset = 0;
-      const limit = 60;
-      
-      while (true) {
-        const resp = await fetch(
-          `${this.HIRO_API}/inscriptions?address=${address}&limit=${limit}&offset=${offset}`
-        );
+      const utxoResp = await fetch(`${this.API}/address/${encodeURIComponent(address)}/utxo`);
+      if (!utxoResp.ok) throw new Error(`Esplora HTTP ${utxoResp.status}`);
+      const utxos = await utxoResp.json();
+      if (!Array.isArray(utxos)) throw new Error('Esplora returned no UTXO list');
+
+      const ids = new Set();
+      for (const u of utxos.slice(0, 500)) {
+        const resp = await fetch(`${this.ORD}/r/utxo/${u.txid}:${u.vout}`, { headers: { Accept: 'application/json' } });
+        if (!resp.ok) throw new Error(`ord /r/utxo HTTP ${resp.status}`);
         const data = await resp.json();
-        if (!data.results || data.results.length === 0) break;
-        allInscriptions = allInscriptions.concat(data.results);
-        offset += data.results.length;
-        if (allInscriptions.length >= data.total || offset >= 500) break;
+        for (const id of data.inscriptions || []) ids.add(id);
       }
-      
+
+      const allInscriptions = [];
+      for (const id of ids) {
+        const resp = await fetch(`${this.ORD}/r/inscription/${id}`, { headers: { Accept: 'application/json' } });
+        if (!resp.ok) continue;
+        const ins = await resp.json();
+        const textual = !ins.content_type || ins.content_type.startsWith('text/');
+        const content = textual ? ((await this.fetchInscriptionContent(id)) || '').trim() : '';
+        allInscriptions.push({
+          inscriptionId: id,
+          inscriptionNumber: ins.number,
+          address: ins.address,
+          contentType: ins.content_type,
+          content,
+          timestamp: ins.timestamp,
+        });
+      }
+
       this.wallet.inscriptions = allInscriptions;
-      this.wallet.bitmaps = this.detectBitmapsHiro(allInscriptions);
-      
+      this.wallet.bitmaps = this.detectBitmaps(allInscriptions);
+
       return this.wallet.bitmaps;
     } catch (e) {
-      console.error('Failed to fetch inscriptions from Hiro:', e);
+      console.error('Failed to fetch inscriptions from ordinals.com:', e);
       return [];
     }
   },
@@ -207,24 +229,12 @@ const BG = {
     });
   },
   
-  detectBitmapsHiro(inscriptions) {
-    // For Hiro API, we need to check content_type and potentially fetch content
-    return inscriptions.filter(insc => {
-      return insc.mime_type === 'text/plain' && insc.content_length < 100;
-    }).map(insc => ({
-      inscriptionId: insc.id,
-      inscriptionNumber: insc.number,
-      blockHeight: null, // Need to fetch content to determine
-      address: insc.address,
-      genesis_block_height: insc.genesis_block_height,
-    }));
-  },
-  
   async fetchInscriptionContent(inscriptionId) {
     try {
-      const resp = await fetch(`${this.HIRO_API}/inscriptions/${inscriptionId}/content`);
+      const resp = await fetch(`${this.ORD}/content/${inscriptionId}`);
+      if (!resp.ok) return null;
       const text = await resp.text();
-      return text;
+      return text.length > 64 ? null : text;
     } catch (e) {
       return null;
     }
