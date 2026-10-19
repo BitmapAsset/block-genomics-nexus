@@ -155,8 +155,13 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
       try { window.unisat.on('accountsChanged', handleAccountsChanged); } catch {}
     }
 
-    // Poll for address changes on ALL wallet types (Xverse/Leather don't have events)
-    // Check every 5 seconds if the extension's current address differs from our state
+    // Poll for address changes (Xverse has no account events). Every 5 seconds,
+    // check whether the extension's current address differs from our state.
+    // Leather is NOT polled: its getAddresses is a connection request that
+    // re-opens the approval prompt on every call, and Leather's docs say not to
+    // call it to test whether a user is still connected
+    // (leather.gitbook.io/developers/methods/getaddresses, checked 2026-10-18).
+    // A Leather account switch is picked up on the next explicit connect.
     const pollInterval = setInterval(async () => {
       // Use a ref-like approach: read current state via setState callback
       setState(prev => {
@@ -173,11 +178,6 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
               // as connect. Must NOT use legacy connect()[0] (the payment address) —
               // that flips the identity and breaks BIP-322 signing.
               currentAddr = await refreshXverseAddress();
-            } else if (prev.walletType === 'leather' && window.LeatherProvider) {
-              const resp = await window.LeatherProvider.request('getAddresses');
-              const addrs = resp.result?.addresses || [];
-              const taproot = addrs.find((a: { type: string }) => a.type === 'p2tr');
-              currentAddr = taproot?.address || addrs[0]?.address || null;
             } else if (prev.walletType === 'okx' && window.okxwallet?.bitcoin) {
               const accts = await window.okxwallet.bitcoin.getAccounts();
               currentAddr = accts?.[0] || null;
