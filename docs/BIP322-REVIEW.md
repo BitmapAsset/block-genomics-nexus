@@ -81,7 +81,7 @@ The signature returned by the wallet is stored but never verified. This is the s
 3. Validate the witness/scriptSig from the signature against the `to_spend` output
 4. Confirm the script corresponds to the claimed address
 
-**Recommended library:** [`bip322-js`](https://github.com/AceCentre/bip322-js) or implement manually using `bitcoinjs-lib`:
+**Recommended library:** [`bip322-js`](https://github.com/ACken2/bip322-js) or implement manually using `bitcoinjs-lib`:
 
 ```javascript
 // Server-side verification example

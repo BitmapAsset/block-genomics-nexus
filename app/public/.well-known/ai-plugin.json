@@ -13,7 +13,7 @@
   },
   "sdk": {
     "package": "block-genomics-connect",
-    "docs": "https://blockgenomics.io/docs/agent-connect"
+    "docs": "https://blockgenomics.io/docs"
   },
   "contact_email": "api@blockgenomics.io",
   "legal_info_url": "https://blockgenomics.io"
