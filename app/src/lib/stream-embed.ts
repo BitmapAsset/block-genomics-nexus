@@ -31,6 +31,28 @@ export function streamPlatform(url: URL): StreamPlatform | null {
   return null;
 }
 
+/**
+ * The stream URL as stored and served: the WHATWG-normalised `href` of a
+ * YouTube, Twitch or Kick URL, else null.
+ *
+ * Storing the caller's raw string is a parser differential. Browsers read
+ * `https://www.youtube.com\@attacker.example/watch?v=…` as host
+ * www.youtube.com (a backslash is a slash), so it passes the host check; other
+ * parsers (Python's urllib, for one) read the same string as host
+ * attacker.example. The normalised href (`https://www.youtube.com/@attacker.example/watch?v=…`)
+ * names one host to every parser.
+ */
+export function normaliseStreamUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return null;
+  }
+  return streamPlatform(u) ? u.href : null;
+}
+
 const YOUTUBE_VIDEO_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const TWITCH_CHANNEL = /^[A-Za-z0-9_]{1,64}$/;
 const KICK_CHANNEL = /^[A-Za-z0-9_-]{1,64}$/;
