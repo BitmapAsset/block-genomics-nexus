@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { secretMatches } from '@/lib/secret-match';
 
 /**
  * POST /api/v1/admin/cleanup-duplicates
@@ -12,7 +13,8 @@ import { success, error } from '@/lib/api-helpers';
 export async function POST(req: NextRequest) {
   try {
     const adminSecret = req.headers.get('x-admin-secret');
-    if (adminSecret !== process.env.ADMIN_SECRET) {
+    // An unset or empty ADMIN_SECRET never matches ("" === "" used to).
+    if (!secretMatches(adminSecret, process.env.ADMIN_SECRET)) {
       return error('Unauthorized', 401);
     }
 

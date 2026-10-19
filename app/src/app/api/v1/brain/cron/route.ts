@@ -13,6 +13,7 @@ import { NEXUS_BRAIN_WALLET, FLAG_THRESHOLD_SOFT, FLAG_THRESHOLD_HARD } from '@/
 import { runOneShotScan, processExpiredAppeals, getBrainStatus } from '@/lib/brain';
 import type { ScanTarget, BrainDecision } from '@/lib/brain';
 import { appendToChain, getCurrentBlockHeight } from '@/lib/brain/heartbeat-chain';
+import { secretMatches } from '@/lib/secret-match';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30; // 30s max for cron
@@ -24,8 +25,9 @@ export async function GET(req: Request) {
   const brainSecret = process.env.BRAIN_SCAN_SECRET;
 
   // Vercel sends CRON_SECRET automatically; also accept our BRAIN_SCAN_SECRET
-  const isVercelCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
-  const isManualTrigger = brainSecret && authHeader === `Bearer ${brainSecret}`;
+  // Constant-time, and an unset secret never matches.
+  const isVercelCron = !!cronSecret && secretMatches(authHeader, `Bearer ${cronSecret}`);
+  const isManualTrigger = !!brainSecret && secretMatches(authHeader, `Bearer ${brainSecret}`);
 
   if (!isVercelCron && !isManualTrigger) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

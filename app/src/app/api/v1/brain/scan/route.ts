@@ -22,6 +22,7 @@ import { NEXUS_BRAIN_WALLET, FLAG_THRESHOLD_SOFT, FLAG_THRESHOLD_HARD } from '@/
 import { runOneShotScan, processExpiredAppeals, getBrainStatus } from '@/lib/brain';
 import type { ScanTarget, BrainDecision } from '@/lib/brain';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { secretMatches } from '@/lib/secret-match';
 
 const BRAIN_SECRET = process.env.BRAIN_SCAN_SECRET;
 if (!BRAIN_SECRET) console.warn('[brain/scan] BRAIN_SCAN_SECRET not set — scan endpoint disabled');
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const token = authHeader?.replace('Bearer ', '') || body.secret;
 
-    if (token !== BRAIN_SECRET) {
+    if (!secretMatches(token, BRAIN_SECRET)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
+import { secretMatches } from '@/lib/secret-match';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET;
 
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '');
-    if (!ADMIN_SECRET || token !== ADMIN_SECRET) {
+    if (!secretMatches(token, ADMIN_SECRET)) {
       return error('Unauthorized', 401);
     }
 
