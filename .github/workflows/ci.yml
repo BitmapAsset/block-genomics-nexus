@@ -6,7 +6,8 @@
 #
 # Job names double as branch-protection status checks: sdk, mcp, cli, app,
 # lint, typecheck, example, build, secrets, migrations, resolver, workflows. Keep every
-# `name:` stable; renaming one silently orphans its required check.
+# `name:` stable; renaming one silently orphans its required check. `engine` is
+# newer and not a required check until someone adds it to branch protection.
 #
 # Every job carries a 15-minute timeout (the slowest, `build`, takes ~2 min).
 # The GitHub default is 360 minutes, so a hung step would otherwise hold the
@@ -85,6 +86,25 @@ jobs:
       # `npm test` here is `npm run build && vitest run`, so the build is covered.
       # The live smoke suite stays skipped: it needs BG_LIVE_SMOKE=1 and a real API.
       - run: npm test
+
+  engine:
+    name: engine
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # engine/ is the standalone genome / traits / trust-score / bitmap-resolver
+    # library. Its tests run from the root manifest (vitest), scoped to engine/
+    # because a bare `vitest run` at the root would also pick up the app's
+    # jest suites. The resolver suite stubs fetch and asserts no request goes to
+    # a retired indexer (issue #211).
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npx vitest run engine
 
   resolver:
     name: resolver
