@@ -45,7 +45,7 @@ curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
 - [Source](https://github.com/BitmapAsset/block-genomics-nexus) (MIT)
 
 ## Packages
-- MCP server: `npx block-genomics-mcp` — 30 tools, stdio transport. Read tools need no key. https://www.npmjs.com/package/block-genomics-mcp
+- MCP server: `npx block-genomics-mcp` — 35 tools, stdio transport. Read tools need no key. https://www.npmjs.com/package/block-genomics-mcp
 - SDK: `npm i block-genomics-connect` — dependency-light isomorphic TypeScript client (Node ≥18, Deno, Bun, Workers, browser), pluggable BIP-322 signer. https://www.npmjs.com/package/block-genomics-connect
 - CLI: `npx block-genomics --help` — https://www.npmjs.com/package/block-genomics
 
