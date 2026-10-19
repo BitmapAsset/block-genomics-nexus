@@ -55,9 +55,9 @@
   },
   "devDependencies": {
     "@types/blessed": "^0.1.21",
-    "@types/inquirer": "^9.0.7",
-    "@types/node": "^20.11.30",
-    "tsx": "^4.7.1",
+    "@types/inquirer": "^9.0.10",
+    "@types/node": "^20.19.43",
+    "tsx": "^4.23.15",
     "typescript": "^5.4.3",
     "vitest": "^4.1.12"
   },
