@@ -718,6 +718,12 @@ Referrer-Policy: strict-origin-when-cross-origin
 | `ADMIN_SECRET` | Admin endpoint auth |
 | `ADMIN_WALLETS` | Comma-separated admin wallet addresses |
 
+**Self-hosting behind a proxy (optional):**
+
+| Variable | Description |
+|----------|-------------|
+| `MCP_TRUST_FORWARDED_HEADERS` | Set to `1` only behind a proxy that overwrites `X-Forwarded-Host` / `X-Forwarded-Proto`. Unset (the default), `/mcp` ignores both, so clients cannot choose the origin its tools fetch. Not needed on Vercel. |
+
 **Lightning:**
 
 | Variable | Description |

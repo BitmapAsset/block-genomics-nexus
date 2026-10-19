@@ -32,20 +32,40 @@ export type CallFn = (path: string, opts?: CallOptions) => Promise<string>;
 /**
  * Resolve the API origin to proxy to.
  *
- * `Host` / `X-Forwarded-Host` are caller-controlled, so an unrecognised value
- * falls back to production instead of being trusted — otherwise a forged host
- * header would aim server-side fetches (carrying the caller's bearer token) at
- * an arbitrary origin. Localhost and Vercel preview hosts are echoed back so
- * dev and preview deployments talk to themselves.
+ * `Host` is caller-controlled, so an unrecognised value falls back to
+ * production instead of being trusted: otherwise a forged host header would aim
+ * server-side fetches (carrying the caller's bearer token) at an arbitrary
+ * origin, and the tool would hand the response body back to the caller.
+ * Localhost and Vercel preview hosts are echoed back so dev and preview
+ * deployments talk to themselves.
+ *
+ * `X-Forwarded-Host` / `X-Forwarded-Proto` are read only when
+ * `MCP_TRUST_FORWARDED_HEADERS=1`, i.e. when the operator runs behind a proxy
+ * that overwrites them. Without that, any client can set them. The scheme is
+ * always one of http / https; anything else (`http://evil.example/x#`) falls
+ * back to production.
  */
 export function resolveApiBase(request: Request): string {
   const url = new URL(request.url);
-  const host = request.headers.get('x-forwarded-host') ?? url.host;
-  const proto = request.headers.get('x-forwarded-proto') ?? url.protocol.replace(':', '');
+  const trustForwarded = process.env.MCP_TRUST_FORWARDED_HEADERS === '1';
+  // A proxy chain sends a comma list; the first entry is the client-facing hop.
+  const forwarded = (name: string) =>
+    trustForwarded ? request.headers.get(name)?.split(',')[0]?.trim() || null : null;
 
-  if (/^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host)) return `${proto}://${host}`;
-  if (/^[a-z0-9-]+\.vercel\.app$/i.test(host)) return `https://${host}`;
+  const host = (forwarded('x-forwarded-host') ?? url.host).toLowerCase();
+  const proto = (forwarded('x-forwarded-proto') ?? url.protocol.replace(':', '')).toLowerCase();
+  if (proto !== 'http' && proto !== 'https') return PRODUCTION_BASE;
+
+  if (/^(localhost|127\.0\.0\.1)(:\d{1,5})?$/.test(host)) return `${proto}://${host}`;
+  if (/^[a-z0-9-]+\.vercel\.app$/.test(host)) return `https://${host}`;
   return PRODUCTION_BASE;
+}
+
+/** Strip trailing slashes in linear time (`/\/+$/` backtracks on long inner runs). */
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47 /* '/' */) end--;
+  return value.slice(0, end);
 }
 
 /**
@@ -63,7 +83,7 @@ export function createCall({
   token?: string;
   timeoutMs?: number;
 }): CallFn {
-  const origin = base.replace(/\/+$/, '');
+  const origin = trimTrailingSlashes(base);
 
   return async function call(path, opts = {}) {
     const url = new URL(origin + path);
