@@ -14,7 +14,7 @@
     "@noble/curves": "1.9.7",
     "@noble/hashes": "1.8.0",
     "@scure/btc-signer": "1.8.1",
-    "block-genomics-connect": "^0.2.0"
+    "block-genomics-connect": "^0.4.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
