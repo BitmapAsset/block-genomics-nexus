@@ -28,7 +28,7 @@
 ### 2a. Wallet Integration
 - [ ] Integrate Unisat Wallet SDK (most popular Ordinals wallet)
 - [ ] Integrate Xverse Wallet SDK
-- [ ] Integrate Leather (Hiro) Wallet SDK
+- [ ] Integrate Leather Wallet SDK (formerly Hiro Wallet)
 - [ ] Wallet connect button on UI
 - [ ] Read user's Ordinals/inscriptions from connected wallet
 - [ ] Detect Bitmap inscriptions specifically
@@ -38,7 +38,7 @@
 - [ ] Generate unique challenge message (timestamp + nonce)
 - [ ] User signs challenge with wallet that holds Bitmap inscription
 - [ ] Verify signature matches the address that owns the Bitmap
-- [ ] Cross-reference with Ordinals indexer (ord.io API / Hiro API)
+- [ ] Cross-reference with an Ordinals indexer (ordinals.com recursion + Esplora; the Hiro and ord.io APIs are retired)
 - [ ] Confirm Bitmap inscription is valid (correct format: "blockheight.bitmap")
 - [ ] Store verification proof (signature + message + address + bitmap ID)
 
@@ -52,8 +52,8 @@
 ### Technical Requirements:
 - Unisat API: https://docs.unisat.io
 - Xverse: https://docs.xverse.app
-- Hiro/Stacks: https://docs.hiro.so/ordinals
-- Ord.io API: https://ord.io (or run local ord indexer)
+- Leather: https://leather.gitbook.io/developers
+- ord recursion: https://docs.ordinals.com/inscriptions/recursion.html (ordinals.com, or a self-hosted ord)
 - Bitcoin message signing (BIP-322 or legacy)
 
 ---

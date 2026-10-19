@@ -50,10 +50,12 @@ await signMessage({
 });
 ```
 
-### 3. Leather (Hiro) Wallet
-- **Why:** Stacks ecosystem, growing Ordinals support
-- **SDK:** `window.LeatherProvider` or `window.btc`
-- **Docs:** https://leather.io/docs
+### 3. Leather Wallet
+- **Why:** Bitcoin and Stacks wallet with Ordinals support (formerly "Hiro Wallet")
+- **SDK:** `window.LeatherProvider.request(method, params)`; `window.btc` is the deprecated pre-2024 alias
+- **Docs:** https://leather.gitbook.io/developers (checked 2026-10-18)
+- **Methods we call:** `getAddresses` (connect, once, on a user action) and `signMessage` with `paymentType: 'p2tr'` (BIP-322)
+- **Note:** `getAddresses` is a connection request, not a query: every call re-opens Leather's approval prompt, so never poll it
 
 ## Verification Flow
 
@@ -91,23 +93,35 @@ A valid Bitmap inscription:
 
 ## Indexer APIs for Cross-Verification
 
-### Option A: Ord.io API
+The app reads chain truth from two public sources and decides deeds itself. No
+indexer API key is needed.
+
+### Address -> inscriptions held
 ```
-GET https://api.ord.io/inscription/{inscriptionId}
-→ Returns: owner address, content, inscription number
+GET https://mempool.space/api/address/{address}/utxo     (Esplora; blockstream.info/api is the fallback)
+GET https://ordinals.com/r/utxo/{txid}:{vout}             -> { inscriptions: [...] }
 ```
 
-### Option B: Hiro Ordinals API
+### Inscription -> holder, body
 ```
-GET https://api.hiro.so/ordinals/v1/inscriptions?address={address}
-→ Returns: list of inscriptions with content
+GET https://ordinals.com/r/inscription/{inscriptionId}    -> address, satpoint, height, content_type
+GET https://ordinals.com/content/{inscriptionId}          -> "840000.bitmap"
 ```
 
-### Option C: BestInSlot API
-```
-GET https://api.bestinslot.xyz/v3/bitmap/block/{blockHeight}
-→ Returns: Bitmap inscription details and owner
-```
+These are ord's recursive endpoints, which carry ord's backwards-compatibility
+promise. The non-recursive JSON API (`/inscription/{id}`, `/address/{addr}`) is
+disabled on ordinals.com (HTTP 406), and `ORD_BASE_URL` can point the app at a
+self-hosted ord.
+
+### Which copy is the deed
+Several inscriptions can say "840000.bitmap"; only the first valid one is the
+deed. `packages/bitmap-resolver` decides that (OCI below block 942,000, a
+self-verified block walk above it) and emits a proof bundle anyone can re-check.
+
+### Retired sources
+- **Hiro Ordinals API** (`api.hiro.so/ordinals/v1`): shut down by Hiro on 2026-03-09, answers HTTP 410. Removed from the engine and the legacy verify page (issue #211); the app had already moved off it.
+- **ord.io API**: the host no longer resolves (checked 2026-10-18).
+- **BestInSlot API** (`api.bestinslot.xyz`): now redirects to an unrelated domain (checked 2026-10-18). Do not call it.
 
 ## Security Considerations
 1. **Replay protection:** Nonce + timestamp in challenge (valid for 5 minutes)
