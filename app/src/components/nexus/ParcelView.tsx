@@ -7,7 +7,8 @@ import { OrbitControls, Html } from '@react-three/drei';
 // import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
-import { fetchRealBlock, fetchFullBlock, type RealBlockData } from '@/lib/blockchainApi';
+import { type RealBlockData } from '@/lib/blockchainApi';
+import { useBlockLayoutData, LAYOUT_FADE_MS } from '@/hooks/useBlockLayoutData';
 import { packSquares, packSquaresToWorldSpace } from '@/lib/square-packing';
 import Helix from '../dna/Helix';
 import CrownShield, { type ShieldTier } from '../CrownShield';
@@ -5158,36 +5159,15 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     setStreamEmbedUrl(null);
   }, [walletAddress, blockHeight, walletSignMessage]);
 
-  // Fetch real blockchain data, fall back to mock
-  const [realBlock, setRealBlock] = useState<RealBlockData | null>(null);
-  const [dataSource, setDataSource] = useState<'loading' | 'real' | 'mock'>('loading');
-  
-  // (Standard bitmap rendering handled by StandardBitmapCanvas component)
-
-  useEffect(() => {
-    let cancelled = false;
-    setDataSource('loading');
-    setRealBlock(null);
-    // Phase 1: fast first paint (page-0 real txs + estimated remainder).
-    fetchRealBlock(blockHeight).then(data => {
-      if (cancelled) return;
-      setRealBlock(data);
-      setDataSource(data ? 'real' : 'mock');
-
-      // Phase 2: for the ENTERED block, upgrade to FULL real tx vbytes (all
-      // pages) so the parcel arrangement reflects genuine on-chain data, not the
-      // page-0 estimate. Runs behind the existing spinner/'Estimated' badge; the
-      // canonical packer means the layout only refines, it does not re-shuffle.
-      if (data && data.estimated) {
-        fetchFullBlock(blockHeight).then(full => {
-          if (cancelled || !full) return;
-          setRealBlock(full);
-          setDataSource('real');
-        });
-      }
-    });
-    return () => { cancelled = true; };
-  }, [blockHeight]);
+  // The block's real transactions, from one summary request, painted once.
+  // An estimate appears only if the summary fails, badged, retried and faded.
+  const { realBlock, dataSource, retrying, swapping, retry: retryBlockData } = useBlockLayoutData(blockHeight);
+  // Nothing is shown until the first layout is real (or the labelled fallback),
+  // and the fallback fades out before the real layout replaces it.
+  const layoutStyle = {
+    opacity: dataSource === 'loading' || swapping ? 0 : 1,
+    transition: `opacity ${LAYOUT_FADE_MS}ms ease`,
+  };
 
   // Only generate parcels once we know if we have real data or not
   const parcels = useMemo(() => {
@@ -5764,13 +5744,19 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
 
       {/* Standard Bitmap View (2D Bitfeed-style canvas rendering) */}
       {viewMode === 'standard' && (
-        <div className="flex-1 relative flex items-center justify-center" style={{ background: '#0a0a0f' }}>
+        <div className="flex-1 relative flex items-center justify-center" style={{ background: '#0a0a0f', ...layoutStyle }}>
           <StandardBitmapCanvas blockHeight={blockHeight} parcels={parcels} />
         </div>
       )}
 
       {/* 3D Canvas */}
       {viewMode !== 'standard' && <div className="flex-1 relative">
+        {dataSource === 'loading' && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+            <span className="text-xs font-mono text-slate-400">⏳ Loading block…</span>
+          </div>
+        )}
+        <div style={{ width: '100%', height: '100%', ...layoutStyle }}>
         <Canvas
           shadows
           camera={{ position: [15, 12, 15], fov: 50, near: 0.01, far: 2000 }}
@@ -5897,6 +5883,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
           <hemisphereLight args={['#3366aa', '#442211', 0.25]} />
           {/* Postprocessing disabled — causes client-side crashes on some devices */}
         </Canvas>
+        </div>
 
         {/* Game HUD overlay */}
         {viewMode === 'street' && gameElements.length > 0 && walletAddress && (
@@ -6111,18 +6098,11 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
               } />
               {realBlock?.estimated && (
                 <div style={{ padding: '4px 8px' }}>
+                  <div className="text-[10px] text-slate-500" style={{ marginBottom: '4px' }}>
+                    {retrying ? 'layout estimated; retrying' : 'layout estimated'}
+                  </div>
                   <button
-                    onClick={() => {
-                      setDataSource('loading');
-                      fetchFullBlock(blockHeight).then(data => {
-                        if (data) {
-                          setRealBlock(data);
-                          setDataSource('real');
-                        } else {
-                          setDataSource('real');
-                        }
-                      });
-                    }}
+                    onClick={retryBlockData}
                     style={{
                       width: '100%', padding: '6px 10px', fontSize: '11px',
                       background: '#f7931a', color: '#000', border: 'none', borderRadius: '4px',
