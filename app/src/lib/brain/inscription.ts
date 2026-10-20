@@ -94,9 +94,12 @@ export function buildSoulDocument(): BrainSoulInscription {
  * Fetch the Brain's soul from its Bitcoin inscription.
  * 
  * Strategy:
- *   1. Try ordinals.com/content/{inscriptionId}
- *   2. Fallback: ord.io
- *   3. Fallback: use hardcoded soul from protocol.ts (degraded mode)
+ *   1. Try {ordinalsApiUrl}/content/{inscriptionId} (ordinals.com by default)
+ *   2. Fallback: use hardcoded soul from protocol.ts (degraded mode)
+ *
+ * There used to be an ord.io fallback between the two. ord.io answers 404 for
+ * /content/<id> (checked 2026-10-18), so it only added a 10 s timeout to every
+ * degraded start; a self-hosted ord belongs in `ordinalsApiUrl` instead.
  * 
  * Returns null if ALL sources fail (Brain should refuse to operate).
  */
@@ -124,26 +127,7 @@ export async function fetchSoulFromInscription(
     // Fallback
   }
 
-  // Strategy 2: Try ord.io with SOUL.json inscription
-  try {
-    const url = `https://ord.io/content/${SOUL_JSON_INSCRIPTION_ID}`;
-    const res = await fetch(url, { 
-      signal: AbortSignal.timeout(10_000),
-      headers: { 'Accept': 'application/json' },
-    });
-    if (res.ok) {
-      const raw = await res.text();
-      const soul = parseSoulDocument(raw);
-      if (soul) {
-        const verified = verifySoulIntegrity(soul) || verifySoulContent(soul);
-        return { soul, source: 'inscription', verified };
-      }
-    }
-  } catch {
-    // Fallback
-  }
-
-  // Strategy 3: Build from hardcoded protocol constants (degraded mode)
+  // Strategy 2: Build from hardcoded protocol constants (degraded mode)
   console.warn('[NexusBrain] Could not fetch soul from inscription — using protocol fallback (DEGRADED)');
   const fallbackSoul = buildSoulDocument();
   return { soul: fallbackSoul, source: 'fallback', verified: false };

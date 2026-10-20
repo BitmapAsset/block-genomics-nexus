@@ -15,17 +15,19 @@ const { isPalindrome, isFibonacci, isPrime, isRoundNumber, isPatoshiBlock } = _t
 // Minimal block fixture factory
 // ────────────────────────────────────────────
 
+// Matches the BlockData shape in ../types (camelCase, `hash`, `txCount`,
+// `totalFeeSats`), which is what traits.ts reads.
 function makeBlock(overrides: Partial<BlockData> = {}): BlockData {
   return {
-    id: '0000000000000000000000000000000000000000000000000000000000000000',
+    hash: '0000000000000000000000000000000000000000000000000000000000000000',
     height: 0,
-    version: 1,
+    previousHash: '0000000000000000000000000000000000000000000000000000000000000000',
     timestamp: 1231006505,
     nonce: 0,
-    bits: 486604799,
+    bits: '1d00ffff',
     difficulty: 1,
-    merkle_root: '0000000000000000000000000000000000000000000000000000000000000000',
-    tx_count: 100,
+    merkleRoot: '0000000000000000000000000000000000000000000000000000000000000000',
+    txCount: 100,
     size: 500000,
     weight: 2000000,
     ...overrides,
@@ -159,14 +161,14 @@ describe('Trait detection', () => {
 
   it('detects 21e8 in block hash', () => {
     const block = makeBlock({
-      id: '000000000000000000021e8d0afab5a8a9c0a1b3c4d5e6f7890123456789abcd',
+      hash: '000000000000000000021e8d0afab5a8a9c0a1b3c4d5e6f7890123456789abcd',
     });
     const result = detectTraits(500_000, block);
     expect(result.flags.is_21e8).toBe(true);
   });
 
   it('detects empty blocks (1 tx)', () => {
-    const result = detectTraits(100, makeBlock({ tx_count: 1 }));
+    const result = detectTraits(100, makeBlock({ txCount: 1 }));
     expect(result.flags.is_empty).toBe(true);
   });
 
@@ -177,7 +179,7 @@ describe('Trait detection', () => {
 
   it('detects high fee blocks', () => {
     const result = detectTraits(100, makeBlock({
-      extras: { totalFees: 200_000_000 }, // 2 BTC
+      totalFeeSats: 200_000_000n, // 2 BTC
     }));
     expect(result.flags.is_high_fee).toBe(true);
   });

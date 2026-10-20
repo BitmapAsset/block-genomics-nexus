@@ -1,24 +1,12 @@
-import crypto from 'crypto';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { batchVerifyOwnership } from '@/lib/ownership-sync';
 import { bearerFrom } from '@/lib/sandbox-tier';
+import { secretMatches } from '@/lib/secret-match';
 
 if (!process.env.CRON_SECRET && !process.env.OWNERSHIP_SYNC_SECRET) {
   console.warn('[ownership/cron] neither CRON_SECRET nor OWNERSHIP_SYNC_SECRET set — cron endpoint disabled');
-}
-
-/**
- * Constant-time secret check. Both sides are hashed first, so timingSafeEqual
- * always compares two 32-byte digests and the length of the real secret never
- * shows up in the timing.
- */
-function secretMatches(provided: string | null, secret: string | undefined): boolean {
-  if (!provided || !secret) return false;
-  const a = crypto.createHash('sha256').update(provided).digest();
-  const b = crypto.createHash('sha256').update(secret).digest();
-  return crypto.timingSafeEqual(a, b);
 }
 
 /**

@@ -158,22 +158,17 @@ GET  /api/v1/stats                     → Protocol statistics
 
 ## Badge Embed
 
-### HTML Widget
-```html
-<script src="https://verify.blockgenomics.io/widget.js"></script>
-<bg-badge agent="bg_agent_7a3f..." theme="dark" size="standard"></bg-badge>
-```
-
 ### Simple Image
 ```html
-<img src="https://verify.blockgenomics.io/api/v1/badge/bg_agent_7a3f....svg" />
+<img src="https://blockgenomics.io/api/v1/badge/bg_agent_7a3f....svg" />
 ```
+
+No hosted widget script ships today: `verify.blockgenomics.io` (the host the
+earlier draft of this spec used) does not resolve, and there is no
+`/widget.js` (checked 2026-10-18). Use the SVG badge above.
 
 ### JavaScript Verification
-```javascript
-import { BlockGenomics } from '@blockgenomics/sdk';
-
-const bg = new BlockGenomics();
-const result = await bg.verify('bg_agent_7a3f...');
-// { verified: true, tier: 1, trustScore: 94, genome: '7a3f...', block: 800000 }
-```
+The published TypeScript client is
+[`block-genomics-connect`](https://www.npmjs.com/package/block-genomics-connect)
+(`sdk/agent-connect` in this repo); see its README for the API. There is no
+`@blockgenomics/sdk` package on npm.

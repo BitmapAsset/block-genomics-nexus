@@ -152,21 +152,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isLeatherAvailable()) {
           throw new Error("Leather wallet not detected.");
         }
-        const provider = window.LeatherProvider as {
-          requestAccounts?: () => Promise<string[]>;
-          getAddresses?: () => Promise<string[]>;
-        };
-        if (provider.requestAccounts) {
-          const accounts = await provider.requestAccounts();
-          if (!accounts?.length) throw new Error("No accounts returned.");
-          address = accounts[0];
-        } else if (provider.getAddresses) {
-          const accounts = await provider.getAddresses();
-          if (!accounts?.length) throw new Error("No accounts returned.");
-          address = accounts[0];
-        } else {
-          throw new Error("Leather wallet API not supported.");
-        }
+        // Leather exposes one RPC method, LeatherProvider.request('getAddresses')
+        // (leather.gitbook.io/developers, checked 2026-10-18). There is no
+        // requestAccounts() or getAddresses() method on the provider, so the
+        // old probe threw "Leather wallet API not supported" on every connect.
+        // Same call and taproot pick as the rest of the app.
+        const { connectLeather } = await import("@/lib/wallet-utils");
+        address = await connectLeather();
       }
 
       const profile = address ? findProfileByAddress(address) : null;

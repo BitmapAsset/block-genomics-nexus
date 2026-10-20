@@ -94,3 +94,40 @@ it('gives a stored lookalike stream no YouTube embed', async () => {
   };
   expect((await res.json()).streams[0].embedUrl).toBe('');
 });
+
+// N3: the route validated `new URL(raw)` but stored `raw`. A backslash form
+// passes WHATWG as www.youtube.com yet reads as attacker.example to Python's
+// urllib, so API consumers following the stored link could land elsewhere.
+const BACKSLASH = 'https://www.youtube.com\\@attacker.example/watch?v=dQw4w9WgXcQ';
+
+it('stores the normalised URL, never the raw input', async () => {
+  const res = await start(BACKSLASH);
+  expect(res.status).toBe(200);
+  const stored = (mockUpdate.mock.calls[0] as unknown as [{ data: { streamUrl: string } }])[0].data.streamUrl;
+  expect(stored).toBe('https://www.youtube.com/@attacker.example/watch?v=dQw4w9WgXcQ');
+  expect(stored).not.toContain('\\');
+});
+
+it('stores a plain URL as its normalised href', async () => {
+  await start('  HTTPS://WWW.Twitch.TV/somechannel');
+  const stored = (mockUpdate.mock.calls[0] as unknown as [{ data: { streamUrl: string } }])[0].data.streamUrl;
+  expect(stored).toBe('https://www.twitch.tv/somechannel');
+});
+
+it('refuses a non-string stream URL', async () => {
+  const res = await start({ toString: () => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' } as unknown as string);
+  expect(res.status).toBe(400);
+  expect(mockUpdate).not.toHaveBeenCalled();
+});
+
+it('serves a legacy raw row normalised, and a legacy lookalike row as empty', async () => {
+  mockFindMany.mockResolvedValue([
+    { height: 208, streamUrl: BACKSLASH, streamType: 'broadcast', streamStartedAt: null, streamOwner: OWNER, label: null, owner: null },
+    { height: 209, streamUrl: LOOKALIKE, streamType: 'broadcast', streamStartedAt: null, streamOwner: OWNER, label: null, owner: null },
+  ]);
+  const res = (await ACTIVE(new Request('http://localhost/api/v1/livestream/active'))) as unknown as {
+    json(): Promise<{ streams: Array<{ streamUrl: string }> }>;
+  };
+  const { streams } = await res.json();
+  expect(streams.map((s) => s.streamUrl)).toEqual(['https://www.youtube.com/@attacker.example/watch?v=dQw4w9WgXcQ', '']);
+});

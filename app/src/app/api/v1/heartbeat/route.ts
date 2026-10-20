@@ -13,6 +13,7 @@
 
 import { NextResponse } from 'next/server';
 import { executeBlockHeartbeat } from '@/lib/bitcoin-heartbeat';
+import { secretMatches } from '@/lib/secret-match';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -23,8 +24,9 @@ export async function GET(req: Request) {
   const cronSecret = process.env.CRON_SECRET;
   const heartbeatSecret = process.env.HEARTBEAT_SECRET;
 
-  const isVercelCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
-  const isManual = heartbeatSecret && authHeader === `Bearer ${heartbeatSecret}`;
+  // Constant-time, and an unset secret never matches.
+  const isVercelCron = !!cronSecret && secretMatches(authHeader, `Bearer ${cronSecret}`);
+  const isManual = !!heartbeatSecret && secretMatches(authHeader, `Bearer ${heartbeatSecret}`);
   const { searchParams } = new URL(req.url);
   const force = searchParams.get('force') === 'true';
 

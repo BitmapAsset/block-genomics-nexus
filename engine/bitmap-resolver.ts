@@ -1,19 +1,39 @@
 /**
- * Block Genomics — Multi‑Indexer Bitmap Resolver
+ * Block Genomics — Bitmap Resolver (engine)
  *
- * Resolves bitmap inscriptions for a given Bitcoin / Ordinals address
- * using multiple indexer APIs with automatic fallback:
+ * Resolves the N.bitmap deeds an address holds, from the same chain-truth
+ * sources the app uses:
  *
- *   1. **Hiro API** (api.hiro.so) — primary
- *   2. **ord.io API** — fallback
+ *   1. **Esplora** (mempool.space, blockstream.info fallback) lists the
+ *      address's current UTXOs.
+ *   2. **ord recursion** on ordinals.com (`/r/utxo`, `/r/inscription`,
+ *      `/content`) names the inscriptions on each UTXO and their bodies.
+ *   3. **packages/bitmap-resolver** decides which inscription is the deed for
+ *      each height (first-is-valid), so a later copy of "840000.bitmap" is
+ *      reported in `excluded`, never as a bitmap.
  *
- * All responses are validated against the canonical bitmap pattern
- * `^\d+\.bitmap$` before being returned.
+ * This replaced the Hiro Ordinals API (shut down on 2026-03-09, now HTTP 410;
+ * issue #211) and the ord.io API (its host no longer resolves). Both were
+ * read-only indexers; nothing here signs or spends.
+ *
+ * Fails closed: if any source is unreachable the call throws, because a short
+ * list would read as "does not hold".
  *
  * @module bitmap-resolver
  */
 
-import type { Bitmap, BitmapResolutionResult, OwnershipVerification } from './types';
+import {
+  DEFAULT_LIMITS,
+  DEFAULT_ORD_ORIGIN,
+  Limiter,
+  OrdClient,
+  SourceUnavailableError,
+  defaultLimiter,
+  holderOf,
+  resolve,
+  type ClientOptions,
+} from '../packages/bitmap-resolver/src/index.js';
+import type { Bitmap, BitmapResolutionResult, ExcludedBitmap, OwnershipVerification } from './types';
 
 // ────────────────────────────────────────────
 // Constants
@@ -21,35 +41,15 @@ import type { Bitmap, BitmapResolutionResult, OwnershipVerification } from './ty
 
 const BITMAP_PATTERN = /^\d+\.bitmap$/;
 
-const HIRO_BASE = 'https://api.hiro.so/ordinals/v1';
-const ORDIO_BASE = 'https://api.ord.io/v1';
+/** Same order as the app's lib/onchain/esplora.ts. */
+const ESPLORA_ORIGINS = ['https://mempool.space/api', 'https://blockstream.info/api'];
 
-/** Default fetch timeout (ms). */
-const TIMEOUT_MS = 15_000;
+/** A bitmap body is "<height>.bitmap"; anything longer is not one. */
+const MAX_BITMAP_BYTES = 64;
 
 // ────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────
-
-/** Fetch with timeout + JSON parse. Returns null on any failure. */
-async function safeFetch<T>(url: string, timeoutMs = TIMEOUT_MS): Promise<T | null> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { Accept: 'application/json' },
-    });
-
-    clearTimeout(timer);
-
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Validate and parse a bitmap content string.
@@ -60,126 +60,55 @@ function parseBitmapContent(content: string): number | null {
   const trimmed = content.trim();
   if (!BITMAP_PATTERN.test(trimmed)) return null;
   const height = parseInt(trimmed.replace('.bitmap', ''), 10);
-  return Number.isFinite(height) && height >= 0 ? height : null;
+  return Number.isSafeInteger(height) && height >= 0 ? height : null;
 }
 
-// ────────────────────────────────────────────
-// Hiro API
-// ────────────────────────────────────────────
-
-interface HiroInscription {
-  id: string;
-  number: number;
-  content_type: string;
-  content_length: number;
-  genesis_timestamp: number;
-  address: string;
-  // content is fetched separately
+function limiterFor(opts: ClientOptions): Limiter {
+  if (opts.limiter) return opts.limiter;
+  if (opts.fetch) return new Limiter({ ...DEFAULT_LIMITS, fetch: opts.fetch });
+  return defaultLimiter();
 }
 
-interface HiroInscriptionsResponse {
-  results: HiroInscription[];
-  total: number;
-  limit: number;
-  offset: number;
+async function getJson(limiter: Limiter, url: string, signal?: AbortSignal): Promise<unknown> {
+  let res;
+  try {
+    res = await limiter.get(url, { accept: 'application/json', signal });
+  } catch (e) {
+    throw new SourceUnavailableError(new URL(url).host, url, `unreachable: ${(e as Error).message}`);
+  }
+  if (res.status !== 200) throw new SourceUnavailableError(new URL(url).host, url, `HTTP ${res.status}`);
+  try {
+    return JSON.parse(new TextDecoder().decode(res.bytes));
+  } catch {
+    throw new SourceUnavailableError(new URL(url).host, url, 'invalid JSON');
+  }
 }
 
-async function resolveFromHiro(address: string): Promise<Bitmap[]> {
-  const bitmaps: Bitmap[] = [];
-  let offset = 0;
-  const limit = 60;
-
-  // Paginate through all inscriptions for this address
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const url = `${HIRO_BASE}/inscriptions?address=${address}&limit=${limit}&offset=${offset}`;
-    const data = await safeFetch<HiroInscriptionsResponse>(url);
-    if (!data || !data.results?.length) break;
-
-    for (const ins of data.results) {
-      // Check content type — bitmaps are text/plain
-      if (
-        ins.content_type &&
-        !ins.content_type.startsWith('text/plain') &&
-        !ins.content_type.startsWith('text/html')
-      ) {
-        continue;
-      }
-
-      // Fetch inscription content
-      const contentUrl = `${HIRO_BASE}/inscriptions/${ins.id}/content`;
-      try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-        const contentRes = await fetch(contentUrl, { signal: controller.signal });
-        clearTimeout(timer);
-
-        if (!contentRes.ok) continue;
-        const text = await contentRes.text();
-        const blockHeight = parseBitmapContent(text);
-        if (blockHeight === null) continue;
-
-        bitmaps.push({
-          inscriptionId: ins.id,
-          number: ins.number,
-          content: text.trim(),
-          blockHeight,
-          owner: address,
-          contentType: ins.content_type,
-          genesisTimestamp: ins.genesis_timestamp,
-        });
-      } catch {
-        continue;
-      }
+/** `<txid>:<vout>` for every output the address holds; first Esplora that answers wins. */
+async function addressOutpoints(limiter: Limiter, address: string, signal?: AbortSignal): Promise<string[]> {
+  const failures: string[] = [];
+  for (const origin of ESPLORA_ORIGINS) {
+    try {
+      const data = await getJson(limiter, `${origin}/address/${encodeURIComponent(address)}/utxo`, signal);
+      if (!Array.isArray(data)) throw new Error('not an array');
+      return data
+        .filter((u): u is { txid: string; vout: number } => typeof u?.txid === 'string' && Number.isInteger(u?.vout))
+        .map((u) => `${u.txid}:${u.vout}`);
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      failures.push(`${origin}: ${(e as Error).message}`);
     }
-
-    offset += data.results.length;
-    if (offset >= data.total) break;
   }
-
-  return bitmaps;
+  throw new SourceUnavailableError('esplora', ESPLORA_ORIGINS[0], `no Esplora answered: ${failures.join('; ')}`);
 }
 
-// ────────────────────────────────────────────
-// ord.io API (fallback)
-// ────────────────────────────────────────────
-
-interface OrdioInscription {
-  inscription_id: string;
-  inscription_number: number;
-  content: string;
-  content_type: string;
-  address: string;
-  timestamp: number;
-}
-
-interface OrdioResponse {
-  inscriptions: OrdioInscription[];
-}
-
-async function resolveFromOrdio(address: string): Promise<Bitmap[]> {
-  const bitmaps: Bitmap[] = [];
-  const url = `${ORDIO_BASE}/address/${address}/inscriptions`;
-  const data = await safeFetch<OrdioResponse>(url);
-
-  if (!data?.inscriptions?.length) return bitmaps;
-
-  for (const ins of data.inscriptions) {
-    const blockHeight = parseBitmapContent(ins.content ?? '');
-    if (blockHeight === null) continue;
-
-    bitmaps.push({
-      inscriptionId: ins.inscription_id,
-      number: ins.inscription_number,
-      content: ins.content.trim(),
-      blockHeight,
-      owner: address,
-      contentType: ins.content_type,
-      genesisTimestamp: ins.timestamp,
-    });
+/** Inscription ids on one output, via ord's recursive `/r/utxo/<outpoint>`. */
+async function inscriptionsOn(limiter: Limiter, outpoint: string, signal?: AbortSignal): Promise<string[]> {
+  const data = (await getJson(limiter, `${DEFAULT_ORD_ORIGIN}/r/utxo/${outpoint}`, signal)) as { inscriptions?: unknown };
+  if (!Array.isArray(data?.inscriptions)) {
+    throw new SourceUnavailableError('ord', `${DEFAULT_ORD_ORIGIN}/r/utxo/${outpoint}`, 'missing inscriptions[]');
   }
-
-  return bitmaps;
+  return data.inscriptions.filter((id): id is string => typeof id === 'string' && id.length > 0);
 }
 
 // ────────────────────────────────────────────
@@ -187,12 +116,12 @@ async function resolveFromOrdio(address: string): Promise<Bitmap[]> {
 // ────────────────────────────────────────────
 
 /**
- * Resolve all bitmap inscriptions owned by an address.
- *
- * Tries Hiro API first, falls back to ord.io on failure.
+ * Resolve the N.bitmap deeds an address currently holds.
  *
  * @param address - A Bitcoin address (taproot / segwit / legacy).
- * @returns Resolved bitmaps with provenance source.
+ * @param opts    - Optional fetch / limiter / signal (tests, shared budgets).
+ * @returns The deeds, plus any held N.bitmap copies that are not the deed.
+ * @throws SourceUnavailableError when Esplora or ord does not answer.
  *
  * @example
  * ```ts
@@ -201,30 +130,62 @@ async function resolveFromOrdio(address: string): Promise<Bitmap[]> {
  * // → ["840000.bitmap", "210000.bitmap"]
  * ```
  */
-export async function resolveBitmap(address: string): Promise<BitmapResolutionResult> {
-  // Try Hiro first
-  const hiroBitmaps = await resolveFromHiro(address);
-  if (hiroBitmaps.length > 0) {
-    return {
-      address,
-      bitmaps: hiroBitmaps,
-      source: 'hiro',
-      resolvedAt: Date.now(),
-    };
+export async function resolveBitmap(address: string, opts: ClientOptions = {}): Promise<BitmapResolutionResult> {
+  const limiter = limiterFor(opts);
+  const ord = new OrdClient(limiter);
+  const { signal } = opts;
+
+  const outpoints = await addressOutpoints(limiter, address, signal);
+  const ids = [...new Set((await Promise.all(outpoints.map((op) => inscriptionsOn(limiter, op, signal)))).flat())];
+
+  const bitmaps: Bitmap[] = [];
+  const excluded: ExcludedBitmap[] = [];
+
+  for (const id of ids) {
+    const ins = await ord.inscription(id, signal);
+    if (!ins) continue;
+    const type = ins.content_type;
+    if (type && !type.startsWith('text/plain') && !type.startsWith('text/html')) continue;
+
+    const bytes = await ord.content(id, signal);
+    if (!bytes || bytes.length > MAX_BITMAP_BYTES) continue;
+    const text = new TextDecoder().decode(bytes);
+    const blockHeight = parseBitmapContent(text);
+    if (blockHeight === null) continue;
+
+    // First-is-valid: only the deed for this height counts.
+    const deed = await resolve(blockHeight, { ...opts, limiter, freshness: 'display' });
+    if (deed.verdict === 'canonical' && deed.canonicalId === id) {
+      bitmaps.push({
+        inscriptionId: id,
+        number: ins.number,
+        content: text.trim(),
+        blockHeight,
+        owner: address,
+        contentType: type,
+        revealHeight: ins.height,
+      });
+    } else {
+      excluded.push({
+        inscriptionId: id,
+        blockHeight,
+        verdict: deed.verdict,
+        reason:
+          deed.verdict === 'canonical'
+            ? `not the deed: ${deed.canonicalId} is ${blockHeight}.bitmap`
+            : (deed.reason ?? `resolver verdict ${deed.verdict}`),
+      });
+    }
   }
 
-  // Fallback to ord.io
-  const ordioBitmaps = await resolveFromOrdio(address);
-  return {
-    address,
-    bitmaps: ordioBitmaps,
-    source: 'ordio',
-    resolvedAt: Date.now(),
-  };
+  return { address, bitmaps, excluded, source: 'ord', resolvedAt: Date.now() };
 }
 
 /**
- * Verify that a specific inscription is currently owned by an address.
+ * Verify that a specific inscription is currently held by an address.
+ *
+ * Uses the resolver's live-holder check: ord and Esplora must agree the
+ * holding output is unspent and pays the address. Anything else is not owned.
  *
  * @param inscriptionId - The inscription ID to check.
  * @param address       - The address to verify against.
@@ -233,31 +194,17 @@ export async function resolveBitmap(address: string): Promise<BitmapResolutionRe
 export async function verifyBitmapOwnership(
   inscriptionId: string,
   address: string,
+  opts: ClientOptions = {},
 ): Promise<OwnershipVerification> {
-  // Try Hiro
-  const hiroUrl = `${HIRO_BASE}/inscriptions/${inscriptionId}`;
-  const hiroData = await safeFetch<{ address: string }>(hiroUrl);
-
-  if (hiroData?.address) {
-    return {
-      inscriptionId,
-      address,
-      isOwner: hiroData.address === address,
-      checkedAt: Date.now(),
-      source: 'hiro',
-    };
-  }
-
-  // Fallback to ord.io
-  const ordioUrl = `${ORDIO_BASE}/inscription/${inscriptionId}`;
-  const ordioData = await safeFetch<{ address: string }>(ordioUrl);
-
+  const holder = await holderOf(inscriptionId, 'auth', { ...opts, limiter: limiterFor(opts) });
   return {
     inscriptionId,
     address,
-    isOwner: ordioData?.address === address,
+    isOwner: holder?.address === address,
+    holder: holder?.address ?? null,
     checkedAt: Date.now(),
-    source: 'ordio',
+    source: 'ord+esplora',
+    ...(holder ? {} : { reason: 'ord and Esplora did not agree on a live holder' }),
   };
 }
 
@@ -265,4 +212,5 @@ export async function verifyBitmapOwnership(
 export const _testHelpers = {
   parseBitmapContent,
   BITMAP_PATTERN,
+  ESPLORA_ORIGINS,
 };

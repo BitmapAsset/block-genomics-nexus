@@ -29,7 +29,7 @@
 
 | Asset | Description |
 |-------|-------------|
-| API keys | mempool.space, Hiro API keys (if rate-limited tiers) |
+| API keys | None today: mempool.space and ordinals.com are keyless public APIs |
 | Server infrastructure | Databases, Redis, application servers |
 | SSL/TLS certificates | For HTTPS endpoints |
 | Source code | Verification algorithm, genome generation logic |
@@ -88,8 +88,8 @@
                             ├─────────────┤
                             │ External    │
                             │ mempool.space│
-                            │ Hiro API    │
-                            │ Ord indexer │
+                            │ ordinals.com│
+                            │ (ord, /r/*) │
                             └─────────────┘
 ```
 
@@ -103,7 +103,7 @@
 | **Badge Embed** | Third-party websites | Untrusted | HTTPS (image) |
 | **WebSocket** | Chat connections | Authenticated | WSS |
 | **mempool.space API** | Block data | Semi-trusted | HTTPS |
-| **Hiro API** | Inscription data | Semi-trusted | HTTPS |
+| **ordinals.com (ord recursion)** | Inscription data | Semi-trusted | HTTPS |
 | **Database** | Internal only | Trusted | TCP (internal) |
 | **Admin Panel** | Internal only | Highly trusted | HTTPS + MFA |
 
@@ -246,7 +246,7 @@ Likelihood ↓
 ┌────────────────────────────────────────────┐
 │ TRUST BOUNDARY 3: External Services        │
 │ ┌───────────────┐  ┌───────────────────┐   │
-│ │ mempool.space │  │ Hiro Ordinals API │   │
+│ │ mempool.space │  │ ordinals.com (ord)│   │
 │ └───────────────┘  └───────────────────┘   │
 └────────────────────────────────────────────┘
         │

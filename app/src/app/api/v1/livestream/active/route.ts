@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
-import { getStreamEmbedUrl } from '@/lib/stream-embed';
+import { getStreamEmbedUrl, normaliseStreamUrl } from '@/lib/stream-embed';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
 
     const streams = blocks.map(b => ({
       blockHeight: b.height,
-      streamUrl: b.streamUrl!,
+      streamUrl: normaliseStreamUrl(b.streamUrl) ?? '',
       streamType: b.streamType || 'broadcast',
       startedAt: b.streamStartedAt?.toISOString() || new Date().toISOString(),
       embedUrl: getStreamEmbedUrl(b.streamUrl!) || '',

@@ -6,7 +6,7 @@ import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
 import { consumeChallenge } from '@/lib/challenges';
-import { getStreamEmbedUrl } from '@/lib/stream-embed';
+import { getStreamEmbedUrl, normaliseStreamUrl } from '@/lib/stream-embed';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     live: true,
-    streamUrl: block.streamUrl,
+    streamUrl: normaliseStreamUrl(block.streamUrl),
     streamType: block.streamType,
     startedAt: block.streamStartedAt,
     embedUrl: getStreamEmbedUrl(block.streamUrl),
@@ -61,9 +61,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: owns.reason ?? 'Not block owner' }, { status: owns.status });
     }
 
-    // Validate URL
+    // Validate URL. Store and serve the normalised form, never the raw input.
     const embed = getStreamEmbedUrl(streamUrl);
-    if (!embed) {
+    const normalisedUrl = normaliseStreamUrl(streamUrl);
+    if (!embed || !normalisedUrl) {
       return NextResponse.json({ error: 'Unsupported stream URL. Use YouTube, Twitch, or Kick.' }, { status: 400 });
     }
 
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
     await prisma.block.update({
       where: { height: blockHeight },
       data: {
-        streamUrl,
+        streamUrl: normalisedUrl,
         streamType: streamType || 'broadcast',
         streamStartedAt: new Date(),
         streamOwner: walletAddress,
