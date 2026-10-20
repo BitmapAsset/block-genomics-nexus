@@ -143,8 +143,9 @@ const nextConfig: NextConfig = {
       // The excluded subtrees are the routes that deliberately set their own
       // Cache-Control — the badge and thumbnail images want to be cached (they
       // compute a value per tier/epoch), and the sandbox routes send a stronger
-      // `private, no-store`. A value here would replace theirs.
-      source: "/api/((?!v1/badge/|v1/block-thumbnail/|v1/bitmap-image/|v1/sandbox/).*)",
+      // `private, no-store`. The block summary is chain data, immutable once
+      // settled. A value here would replace theirs.
+      source: "/api/((?!v1/badge/|v1/block-thumbnail/|v1/bitmap-image/|v1/sandbox/|v1/blocks/[0-9]+/summary$).*)",
       headers: [
         {
           key: "Cache-Control",

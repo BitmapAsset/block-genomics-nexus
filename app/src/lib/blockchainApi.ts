@@ -311,6 +311,67 @@ export async function fetchFullBlock(height: number): Promise<RealBlockData | nu
   }
 }
 
+/** `GET /api/v1/blocks/{height}/summary` (see lib/block-summary). */
+export interface BlockSummaryPayload {
+  height: number;
+  hash: string;
+  txCount: number;
+  size: number;
+  weight: number;
+  timestamp: number;
+  vsize: number[];
+  fee: (number | null)[];
+  value: (number | null)[];
+}
+
+/**
+ * The whole block from its summary, every figure real.
+ *
+ * `size` is ceil(vsize), the same per-tx vbytes the paged `/txs` walk produced
+ * (ceil(weight / 4)), so the packer, the VBYTES row and the thumbnail all agree.
+ */
+export function summaryToRealBlock(s: BlockSummaryPayload): RealBlockData {
+  return {
+    height: s.height,
+    hash: s.hash,
+    timestamp: s.timestamp,
+    txCount: s.txCount,
+    size: s.size,
+    weight: s.weight,
+    txs: s.vsize.map((vsize, i) => ({
+      txIndex: i,
+      size: Math.ceil(vsize),
+      weight: Math.round(vsize * 4),
+      fee: s.fee[i] ?? null,
+      isCoinbase: i === 0,
+    })),
+    estimated: false,
+  };
+}
+
+const summaryCache = new Map<number, RealBlockData>();
+
+/**
+ * The real block in one request, from our summary route (which caches mempool's
+ * one-call block summary server-side). Null when it cannot be had right now;
+ * the caller decides whether to show a labelled estimate and retry.
+ */
+export async function fetchBlockSummary(height: number): Promise<RealBlockData | null> {
+  const cached = summaryCache.get(height);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`/api/v1/blocks/${height}/summary`, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) return null;
+    const body = (await res.json()) as BlockSummaryPayload;
+    if (!Array.isArray(body?.vsize) || body.vsize.length === 0 || body.vsize.length !== body.txCount) return null;
+    const block = summaryToRealBlock(body);
+    summaryCache.set(height, block);
+    return block;
+  } catch {
+    return null;
+  }
+}
+
 /** Check if block data is cached */
 export function isBlockCached(height: number): boolean {
   return blockCache.has(height);
