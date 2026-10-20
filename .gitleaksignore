@@ -8,3 +8,12 @@
 # commit below is already on main and cannot be edited without rewriting
 # history, so a full-history scan needs this entry to stay clean.
 b21aafe61e0a1957975c32710ce2221040419c17:cli/src/commands/block.ts:generic-api-key:7
+
+# app/__tests__/security/cron-secret-compare.test.ts used fake cron secrets shaped like
+# real ones (cron-<16 hex>) as test fixtures; generic-api-key flagged the four
+# assignment lines by entropy. The fixtures are low-entropy literals on the current
+# tree; these entries cover the superseded blob in the wave/bg77 history.
+f6aa1cfa8a537317a912faf1f4d351bf73e2b2de:app/__tests__/security/cron-secret-compare.test.ts:generic-api-key:94
+f6aa1cfa8a537317a912faf1f4d351bf73e2b2de:app/__tests__/security/cron-secret-compare.test.ts:generic-api-key:95
+f6aa1cfa8a537317a912faf1f4d351bf73e2b2de:app/__tests__/security/cron-secret-compare.test.ts:generic-api-key:103
+f6aa1cfa8a537317a912faf1f4d351bf73e2b2de:app/__tests__/security/cron-secret-compare.test.ts:generic-api-key:104

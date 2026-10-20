@@ -91,20 +91,20 @@ describe('GET /api/v1/brain/cron', () => {
   });
 
   it('refuses a wrong or near-miss secret before touching the database', async () => {
-    process.env.CRON_SECRET = 'cron-0f3a9c27e4b14d6d';
-    process.env.BRAIN_SCAN_SECRET = 'brain-7d2e41b0a9c84f15';
-    for (const h of ['Bearer cron-0f3a9c27e4b14d6', 'bearer cron-0f3a9c27e4b14d6d', 'cron-0f3a9c27e4b14d6d', 'Bearer brain-7d2e41b0a9c84f1']) {
+    process.env.CRON_SECRET = 'cron-test-secret-aaaa';
+    process.env.BRAIN_SCAN_SECRET = 'brain-test-secret-bbbb';
+    for (const h of ['Bearer cron-test-secret-aaa', 'bearer cron-test-secret-aaaa', 'cron-test-secret-aaaa', 'Bearer brain-test-secret-bbb']) {
       expect((await call(h)).status).toBe(401);
     }
     expect(mockFindMany).not.toHaveBeenCalled();
   });
 
   it('accepts CRON_SECRET and BRAIN_SCAN_SECRET', async () => {
-    process.env.CRON_SECRET = 'cron-0f3a9c27e4b14d6d';
-    process.env.BRAIN_SCAN_SECRET = 'brain-7d2e41b0a9c84f15';
+    process.env.CRON_SECRET = 'cron-test-secret-aaaa';
+    process.env.BRAIN_SCAN_SECRET = 'brain-test-secret-bbbb';
     mockFindMany.mockResolvedValue([]);
-    expect((await call('Bearer cron-0f3a9c27e4b14d6d')).status).not.toBe(401);
-    expect((await call('Bearer brain-7d2e41b0a9c84f15')).status).not.toBe(401);
+    expect((await call('Bearer cron-test-secret-aaaa')).status).not.toBe(401);
+    expect((await call('Bearer brain-test-secret-bbbb')).status).not.toBe(401);
   });
 });
 
