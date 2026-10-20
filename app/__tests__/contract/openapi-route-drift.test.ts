@@ -76,6 +76,7 @@ const UNDOCUMENTED_BY_DESIGN: Record<string, string> = {
 
   // ── Web app product surfaces, outside the Nexus agent protocol. ──
   '/api/v1/blocks/claimed': 'web explorer listing',
+  '/api/v1/blocks/{height}/summary': 'block viewer layout feed (per-tx vsize/fee/value from mempool); not a protocol surface',
   '/api/v1/chat/history': 'block chat product surface',
   '/api/v1/chat/react': 'block chat product surface',
   '/api/v1/chat/{blockHeight}': 'block chat product surface',

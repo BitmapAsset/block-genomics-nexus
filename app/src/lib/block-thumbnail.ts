@@ -10,6 +10,7 @@
 
 import { renderBitmapThumbnail, TxInput } from '@/lib/bitmap-renderer';
 import { prisma } from '@/lib/prisma';
+import { getBlockSummary } from '@/lib/block-summary';
 
 /** How the PNG was produced; the route sends it as `X-Thumbnail-Source`. */
 export type ThumbnailSource = 'cache' | 'live' | 'stale-estimated' | 'estimated';
@@ -58,57 +59,14 @@ const THUMBNAIL_REAL_ART_SINCE = new Date('2026-10-16T21:35:00Z');
 const MAX_LIVE_RENDERS = 4;
 let liveRenders = 0;
 
-/** One entry of mempool's `GET /api/v1/block/{hash}/summary` (TransactionStripped). */
-interface StrippedTx {
-  txid?: string;
-  vsize?: number;
-}
-
 /**
- * Every transaction of the block, with its real vsize.
- *
- * mempool's block summary returns the whole block in one array (`txid`, `fee`,
- * `vsize`, `value`, `rate`, `flags` per tx). A summary that is empty, shorter
- * than the block's `tx_count`, or has a tx without a usable vsize is a failed
- * live fetch: the caller falls back to an estimate and persists nothing.
+ * Every transaction of the block, with its real vsize, from the shared block
+ * summary fetch (lib/block-summary). A failed or incomplete summary throws: the
+ * caller falls back to an estimate and persists nothing.
  */
 async function fetchBlockTxs(height: number): Promise<TxInput[]> {
-  const hashRes = await fetch(`https://mempool.space/api/block-height/${height}`, {
-    signal: AbortSignal.timeout(8000),
-    next: { revalidate: 86400 },
-  });
-  if (!hashRes.ok) throw new Error('Failed to fetch block hash');
-  const hash = (await hashRes.text()).trim();
-  if (!/^[0-9a-f]{64}$/i.test(hash)) throw new Error('Bad block hash');
-
-  // Both lookups need only the hash, so overlap them.
-  const [blockRes, summaryRes] = await Promise.all([
-    fetch(`https://mempool.space/api/block/${hash}`, {
-      signal: AbortSignal.timeout(8000),
-    }),
-    // A 3–4k-tx summary is ~0.6–0.8 MB; keep it out of the Next data cache.
-    fetch(`https://mempool.space/api/v1/block/${hash}/summary`, {
-      signal: AbortSignal.timeout(8000),
-      cache: 'no-store',
-    }),
-  ]);
-  if (!blockRes.ok) throw new Error('Failed to fetch block info');
-  if (!summaryRes.ok) throw new Error('Failed to fetch block summary');
-  const block = (await blockRes.json()) as { tx_count?: number };
-  const summary = (await summaryRes.json()) as unknown;
-
-  if (!Array.isArray(summary) || summary.length === 0) throw new Error('Empty block summary');
-  if (typeof block.tx_count !== 'number' || summary.length !== block.tx_count) {
-    throw new Error('Incomplete block summary');
-  }
-
-  return (summary as StrippedTx[]).map((tx) => {
-    const vsize = tx?.vsize;
-    if (typeof vsize !== 'number' || !Number.isFinite(vsize) || vsize <= 0) {
-      throw new Error('Block summary tx without vsize');
-    }
-    return { vbytes: vsize };
-  });
+  const { vsize } = await getBlockSummary(height);
+  return vsize.map((vbytes) => ({ vbytes }));
 }
 
 /** Full live render, counted against the in-flight cap. */
