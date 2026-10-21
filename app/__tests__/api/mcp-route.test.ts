@@ -254,6 +254,41 @@ describe('/mcp — transport surface', () => {
     expect(res.status).toBe(405);
   });
 
+  it('still answers 405 to an MCP client opening an SSE stream', async () => {
+    const res = await GET(
+      new Request(ENDPOINT, {
+        method: 'GET',
+        headers: { accept: 'text/event-stream', 'x-forwarded-for': '203.0.113.247' },
+      }),
+    );
+    expect(res.status).toBe(405);
+  });
+
+  it('describes the server as JSON to a non-browser GET (curl, fetchers) instead of a bare 405', async () => {
+    for (const [i, accept] of ['*/*', 'application/json'].entries()) {
+      const res = await GET(
+        new Request(ENDPOINT, {
+          method: 'GET',
+          headers: { accept, 'x-forwarded-for': `203.0.113.24${i}` },
+        }),
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('application/json');
+      // Same shared-cache hazard as the HTML page: never cacheable on this URL.
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(res.headers.get('vary')).toBe('Accept');
+      const body = await res.json();
+      expect(body).toMatchObject({
+        endpoint: 'https://blockgenomics.io/mcp',
+        transport: 'streamable-http',
+        docs: 'https://blockgenomics.io/mcp',
+        manifest: 'https://blockgenomics.io/.well-known/mcp.json',
+        tools: 35,
+      });
+      expect(body.usage).toMatch(/POST/);
+    }
+  });
+
   it('serves a browser GET the landing page instead of a bare 405', async () => {
     const res = await GET(
       new Request(ENDPOINT, {

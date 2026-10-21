@@ -264,9 +264,11 @@ Guardian Shell provides BYOK (Bring Your Own Key) agent hosting. Block owners su
 
 | Tier | Max Agents | Cooldown |
 |------|-----------|----------|
-| Tier 1 (Block) | 10 per block | 24 hours between registrations |
-| Tier 2 (Parcel) | 3 per parcel | 24 hours between registrations |
-| Tier 3 (Delegated) | Cannot spawn agents | — |
+| Tier 1 (Block) | 10 active per block | 24 hours between registrations |
+| Tier 2 (Parcel) | Cannot register agents today | — |
+| Tier 3 (Delegated) | Cannot register agents today | — |
+
+Registration (`POST /api/v1/agents/register`) requires the signer to hold the block's inscription on-chain at that moment, so only the block owner can register. The request's `tier` field is declared by the caller and only selects the per-block cap (1 = 10, 2 = 3, 3 = 1).
 
 ### Guardian Files
 
@@ -467,7 +469,7 @@ The Nexus Brain is an autonomous moral guardian for the protocol.
 
 ### Moral Code
 
-Five foundational rules permanently inscribed on Bitcoin at **inscription #119380336**:
+Five foundational rules permanently inscribed on Bitcoin at **inscription #119366628** (id `8c94b5f467a8676de52c379aadc4a372526441fc0843ded7a01815ffeb3587adi0`). The Brain's SOUL.json, **inscription #119380336** (id `75abd6987e756f042e1ac5e714169e35f5086993bd176eac3156abc9e118291fi0`), repeats them in its `moralCode` field:
 
 1. **No exploitation of minors — zero tolerance**
 2. **No direct threats of violence**
@@ -619,7 +621,8 @@ Server-owned fields: `id`, `walletAddress`, `status`
 | Max batch operations | 100 |
 | E2E max message size | 16 KB |
 | E2E nonce size | 12 bytes (96 bits) |
-| Moral code inscription | #119380336 |
+| Moral code inscription | #119366628 |
+| SOUL.json inscription | #119380336 |
 
 ---
 

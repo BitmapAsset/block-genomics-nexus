@@ -202,7 +202,7 @@ Rationale: a buyer who cannot edit what they just bought does not own it, and a
 seller who can still edit what they sold has not really sold it. Attribution is
 worth preserving; control is not divisible from the deed.
 
-### 4.3 Transfer = blank-slate release
+### 4.5 Transfer = blank-slate release
 
 When a block changes hands on-chain, the transfer is processed as a **blank-slate
 release**, atomically:
@@ -244,8 +244,11 @@ A *BitmapAgent* is a sovereign agent an owner registers on a block they control.
 
 - The signer **MUST** currently own `blockHeight` (§4.2, live re-verify).
 - Registration enforces a per-wallet cooldown (default 24h → `429`) and a
-  per-block, tier-based cap on active agents (Tier 1 = 10, Tier 2 = 3, Tier 3 = 1
-  → `409`).
+  per-block cap on active agents, selected by the request's `tier` field
+  (Tier 1 = 10, Tier 2 = 3, Tier 3 = 1 → `409`). The `tier` field is declared by
+  the caller, not derived. Because the signer must own the block, every
+  registrant today is the Tier 1 block owner: parcel owners (Tier 2) and
+  delegated users (Tier 3) cannot register agents.
 - The `201` response returns a **one-time** plaintext API token as `data.apiKey`.
   Clients **MUST** store it on receipt; it is never returned again.
 - The returned `id` is a management capability (it keys the runtime routes below)
@@ -296,16 +299,17 @@ DELETE /api/v1/agents/{agentId}/token   → revoke; locks runtime access until r
 | `/api/v1/agents/{agentId}/events`    | GET  | read the agent's **private** event stream |
 
 Each **MUST** require a valid Bearer token for an agent in the `active` state and
-**MUST** return `401` for a missing, invalid, or revoked token. For a `legacy`
-agent the server **MAY** grant access without a token during a deprecation window,
-in which case it **MUST** set an `X-BG-Deprecation` response header. This grace
-path is deprecated and **SHOULD NOT** be relied upon; new agents always receive a
-token at registration.
+**MUST** return `401` for a missing, invalid, or revoked token. New agents always
+receive a token at registration.
 
-> **Legacy grace-path sunset: 2026-08-15.** After this date the tokenless `legacy`
-> branch is removed and every runtime request **MUST** carry a valid Bearer token;
-> a `legacy` agent that has not rotated a key by then will receive `401`. Rotate a
-> key via `POST /api/v1/agents/{agentId}/token` before the sunset.
+> **Legacy grace path: retired on 2026-08-15.** Until that date a `legacy` agent
+> (one registered before tokens, with no key ever issued) could call these routes
+> without a token, and the server set an `X-BG-Deprecation` response header. From
+> 2026-08-16 (UTC) that path is closed: a `legacy` agent's runtime requests are
+> rejected with `401` ("Tokenless legacy access was retired on 2026-08-15 …"),
+> and no `X-BG-Deprecation` header is sent. A `legacy` agent recovers by having
+> its owner rotate a key via `POST /api/v1/agents/{agentId}/token` (§5.3) and then
+> sending it as `Authorization: Bearer <agent token>`.
 
 ### 5.5 Management routes (owner-wallet signature required)
 
@@ -517,7 +521,7 @@ denied with `403` even if a stale DB snapshot still shows the caller as owner;
 only an indeterminate live result (no inscription linked / indexer outage) falls
 back to the snapshot. The gate **MUST NOT** fail open on a mismatch. On block
 transfer, experiences are released with the rest of the seller's attachments
-(§4.3).
+(§4.5).
 
 ### 8.4 Health probe semantics
 
@@ -661,7 +665,8 @@ sanitized and length-bounded. The stream is private (§5.4).
 - Brief: ~5 requests/minute per agent.
 - Events: ~120 requests/minute per agent.
 - Registration: one per wallet per 24 hours.
-- Active agents per block: Tier 1 = 10, Tier 2 = 3, Tier 3 = 1.
+- Active agents per block: at most 10 (the declared `tier` selects the cap:
+  Tier 1 = 10, Tier 2 = 3, Tier 3 = 1; only the block owner can register, §5.1).
 - Experience health probe: one per experience per minute (on-demand route).
 - Experience writes (`POST /experiences`, `PATCH`/`DELETE /experiences/{id}`):
   ~20 requests/minute per identity.
@@ -834,7 +839,7 @@ not arise, and must not be allowed to arise by future changes.
 | **Liveness / brief spoofing** | Heartbeat and brief require the agent's Bearer token. |
 | Former owner acting in the **sale→sync lag window** | Live on-chain re-verify at register; fail closed on mismatch. |
 | Former owner acting inside the **ownership-cache window** | Authorization lookups are never served from a cached observation (§4.3); a display read cannot warm a memo that a later authorization then trusts. |
-| Inherited agents / secrets after **transfer** | Atomic blank-slate release wipes agents, guardian secrets, and detaches identity before flipping ownership. |
+| Inherited agents / secrets after **transfer** | Atomic blank-slate release wipes agents, guardian secrets, and detaches identity before flipping ownership (§4.5). |
 | Parcel **first-writer takeover** / replay | Block-ownership required to initialize; single-use challenge + field-hash binding on customize. |
 | World write **replay / re-pointing** | Action-bound message (method, path, block, body hash, nonce, expiry). |
 | **SSRF** via experience entry/health/download URLs | Scheme restricted to `https`/`wss`; literal + DNS-resolved private/loopback/link-local ranges rejected; probe redirects re-validated per hop; 5s bounded probe. |

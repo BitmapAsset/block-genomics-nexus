@@ -18,7 +18,7 @@ import { clientIpFrom } from '@/lib/rate-limit-db';
 import { bearerFrom } from '@/lib/sandbox-tier';
 import { createBgMcpServer } from '@/lib/mcp/server';
 import { resolveApiBase } from '@/lib/mcp/client';
-import { mcpLandingPage } from '@/lib/mcp/landing';
+import { mcpDescriptor, mcpLandingPage } from '@/lib/mcp/landing';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -120,9 +120,25 @@ export async function POST(request: Request): Promise<Response> {
  * (MCP clients ask for `text/event-stream`/JSON), so that one case gets the
  * page describing the server and how to connect to it. Sending them to /docs
  * instead was a redirect away from the thing they asked about.
+ *
+ * Any other GET that is not opening a stream (`*\/*` from curl, JSON from an
+ * LLM fetcher) gets the same facts as JSON. `text/event-stream` (an MCP client)
+ * and a GET with no Accept at all keep the protocol's 405.
  */
 export async function GET(request: Request): Promise<Response> {
-  if ((request.headers.get('accept') ?? '').includes('text/html')) {
+  const accept = request.headers.get('accept') ?? '';
+  if (accept && !accept.includes('text/event-stream') && !accept.includes('text/html')) {
+    return new Response(JSON.stringify(mcpDescriptor()), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        Vary: 'Accept',
+        ...CORS_HEADERS,
+      },
+    });
+  }
+  if (accept.includes('text/html')) {
     // Uncacheable, like every other response from this path. A shared cache
     // keys on the URL, not on Accept, so a cacheable page here was handed
     // straight back to the next MCP client that GET this URL — 200 text/html

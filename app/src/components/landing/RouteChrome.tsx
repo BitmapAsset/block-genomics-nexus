@@ -8,6 +8,7 @@ import BottomTabBar from "@/components/pwa/BottomTabBar";
 import LandingHeader from "./LandingHeader";
 import LandingFooter from "./LandingFooter";
 import LandingBottomTabBar from "./LandingBottomTabBar";
+import type { StatsData } from "@/hooks/useStats";
 
 // The landing page ("/") keeps the header, footer, mobile tab bar and onboarding
 // it had before the five-screen rework (bae6773d). Every other route uses the
@@ -20,8 +21,11 @@ export function SiteHeader() {
   return useIsLanding() ? <LandingHeader /> : <Header />;
 }
 
-export function SiteFooter({ className }: { className?: string }) {
-  return useIsLanding() ? <LandingFooter className={className} /> : <Footer className={className} />;
+// initialStats: the footer counters read on the server by the root layout.
+export function SiteFooter({ className, initialStats = null }: { className?: string; initialStats?: StatsData | null }) {
+  return useIsLanding()
+    ? <LandingFooter className={className} initialStats={initialStats} />
+    : <Footer className={className} initialStats={initialStats} />;
 }
 
 export function SiteBottomTabBar() {

@@ -1,11 +1,11 @@
 'use client';
 
 import Link from "next/link";
-import { useStats } from "@/hooks/useStats";
+import { useStats, type StatsData } from "@/hooks/useStats";
 import { PRIMARY_NAV, SECONDARY_NAV } from "@/lib/site-nav";
 
-export default function Footer({ className }: { className?: string }) {
-  const stats = useStats();
+export default function Footer({ className, initialStats = null }: { className?: string; initialStats?: StatsData | null }) {
+  const stats = useStats(undefined, initialStats);
 
   return (
     <footer className={`relative border-t border-border ${className || ''}`} style={{ background: '#0a0a12', zIndex: 30 }}>

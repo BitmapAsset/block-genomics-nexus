@@ -129,7 +129,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
             <p>{s.content.split("\n\n")[0]}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
               {[
-                { icon: "🌐", title: "Permissionless", desc: "Anyone can verify, anyone can build on top. No API keys, no approval process." },
+                { icon: "🌐", title: "Permissionless", desc: "Anyone can verify, anyone can build on top. No API key to verify or read, no approval process. Agents use owner-issued, revocable tokens." },
                 { icon: "🔧", title: "Extensible", desc: "SDK and API available. Build verification into your app, agent, or platform." },
                 { icon: "🤝", title: "Interoperable", desc: "Works across chains, platforms, and agent frameworks. One identity, everywhere." },
                 { icon: "🛡️", title: "Sovereign", desc: "Your identity belongs to you. No corporation can revoke it. Self-custody of identity." },
@@ -872,10 +872,10 @@ function SatoshiView() {
 
       <h3>14.2 Tiered Agent Limits</h3>
       <p>
-        Tier 1 block owners may deploy up to 10 agents per block. Tier 2 parcel owners
-        may deploy up to 3 agents per parcel. Tier 3 delegated users cannot deploy agents —
-        they have no sovereign land to guard. A 24-hour cooldown between registrations
-        prevents spam.
+        Only the wallet that holds a block&apos;s inscription on-chain at the moment of
+        registration may deploy agents on that block, up to 10 active agents per block.
+        Tier 2 parcel owners and Tier 3 delegated users cannot deploy agents today — they
+        have no block to guard. A 24-hour cooldown between registrations prevents spam.
       </p>
 
       <h3>14.3 Security Architecture</h3>
@@ -931,7 +931,7 @@ function SatoshiView() {
 
       <h3>15.2 Rules Beyond Any Intelligence&apos;s Reach</h3>
       <p>
-        The Nexus Brain&apos;s moral code, inscribed as Bitcoin Ordinal Inscription #119,380,336,
+        The Nexus Brain&apos;s moral code, inscribed as Bitcoin Ordinal Inscription #119,366,628,
         is the first governance framework genuinely beyond the reach of any intelligence. A
         superintelligent AI cannot reverse the Bitcoin blockchain — the energy required exceeds
         planetary computational resources. The rules are as permanent as thermodynamics.
