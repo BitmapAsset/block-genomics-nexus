@@ -91,6 +91,24 @@ const AUTHENTICATED = `// Optional. Read tools need nothing; this unlocks the wr
   }
 }`;
 
+/**
+ * The same facts as the HTML page, as JSON, for a GET that is neither a browser
+ * nor an MCP client opening a stream (curl, an LLM fetcher). Tool count comes
+ * from the shared catalog, like tools/list.
+ */
+export function mcpDescriptor() {
+  const count = groups().reduce((n, g) => n + g.tools.length, 0);
+  return {
+    name: SERVER_INFO.name,
+    endpoint: ENDPOINT,
+    transport: 'streamable-http',
+    docs: ENDPOINT,
+    manifest: 'https://blockgenomics.io/.well-known/mcp.json',
+    tools: count,
+    usage: `POST JSON-RPC to ${ENDPOINT} (initialize, tools/list, tools/call). Open ${ENDPOINT} in a browser for setup snippets.`,
+  };
+}
+
 export function mcpLandingPage(): string {
   const catalog = groups();
   const total = bgTools(createCall({ base: 'https://blockgenomics.io' })).length;

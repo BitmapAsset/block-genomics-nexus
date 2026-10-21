@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import BitmapBlocksBg from "@/components/BitmapBlocksBg";
 import BrainChat from "@/components/BrainChat";
+import { brainStatusView } from "@/lib/brain/status-view";
 
 /* ─── Types ─── */
 interface BrainData {
@@ -75,6 +76,8 @@ export default function BrainPage() {
     "No impersonation of verified identities",
   ];
   const constraints = data?.constraints || [];
+  // One status source for the hero badge, the identity card and the chat.
+  const status = brainStatusView(data?.runtime, loading);
   const recentActions = data?.recentActions || [];
 
   return (
@@ -94,20 +97,8 @@ export default function BrainPage() {
             // Real runtime status. Only claim ONLINE when the soul was actually
             // verified from the Bitcoin inscription this boot. Anything else is
             // DEGRADED (or NOT BOOTED on a fresh serverless invocation).
-            const rt = data?.runtime;
-            const online = rt?.status === "online" && rt?.soulVerified === true;
-            const degraded = rt?.status === "degraded";
-            const notBooted = !rt || rt.status === "not_booted";
-
-            const label = loading
-              ? "CONNECTING..."
-              : online
-              ? "ONLINE"
-              : degraded
-              ? "DEGRADED"
-              : notBooted
-              ? "NOT BOOTED"
-              : (rt?.status ?? "UNKNOWN").toUpperCase();
+            const online = status.state === "online";
+            const degraded = status.state === "degraded";
 
             const color = online
               ? "text-emerald-400"
@@ -119,22 +110,22 @@ export default function BrainPage() {
               : degraded
               ? "bg-amber-400"
               : "bg-[#8888aa]";
-            const ping = online
-              ? "bg-emerald-400"
-              : degraded
-              ? "bg-amber-400"
-              : "bg-[#8888aa]";
 
             return (
-              <div className={`inline-flex items-center gap-2 text-sm font-semibold ${color}`}>
-                <span className="relative flex h-3 w-3">
-                  {online && (
-                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${ping} opacity-75`} />
-                  )}
-                  <span className={`relative inline-flex h-3 w-3 rounded-full ${dot}`} />
-                </span>
-                {label}
-              </div>
+              <>
+                <div className={`inline-flex items-center gap-2 text-sm font-semibold ${color}`}>
+                  <span className="relative flex h-3 w-3">
+                    {online && (
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    )}
+                    <span className={`relative inline-flex h-3 w-3 rounded-full ${dot}`} />
+                  </span>
+                  {status.label}
+                </div>
+                {status.reason && (
+                  <p className={`${dim} text-xs mt-2`}>{status.reason}</p>
+                )}
+              </>
             );
           })()}
         </section>
@@ -406,7 +397,7 @@ export default function BrainPage() {
           <p className={`${dim} text-sm text-center mb-6 max-w-lg mx-auto`}>
             The Brain is listening. Ask it about its moral code, its purpose, or the rules it enforces.
           </p>
-          <BrainChat />
+          <BrainChat status={status} />
         </section>
 
         {/* ═══ IDENTITY CARD ═══ */}
@@ -427,13 +418,7 @@ export default function BrainPage() {
                 { k: "Tier", v: "👑 1 — Gold Crown Shield" },
                 {
                   k: "Status",
-                  v: (() => {
-                    const rt = data?.runtime;
-                    if (!rt || rt.status === "not_booted") return "⚪ Not booted";
-                    if (rt.status === "online" && rt.soulVerified) return "🟢 Online";
-                    if (rt.status === "degraded") return "🟡 Degraded";
-                    return `⚪ ${rt.status}`;
-                  })(),
+                  v: status.cardLabel,
                 },
                 { k: "Moral Code", v: `Inscription #${data?.inscriptions?.moralCode || "119366628"}` },
                 { k: "Soul (text)", v: `Inscription #${data?.inscriptions?.soulText || "119366684"}` },

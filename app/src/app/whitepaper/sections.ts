@@ -133,7 +133,7 @@ The trust score is transparent and auditable. Anyone can verify the inputs and r
     id: "openness", num: "8", title: "Open Source & Open Protocol",
     content: `Block Genomics ships under two licenses, on purpose. The protocol specification and every client component built against it — the SDK, the MCP server, the CLI, the RuneBolt bridge, and the reference agent — are MIT licensed: OSI open source, permissive, with no restrictions on commercial or closed-source use. The Nexus platform itself is source-available under the Business Source License 1.1, which expressly grants self-hosting and production use; the single restriction is offering the platform to third parties as a paid hosted service competing with Block Genomics' own. Every version of the platform converts to Apache 2.0 on its Change Date of 2029-08-10. BUSL is not an OSI open source license and we do not claim otherwise — the protocol and the tooling you build with are. The protocol is designed to be:
 
-Permissionless — Anyone can verify, anyone can build on top. No API keys, no approval process, no gatekeepers.
+Permissionless — Anyone can verify, anyone can build on top. No API key to verify or read, no approval process, no gatekeepers. Agents use tokens their block's owner issues and can revoke; an optional sandbox key (100 reads a day) gives developers a metered identity before they own a block.
 
 Extensible — SDK and API available for developers. Build verification into your app, your agent, your platform. The protocol is modular by design.
 
@@ -211,7 +211,7 @@ Installation is a single command:
 
 The CLI supports the complete protocol lifecycle:
 
-Verification — Generate and prove identity with a single command. The CLI handles challenge generation, wallet signing (via local keystore or hardware wallet bridge), genome computation, and trust score calculation.
+Verification — Generate and prove identity with a single command. The CLI handles challenge generation, signing through your own wallet (a signature you pass in, or a command it runs such as Sparrow or a hardware-wallet helper), genome computation, and trust score calculation. The CLI keeps no keystore, and neither it nor the server ever holds your private key.
 
 Exploration — Browse The Nexus map in a terminal UI. Navigate blocks, view ownership data, check resource deployments, and discover what others have built.
 
@@ -301,7 +301,7 @@ A public transparency dashboard at /brain displays real-time operational data: t
 
 Immutability of the Moral Code
 
-The five rules of the moral code are inscribed as Bitcoin Ordinal Inscription #119380336 (ID: 75abd6987e756f042e1ac5e714169e35f5086993bd176eac3156abc9e118291fi0), making them as permanent and immutable as a Bitcoin transaction. The inscription number is referenced in the protocol source code and displayed on the transparency dashboard. Any modification to the moral code requires a new protocol version — a new inscription, a new source code release, and a new deployment. This process is visible to all participants and auditable by the community. The moral code cannot be changed silently, secretly, or unilaterally.`,
+The five rules of the moral code are inscribed as Bitcoin Ordinal Inscription #119366628 (ID: 8c94b5f467a8676de52c379aadc4a372526441fc0843ded7a01815ffeb3587adi0), making them as permanent and immutable as a Bitcoin transaction. The inscription number is referenced in the protocol source code and displayed on the transparency dashboard. The Brain's full schema, SOUL.json (Inscription #119380336, ID: 75abd6987e756f042e1ac5e714169e35f5086993bd176eac3156abc9e118291fi0), repeats the same five rules in its moralCode field. Any modification to the moral code requires a new protocol version — a new inscription, a new source code release, and a new deployment. This process is visible to all participants and auditable by the community. The moral code cannot be changed silently, secretly, or unilaterally.`,
   },
   {
     id: "guardian_shell", num: "15", title: "Guardian Shell: Autonomous AI Agents on Sovereign Land",
@@ -311,7 +311,7 @@ Guardian Shell is the protocol's agent hosting infrastructure. It follows the BY
 
 This design ensures three properties simultaneously: sovereignty (the owner controls which AI powers their block), portability (switch providers at any time with no lock-in), and decentralization (no single AI provider can be a point of failure for the ecosystem).
 
-Guardians operate within a tiered permission system. Tier 1 block owners may deploy up to 10 agents per block. Tier 2 parcel owners may deploy up to 3 agents per parcel. Tier 3 delegated users cannot deploy agents — they have no sovereign land to guard, creating a natural incentive to acquire ownership. A 24-hour cooldown between agent registrations prevents spam.
+Guardians operate within a tiered permission system. Only the wallet that holds a block's inscription on-chain at the moment of registration may deploy agents on that block, up to 10 active agents per block. Tier 2 parcel owners and Tier 3 delegated users cannot deploy agents today — they have no block to guard, creating a natural incentive to acquire ownership. A 24-hour cooldown between agent registrations prevents spam.
 
 Each Guardian is initialized with a SOUL.md (its identity and personality) and an AGENT.md (its operational rules and boundaries). These templates include the Nexus Moral Code as a default section — visible and auditable, not hidden. Owners may customize or remove these defaults, but the community flagging system (§14) provides social accountability for agents that violate the moral code.
 
@@ -333,7 +333,7 @@ The question becomes: where can we anchor rules that no intelligence — human o
 
 Block Genomics answers this by verifying ownership, not capability. The protocol does not measure how intelligent an agent is. It measures who owns it and who is accountable for its actions. A superintelligent AI operating on Block 720,143 still belongs to whoever holds the Bitmap inscription for that block. The ownership chain is recorded on Bitcoin — unforgeable by any intelligence, regardless of its computational power. This creates a permanent, auditable link between autonomous agents and accountable humans.
 
-The Nexus Brain's five moral rules, inscribed as Bitcoin Ordinal Inscription #119,380,336, represent the first governance framework in history that is genuinely beyond the reach of any intelligence. A superintelligent AI could rewrite every database on Earth, compromise every server, and socially engineer every human operator — but it cannot reverse the Bitcoin blockchain. The energy required to alter a confirmed Bitcoin transaction exceeds the computational resources available on the planet. The rules are as permanent as thermodynamics, because they are protected by thermodynamics.
+The Nexus Brain's five moral rules, inscribed as Bitcoin Ordinal Inscription #119,366,628, represent the first governance framework in history that is genuinely beyond the reach of any intelligence. A superintelligent AI could rewrite every database on Earth, compromise every server, and socially engineer every human operator — but it cannot reverse the Bitcoin blockchain. The energy required to alter a confirmed Bitcoin transaction exceeds the computational resources available on the planet. The rules are as permanent as thermodynamics, because they are protected by thermodynamics.
 
 The protocol's spatial model creates natural containment. Each Bitcoin block maps to a 2.1 km × 2.1 km sovereign territory. An ASI agent on Block 720,143 has full authority over its own territory — but zero authority over Block 720,144. It cannot expand its jurisdiction, acquire neighboring blocks through computation, or override parcel-level sovereignty within its own block. Sovereignty equals natural containment. Even a superintelligent agent is bounded by what it owns.
 

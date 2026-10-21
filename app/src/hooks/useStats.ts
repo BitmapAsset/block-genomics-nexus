@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
  * so only one request is made per stale window.
  */
 
-interface StatsData {
+export interface StatsData {
   verifiedAgents: number;
   blocksVerified: number;
   genomesMinted: number;
@@ -54,8 +54,13 @@ function fetchStats(): Promise<StatsData | null> {
   return cache.promise;
 }
 
-export function useStats(refreshInterval = STALE_MS): StatsData | null {
-  const [stats, setStats] = useState<StatsData | null>(cache.data);
+/**
+ * `initial` is the server-rendered value (root layout → footer), so the first
+ * HTML carries real numbers and hydration matches it. The client still fetches
+ * live numbers on mount, as before.
+ */
+export function useStats(refreshInterval = STALE_MS, initial: StatsData | null = null): StatsData | null {
+  const [stats, setStats] = useState<StatsData | null>(initial ?? cache.data);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +69,8 @@ export function useStats(refreshInterval = STALE_MS): StatsData | null {
       const now = Date.now();
       if (now - cache.ts > STALE_MS || cache.data === null) {
         const data = await fetchStats();
-        if (!cancelled) setStats(data);
+        // A failed refresh keeps what is on screen rather than blanking it.
+        if (!cancelled && data !== null) setStats(data);
       } else if (cache.data !== null) {
         if (!cancelled) setStats(cache.data);
       }

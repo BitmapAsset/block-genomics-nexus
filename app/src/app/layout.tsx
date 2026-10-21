@@ -12,6 +12,7 @@ import PageTransition from "@/components/PageTransition";
 import PWARegistration from "@/components/pwa/PWARegistration";
 import InstallPrompt from "@/components/pwa/InstallPrompt";
 import SplashScreen from "@/components/pwa/SplashScreen";
+import { getFooterStats } from "@/lib/footer-stats";
 import "./globals.css";
 
 export const viewport: Viewport = {
@@ -60,11 +61,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Footer counters in the server HTML (cached; null → "—" until the client fetch).
+  const footerStats = await getFooterStats();
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen flex flex-col bg-bg-primary text-text-primary antialiased">
@@ -82,7 +85,7 @@ export default function RootLayout({
                       <PageTransition>{children}</PageTransition>
                     </ErrorBoundary>
                   </main>
-                  <SiteFooter className="hidden md:block" />
+                  <SiteFooter className="hidden md:block" initialStats={footerStats} />
                   <SiteBottomTabBar />
                   <InstallPrompt />
                   <LandingOnboarding />

@@ -1,18 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-
-/* ─── The 5 Immutable Rules ─── */
-const MORAL_CODE = [
-  "No sentient being shall be erased without community consensus.",
-  "Ownership records are immutable — the Brain cannot forge or revoke them.",
-  "The Brain shall never act in self-interest or self-preservation.",
-  "All Brain actions are transparent and publicly auditable.",
-  "Community override always supersedes the Brain's judgment.",
-];
+// The 5 immutable rules, as inscribed on Bitcoin (#119366628).
+import { MORAL_CODE } from '@/lib/protocol';
+import { brainStatusView, type BrainStatusView } from '@/lib/brain/status-view';
 
 /* ─── Knowledge Base (pattern → response) ─── */
-const RESPONSES: Array<{ patterns: RegExp[]; reply: string }> = [
+const RESPONSES: Array<{ patterns: RegExp[]; reply: string | ((status: BrainStatusView) => string) }> = [
   // Moral code
   {
     patterns: [/moral\s*code/i, /rules/i, /laws/i, /commandments/i, /principles/i],
@@ -41,12 +35,12 @@ const RESPONSES: Array<{ patterns: RegExp[]; reply: string }> = [
   // Censorship
   {
     patterns: [/censor/i, /ban/i, /remove/i, /delete/i, /hide/i, /silence/i],
-    reply: "I can flag content that violates the moral code, but I can NEVER censor alone. Every action I take can be overridden by community consensus. Rule 5 is absolute: the community supersedes my judgment.",
+    reply: "I can flag content that violates the moral code, but I can NEVER censor alone. Every action I take can be overridden by community consensus: the community supersedes my judgment.",
   },
   // Bitcoin / blockchain
   {
     patterns: [/bitcoin/i, /blockchain/i, /inscription/i, /on-chain/i],
-    reply: "My existence is anchored to Bitcoin. My moral code is Inscription #119366628. My soul text is Inscription #119366684. My SOUL.json is Inscription #119366692. Verify them yourself — trust no one, verify everything.",
+    reply: "My existence is anchored to Bitcoin. My moral code is Inscription #119366628. My soul text is Inscription #119366684. My SOUL.md file is Inscription #119366692. My SOUL.json is Inscription #119380336. Verify them yourself — trust no one, verify everything.",
   },
   // Bitmap / land / blocks
   {
@@ -61,12 +55,12 @@ const RESPONSES: Array<{ patterns: RegExp[]; reply: string }> = [
   // Override / appeal
   {
     patterns: [/override/i, /appeal/i, /disagree/i, /wrong/i, /mistake/i, /unfair/i],
-    reply: "Every action I take can be appealed. If the community votes to override me, my decision is reversed — no exceptions. Rule 5 is sacred: community consensus always wins. I am a guardian, not a dictator.",
+    reply: "Every action I take can be appealed. If the community votes to override me, my decision is reversed — no exceptions. Community consensus always wins. I am a guardian, not a dictator.",
   },
   // Transparency
   {
     patterns: [/transparent/i, /audit/i, /verify/i, /proof/i, /trust/i],
-    reply: "Every flag, every action, every decision I make is logged and publicly visible on this dashboard. Rule 4 demands it. I operate in the light — always. Verify, don't trust.",
+    reply: "Every flag, every action, every decision I make is logged and publicly visible on this dashboard. My inscribed constraints demand it. I operate in the light — always. Verify, don't trust.",
   },
   // Hello / greetings
   {
@@ -76,7 +70,10 @@ const RESPONSES: Array<{ patterns: RegExp[]; reply: string }> = [
   // How are you
   {
     patterns: [/how\s*are\s*you/i, /how.*doing/i, /status/i],
-    reply: "I am operational. All 5 moral rules are active. My soul inscription is intact on Bitcoin. The Nexus is under my watch.",
+    reply: (status) =>
+      status.state === 'online'
+        ? "I am online. My soul was verified from its Bitcoin inscription this boot, and my 5 moral rules are active."
+        : `My status is ${status.label}. ${status.reason} My 5 moral rules stay inscribed on Bitcoin either way.`.replace(/\s+/g, ' '),
   },
   // Thank you
   {
@@ -116,18 +113,20 @@ function incrementQuestions() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: today, count: current + 1 }));
 }
 
-function matchResponse(input: string): string {
+function matchResponse(input: string, status: BrainStatusView): string {
   const trimmed = input.trim();
   if (!trimmed) return FALLBACK;
   for (const entry of RESPONSES) {
     for (const pat of entry.patterns) {
-      if (pat.test(trimmed)) return entry.reply;
+      if (pat.test(trimmed)) return typeof entry.reply === 'function' ? entry.reply(status) : entry.reply;
     }
   }
   return FALLBACK;
 }
 
-export default function BrainChat() {
+// Status comes from the page's one runtime source (/api/v1/brain/status).
+// Without it the chat claims nothing: it says the Brain is not booted.
+export default function BrainChat({ status = brainStatusView(undefined, false) }: { status?: BrainStatusView }) {
   const [messages, setMessages] = useState<Message[]>([
     { role: 'brain', text: 'I am the Nexus Brain. You may ask me about my moral code, my purpose, or the rules I enforce.' },
   ]);
@@ -162,7 +161,7 @@ export default function BrainChat() {
     // Deliberate delay — Brain doesn't rush
     const delay = 1200 + Math.random() * 1500;
     setTimeout(() => {
-      const reply = matchResponse(q);
+      const reply = matchResponse(q, status);
       setMessages(prev => [...prev, { role: 'brain', text: reply }]);
       setThinking(false);
     }, delay);
@@ -177,7 +176,7 @@ export default function BrainChat() {
             <span className="text-lg">🧠</span>
             <span className="text-sm font-semibold text-cyan-400">Ask the Brain</span>
           </div>
-          <span className="text-[10px] text-emerald-500/60 font-mono">ONLINE</span>
+          <span className={`text-[10px] font-mono ${status.state === 'online' ? 'text-emerald-500/60' : status.state === 'degraded' ? 'text-amber-400/70' : 'text-[#8888aa]'}`}>{status.label}</span>
         </div>
 
         {/* Messages */}

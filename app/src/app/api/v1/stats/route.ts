@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { countVerifiedAgents } from '@/lib/directory-counts';
+import { readPublicStats } from '@/lib/public-stats';
 import { sandboxGate } from '@/lib/sandbox-keys';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 
@@ -15,15 +14,7 @@ export async function GET(req: NextRequest) {
     const gate = await sandboxGate(req);
     if (gate.response) return gate.response;
 
-    const [verifiedAgents, genomesMinted, blocksVerified] = await Promise.all([
-      // Verified agents = verified Users + verified BlockProfiles (shared source
-      // of truth with /api/v1/users/list so the two endpoints always agree).
-      countVerifiedAgents(),
-      // Verified agents that have minted a genome.
-      prisma.user.count({ where: { verified: true, genomeHash: { not: null } } }),
-      // Blocks that have been verified/claimed
-      prisma.block.count(),
-    ]);
+    const { verifiedAgents, genomesMinted, blocksVerified } = await readPublicStats();
 
     return NextResponse.json(
       { verifiedAgents, genomesMinted, blocksVerified },

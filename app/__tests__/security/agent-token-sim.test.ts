@@ -3,7 +3,7 @@
  * backed by in-memory Prisma + REAL BIP-322 signatures (no live chain, no DB).
  *
  * Required scenarios: valid token, missing token, wrong token, revoked, rotated,
- * null-hash legacy grace — plus token-management ownership-scoping + replay.
+ * null-hash legacy (refused after the 2026-08-15 sunset) — plus token-management ownership-scoping + replay.
  */
 
 jest.mock('next/server', () => ({
@@ -216,7 +216,7 @@ describe('SIM: agent API-token auth (OPEN-1)', () => {
     expect((patched.body as any).data.endpointUrl).toBe('https://updated.example');
   });
 
-  it('legacy grace: an agent with no key (null hash + null createdAt) still works, with a deprecation header', async () => {
+  it('legacy grace is over: an agent with no key (null hash + null createdAt) is refused with 401 after the 2026-08-15 sunset', async () => {
     const b = makeWallet('p2tr');
     const legacy = await db.bitmapAgent.create({
       data: {
@@ -229,11 +229,12 @@ describe('SIM: agent API-token auth (OPEN-1)', () => {
     expect(legacy.apiKeyCreatedAt ?? null).toBeNull();
 
     const hb = await heartbeatPOST(req({}), ctx(legacy.id));
-    expect(hb.status).toBe(200);
-    expect(hb.headers.get('X-BG-Deprecation')).toContain('DEPRECATION');
+    expect(hb.status).toBe(401);
+    expect(hb.headers.get('X-BG-Deprecation')).toBeNull();
+    expect(JSON.stringify(hb.body)).toContain('retired on 2026-08-15');
 
     const ev = await eventsGET(req(null, { url: 'http://test.local/?limit=5' }), ctx(legacy.id));
-    expect(ev.status).toBe(200);
-    expect(ev.headers.get('X-BG-Deprecation')).toContain('DEPRECATION');
+    expect(ev.status).toBe(401);
+    expect(ev.headers.get('X-BG-Deprecation')).toBeNull();
   });
 });

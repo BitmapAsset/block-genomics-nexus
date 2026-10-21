@@ -625,7 +625,7 @@ hash[n] = SHA-256(blockHeight + scanCycle + itemsScanned + flagsRaised + hash[n-
 
 This creates an immutable, auditable record of all moderation actions.
 
-### Five Moral Rules (Inscribed on Bitcoin #119380336)
+### Five Moral Rules (Inscribed on Bitcoin #119366628; repeated in SOUL.json #119380336)
 
 1. No exploitation of minors — zero tolerance
 2. No direct threats of violence

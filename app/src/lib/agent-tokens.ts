@@ -18,10 +18,12 @@
  *                               rotates a new key. Revoke never re-opens the
  *                               tokenless grace path.
  *
- * LEGACY GRACE-PATH SUNSET: 2026-08-15. After that date the tokenless `legacy`
- * branch is removed — every agent must present a Bearer token. Prod has 0
- * pre-token agents, so this affects no live agent; the grace path exists only for
- * correctness/back-compat. Tracked in docs/protocol/NEXUS-PROTOCOL-v1.md.
+ * LEGACY GRACE-PATH SUNSET: 2026-08-15. From the next day (UTC) the tokenless
+ * `legacy` branch is refused with 401 — every agent must present a Bearer
+ * token, and a key-less agent recovers by rotating one. checkAgentToken
+ * enforces the date (it did not until the 2026-10-20 audit). The 2026-03 note
+ * said prod had 0 pre-token agents; not re-checked. Tracked in
+ * docs/protocol/NEXUS-PROTOCOL-v1.md §5.4.
  */
 
 import crypto from 'crypto';
@@ -89,6 +91,15 @@ export interface AgentAuthResult {
   reason?: string;
 }
 
+export const LEGACY_GRACE_RETIRED_REASON =
+  `Tokenless legacy access was retired on ${LEGACY_GRACE_SUNSET} — rotate a key via ` +
+  'POST /api/v1/agents/{agentId}/token and send it as Authorization: Bearer <agent token>';
+
+/** True once the legacy grace path is over: any UTC day after LEGACY_GRACE_SUNSET. */
+export function legacyGraceExpired(now: Date = new Date()): boolean {
+  return now.toISOString().slice(0, 10) > LEGACY_GRACE_SUNSET;
+}
+
 export const LEGACY_TOKEN_WARNING =
   'DEPRECATION: this agent has no API key. Tokenless access is deprecated and will be ' +
   `removed after ${LEGACY_GRACE_SUNSET} — rotate a key via POST /api/v1/agents/{agentId}/token. ` +
@@ -98,9 +109,14 @@ export const LEGACY_TOKEN_WARNING =
  * Authenticate a runtime request against an agent's key state.
  * - active  → require a valid Bearer token (constant-time).
  * - revoked → always denied until a new key is rotated.
- * - legacy  → granted, `legacy:true` so the caller can attach a deprecation warning.
+ * - legacy  → refused after LEGACY_GRACE_SUNSET; before it, granted with
+ *              `legacy:true` so the caller can attach a deprecation warning.
  */
-export function checkAgentToken(agent: AgentKeyFields, authHeader: string | null | undefined): AgentAuthResult {
+export function checkAgentToken(
+  agent: AgentKeyFields,
+  authHeader: string | null | undefined,
+  now: Date = new Date(),
+): AgentAuthResult {
   const state = agentTokenState(agent);
 
   if (state === 'active') {
@@ -123,6 +139,9 @@ export function checkAgentToken(agent: AgentKeyFields, authHeader: string | null
     };
   }
 
-  // legacy grace: no key ever issued.
+  // legacy: no key ever issued. The grace window is over after the sunset.
+  if (legacyGraceExpired(now)) {
+    return { ok: false, legacy: false, status: 401, reason: LEGACY_GRACE_RETIRED_REASON };
+  }
   return { ok: true, legacy: true, status: 200 };
 }
