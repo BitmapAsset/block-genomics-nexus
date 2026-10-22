@@ -13,6 +13,7 @@ import PWARegistration from "@/components/pwa/PWARegistration";
 import InstallPrompt from "@/components/pwa/InstallPrompt";
 import SplashScreen from "@/components/pwa/SplashScreen";
 import { getFooterStats } from "@/lib/footer-stats";
+import { SITE_CARD } from "@/lib/site-card";
 import "./globals.css";
 
 export const viewport: Viewport = {
@@ -53,11 +54,13 @@ export const metadata: Metadata = {
     siteName: "Block Genomics",
     type: "website",
     locale: "en_US",
+    images: [SITE_CARD],
   },
   twitter: {
     card: "summary_large_image",
     title: "Block Genomics — Bitcoin DNA for Verified AI",
     description: "Explore The Nexus — a decentralized metaverse built on Bitcoin. ~963,000 blocks × 4.41km² districts. Identity anchored to Proof-of-Work.",
+    images: [SITE_CARD.url],
   },
 };
 

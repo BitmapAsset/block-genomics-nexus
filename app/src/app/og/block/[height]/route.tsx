@@ -12,6 +12,7 @@ import { parseBlockParam } from '@/lib/blockDeepLink';
 import { getBlockThumbnail } from '@/lib/block-thumbnail';
 import { fetchBlockOgSummary } from '@/lib/blockOgData';
 import { fetchBlockCardFacts, shortenAddress } from '@/lib/blockPageData';
+import { getTipHeight } from '@/lib/block-summary';
 import { EPOCH_LABELS, getEpochColor, getEpochIndex } from '@/lib/bitmapStandard';
 import { formatBytes, formatNumber, hexPairToColor } from '@/lib/genome-utils';
 
@@ -97,7 +98,10 @@ export async function GET(
   // 404, not 400: the height is part of the path, so an unparseable one means
   // this card does not exist. An unfurler seeing 400 may retry a request that
   // can never succeed.
-  if (height === undefined) {
+  // A height above the tip has not been mined yet, so there is no block to
+  // card. An unreadable tip (null) renders the card as before.
+  const tip = height === undefined ? null : await getTipHeight();
+  if (height === undefined || (tip !== null && height > tip)) {
     return new Response('Not found', {
       status: 404,
       headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },

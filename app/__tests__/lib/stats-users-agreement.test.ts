@@ -9,6 +9,10 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+// /api/v1/stats reads through the footer's unstable_cache reader, which needs
+// Next's incremental cache; outside Next it is a plain call.
+jest.mock('next/cache', () => ({ unstable_cache: (fn: () => unknown) => fn }));
+
 jest.mock('next/server', () => ({
   NextResponse: {
     json: (body: unknown, init?: { status?: number }) => ({

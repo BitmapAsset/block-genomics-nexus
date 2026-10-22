@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { activeTools } from "./tools.js";
 
-const server = new McpServer({ name: "block-genomics-mcp", version: "0.2.1" });
+const server = new McpServer({ name: "block-genomics-mcp", version: "0.2.2" });
 
 for (const tool of activeTools()) {
   // Force additionalProperties:false on no-arg tools so callers can't smuggle

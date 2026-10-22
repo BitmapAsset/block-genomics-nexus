@@ -9,6 +9,12 @@ interface Props {
   /** Optional link to redirect the user */
   fallbackHref?: string;
   fallbackLinkText?: string;
+  /**
+   * Rendered instead of the card when set. `null` fails silently, for a purely
+   * decorative scene (the landing background) whose card would sit over the
+   * page's own copy.
+   */
+  fallback?: ReactNode;
 }
 
 interface State {
@@ -32,6 +38,7 @@ export default class WebGLErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback !== undefined) return this.props.fallback;
       return (
         <div className="flex items-center justify-center w-full h-full min-h-[200px]" style={{ background: '#0a0a0f' }}>
           <div className="text-center px-6 py-10 max-w-md">

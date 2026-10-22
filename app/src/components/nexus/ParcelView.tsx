@@ -132,6 +132,9 @@ type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street' | 'standard'
 type RightTab = 'properties' | 'chat' | 'gaming';
 type PanelSize = 'compact' | 'quarter' | 'third' | 'half' | 'hidden';
 const PANEL_WIDTHS: Record<PanelSize, string> = { compact: 'w-80', quarter: 'w-96', third: 'w-[33vw]', half: 'w-[50vw]', hidden: 'w-0' };
+// Below md a side column would leave the treemap a sliver (QA 2026-10-22 #6), so
+// the open panel becomes a bottom sheet over the scene instead. md and up unchanged.
+const PANEL_SHEET_BELOW_MD = 'max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:z-30 max-md:!w-full max-md:h-[45vh]';
 
 /* ─── Deterministic RNG ─── */
 function seededRandom(seed: number): () => number {
@@ -4765,7 +4768,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
 
   // Load game elements
   useEffect(() => {
-    fetch(`/api/v1/game/elements?blockHeight=${blockHeight}`)
+    fetch(`/api/v1/elements?blockHeight=${blockHeight}`)
       .then(r => r.json())
       .then(d => { if (d.elements) setGameElements(d.elements); })
       .catch(() => {});
@@ -6004,7 +6007,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
       )}
 
       {/* ═══ Right Panel ═══ */}
-      <div className={`${PANEL_WIDTHS[panelSize]} flex-shrink-0 flex flex-col transition-all duration-300 overflow-hidden`}
+      <div className={`${PANEL_WIDTHS[panelSize]} ${panelSize !== 'hidden' ? PANEL_SHEET_BELOW_MD : ''} flex-shrink-0 flex flex-col transition-all duration-300 overflow-hidden`}
         style={{ background: 'rgba(10,10,15,0.95)', borderLeft: panelSize !== 'hidden' ? '1px solid rgba(247,147,26,0.15)' : 'none' }}>
         
         {/* Panel resize controls */}

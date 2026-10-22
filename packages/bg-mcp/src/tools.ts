@@ -105,10 +105,10 @@ export function buildToolCatalog(call: CallFn): {
       run: (a) => call("/api/v1/delegations/listings", { query: a as Query }),
     },
     {
-      name: "bg_game_elements",
-      description: "List placed game elements on a block's world.",
+      name: "bg_world_elements",
+      description: "List the interactive elements placed on a block's world.",
       schema: { blockHeight: height },
-      run: (a) => call("/api/v1/game/elements", { query: { blockHeight: a.blockHeight } }),
+      run: (a) => call("/api/v1/elements", { query: { blockHeight: a.blockHeight } }),
     },
     {
       name: "bg_experiences",

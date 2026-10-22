@@ -23,7 +23,7 @@
     {
       "registryType": "npm",
       "identifier": "block-genomics-mcp",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "transport": {
         "type": "stdio"
       }
@@ -221,8 +221,8 @@
       }
     },
     {
-      "name": "bg_game_elements",
-      "description": "List placed game elements on a block's world.",
+      "name": "bg_world_elements",
+      "description": "List the interactive elements placed on a block's world.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",

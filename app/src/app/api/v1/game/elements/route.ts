@@ -3,29 +3,10 @@ import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
-import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
-import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
-export async function GET(req: NextRequest) {
-  const rl = await enforceRateLimit(req, { bucket: 'v1-game-elements' });
-  if (rl.response) return rl.response;
-
-  try {
-    const blockHeight = parseBlockHeight(req.nextUrl.searchParams.get('blockHeight'));
-    if (blockHeight === null) return NextResponse.json({ error: INVALID_BLOCK_HEIGHT_MESSAGE }, { status: 400 });
-
-    const elements = await prisma.gameElement.findMany({
-      where: { blockHeight, enabled: true },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    return NextResponse.json({ elements });
-  } catch (err) {
-    console.error('[GameElements GET]', err);
-    return NextResponse.json({ error: 'Failed to fetch game elements' }, { status: 500 });
-  }
-}
+// The public read moved to /api/v1/elements; a 308 keeps block-genomics-mcp@0.2.1 working.
+export const GET = (req: NextRequest) => NextResponse.redirect(new URL(`/api/v1/elements${req.nextUrl.search}`, req.url), 308);
 
 export async function POST(req: NextRequest) {
   try {
