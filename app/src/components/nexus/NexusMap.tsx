@@ -211,9 +211,12 @@ export default function NexusMap({ initialBlock }: { initialBlock?: number }) {
   return (
     <div className="relative w-full h-full overflow-hidden" style={{ background: '#0a0a0f' }}>
       {/* Stats bar + search */}
-      <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between">
-        <NexusStatsBar />
-        <div className="pr-4 py-2" style={{ background: 'rgba(10,10,15,0.8)', backdropFilter: 'blur(8px)' }}>
+      {/* Below md the stats row and the search stack, so the search stays on screen. */}
+      <div className="absolute top-0 left-0 right-0 z-30 flex flex-col md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0 overflow-x-auto">
+          <NexusStatsBar />
+        </div>
+        <div className="px-4 md:pl-0 py-2" style={{ background: 'rgba(10,10,15,0.8)', backdropFilter: 'blur(8px)' }}>
           <NexusSearch onSearch={handleSearch} />
         </div>
       </div>

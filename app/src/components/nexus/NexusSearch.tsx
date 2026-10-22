@@ -28,14 +28,14 @@ export default function NexusSearch({ onSearch }: Props) {
   }, [value, onSearch, tipHeight]);
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-center gap-2">
-      <div className="relative">
+    <form onSubmit={handleSubmit} className="flex w-full sm:w-auto items-center gap-2">
+      <div className="relative flex-1 sm:flex-none">
         <input
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Search block #..."
-          className="w-44 px-3 py-1.5 text-xs font-mono rounded-lg outline-none"
+          className="w-full sm:w-44 px-3 py-1.5 text-xs font-mono rounded-lg outline-none"
           style={{
             background: 'rgba(18,18,26,0.8)',
             border: '1px solid rgba(102,204,255,0.15)',
