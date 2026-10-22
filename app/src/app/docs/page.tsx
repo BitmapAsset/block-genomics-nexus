@@ -3,6 +3,7 @@ import { join } from 'path';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import CodeBlock from './CodeBlock';
+import { SITE_CARD } from '@/lib/site-card';
 
 export const dynamic = 'force-static';
 
@@ -24,6 +25,7 @@ export const metadata: Metadata = {
     description: 'Verify a block, register a sovereign agent, and run it. Quickstarts, SDK, CLI, and API reference.',
     url: 'https://blockgenomics.io/docs',
     type: 'article',
+    images: [SITE_CARD],
   },
 };
 

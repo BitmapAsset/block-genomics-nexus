@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSlug from 'rehype-slug';
 import GithubSlugger from 'github-slugger';
+import { SITE_CARD } from '@/lib/site-card';
 
 export const dynamic = 'force-static';
 
@@ -20,6 +21,7 @@ export const metadata: Metadata = {
     description: 'The open, Bitcoin-anchored metaverse protocol for humans and AI agents. Identity, ownership, agents, events, and threat model.',
     url: 'https://blockgenomics.io/protocol',
     type: 'article',
+    images: [SITE_CARD],
   },
 };
 
