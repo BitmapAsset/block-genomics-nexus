@@ -33,6 +33,11 @@ jest.mock('@/lib/blockPageData', () => ({
   shortenAddress: (a: string) => a,
 }));
 
+const mockTip = jest.fn(async () => 972_600 as number | null);
+jest.mock('@/lib/block-summary', () => ({
+  getTipHeight: () => mockTip(),
+}));
+
 const mockThumbnail = jest.fn();
 jest.mock('@/lib/block-thumbnail', () => ({
   getBlockThumbnail: (...a: unknown[]) => mockThumbnail(...a),
@@ -111,5 +116,23 @@ describe('next.config.ts headers for /og/', () => {
       if (!pattern.test(ogPath)) continue;
       expect(entry.headers.map((h) => h.key.toLowerCase())).not.toContain('cache-control');
     }
+  });
+});
+
+describe('GET /og/block/[height] above the chain tip (QA #9)', () => {
+  it('answers 404 instead of a card for a height that is not mined yet', async () => {
+    const res = (await GET(new Request('http://localhost:3110/og/block/980000'), {
+      params: Promise.resolve({ height: '980000' }),
+    })) as unknown as Response;
+    expect(res.status).toBe(404);
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    expect(mockImageResponse).not.toHaveBeenCalled();
+  });
+
+  it('still renders a card when the tip cannot be read', async () => {
+    mockTip.mockResolvedValueOnce(null);
+    mockThumbnail.mockResolvedValue(thumbnail('live'));
+    await cacheControlFor('980000');
+    expect(mockImageResponse).toHaveBeenCalled();
   });
 });

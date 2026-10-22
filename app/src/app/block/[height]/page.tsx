@@ -12,6 +12,7 @@ import {
   type Creator,
 } from '@/lib/blockPageData';
 import { fetchBlockGuardian, type BlockGuardianView } from '@/lib/blockGuardian';
+import { getTipHeight } from '@/lib/block-summary';
 import type { BlockMarket } from '@/lib/marketplace';
 import { EPOCH_LABELS, getEpochColor, getEpochIndex } from '@/lib/bitmapStandard';
 import { formatBytes, formatNumber, hexPairToColor } from '@/lib/genome-utils';
@@ -42,6 +43,16 @@ const getBlockData = cache(async (height: number): Promise<BlockPageData> => {
   return fetchBlockPageData(height);
 });
 
+/**
+ * A height above mempool's tip has no block yet, so it gets Next's not-found
+ * (noindex) rather than a block page and a share card. Same rule as the block
+ * summary API. An unreadable tip (null) renders the page as before.
+ */
+async function isUnmined(height: number): Promise<boolean> {
+  const tip = await getTipHeight();
+  return tip !== null && height > tip;
+}
+
 function nexusHref(height: number): string {
   return `${NEXUS_PATH}${applyBlockParam('', height)}`;
 }
@@ -62,7 +73,8 @@ export async function generateMetadata({
   // still be set instead of a soft 404.
   if (height === undefined) notFound();
 
-  const data = await getBlockData(height);
+  const [unmined, data] = await Promise.all([isUnmined(height), getBlockData(height)]);
+  if (unmined) notFound();
   const epoch = epochFor(height);
 
   const title = `Block ${formatNumber(height)} — ${height}.bitmap | Block Genomics`;
@@ -618,6 +630,7 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
   const { height: raw } = await params;
   const height = parseBlockParam(raw);
   if (height === undefined) notFound();
+  if (await isUnmined(height)) notFound();
 
   const [data, guardianView] = await Promise.all([getBlockData(height), fetchBlockGuardian(height)]);
   const epoch = epochFor(height);
