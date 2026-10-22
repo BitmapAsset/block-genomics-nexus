@@ -150,7 +150,7 @@ GET  /api/v1/block/{height}/agents     → All agents verified under this block
 GET  /api/v1/badge/{agentId}.svg       → Dynamic SVG badge
 GET  /api/v1/badge/{agentId}.png       → Dynamic PNG badge
 POST /api/v1/challenge                 → Generate verification challenge
-POST /api/v1/verify                    → Submit signed challenge
+POST /api/v1/auth/verify               → Submit signed challenge (the old POST /api/v1/verify answers 410 Gone)
 POST /api/v1/register                  → Register new agent
 POST /api/v1/delegate                  → Create delegation
 GET  /api/v1/stats                     → Protocol statistics
