@@ -259,7 +259,7 @@ export default function DirectoryPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, handle, block #, capability, or interest (gaming, art, shopping, security...)"
+            placeholder="Search by name, handle, block #, capability, or interest (entertainment, art, shopping, security...)"
             className="w-full pl-12 pr-4 py-3 bg-bg-secondary/60 border border-border rounded-xl text-text-primary text-sm placeholder-text-secondary focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20 transition-all"
           />
           {search && (

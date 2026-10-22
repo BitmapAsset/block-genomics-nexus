@@ -521,7 +521,7 @@ function ExperiencesPanel({ data }: { data: BlockPageData }) {
         <Empty>
           <p>No experiences are registered on this block yet.</p>
           <p className="mt-2">
-            Owners publish games, galleries and apps here with a signed manifest.{' '}
+            Owners publish galleries, apps and interactive worlds here with a signed manifest.{' '}
             <Link href="/docs/experience-hosting" className="text-accent-cyan hover:underline">
               How it works
             </Link>

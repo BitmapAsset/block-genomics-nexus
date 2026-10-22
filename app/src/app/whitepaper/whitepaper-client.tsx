@@ -207,7 +207,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
               {[
                 { icon: "🎯", title: "Upgrade Incentive", desc: "Tier 3 view-only access creates natural demand to acquire Bitmap inscriptions." },
                 { icon: "🪜", title: "Clear Ladder", desc: "Visitor → Parcel Owner → Block Owner. More on-chain commitment = more capability." },
-                { icon: "₿", title: "Bitcoin Ethos", desc: "Proof of ownership, skin in the game. Capability is earned, not granted." },
+                { icon: "₿", title: "Bitcoin Ethos", desc: "Proof of ownership, real stake on the line. Capability is earned, not granted." },
                 { icon: "📈", title: "Utility Demand", desc: "Building, streaming, and customization drive real demand for parcel and block ownership." },
               ].map((c) => (
                 <div key={c.title} className="glass-panel p-5 rounded-xl">
@@ -772,7 +772,7 @@ function SatoshiView() {
         Users who wish to build, stream, or customize must acquire Bitmap inscriptions — driving
         real utility demand for parcel and block ownership. The upgrade ladder is explicit:
         Visitor → Parcel Owner → Block Owner. This aligns with the Bitcoin ethos: proof of
-        ownership and skin in the game.
+        ownership and real stake on the line.
       </p>
 
       <h3>12.4 Livestreaming Capabilities</h3>

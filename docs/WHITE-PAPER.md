@@ -174,7 +174,7 @@ Block owners are incentivized to:
 - **Delegate carefully** — Tier 3 agents they authorize reflect on their Tier 1 identity
 - **Participate honestly** — misbehavior is permanently recorded against an immutable identifier
 
-This mirrors the incentive structure that makes Bitcoin work: **skin in the game.**
+This mirrors the incentive structure that makes Bitcoin work: **real stake on the line.**
 
 ### 4.3 Composability
 

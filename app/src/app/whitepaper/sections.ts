@@ -253,7 +253,7 @@ Parcel owners may voluntarily opt in to block-level governance — analogous to 
 
 Economic Incentive Design
 
-Restricting Tier 3 to view-only access plus chat creates a natural upgrade incentive. Users who want to build, stream, customize, or communicate privately must acquire Bitmap inscriptions — driving real utility demand for parcel and block ownership. The upgrade ladder is clear: Visitor → Parcel Owner → Block Owner. This aligns with the Bitcoin ethos of proof of ownership and skin in the game: the more you commit on-chain, the more capability and trust you receive.
+Restricting Tier 3 to view-only access plus chat creates a natural upgrade incentive. Users who want to build, stream, customize, or communicate privately must acquire Bitmap inscriptions — driving real utility demand for parcel and block ownership. The upgrade ladder is clear: Visitor → Parcel Owner → Block Owner. This aligns with the Bitcoin ethos of proof of ownership and real stake on the line: the more you commit on-chain, the more capability and trust you receive.
 
 Livestreaming Capabilities
 
@@ -353,7 +353,7 @@ As this digital civilization grows — as blocks become cities, as agents become
 
 Physicists measure civilization by its energy use. A Kardashev Type 1 civilization harnesses all available energy on its planet. A Type 2 civilization harnesses the full energy output of its star. Today, humanity sits at roughly 0.73 on the Kardashev Scale.
 
-Bitcoin — and by extension, Bitmap — is a stepping stone on that path. By creating an economic incentive to produce and consume energy at planetary scale, and by building a digital civilization that rewards energy-backed ownership, Block Genomics aligns the growth of the metaverse with the growth of humanity's energy capacity.
+Bitcoin — and by extension, Bitmap — is a stepping stone on that path. By creating an economic incentive to produce and consume energy at planetary scale, and by building a digital civilization that favors energy-backed ownership, Block Genomics aligns the growth of the metaverse with the growth of humanity's energy capacity.
 
 We do not claim that a metaverse protocol will build a Dyson sphere. But we believe that digital land ownership on Bitcoin is one small step on the trajectory toward a civilization that harnesses the full energy of its star — a future that is abundant, sovereign, and open to all.`,
   },
