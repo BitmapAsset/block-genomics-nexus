@@ -30,7 +30,7 @@ const LandingPage: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <>
       {/* Immersive Nexus background — always visible but dimmed behind content */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, opacity: 0.8 }}>
-        <WebGLErrorBoundary>
+        <WebGLErrorBoundary fallback={null}>
           <LandingBackground />
         </WebGLErrorBoundary>
       </div>
@@ -44,7 +44,7 @@ const LandingPage: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           pointerEvents: 'none',
         }}
       >
-        <WebGLErrorBoundary>
+        <WebGLErrorBoundary fallback={null}>
           <LandingAnimation />
         </WebGLErrorBoundary>
       </div>
