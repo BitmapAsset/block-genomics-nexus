@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
 import { getLandmark } from './NexusLandmarks';
+import { epochLabelFor } from '@/lib/bitmapStandard';
 
 /* ─── Preview Content Data (demo placeholders until owners deploy) ─── */
 // In production, this comes from block owners' deployed resources
@@ -307,7 +308,7 @@ function HeroSpotlight({ item, onNavigate }: { item: SpotlightItem; onNavigate: 
         <p className="text-[11px] leading-relaxed" style={{ color: '#94a3b8' }}>{item.description}</p>
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-2 text-[9px]" style={{ color: '#64748b' }}>
-            <span style={{ color: epochColor }}>Epoch {getEpoch(item.blockHeight)}</span>
+            <span style={{ color: epochColor }}>{epochLabelFor(item.blockHeight).label}</span>
             <span>·</span>
             <span>{block.txCount.toLocaleString()} parcels</span>
             <span>·</span>

@@ -48,6 +48,20 @@ export function getEpochIndex(blockHeight: number): number {
   return Math.floor(blockHeight / BLOCKS_PER_EPOCH);
 }
 
+/**
+ * The epoch as people read it: 1-based, with its era name ("Epoch 4 · The
+ * Adoption Era"). The block page, its share card and the map all show this;
+ * `getEpochIndex` is 0-based and is for layout math only.
+ */
+export function epochLabelFor(blockHeight: number): (typeof EPOCH_LABELS)[number] {
+  return EPOCH_LABELS[getEpochIndex(blockHeight)] ?? EPOCH_LABELS[EPOCH_LABELS.length - 1];
+}
+
+export function epochDisplay(blockHeight: number): string {
+  const e = epochLabelFor(blockHeight);
+  return `${e.label} · ${e.sub}`;
+}
+
 /** Get epoch color for a block height */
 export function getEpochColor(blockHeight: number): string {
   const epoch = getEpochIndex(blockHeight);
