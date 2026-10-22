@@ -18,8 +18,18 @@ import { enforceRateLimit } from '@/lib/api-rate-limit';
  * Step 3: Upsert user with tier, handle, genome
  */
 export async function POST(req: NextRequest) {
+  // A body that is not JSON is the caller's mistake: 400, never the 500 below.
+  let parsed: unknown;
   try {
-    const body = await req.json();
+    parsed = await req.json();
+  } catch {
+    return error('invalid_json', 400);
+  }
+  // JSON that is not an object (null, a string, a number) has none of the
+  // required fields and falls into the 400 below.
+  const body = (parsed && typeof parsed === 'object' ? parsed : {}) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  try {
     const { walletAddress, signature, message, blockHeight, handle, displayName, inscriptionId } = body;
 
     if (!walletAddress || !signature || !message) {
