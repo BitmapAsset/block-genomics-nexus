@@ -92,6 +92,7 @@ const UNDOCUMENTED_BY_DESIGN: Record<string, string> = {
   '/api/v1/game/quests': 'game product surface',
   '/api/v1/game/quests/{id}': 'game product surface',
   '/api/v1/game/state': 'game product surface',
+  '/api/v1/elements': 'world element read feed behind the MCP bg_world_elements tool; web product surface',
   '/api/v1/guardian': 'guardian product surface',
   '/api/v1/guardian/chat': 'guardian product surface',
   '/api/v1/guardian/events': 'guardian product surface',

@@ -114,7 +114,7 @@ export default function GameElementsPanel({
 
   // Fetch elements on mount
   useEffect(() => {
-    fetch(`/api/v1/game/elements?blockHeight=${blockHeight}`)
+    fetch(`/api/v1/elements?blockHeight=${blockHeight}`)
       .then(r => r.json())
       .then(d => { if (d.elements) onElementsChange(d.elements); })
       .catch(console.error);

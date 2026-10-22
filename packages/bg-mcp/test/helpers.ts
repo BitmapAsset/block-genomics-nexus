@@ -90,7 +90,7 @@ export const PUBLIC_TOOL_NAMES = [
   "bg_agent_briefs",
   "bg_badge",
   "bg_delegation_listings",
-  "bg_game_elements",
+  "bg_world_elements",
   "bg_experiences",
   "bg_experience",
   "bg_experience_verify",

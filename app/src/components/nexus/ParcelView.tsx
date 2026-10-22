@@ -4765,7 +4765,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
 
   // Load game elements
   useEffect(() => {
-    fetch(`/api/v1/game/elements?blockHeight=${blockHeight}`)
+    fetch(`/api/v1/elements?blockHeight=${blockHeight}`)
       .then(r => r.json())
       .then(d => { if (d.elements) setGameElements(d.elements); })
       .catch(() => {});

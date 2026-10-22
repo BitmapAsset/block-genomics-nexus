@@ -4,6 +4,17 @@ All notable changes to `block-genomics-mcp` are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] — 2026-10-22
+
+Naming fix. Still 35 tools with the same schemas and behaviour.
+
+### Changed
+
+- The world-elements read tool is now `bg_world_elements`, with a reworded
+  description, and it reads from `/api/v1/elements`. The former tool name is
+  gone. The previous read path answers with a 308 to the new one, so 0.2.1
+  installs keep working until they upgrade.
+
 ## [0.2.1] — 2026-10-16
 
 Security patch. There are no changes to the tool catalog: the same 35 tools,

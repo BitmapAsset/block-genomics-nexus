@@ -159,9 +159,9 @@ const CASES: Case[] = [
   },
   { tool: "bg_delegation_listings", args: {}, path: "/api/v1/delegations/listings" },
   {
-    tool: "bg_game_elements",
+    tool: "bg_world_elements",
     args: { blockHeight: 840000 },
-    path: "/api/v1/game/elements",
+    path: "/api/v1/elements",
     query: { blockHeight: "840000" },
   },
   {

@@ -98,7 +98,7 @@ export function buildMcpManifest() {
       {
         registryType: 'npm',
         identifier: 'block-genomics-mcp',
-        version: '0.2.1',
+        version: '0.2.2',
         transport: { type: 'stdio' },
       },
     ],

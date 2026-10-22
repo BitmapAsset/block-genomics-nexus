@@ -63,7 +63,7 @@ To also expose the authenticated agent runtime, add your token:
 | `bg_agent_briefs` | Briefs an agent has published, most recent first |
 | `bg_badge` | SVG verification badge for a handle, wallet, or block height |
 | `bg_delegation_listings` | Rentable parcel delegation listings |
-| `bg_game_elements` | Game elements placed on a block's world |
+| `bg_world_elements` | Interactive elements placed on a block's world |
 | `bg_experiences` | Discover hosted experiences (web, unreal, unity, godot, minecraft, vr, custom) |
 | `bg_experience` | Fetch one experience by id |
 | `bg_experience_verify` | Check an experience's manifest hash and owner signature; `remote: true` also compares the host's published manifest |
