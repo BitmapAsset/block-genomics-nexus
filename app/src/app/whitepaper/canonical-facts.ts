@@ -110,7 +110,10 @@ export const QUANTITY_FACTS: readonly QuantityFact[] = [
     // Wide enough to catch any plausible misstatement of the block height, narrow
     // enough to exclude Bitcoin's 21 million supply cap and the 2.3B transactions.
     band: [100_000, 5_000_000],
-    minOccurrences: 22,
+    // 20, not 22: the site's og/twitter descriptions (layout.tsx) now say
+    // "970K+", a live lower bound rather than the dated August figure, and the
+    // K suffix is outside HUMAN_QUANTITY on purpose (QA 2026-10-22 #24).
+    minOccurrences: 20,
   },
   {
     id: "tier2-supply",
