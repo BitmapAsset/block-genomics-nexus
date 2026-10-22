@@ -290,7 +290,7 @@ export default function BrainPage() {
             <div className="flex flex-wrap justify-center gap-4 mb-6">
               {[
                 { pct: "97%", label: "Content Owner", color: "#00ffcc" },
-                { pct: "2.5%", label: "Treasury", color: "#ffaa00" },
+                { pct: "2.5%", label: "Protocol", color: "#ffaa00" },
                 { pct: "0.5%", label: "Brain", color: "#ff5577" },
               ].map((s) => (
                 <div key={s.label} className="bg-[#0a0a12]/80 border border-[#1e1e3a] rounded-xl px-6 py-4 min-w-[120px]">
