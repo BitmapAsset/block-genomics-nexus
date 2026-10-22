@@ -4,7 +4,8 @@ import { readPublicStats, type PublicStats } from '@/lib/public-stats';
 /** How long the server-rendered footer numbers may be reused. The client refreshes them live. */
 export const FOOTER_STATS_REVALIDATE_S = 300;
 
-const cachedStats = unstable_cache(readPublicStats, ['footer-public-stats'], {
+/** Shared with /api/v1/stats, so the footer HTML and the API serve one cached read. */
+export const cachedStats = unstable_cache(readPublicStats, ['footer-public-stats'], {
   revalidate: FOOTER_STATS_REVALIDATE_S,
 });
 
