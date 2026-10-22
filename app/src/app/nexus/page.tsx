@@ -5,6 +5,7 @@ import { Suspense, useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
 import { parseBlockParam } from "@/lib/blockDeepLink";
+import BlockParamToast from "@/components/nexus/BlockParamToast";
 
 const NexusMap = dynamic(() => import("@/components/nexus/NexusMap"), {
   ssr: false,
@@ -59,6 +60,7 @@ function NexusContent() {
   return (
     <>
       {showWarp && <NexusWarpEntry onComplete={handleWarpComplete} />}
+      <BlockParamToast raw={searchParams.get('block')} />
       <section
         className="w-full overflow-hidden"
         style={{
