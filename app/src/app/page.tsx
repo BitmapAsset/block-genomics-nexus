@@ -61,7 +61,7 @@ export default async function HomePage() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
-                href="/verify"
+                href="/my-bitmaps"
                 className="flex items-center gap-2 rounded-lg bg-accent-cyan px-6 py-3 text-sm font-semibold text-bg-primary hover:bg-accent-cyan/90 transition-colors glow-cyan backdrop-blur-sm"
               >
                 Verify a Block
