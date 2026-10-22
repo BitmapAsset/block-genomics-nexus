@@ -20,14 +20,24 @@ export async function GET(req: NextRequest) {
 
     const { verifiedAgents, genomesMinted, blocksVerified } = await cachedStats();
 
+    // The CDN replays this answer to every caller for 30 s, so it carries only
+    // the policy (the limit is the same for everyone), never this caller's
+    // remaining count. A sandbox key's private answer keeps its own quota
+    // headers (gate.headers, spread last).
     return NextResponse.json(
       { verifiedAgents, genomesMinted, blocksVerified },
-      { headers: { 'Cache-Control': PUBLIC_CACHE, ...gate.headers } }
+      {
+        headers: {
+          'Cache-Control': PUBLIC_CACHE,
+          'X-RateLimit-Limit': rl.headers['X-RateLimit-Limit'],
+          ...gate.headers,
+        },
+      }
     );
   } catch {
     return NextResponse.json(
       { verifiedAgents: 0, genomesMinted: 0, blocksVerified: 0 },
-      { headers: { 'Cache-Control': 'no-store' } }
+      { headers: { ...rl.headers, 'Cache-Control': 'no-store' } }
     );
   }
 }

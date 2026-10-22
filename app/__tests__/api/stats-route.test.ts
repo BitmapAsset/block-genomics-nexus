@@ -26,8 +26,9 @@ jest.mock('@/lib/sandbox-keys', () => ({
   sandboxGate: (...a: unknown[]) => mockSandboxGate(...(a as [])),
 }));
 
+const RL = { 'X-RateLimit-Limit': '120', 'X-RateLimit-Remaining': '117', 'X-RateLimit-Reset': '1761130000' };
 jest.mock('@/lib/api-rate-limit', () => ({
-  enforceRateLimit: async () => ({ response: null, headers: {} }),
+  enforceRateLimit: async () => ({ response: null, headers: RL }),
 }));
 
 jest.mock('next/server', () => {
@@ -89,6 +90,46 @@ describe('GET /api/v1/stats', () => {
     const res: any = await GET(anonymous);
     expect(res.body).toEqual({ verifiedAgents: 0, genomesMinted: 0, blocksVerified: 0 });
     expect(res.headers['Cache-Control']).toBe('no-store');
+  });
+});
+
+// QA 2026-10-22 #25: the rate-limit headers were exposed by CORS but never
+// sent here. The public answer is held by the CDN for 30 s, so it carries only
+// the policy (the limit, the same for every caller); a per-caller count would
+// be replayed to everyone. Private answers carry the caller's own counts.
+describe('GET /api/v1/stats rate-limit headers', () => {
+  beforeEach(() => {
+    mockReadPublicStats.mockReset().mockResolvedValue(STATS);
+    mockSandboxGate.mockReset();
+  });
+
+  it('sends the limit, and no per-caller count, on the cached public answer', async () => {
+    mockSandboxGate.mockResolvedValue({ response: null, headers: { Vary: 'Authorization, X-API-Key' }, authenticated: false });
+    const res: any = await GET(anonymous);
+    expect(res.headers['Cache-Control']).toBe(PUBLIC_CACHE);
+    expect(res.headers['X-RateLimit-Limit']).toBe('120');
+    expect(res.headers['X-RateLimit-Remaining']).toBeUndefined();
+    expect(res.headers['X-RateLimit-Reset']).toBeUndefined();
+  });
+
+  it('sends the full per-caller counts on an uncached answer', async () => {
+    mockSandboxGate.mockResolvedValue({ response: null, headers: { Vary: 'Authorization, X-API-Key' }, authenticated: false });
+    mockReadPublicStats.mockRejectedValue(new Error('db down'));
+    const res: any = await GET(anonymous);
+    expect(res.headers['Cache-Control']).toBe('no-store');
+    expect(res.headers['X-RateLimit-Remaining']).toBe('117');
+  });
+
+  it('lets a sandbox key keep its own quota headers on its private answer', async () => {
+    mockSandboxGate.mockResolvedValue({
+      response: null,
+      headers: { Vary: 'Authorization, X-API-Key', 'Cache-Control': 'private, no-store, max-age=0', 'X-RateLimit-Limit': '1000', 'X-RateLimit-Remaining': '999' },
+      authenticated: true,
+    });
+    const res: any = await GET(anonymous);
+    expect(res.headers['Cache-Control']).toBe('private, no-store, max-age=0');
+    expect(res.headers['X-RateLimit-Limit']).toBe('1000');
+    expect(res.headers['X-RateLimit-Remaining']).toBe('999');
   });
 });
 
