@@ -8,6 +8,7 @@
 import prisma from '@/lib/prisma';
 import { getStatus as ordGetStatus } from '@/lib/onchain/ord';
 import {
+  resolveInscriptionOwner,
   resolveInscriptionOwnerAddress,
   invalidateInscriptionOwner,
   type OwnerFreshness,
@@ -80,6 +81,12 @@ export interface OwnershipCheck {
    */
   indeterminate: boolean;
   action: 'none' | 'update' | 'revoke';
+  /**
+   * Which source named `onChainOwnerAddress`: an ord host label, or
+   * `esplora:<host>` when the sat tracker derived it. See
+   * `holderMayTriggerTransfer`.
+   */
+  holderSource?: string | null;
 }
 
 export interface TransferEvent {
@@ -169,7 +176,8 @@ export async function verifyBlockOwnership(
     };
   }
 
-  const onChainOwner = await getInscriptionOwner(inscriptionId, freshness);
+  const holder = await resolveInscriptionOwner(inscriptionId, freshness);
+  const onChainOwner = holder?.address ?? null;
 
   // Update lastOwnerCheck
   await prisma.block.update({
@@ -204,7 +212,23 @@ export async function verifyBlockOwnership(
     match,
     indeterminate: false,
     action: match ? 'none' : 'update',
+    holderSource: holder?.source ?? null,
   };
+}
+
+/**
+ * Whether this check's holder may trigger `processOwnershipTransfer`.
+ *
+ * A transfer is the one irreversible thing ownership does: it wipes the
+ * seller's guardian, profile and links. Only an ord host's answer may start
+ * one. A holder the Esplora sat tracker derived (used while ord hosts are
+ * unreachable) is good enough to show and to authorize that holder, but a
+ * wrong derivation here would release the real owner's data, so the transfer
+ * waits for a run where an ord host confirms it. Delete this check to let
+ * derived holders transfer.
+ */
+export function holderMayTriggerTransfer(check: Pick<OwnershipCheck, 'holderSource'>): boolean {
+  return !(check.holderSource ?? '').startsWith('esplora:');
 }
 
 /**
@@ -411,7 +435,9 @@ export async function batchVerifyOwnership(blockHeights: number[]): Promise<Owne
     // positive on-chain owner that differs from the DB owner; an outage is
     // 'none'). Gate on a sane indexer tip before acting.
     if (check.action === 'update' && check.onChainOwnerAddress && check.inscriptionId) {
-      if (await indexerTipIsSane()) {
+      if (!holderMayTriggerTransfer(check)) {
+        console.warn(`[ownership-sync] Deferred transfer for block ${height}: holder derived by ${check.holderSource}, waiting for an ord host`);
+      } else if (await indexerTipIsSane()) {
         await processOwnershipTransfer(height, check.onChainOwnerAddress, check.inscriptionId);
       } else {
         console.warn(`[ownership-sync] Skipped transfer for block ${height}: indexer tip not sane`);
@@ -441,12 +467,13 @@ export async function verifyAndSyncBlock(
   // Requires a live, positive on-chain owner equal to the wallet (null owner on
   // an outage can never equal the wallet), gated on a sane indexer tip.
   if (check.onChainOwnerAddress === walletAddress && !check.match && check.inscriptionId) {
-    if (await indexerTipIsSane()) {
+    if (holderMayTriggerTransfer(check) && (await indexerTipIsSane())) {
       await processOwnershipTransfer(blockHeight, walletAddress, check.inscriptionId);
       return { isOwner: true, check };
     }
-    // Indexer tip not sane — do not transfer on this run; report not-owner so the
-    // caller fails closed and retries later.
+    // Indexer tip not sane, or the holder was derived rather than read from an
+    // ord host — do not transfer on this run; report not-owner so the caller
+    // fails closed and retries later.
     return { isOwner: false, check };
   }
 

@@ -20,6 +20,7 @@ import CopyButton from './copy-button';
 import BlockTabs from './block-tabs';
 import OwnerBar from './owner-bar';
 import DeedRecheck from './deed-recheck';
+import { deedStatus, type DeedTone } from './deed-status';
 
 /**
  * The public page for a single bitmap block — the canonical URL people paste
@@ -189,6 +190,12 @@ function GenomeStrip({ genome }: { genome: string }) {
   );
 }
 
+const DEED_TONE_STYLE: Record<DeedTone, React.CSSProperties> = {
+  verified: { background: 'rgba(34,197,94,0.1)', color: '#22c55e' },
+  neutral: { background: 'rgba(100,116,139,0.16)', color: '#cbd5e1' },
+  outage: { background: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
+};
+
 /**
  * The deed panel.
  *
@@ -228,8 +235,7 @@ function DeedPanel({ data }: { data: BlockPageData }) {
     );
   }
 
-  const verified = ownership.inSync;
-  const chainMoved = !ownership.indeterminate && !ownership.inSync && ownership.onChainOwner !== null;
+  const status = deedStatus(ownership);
 
   return (
     <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
@@ -237,33 +243,14 @@ function DeedPanel({ data }: { data: BlockPageData }) {
         <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">
           Deed
         </div>
-        <span
-          className="rounded-full px-2.5 py-1 text-[11px] font-medium"
-          style={
-            verified
-              ? { background: 'rgba(34,197,94,0.1)', color: '#22c55e' }
-              : { background: 'rgba(100,116,139,0.16)', color: '#cbd5e1' }
-          }
-        >
-          {verified ? 'Verified on-chain' : ownership.checkPending ? 'Checking' : 'Unverified'}
+        <span className="rounded-full px-2.5 py-1 text-[11px] font-medium" style={DEED_TONE_STYLE[status.tone]}>
+          {status.badge}
         </span>
       </div>
 
       <p className="mt-3 break-all font-mono text-base text-text-primary">{owner}</p>
 
-      <p className="mt-2 text-sm text-text-secondary">
-        {verified
-          ? 'Current holder of the .bitmap inscription. Whoever holds the deed controls everything standing on this block.'
-          : chainMoved
-            ? 'Live holder per the ordinals indexer. This registry still lists a previous owner and has not caught up yet.'
-            : ownership.checkPending
-              ? 'Last recorded holder. The live chain check is still running; this updates on its own.'
-              : ownership.inscriptionId === null
-                ? // No id on file means the indexer was never asked, so "could
-                  // not be reached" would be a false reason.
-                  'Last recorded holder. Block Genomics has no inscription id on file for this block, so the chain was not checked.'
-                : 'Last recorded holder. The ordinals indexer could not be reached, so this is not confirmed against the chain right now.'}
-      </p>
+      <p className="mt-2 text-sm text-text-secondary">{status.detail}</p>
 
       {ownership.inscriptionId && (
         <div className="mt-4 border-t border-white/[0.06] pt-4">

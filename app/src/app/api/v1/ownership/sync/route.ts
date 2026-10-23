@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
-import { verifyBlockOwnership, processOwnershipTransfer } from '@/lib/ownership-sync';
+import { verifyBlockOwnership, processOwnershipTransfer, holderMayTriggerTransfer } from '@/lib/ownership-sync';
 
 /**
  * POST /api/v1/ownership/sync
@@ -43,6 +43,13 @@ export async function POST(req: NextRequest) {
 
     // Process transfer if mismatch
     if (!check.match && check.onChainOwnerAddress && check.inscriptionId) {
+      if (!holderMayTriggerTransfer(check)) {
+        return success({
+          transferred: false,
+          deferred: true,
+          message: 'The live holder was derived from Esplora while ord hosts are unreachable; the transfer waits until an ord host confirms it. Retry later.',
+        });
+      }
       const transfer = await processOwnershipTransfer(
         blockHeight,
         check.onChainOwnerAddress,

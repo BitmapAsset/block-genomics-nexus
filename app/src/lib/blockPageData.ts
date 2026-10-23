@@ -28,6 +28,7 @@
 
 import prisma from '@/lib/prisma';
 import { lookupOwnerForRender } from '@/lib/publicOwnerLookup';
+import { getOwnerAvailability } from '@/lib/onchain/owner-freshness';
 import { fetchBlockOgSummary, type BlockOgSummary } from '@/lib/blockOgData';
 import { getBlockMarket, type BlockMarket } from '@/lib/marketplace';
 import { formatBytes, formatNumber } from '@/lib/genome-utils';
@@ -75,6 +76,18 @@ export interface BlockOwnership {
    * indexer is down" — see `publicOwnerLookup`.
    */
   checkPending: boolean;
+  /**
+   * What this server's latest holder check for the inscription established,
+   * when there is an inscription to check. Lets the deed card say "chain
+   * unreachable since…" for an outage instead of "unverified".
+   */
+  availability?: DeedAvailability;
+}
+
+export interface DeedAvailability {
+  chain: 'ok' | 'unavailable' | 'unchecked';
+  unavailableSince: string | null;
+  lastVerifiedAt: string | null;
 }
 
 export interface BlockObjectSummary {
@@ -170,6 +183,7 @@ export function resolveOwnership(
   record: { ownerAddress: string | null; inscriptionId: string | null } | null,
   onChainOwner: string | null,
   checkPending = false,
+  availability?: DeedAvailability,
 ): BlockOwnership {
   if (!record) return { ...UNKNOWN_OWNERSHIP };
 
@@ -180,6 +194,7 @@ export function resolveOwnership(
     inSync: onChainOwner !== null && onChainOwner === record.ownerAddress,
     indeterminate: onChainOwner === null,
     checkPending: onChainOwner === null && checkPending,
+    ...(availability ? { availability } : {}),
   };
 }
 
@@ -331,7 +346,17 @@ export async function fetchBlockPageData(height: number): Promise<BlockPageData>
   // Never awaited: the ord client throttles to ~1 req/sec process-wide, so
   // blocking here lets a crawler sweeping distinct blocks serialise the page.
   const { address: onChainOwner, pending } = lookupOwnerForRender(block?.inscriptionId ?? null);
-  const ownership = resolveOwnership(block, onChainOwner, pending);
+  const availability = block?.inscriptionId ? getOwnerAvailability(block.inscriptionId) : undefined;
+  const ownership = resolveOwnership(
+    block,
+    onChainOwner,
+    pending,
+    availability && {
+      chain: availability.chain,
+      unavailableSince: availability.unavailableSince,
+      lastVerifiedAt: availability.lastVerifiedAt,
+    },
+  );
 
   const addresses = Array.from(
     new Set(
