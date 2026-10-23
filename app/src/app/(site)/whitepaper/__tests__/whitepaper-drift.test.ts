@@ -36,7 +36,7 @@ import { resolve } from "node:path";
 
 import { sections, WHITEPAPER_VERSION, WHITEPAPER_DATE } from "../sections";
 
-const STANDALONE_PATH = resolve(__dirname, "../../../../../whitepaper.html");
+const STANDALONE_PATH = resolve(__dirname, "../../../../../../whitepaper.html");
 
 /**
  * Fold away differences that carry no meaning: entity encoding, curly quotes,

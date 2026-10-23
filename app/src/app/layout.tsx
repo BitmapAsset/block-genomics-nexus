@@ -5,14 +5,8 @@ import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { InboxProvider } from "@/context/InboxContext";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { SiteHeader, SiteFooter, SiteBottomTabBar, LandingOnboarding } from "@/components/landing/RouteChrome";
-import NotificationBanner from "@/components/NotificationBanner";
-import ErrorBoundary from "@/components/ErrorBoundary";
-import PageTransition from "@/components/PageTransition";
 import PWARegistration from "@/components/pwa/PWARegistration";
-import InstallPrompt from "@/components/pwa/InstallPrompt";
 import SplashScreen from "@/components/pwa/SplashScreen";
-import { getFooterStats } from "@/lib/footer-stats";
 import { SITE_CARD } from "@/lib/site-card";
 import "./globals.css";
 
@@ -64,13 +58,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+// The page chrome (header, footer, tab bar) lives in the route groups:
+// (landing)/layout.tsx for "/", components/SiteChrome.tsx for everything else.
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Footer counters in the server HTML (cached; null → "—" until the client fetch).
-  const footerStats = await getFooterStats();
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen flex flex-col bg-bg-primary text-text-primary antialiased">
@@ -81,17 +75,7 @@ export default async function RootLayout({
                 <InboxProvider>
                   <SplashScreen />
                   <PWARegistration />
-                  <SiteHeader />
-                  <NotificationBanner />
-                  <main className="flex-1 pb-16 md:pb-0">
-                    <ErrorBoundary>
-                      <PageTransition>{children}</PageTransition>
-                    </ErrorBoundary>
-                  </main>
-                  <SiteFooter className="hidden md:block" initialStats={footerStats} />
-                  <SiteBottomTabBar />
-                  <InstallPrompt />
-                  <LandingOnboarding />
+                  {children}
                 </InboxProvider>
               </NotificationProvider>
             </AuthProvider>

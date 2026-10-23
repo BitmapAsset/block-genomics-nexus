@@ -62,7 +62,7 @@ describe('soft 404 guard', () => {
   });
 
   it('validates the height of every public block route above the boundary', () => {
-    const blockSegment = join(APP_DIR, 'block', '[height]');
+    const blockSegment = join(APP_DIR, '(site)', 'block', '[height]');
 
     // The page keeps its own check as defence in depth, but the one that
     // actually decides the HTTP status lives in the layout.
@@ -75,8 +75,8 @@ describe('soft 404 guard', () => {
     // for a bad param is a 200 by construction. These pages must validate on the
     // server and call notFound() instead.
     for (const segment of [
-      join(APP_DIR, 'world', '[height]'),
-      join(APP_DIR, 'agent', '[handle]'),
+      join(APP_DIR, '(site)', 'world', '[height]'),
+      join(APP_DIR, '(site)', 'agent', '[handle]'),
     ]) {
       const page = read(segment, 'page.tsx');
       expect(page).toContain('notFound(');

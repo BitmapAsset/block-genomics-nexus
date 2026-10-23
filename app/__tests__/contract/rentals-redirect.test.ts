@@ -23,7 +23,7 @@ describe('/marketplace → /rentals', () => {
   });
 
   it('serves the rentals page from /rentals and nothing from /marketplace', () => {
-    expect(fs.existsSync(path.join(appDir, 'rentals', 'page.tsx'))).toBe(true);
+    expect(fs.existsSync(path.join(appDir, '(site)', 'rentals', 'page.tsx'))).toBe(true);
     expect(fs.existsSync(path.join(appDir, 'marketplace'))).toBe(false);
   });
 

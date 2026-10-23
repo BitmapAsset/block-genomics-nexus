@@ -33,7 +33,7 @@ import {
   PROTOCOL_TREASURY_PERCENT,
 } from "@/lib/protocol";
 
-const REPO_ROOT = resolve(__dirname, "../../../../../");
+const REPO_ROOT = resolve(__dirname, "../../../../../../");
 
 /** Fold dash width so an en-dash edit is not a semantic change. */
 function normalizeDashes(text: string): string {

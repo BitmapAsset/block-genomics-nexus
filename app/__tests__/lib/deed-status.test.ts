@@ -6,7 +6,7 @@
  * outage state names when answers stopped and when the deed was last verified.
  */
 
-import { deedStatus, formatChainTime } from '@/app/block/[height]/deed-status';
+import { deedStatus, formatChainTime } from '@/app/(site)/block/[height]/deed-status';
 import { resolveOwnership, type DeedAvailability } from '@/lib/blockPageData';
 
 const ALICE = 'bc1palice';
