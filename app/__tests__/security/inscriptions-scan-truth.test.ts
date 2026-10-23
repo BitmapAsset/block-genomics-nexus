@@ -70,6 +70,8 @@ jest.mock('@/lib/api-rate-limit', () => ({
   EXPERIENCE_WRITE_LIMIT: 10,
 }));
 
+import { __resetOrdClientForTest } from '@/lib/onchain/ord';
+
 function ok(body: unknown): Response {
   return { ok: true, status: 200, json: async () => body, text: async () => String(body) } as unknown as Response;
 }
@@ -83,6 +85,9 @@ function dead(status: number): Response {
 }
 
 beforeEach(() => {
+  // The ord client skips a failed host for 60 s; each case starts with a
+  // fresh process view so one case's outage cannot answer for the next.
+  __resetOrdClientForTest({ throttleMs: 0, backoffMs: 0 });
   esploraDown = false;
   ordUtxoDown = 'none';
   contentDown = false;
