@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { success, error } from '@/lib/api-helpers';
 import { verifyBlockOwnership } from '@/lib/ownership-sync';
+import { ownershipAnswer } from '@/lib/onchain/ownership-answer';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
@@ -29,15 +30,9 @@ export async function GET(
     // DISPLAY tier: public ownership read, gates no mutation.
     const check = await verifyBlockOwnership(blockHeight, 'display');
 
-    return success({
-      blockHeight: check.blockHeight,
-      dbOwner: check.dbOwnerAddress,
-      onChainOwner: check.onChainOwnerAddress,
-      match: check.match,
-      inscriptionId: check.inscriptionId,
-      action: check.action,
-      lastChecked: new Date().toISOString(),
-    });
+    // An outage answers `verdict: 'unknown'` / `chain: 'unavailable'` with
+    // `match: null`, never `match: false` (see lib/onchain/ownership-answer).
+    return success(ownershipAnswer(check));
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return error(message, 500);

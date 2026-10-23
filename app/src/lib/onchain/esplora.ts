@@ -13,7 +13,10 @@
  * surface a retryable error rather than treating it as "holds nothing".
  */
 
-const ESPLORA_BASES = [
+import { CHAIN_USER_AGENT } from '@/lib/onchain/user-agent';
+
+/** Providers in the order they are tried. Shared with the sat tracker. */
+export const ESPLORA_BASES: readonly string[] = [
   (process.env.ESPLORA_BASE_URL || 'https://mempool.space/api').replace(/\/+$/, ''),
   'https://blockstream.info/api',
 ];
@@ -33,6 +36,7 @@ export async function getBlockHashAtHeight(height: number): Promise<string | nul
   for (const base of ESPLORA_BASES) {
     try {
       const res = await fetch(`${base}/block-height/${height}`, {
+        headers: { 'User-Agent': CHAIN_USER_AGENT },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) continue;
@@ -50,7 +54,7 @@ export async function getAddressOutpoints(address: string): Promise<string[] | n
   for (const base of ESPLORA_BASES) {
     try {
       const res = await fetch(`${base}/address/${encodeURIComponent(address)}/utxo`, {
-        headers: { Accept: 'application/json' },
+        headers: { Accept: 'application/json', 'User-Agent': CHAIN_USER_AGENT },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) continue;

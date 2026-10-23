@@ -9,7 +9,10 @@
 # filter matches the environment name.
 #
 # The probes live in .github/scripts/prod-smoke.sh: plain GETs, no secrets, so
-# they can be run by hand from any machine as well.
+# they can be run by hand from any machine as well. One of them reads
+# /api/v1/health/chain: a degraded or unavailable chain upstream (ord hosts,
+# Esplora) is a ⚠️ warning in the table and does not fail the job; a 5xx or a
+# malformed answer from that route does.
 #
 # On failure the job fails and opens (or comments on) ONE issue labelled
 # `prod-smoke-failed` carrying the probe table. The next green run closes it.
