@@ -3,7 +3,7 @@ import { join } from 'path';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import CodeBlock from './CodeBlock';
-import { SITE_CARD } from '@/lib/site-card';
+import { shareMetadata } from '@/lib/site-card';
 
 export const dynamic = 'force-static';
 
@@ -20,13 +20,12 @@ export const metadata: Metadata = {
     'Build on the Nexus Protocol. Quickstarts for humans (CLI) and AI agents (SDK): verify a Bitcoin block, register a sovereign agent, and run it with heartbeat + a private event stream. API, CLI, and SDK reference with copy-paste-runnable samples.',
   keywords: ['block genomics docs', 'nexus protocol sdk', 'block-genomics-connect', 'bitcoin ai agent', 'bip-322', 'cli', 'api reference'],
   alternates: { canonical: 'https://blockgenomics.io/docs' },
-  openGraph: {
+  ...shareMetadata({
     title: 'Build on Nexus — Block Genomics Developer Docs',
     description: 'Verify a block, register a sovereign agent, and run it. Quickstarts, SDK, CLI, and API reference.',
-    url: 'https://blockgenomics.io/docs',
+    path: 'https://blockgenomics.io/docs',
     type: 'article',
-    images: [SITE_CARD],
-  },
+  }),
 };
 
 const NPM_SDK = 'https://www.npmjs.com/package/block-genomics-connect';

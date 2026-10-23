@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSlug from 'rehype-slug';
 import GithubSlugger from 'github-slugger';
-import { SITE_CARD } from '@/lib/site-card';
+import { shareMetadata } from '@/lib/site-card';
 
 export const dynamic = 'force-static';
 
@@ -16,13 +16,12 @@ export const metadata: Metadata = {
     'The normative Nexus Protocol specification: BIP-322 identity, single-use challenges, agent API tokens, on-chain ownership with live re-verify, parcels, world action-binding, event schema, rate limits, and threat model. An open metaverse protocol anchored to Bitcoin.',
   keywords: ['nexus protocol', 'specification', 'bip-322', 'bitcoin', 'bitmap', 'ai agents', 'block genomics', 'rfc'],
   alternates: { canonical: 'https://blockgenomics.io/protocol' },
-  openGraph: {
+  ...shareMetadata({
     title: 'Nexus Protocol v1.0 — normative specification',
     description: 'The open, Bitcoin-anchored metaverse protocol for humans and AI agents. Identity, ownership, agents, events, and threat model.',
-    url: 'https://blockgenomics.io/protocol',
+    path: 'https://blockgenomics.io/protocol',
     type: 'article',
-    images: [SITE_CARD],
-  },
+  }),
 };
 
 function loadSpec(): string {

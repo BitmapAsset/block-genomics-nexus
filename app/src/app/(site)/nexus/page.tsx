@@ -1,91 +1,54 @@
-"use client";
-
-import { useSearchParams } from "next/navigation";
-import { Suspense, useState, useCallback, useEffect } from "react";
-import dynamic from "next/dynamic";
-import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
+import type { Metadata } from "next";
 import { parseBlockParam } from "@/lib/blockDeepLink";
-import BlockParamToast from "@/components/nexus/BlockParamToast";
+import { isAboveTip } from "@/lib/block-summary";
+import { epochDisplay } from "@/lib/bitmapStandard";
+import { formatNumber } from "@/lib/genome-utils";
+import { shareMetadata } from "@/lib/site-card";
+import NexusPage from "./nexus-client";
 
-const NexusMap = dynamic(() => import("@/components/nexus/NexusMap"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center h-full w-full" style={{ background: '#0a0a0f' }}>
-      <div className="text-center">
-        <div className="text-2xl font-mono font-bold mb-2" style={{ color: '#66ccff' }}>The Nexus</div>
-        <div className="text-xs font-mono mb-3" style={{ color: '#64748b' }}>Loading block map...</div>
-        <div className="mx-auto w-6 h-6 border-2 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin" />
-      </div>
-    </div>
-  ),
-});
+const TITLE = "The Nexus — Block Genomics";
+const DESCRIPTION =
+  "A map of every Bitcoin block, each one a 2.1km × 2.1km district of sovereign digital land. Search a block and walk inside it.";
 
-const NexusWarpEntry = dynamic(() => import("@/components/nexus/NexusWarpEntry"), {
-  ssr: false,
-});
+/**
+ * `/nexus?block=h` is the link people paste from the map's address bar, so it
+ * unfurls as that block (title, text and its share card) rather than as the
+ * homepage (QA 2026-10-22 #17). Reading the query makes this page render per
+ * request; the page itself is a client shell, so that costs little.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}): Promise<Metadata> {
+  const raw = (await searchParams).block;
+  const height = parseBlockParam(typeof raw === "string" ? raw : undefined);
 
-const SESSION_KEY = "nexus_entered";
-
-function NexusContent() {
-  const searchParams = useSearchParams();
-  const initialBlock = parseBlockParam(searchParams.get('block'));
-
-  // Show warp intro once per session
-  const [showWarp, setShowWarp] = useState(false);
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    const entered = sessionStorage.getItem(SESSION_KEY);
-    if (!entered) {
-      setShowWarp(true);
-    }
-    setChecked(true);
-  }, []);
-
-  const handleWarpComplete = useCallback(() => {
-    sessionStorage.setItem(SESSION_KEY, "1");
-    setShowWarp(false);
-  }, []);
-
-  // ESC to skip
-  useEffect(() => {
-    if (!showWarp) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleWarpComplete();
+  if (height === undefined || (await isAboveTip(height))) {
+    return {
+      title: TITLE,
+      description: DESCRIPTION,
+      alternates: { canonical: "/nexus" },
+      ...shareMetadata({ title: TITLE, description: DESCRIPTION, path: "/nexus" }),
     };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [showWarp, handleWarpComplete]);
+  }
 
-  return (
-    <>
-      {showWarp && <NexusWarpEntry onComplete={handleWarpComplete} />}
-      <BlockParamToast raw={searchParams.get('block')} />
-      <section
-        className="w-full overflow-hidden"
-        style={{
-          background: '#0a0a0f',
-          height: 'calc(100dvh - 4rem)',
-        }}
-      >
-        {checked && (
-          <WebGLErrorBoundary
-            fallbackMessage="The 3D Nexus map couldn't load. Your browser may not support WebGL, or hardware acceleration may be disabled."
-            fallbackHref="/explore"
-            fallbackLinkText="Explore blocks instead"
-          >
-            <NexusMap initialBlock={initialBlock} />
-          </WebGLErrorBoundary>
-        )}
-      </section>
-    </>
-  );
+  const title = `Block ${formatNumber(height)} in The Nexus — ${height}.bitmap | Block Genomics`;
+  const description = `Walk inside Bitcoin block ${formatNumber(height)}: ${epochDisplay(height)}, a 2.1km × 2.1km district of sovereign digital land in The Nexus.`;
+  return {
+    title,
+    description,
+    // One indexable page per block; this view is the same block on the map.
+    alternates: { canonical: `/block/${height}` },
+    ...shareMetadata({
+      title,
+      description,
+      path: `/nexus?block=${height}`,
+      image: { url: `/og/block/${height}`, width: 1200, height: 630, alt: `Bitcoin block ${height} genome card` },
+    }),
+  };
 }
 
-export default function NexusPage() {
-  return (
-    <Suspense fallback={<div className="h-[calc(100vh-4rem)] w-full" style={{ background: '#0a0a0f' }} />}>
-      <NexusContent />
-    </Suspense>
-  );
+export default function Page() {
+  return <NexusPage />;
 }
