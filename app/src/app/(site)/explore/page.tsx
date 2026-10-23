@@ -13,9 +13,11 @@ export const metadata: Metadata = {
     "Look up any Bitcoin block and see its bitmap art, then browse the blocks people have verified and built on.",
 };
 
-// Recent blocks are database state; render per request rather than baking the
-// build machine's (empty) answer into a static page.
-export const dynamic = "force-dynamic";
+// Recent blocks are database state. Regenerated at most once a minute and held
+// by the CDN in between (QA 2026-10-22 #18: it used to render on every hit with
+// `private, no-store`). The build machine has no database, so the build bakes
+// the "unavailable" state, which the first regeneration replaces.
+export const revalidate = 60;
 
 const RECENT_LIMIT = 12;
 
@@ -33,7 +35,12 @@ async function fetchRecent(): Promise<{ blocks: { height: number; label: string 
       countVerifiedAgents(),
     ]);
     return { blocks, onRecord, agents };
-  } catch {
+  } catch (e) {
+    // In production a failed regeneration throws, so ISR keeps serving the
+    // last good page instead of caching the "unavailable" state for a minute.
+    // The build (no database) and `next dev` render that state instead.
+    const regenerating = process.env.NODE_ENV === "production" && process.env.NEXT_PHASE !== "phase-production-build";
+    if (regenerating) throw e;
     return null;
   }
 }
