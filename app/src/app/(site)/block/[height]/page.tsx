@@ -12,7 +12,7 @@ import {
   type Creator,
 } from '@/lib/blockPageData';
 import { fetchBlockGuardian, type BlockGuardianView } from '@/lib/blockGuardian';
-import { getTipHeight } from '@/lib/block-summary';
+import { isAboveTip } from '@/lib/block-summary';
 import type { BlockMarket } from '@/lib/marketplace';
 import { EPOCH_LABELS, getEpochColor, getEpochIndex } from '@/lib/bitmapStandard';
 import { formatBytes, formatNumber, hexPairToColor } from '@/lib/genome-utils';
@@ -50,8 +50,7 @@ const getBlockData = cache(async (height: number): Promise<BlockPageData> => {
  * summary API. An unreadable tip (null) renders the page as before.
  */
 async function isUnmined(height: number): Promise<boolean> {
-  const tip = await getTipHeight();
-  return tip !== null && height > tip;
+  return isAboveTip(height);
 }
 
 function nexusHref(height: number): string {

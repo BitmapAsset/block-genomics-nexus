@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { parseBlockParam } from '@/lib/blockDeepLink';
+import { isAboveTip } from '@/lib/block-summary';
 
 /**
  * Height validation lives in the layout, not the page, because this segment has
@@ -22,8 +23,13 @@ export default async function BlockLayout({
   children: React.ReactNode;
   params: Promise<{ height: string }>;
 }) {
-  const { height } = await params;
-  if (parseBlockParam(height) === undefined) notFound();
+  const { height: raw } = await params;
+  const height = parseBlockParam(raw);
+  if (height === undefined) notFound();
+  // Not mined yet (QA 2026-10-22 #9): checked here for the same reason, so
+  // /block/980000 is a real 404 and not a streamed 200. Heights at or below
+  // KNOWN_MINED_HEIGHT skip the tip fetch, so mined blocks pay nothing.
+  if (await isAboveTip(height)) notFound();
 
   return children;
 }

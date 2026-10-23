@@ -10,6 +10,12 @@
 const mockTip = jest.fn();
 jest.mock('@/lib/block-summary', () => ({
   getTipHeight: (...a: unknown[]) => mockTip(...(a as [])),
+  // The page asks through isAboveTip; keep it on the mocked tip here. The
+  // known-mined shortcut is covered in block-layout-unmined.test.ts.
+  isAboveTip: async (h: number) => {
+    const t = await mockTip();
+    return t !== null && h > t;
+  },
 }));
 
 const mockFetchBlockPageData = jest.fn();
