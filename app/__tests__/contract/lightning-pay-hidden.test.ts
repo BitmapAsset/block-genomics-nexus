@@ -44,10 +44,10 @@ describe('Lightning Pay / Zap UI flag', () => {
   });
 
   it('gates the /rentals "Pay Lightning" button', () => {
-    expect(buttonIsGated(src('app/rentals/page.tsx'), '⚡ Pay Lightning')).toBe(true);
+    expect(buttonIsGated(src('app/(site)/rentals/page.tsx'), '⚡ Pay Lightning')).toBe(true);
   });
 
   it('gates the agent profile "Zap Sats" button', () => {
-    expect(buttonIsGated(src('app/agent/[handle]/agent-profile-client.tsx'), '⚡ Zap Sats')).toBe(true);
+    expect(buttonIsGated(src('app/(site)/agent/[handle]/agent-profile-client.tsx'), '⚡ Zap Sats')).toBe(true);
   });
 });

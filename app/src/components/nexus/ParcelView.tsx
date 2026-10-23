@@ -7,6 +7,7 @@ import { OrbitControls, Html } from '@react-three/drei';
 // import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
+import { epochDisplay } from '@/lib/bitmapStandard';
 import { type RealBlockData } from '@/lib/blockchainApi';
 import { useBlockLayoutData, LAYOUT_FADE_MS } from '@/hooks/useBlockLayoutData';
 import { packSquares, packSquaresToWorldSpace } from '@/lib/square-packing';
@@ -6093,7 +6094,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
               <PropRow label="HASH" value={blockStats.hash ? `${blockStats.hash.slice(0, 4)}...${blockStats.hash.slice(-4)}` : NOT_FETCHED} />
               <PropRow label="SIZE" value={blockStats.size !== undefined ? blockStats.size.toLocaleString() : NOT_FETCHED} />
               <PropRow label="WEIGHT" value={blockStats.weight !== undefined ? blockStats.weight.toLocaleString() : NOT_FETCHED} />
-              <PropRow label="EPOCH" value={`${block.epoch}`} />
+              <PropRow label="EPOCH" value={epochDisplay(blockHeight)} />
               <PropRow label="DATA" value={
                 dataSource === 'real' 
                   ? (realBlock?.estimated ? '🟡 Estimated' : '🟢 Live') 

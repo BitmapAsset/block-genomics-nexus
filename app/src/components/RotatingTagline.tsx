@@ -7,7 +7,7 @@ export default function RotatingTagline() {
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<"in" | "hold" | "out">("in");
   const height = useBlockHeight();
-  const blockHeight = height ? height.toLocaleString() : "930,000+";
+  const blockHeight = height ? height.toLocaleString() : "970,000+";
 
   const taglines = [
     "Every Bitcoin block is a world.",

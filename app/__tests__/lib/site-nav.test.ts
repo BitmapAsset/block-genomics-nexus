@@ -10,7 +10,10 @@ import path from 'path';
 import { PRIMARY_NAV, SECONDARY_NAV, isActivePath, parseBlockQuery, safeNextPath, searchResultHref, searchTerm } from '@/lib/site-nav';
 
 const appDir = path.join(__dirname, '..', '..', 'src', 'app');
-const hasPage = (href: string) => fs.existsSync(path.join(appDir, ...href.split('/').filter(Boolean), 'page.tsx'));
+// Pages live in route groups ("(site)", "(landing)"), which add no URL segment.
+const roots = ['', ...fs.readdirSync(appDir).filter((d) => /^\(.+\)$/.test(d))];
+const hasPage = (href: string) =>
+  roots.some((g) => fs.existsSync(path.join(appDir, g, ...href.split('/').filter(Boolean), 'page.tsx')));
 
 describe('site navigation', () => {
   it('has exactly five primary destinations', () => {

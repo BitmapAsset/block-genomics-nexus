@@ -10,6 +10,12 @@
 const mockTip = jest.fn();
 jest.mock('@/lib/block-summary', () => ({
   getTipHeight: (...a: unknown[]) => mockTip(...(a as [])),
+  // The page asks through isAboveTip; keep it on the mocked tip here. The
+  // known-mined shortcut is covered in block-layout-unmined.test.ts.
+  isAboveTip: async (h: number) => {
+    const t = await mockTip();
+    return t !== null && h > t;
+  },
 }));
 
 const mockFetchBlockPageData = jest.fn();
@@ -23,10 +29,10 @@ jest.mock('@/lib/blockPageData', () => ({
 jest.mock('@/lib/blockGuardian', () => ({ fetchBlockGuardian: async () => null }));
 
 // Client islands of the page; only the server logic is under test here.
-jest.mock('@/app/block/[height]/copy-button', () => () => null);
-jest.mock('@/app/block/[height]/block-tabs', () => () => null);
-jest.mock('@/app/block/[height]/owner-bar', () => () => null);
-jest.mock('@/app/block/[height]/deed-recheck', () => () => null);
+jest.mock('@/app/(site)/block/[height]/copy-button', () => () => null);
+jest.mock('@/app/(site)/block/[height]/block-tabs', () => () => null);
+jest.mock('@/app/(site)/block/[height]/owner-bar', () => () => null);
+jest.mock('@/app/(site)/block/[height]/deed-recheck', () => () => null);
 
 class NotFound extends Error {}
 jest.mock('next/navigation', () => ({
@@ -35,7 +41,7 @@ jest.mock('next/navigation', () => ({
   },
 }));
 
-import BlockPage, { generateMetadata } from '@/app/block/[height]/page';
+import BlockPage, { generateMetadata } from '@/app/(site)/block/[height]/page';
 
 const TIP = 972_600;
 const props = (height: string) => ({ params: Promise.resolve({ height }) });

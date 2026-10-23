@@ -32,29 +32,6 @@ const securityHeaders = [
   },
 ];
 
-// Restrict CORS to our own domain
-// In development, override via CORS_ORIGIN env var
-const allowedOrigins = process.env.CORS_ORIGIN || 'https://blockgenomics.io';
-
-const corsHeaders = [
-  {
-    key: "Access-Control-Allow-Origin",
-    value: allowedOrigins,
-  },
-  {
-    key: "Access-Control-Allow-Methods",
-    value: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-  },
-  {
-    key: "Access-Control-Allow-Headers",
-    value: "Content-Type, Authorization",
-  },
-  {
-    key: "Access-Control-Allow-Credentials",
-    value: "true",
-  },
-];
-
 const nextConfig: NextConfig = {
   // Block Genomics — Bitcoin block verification platform
   output: "standalone",
@@ -132,10 +109,6 @@ const nextConfig: NextConfig = {
   // therefore gets its Cache-Control from exactly one entry, and the catch-all
   // page rule explicitly excludes the classes that own theirs.
   headers: async () => [
-    {
-      source: "/api/:path*",
-      headers: corsHeaders,
-    },
     {
       // Safe default for API responses: never let a shared cache store them.
       // API bodies are per-caller and frequently authorization-scoped.

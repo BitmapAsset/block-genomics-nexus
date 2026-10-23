@@ -140,8 +140,9 @@ export default function BrainChat({ status = brainStatusView(undefined, false) }
   }, []);
 
   useEffect(() => {
-    // Only auto-scroll when user has sent messages (not on initial page load)
-    if (messages.length > 0) {
+    // Only auto-scroll once the visitor has asked something. The chat opens
+    // with a greeting, so "has messages" is already true on page load.
+    if (messages.some((m) => m.role === 'user')) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [messages, thinking]);

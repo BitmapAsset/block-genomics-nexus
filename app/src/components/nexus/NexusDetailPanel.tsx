@@ -5,6 +5,7 @@ import { generateBlock, getEpochColor, type BlockData } from './NexusBlockData';
 import BlockChat from './BlockChat';
 import type { ChatMessage } from './NexusSocial';
 import { buildBlockShareUrl } from '@/lib/blockDeepLink';
+import { epochLabelFor } from '@/lib/bitmapStandard';
 
 /* ─── Share helpers ─── */
 const SITE_URL = 'https://blockgenomics.io';
@@ -50,8 +51,6 @@ function shareToInstagram(height: number) {
 function copyLink(height: number) {
   navigator.clipboard.writeText(getBlockUrl(height));
 }
-
-const EPOCH_NAMES = ['Genesis Era', 'First Halving', 'Second Halving', 'Third Halving', 'Fourth Halving'];
 
 interface Props {
   height: number | null;
@@ -132,9 +131,9 @@ export default function NexusDetailPanel({ height, onClose, visitorCount = 0, me
                 className="px-2 py-0.5 rounded text-xs font-mono font-semibold"
                 style={{ background: epochColor + '22', color: epochColor, border: `1px solid ${epochColor}44` }}
               >
-                Epoch {block.epoch}
+                {epochLabelFor(block.height).label}
               </span>
-              <span className="text-xs text-[#94a3b8]">{EPOCH_NAMES[block.epoch] ?? `Epoch ${block.epoch}`}</span>
+              <span className="text-xs text-[#94a3b8]">{epochLabelFor(block.height).sub}</span>
             </div>
 
             {block.isSpecial && (

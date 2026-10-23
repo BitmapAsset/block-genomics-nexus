@@ -13,11 +13,19 @@ const appDir = path.join(__dirname, '..', '..', 'src', 'app');
 
 /** Does a `src/app` page exist for this destination path (dynamic segments allowed)? */
 function pageExists(dest: string): boolean {
+  // Pages live in route groups ("(site)", "(landing)"), which add no URL segment.
+  return ['', ...fs.readdirSync(appDir).filter((d) => /^\(.+\)$/.test(d))].some((g) =>
+    pageExistsUnder(path.join(appDir, g), dest),
+  );
+}
+
+function pageExistsUnder(root: string, dest: string): boolean {
   const clean = dest.split(/[?#]/)[0];
   const parts = clean.split('/').filter(Boolean);
-  let dir = appDir;
+  let dir = root;
   for (const part of parts) {
     if (part.startsWith(':')) {
+      if (!fs.existsSync(dir)) return false;
       const dyn = fs.readdirSync(dir).find((d) => /^\[[^\]]+\]$/.test(d));
       if (!dyn) return false;
       dir = path.join(dir, dyn);
@@ -88,7 +96,7 @@ describe('legacy routes redirect', () => {
   });
 
   it('serves the world from /world/[height] and no longer from /nexus/parcel', () => {
-    expect(fs.existsSync(path.join(appDir, 'world', '[height]', 'page.tsx'))).toBe(true);
-    expect(fs.existsSync(path.join(appDir, 'nexus', 'parcel'))).toBe(false);
+    expect(fs.existsSync(path.join(appDir, '(site)', 'world', '[height]', 'page.tsx'))).toBe(true);
+    expect(fs.existsSync(path.join(appDir, '(site)', 'nexus', 'parcel'))).toBe(false);
   });
 });

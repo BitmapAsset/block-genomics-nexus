@@ -145,6 +145,23 @@ export async function getBlockSummary(height: number, maxAgeMs = Infinity): Prom
 const TIP_TTL_MS = 30_000;
 let tipMemo: { height: number; at: number } | null = null;
 
+/**
+ * Every height at or below this was mined before this code shipped (the tip
+ * was ~972,700 on 2026-10-22), so asking mempool about it can only say "mined".
+ * Block pages skip the tip fetch for these heights and keep their latency.
+ */
+export const KNOWN_MINED_HEIGHT = 972_000;
+
+/**
+ * True when `height` is above the chain tip, i.e. not mined yet. An unreadable
+ * tip answers false, so a mempool outage never hides a real block.
+ */
+export async function isAboveTip(height: number): Promise<boolean> {
+  if (height <= KNOWN_MINED_HEIGHT) return false;
+  const tip = await getTipHeight();
+  return tip !== null && height > tip;
+}
+
 /** mempool's tip height, or null when it cannot be read right now. */
 export async function getTipHeight(): Promise<number | null> {
   const now = Date.now();
