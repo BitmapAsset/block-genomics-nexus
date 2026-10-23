@@ -61,9 +61,17 @@
  * SCOPE: the display cache is per-process (a module-level Map), so serverless
  * instances each keep their own. That can only make a display read fresher than
  * its TTL (a cold instance queries live), never staler.
+ *
+ * PROVIDERS: ord hosts first (lib/onchain/ord.ts, with its own failover), then
+ * the Esplora sat tracker (lib/onchain/sat-tracker.ts) when no ord host names a
+ * holder, then unknown. Every check records which source answered and, per
+ * inscription, when a source last answered and since when none has, so an
+ * outage can be reported as an outage (`getOwnerAvailability`) rather than as
+ * an unverified owner. That record is per-process like the cache.
  */
 
 import { getInscriptionOwner as ordGetInscriptionOwner, type InscriptionOwner } from '@/lib/onchain/ord';
+import { isSatTrackerEnabled, trackInscriptionHolder } from '@/lib/onchain/sat-tracker';
 
 /** How old an observation may be when a DISPLAY/READ path serves it. */
 export const DISPLAY_TTL_MS = 5 * 60 * 1000;
@@ -84,6 +92,40 @@ interface Observation {
 
 const observations = new Map<string, Observation>();
 const inFlight = new Map<string, Promise<InscriptionOwner | null>>();
+
+interface ChainRecord {
+  /** Last time any source named a holder. */
+  lastOkAt: number | null;
+  /** First failed check after the last success; null while sources answer. */
+  unavailableSince: number | null;
+}
+
+const chainRecords = new Map<string, ChainRecord>();
+
+/** One holder lookup across every source, in order. null = no source could say. */
+async function queryHolder(inscriptionId: string): Promise<InscriptionOwner | null> {
+  const fromOrd = await ordGetInscriptionOwner(inscriptionId);
+  if (fromOrd) return fromOrd;
+  if (!isSatTrackerEnabled()) return null;
+
+  const tracked = await trackInscriptionHolder(inscriptionId);
+  if (tracked.status === 'ok') {
+    return { address: tracked.address, satpoint: tracked.satpoint, source: tracked.source };
+  }
+  console.warn(`[owner-freshness] no source could place ${inscriptionId} (sat tracker: ${tracked.reason})`);
+  return null;
+}
+
+function recordOutcome(inscriptionId: string, owner: InscriptionOwner | null, at: number): void {
+  const rec = chainRecords.get(inscriptionId) ?? { lastOkAt: null, unavailableSince: null };
+  if (owner) {
+    rec.lastOkAt = at;
+    rec.unavailableSince = null;
+  } else if (rec.unavailableSince === null) {
+    rec.unavailableSince = at;
+  }
+  chainRecords.set(inscriptionId, rec);
+}
 
 /**
  * Current on-chain holder of an inscription.
@@ -116,8 +158,10 @@ export async function resolveInscriptionOwner(
   if (open) return open;
 
   const query = (async () => {
-    const owner = await ordGetInscriptionOwner(inscriptionId);
-    observations.set(inscriptionId, { owner, observedAt: Date.now() });
+    const owner = await queryHolder(inscriptionId);
+    const observedAt = Date.now();
+    observations.set(inscriptionId, { owner, observedAt });
+    recordOutcome(inscriptionId, owner, observedAt);
     return owner;
   })().finally(() => {
     inFlight.delete(inscriptionId);
@@ -146,8 +190,49 @@ export function invalidateInscriptionOwner(inscriptionId: string): void {
   observations.delete(inscriptionId);
 }
 
+export interface OwnerAvailability {
+  /**
+   * `ok`: the latest check named a holder. `unavailable`: it did not (every
+   * source failed or could not place the inscription). `unchecked`: this
+   * process has not asked about the inscription yet.
+   */
+  chain: 'ok' | 'unavailable' | 'unchecked';
+  /** Source of the latest answer: an ord host label or `esplora:<host>`. */
+  source: string | null;
+  /** When the latest check finished. */
+  checkedAt: string | null;
+  /** Last time a source named a holder, as far as this process knows. */
+  lastVerifiedAt: string | null;
+  /** Since when no source has, while `chain` is `unavailable`. */
+  unavailableSince: string | null;
+}
+
+const isoOrNull = (ms: number | null | undefined) => (typeof ms === 'number' ? new Date(ms).toISOString() : null);
+
+/**
+ * What the latest holder check for an inscription established. Reads memory
+ * only; it never queries, so it is safe on any read path. Not an
+ * authorization input: an auth decision calls `resolveInscriptionOwner`.
+ */
+export function getOwnerAvailability(inscriptionId: string): OwnerAvailability {
+  const obs = observations.get(inscriptionId);
+  const rec = chainRecords.get(inscriptionId);
+  if (!obs) {
+    return { chain: 'unchecked', source: null, checkedAt: null, lastVerifiedAt: isoOrNull(rec?.lastOkAt), unavailableSince: null };
+  }
+  const ok = obs.owner !== null;
+  return {
+    chain: ok ? 'ok' : 'unavailable',
+    source: ok ? obs.owner?.source ?? null : null,
+    checkedAt: isoOrNull(obs.observedAt),
+    lastVerifiedAt: isoOrNull(rec?.lastOkAt),
+    unavailableSince: ok ? null : isoOrNull(rec?.unavailableSince),
+  };
+}
+
 /** Test seam: drop all state so a suite can simulate a cold process. */
 export function __resetOwnerObservations(): void {
   observations.clear();
   inFlight.clear();
+  chainRecords.clear();
 }

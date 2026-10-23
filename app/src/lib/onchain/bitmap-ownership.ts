@@ -12,9 +12,10 @@
  *     public and immutable, so a content match alone proves nothing about who
  *     holds it now. A live indexer must report the current holder, and that
  *     holder must equal the claimed wallet (case-sensitive bech32).
- *   - Providers, in order: ord (`ORD_BASE_URL`, default ordinals.com), then
- *     Unisat as a tertiary fallback — applying the SAME equality assertion.
- *     Unisat is NEVER a content-only bypass.
+ *   - Providers, in order: the ord hosts (`ORD_BASE_URLS`, default
+ *     ordinals.com), then the Esplora sat tracker (both through
+ *     owner-freshness), then Unisat as a tertiary fallback — applying the SAME
+ *     equality assertion. Unisat is NEVER a content-only bypass.
  *   - The block-number content match is an ADDITIONAL constraint, never a
  *     substitute for the holder check. There is no content-only success path.
  *   - Our own database is a CACHE and is deliberately not consulted here.
@@ -30,10 +31,14 @@
  * one block cost one throttled indexer round-trip each.
  */
 
-import { getAddressInscriptions as ordGetAddressInscriptions } from '@/lib/onchain/ord';
+import {
+  getAddressInscriptions as ordGetAddressInscriptions,
+  getInscriptionContent as ordGetInscriptionContent,
+} from '@/lib/onchain/ord';
 import { resolveInscriptionOwner } from '@/lib/onchain/owner-freshness';
+import { readInscriptionBodyFromChain } from '@/lib/onchain/sat-tracker';
 
-/** Timeout for the non-ord (content / Unisat) calls made from this module. */
+/** Timeout for the Unisat calls made from this module. */
 const FETCH_TIMEOUT_MS = 8000;
 
 /** Most inscriptions we will content-check when scanning a wallet, to bound latency. */
@@ -43,6 +48,16 @@ function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = FETCH_TIMEOU
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
   return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Inscription content from the ord hosts, else read out of the reveal
+ * transaction via Esplora (which declines delegated or content-encoded
+ * inscriptions rather than return different bytes than ord would serve).
+ * null = unavailable, never "empty".
+ */
+async function fetchInscriptionContent(inscriptionId: string): Promise<string | null> {
+  return (await ordGetInscriptionContent(inscriptionId)) ?? (await readInscriptionBodyFromChain(inscriptionId));
 }
 
 /** `.bitmap` inscription content is either `<height>` or `<height>.bitmap`. */
@@ -105,13 +120,7 @@ export async function verifyInscriptionOwnership(
     }
 
     // ── ADDITIONAL constraint: content must name the claimed block ───
-    let content: string | null = null;
-    try {
-      const res = await fetchWithTimeout(`https://ordinals.com/content/${encodeURIComponent(inscriptionId)}`);
-      if (res.ok) content = await res.text();
-    } catch {
-      /* content unavailable */
-    }
+    const content = await fetchInscriptionContent(inscriptionId);
 
     if (content === null) {
       console.warn(`[ownership] holder confirmed for ${inscriptionId} but content unavailable; failing closed`);
@@ -177,13 +186,9 @@ export async function scanWalletForBitmap(
     }
 
     for (const id of inscriptionIds.slice(0, MAX_SCANNED_INSCRIPTIONS)) {
-      try {
-        const res = await fetchWithTimeout(`https://ordinals.com/content/${encodeURIComponent(id)}`, {}, 5000);
-        if (res.ok && contentNamesBlock(await res.text(), blockHeight)) {
-          return { verified: true, inscriptionId: id };
-        }
-      } catch {
-        continue;
+      const content = await fetchInscriptionContent(id);
+      if (content !== null && contentNamesBlock(content, blockHeight)) {
+        return { verified: true, inscriptionId: id };
       }
     }
 
