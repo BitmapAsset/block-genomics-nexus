@@ -8,7 +8,8 @@
 #   SMOKE_BASE_URL=https://example.vercel.app bash .github/scripts/prod-smoke.sh
 #
 # Writes a Markdown table of results to $SMOKE_REPORT (default
-# smoke-report.md) and exits 1 if any probe failed. A probe is retried up to
+# smoke-report.md) and exits 1 if any probe failed. A probe marked ⚠️ is a
+# warning and does not fail the run. A probe is retried up to
 # SMOKE_ATTEMPTS times, SMOKE_RETRY_DELAY seconds apart, because the
 # production alias can lag the deployment_status event by a few seconds.
 #
@@ -30,11 +31,15 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 failures=0
+warnings=0
 rows=""
 
-record() { # record <probe> <expected> <observed> <ok|FAIL>
+record() { # record <probe> <expected> <observed> <ok|warn|FAIL>
   local mark="✅"
-  if [ "$4" != ok ]; then
+  if [ "$4" = warn ]; then
+    mark="⚠️"
+    warnings=$((warnings + 1))
+  elif [ "$4" != ok ]; then
     mark="❌"
     failures=$((failures + 1))
   fi
@@ -116,6 +121,23 @@ check_redirect() { # check_redirect <old-path> <new-path>
   [ "$CODE" = 200 ]
 }
 
+# Chain sources behind ownership answers. An upstream outage (ord hosts
+# blocked, Esplora down) is reported as a warning, not a failure: a deploy
+# cannot fix a third party, and the ownership API already answers "unknown"
+# rather than a false negative. A 5xx, a non-200 or a body without a chain
+# state means the route itself is broken, and fails.
+CHAIN_STATE=""
+check_chain_health() {
+  fetch /api/v1/health/chain 1
+  OBSERVED="$CODE"
+  [ "$CODE" = 200 ] || return 1
+  CHAIN_STATE="$(jq -r '.data.chain // empty' "$TMP/body" 2>/dev/null || true)"
+  case "$CHAIN_STATE" in
+    ok | degraded | unavailable) OBSERVED="200, chain $CHAIN_STATE" ;;
+    *) OBSERVED="200, no chain state in body"; return 1 ;;
+  esac
+}
+
 probe() { # probe <label> <expected> <check...>
   local label="$1" expected="$2"
   shift 2
@@ -140,11 +162,26 @@ probe "/portfolio" "301 → /my-bitmaps → 200" check_redirect /portfolio /my-b
 probe "/profile" "301 → /my-bitmaps → 200" check_redirect /profile /my-bitmaps
 probe "/verify" "301 → /my-bitmaps → 200" check_redirect /verify /my-bitmaps
 
+OBSERVED=""
+if with_retries check_chain_health; then
+  if [ "$CHAIN_STATE" = ok ]; then
+    record "/api/v1/health/chain" "200, chain ok (⚠️ if degraded/unavailable)" "$OBSERVED" ok
+  else
+    record "/api/v1/health/chain" "200, chain ok (⚠️ if degraded/unavailable)" "$OBSERVED" warn
+  fi
+else
+  record "/api/v1/health/chain" "200, chain ok (⚠️ if degraded/unavailable)" "$OBSERVED" FAIL
+fi
+
 total=$(printf '%s' "$rows" | grep -c '^|')
 {
   echo "### Production smoke: $BASE"
   echo
   echo "$((total - failures))/$total probes passed at $(date -u +%Y-%m-%dT%H:%M:%SZ)."
+  if [ "$warnings" -gt 0 ]; then
+    echo
+    echo "⚠️ $warnings warning(s): an upstream the site depends on is degraded. Not a deploy failure."
+  fi
   echo
   echo "| Probe | Expected | Observed | |"
   echo "|---|---|---|---|"
