@@ -7,7 +7,7 @@ import { deriveGenomeHash } from '@/lib/genome-utils';
 import { normalizeHandle, isValidHandle, HANDLE_ERROR } from '@/lib/handle';
 import { verifyBip322 } from '@/lib/bip322';
 import { verifyInscriptionOwnership, scanWalletForBitmap } from '@/lib/onchain/bitmap-ownership';
-import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { enforceRateLimit, AUTH_VERIFY_LIMIT } from '@/lib/api-rate-limit';
 
 /**
  * POST /api/v1/auth/verify
@@ -18,6 +18,17 @@ import { enforceRateLimit } from '@/lib/api-rate-limit';
  * Step 3: Upsert user with tier, handle, genome
  */
 export async function POST(req: NextRequest) {
+  // Charged before the body is read: every POST that gets past this line can
+  // cost a BIP-322 verification, a DB nonce consume and a live indexer call.
+  const rl = await enforceRateLimit(req, { bucket: 'v1-auth-verify-post', limit: AUTH_VERIFY_LIMIT });
+  if (rl.response) return rl.response;
+
+  const res = await verifyPost(req);
+  for (const [k, v] of Object.entries(rl.headers)) res.headers.set(k, v);
+  return res;
+}
+
+async function verifyPost(req: NextRequest) {
   // A body that is not JSON is the caller's mistake: 400, never the 500 below.
   let parsed: unknown;
   try {
