@@ -78,6 +78,9 @@ const UNDOCUMENTED_BY_DESIGN: Record<string, string> = {
   // ── Web app product surfaces, outside the Nexus agent protocol. ──
   '/api/v1/blocks/claimed': 'web explorer listing',
   '/api/v1/blocks/{height}/summary': 'block viewer layout feed (per-tx vsize/fee/value from mempool); not a protocol surface',
+  '/api/v1/blocks/{height}/events':
+    'Living Block event feed (bg-event/1), dark behind BG_EVENTS_ENABLED until the BlockEvent migration ships; documented in openapi.json (and the SDK copy) when the flag turns on',
+  '/api/v1/blocks/{height}/events/{id}/proof': 'Living Block event proof, dark behind BG_EVENTS_ENABLED (see the events feed above)',
   '/api/v1/chat/history': 'block chat product surface',
   '/api/v1/chat/react': 'block chat product surface',
   '/api/v1/chat/{blockHeight}': 'block chat product surface',
