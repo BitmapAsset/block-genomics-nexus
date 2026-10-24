@@ -5,6 +5,7 @@ import { verifyBlockOwnership } from '@/lib/ownership-sync';
 import { ownershipAnswer } from '@/lib/onchain/ownership-answer';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
+import { emitDeedVerified } from '@/lib/block-event-emitters';
 
 /**
  * GET /api/v1/ownership/verify?blockHeight=720143
@@ -23,6 +24,18 @@ export async function GET(req: NextRequest) {
     // DISPLAY tier: a public read-only comparison of DB vs on-chain owner.
     // It authorizes nothing, so it shares the cached observation.
     const check = await verifyBlockOwnership(blockHeight, 'display');
+
+    // Living Block: a live match is an observed `deed.verified`, system-signed
+    // (nobody signed anything here) and deduped to one per holder per day, so a
+    // public GET cannot be used to flood a block's chain.
+    if (check.match && !check.indeterminate && check.onChainOwnerAddress) {
+      await emitDeedVerified({
+        block: blockHeight,
+        holder: check.onChainOwnerAddress,
+        inscriptionId: check.inscriptionId,
+        via: 'ownership-check',
+      });
+    }
 
     // An outage answers `verdict: 'unknown'` / `chain: 'unavailable'` with
     // `match: null`, never `match: false` (see lib/onchain/ownership-answer).

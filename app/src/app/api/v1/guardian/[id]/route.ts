@@ -15,6 +15,7 @@ import prisma from '@/lib/prisma';
 import { encryptApiKey, maskApiKey } from '@/lib/key-encryption';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
+import { emitGuardianTransition } from '@/lib/block-event-emitters';
 
 function sanitizeGuardian(g: Record<string, unknown>) {
   return { ...g, llmApiKey: maskApiKey(g.llmApiKey as string) };
@@ -95,6 +96,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     const updated = await prisma.guardianAgent.update({ where: { id }, data });
+    // `guardian.status` only if this edit moved it between idle/resting/offline.
+    await emitGuardianTransition(existing, updated);
     return NextResponse.json({ guardian: sanitizeGuardian(updated as unknown as Record<string, unknown>) });
   } catch (err: unknown) {
     console.error('[Guardian PATCH]', err);
@@ -121,6 +124,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const gate = await requireLiveBlockOwner(ownerAddress, target.blockHeight);
     if (!gate.ok) return gateDenialResponse(gate);
     await prisma.guardianAgent.update({ where: { id }, data: { status: 'stopped' } });
+    await emitGuardianTransition(target, { ...target, status: 'stopped' });
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
     console.error('[Guardian DELETE]', err);

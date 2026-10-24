@@ -16,6 +16,7 @@ import { EXPERIENCE_ACTIONS } from '@/lib/experience-integrity';
 import { judgeExperienceManifest } from '@/lib/experience-judge';
 import { serializeExperience, probeAndPersist, persistBrainRejection } from '@/lib/experience-service';
 import { enforceRateLimit, EXPERIENCE_WRITE_LIMIT } from '@/lib/api-rate-limit';
+import { emitExperience, walletProofOf } from '@/lib/block-event-emitters';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
 function zodMessage(err: z.ZodError): string {
@@ -125,6 +126,15 @@ export async function POST(req: NextRequest) {
         soulJudged: true,
       },
     });
+
+    // Living Block: `experience.listed`. The signed manifest is already a public
+    // attestation (serializeExperience publishes it); the legacy challenge path
+    // is system-signed instead.
+    await emitExperience(
+      'experience.listed',
+      created,
+      gate.signed ? walletProofOf(walletAddress, message, signature) : null,
+    );
 
     // Probe on register (best-effort; sets live/degraded/unreachable).
     await probeAndPersist(created).catch(() => {});

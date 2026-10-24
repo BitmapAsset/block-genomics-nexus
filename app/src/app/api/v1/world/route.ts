@@ -4,6 +4,7 @@ import { verifyWalletSignature } from '@/lib/api-helpers';
 import { consumeChallenge } from '@/lib/challenges';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
 import { emitAgentEvent } from '@/lib/agent-events';
+import { emitWorldWrite, walletProofOf } from '@/lib/block-event-emitters';
 import { requireVerifiedBlock, gateDenialResponse, sessionTokenFromHeaders } from '@/lib/ownership-gate';
 import { requireSignedBlockOwner } from '@/lib/block-write-auth';
 import { looksLikeSessionToken } from '@/lib/verified-sessions';
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
     // The actor is never read from the request body on the agent path: it comes
     // from the session, so a token cannot attribute writes to another wallet.
     let ownerAddress: string;
+    let via: 'wallet' | 'session' = 'session';
 
     if (looksLikeSessionToken(sessionTokenFromHeaders(req.headers))) {
       const gate = await requireVerifiedBlock(req, blockHeight);
@@ -73,6 +75,7 @@ export async function POST(req: NextRequest) {
           'or send an action-bound BIP-322 signature.',
       });
     } else {
+      via = 'wallet';
       ownerAddress = body.ownerAddress;
       if (!ownerAddress) {
         return NextResponse.json({ error: 'ownerAddress required' }, { status: 400 });
@@ -130,6 +133,18 @@ export async function POST(req: NextRequest) {
       objectId: object.id,
       objectType,
       summary: `Owner placed a ${objectType} on block #${blockHeight}`,
+    });
+
+    // Living Block event (bg-event/1), after the commit; inert until
+    // BG_EVENTS_ENABLED and the BlockEvent migration. The signed action message
+    // is stored as the proof: its nonce was consumed above, so it cannot be
+    // replayed, and it is what lets anyone re-check this build offline.
+    await emitWorldWrite({
+      block: blockHeight,
+      ownerAddress,
+      via,
+      ops: [{ op: 'create', id: object.id, objectType, name: safeData.name }],
+      walletProof: via === 'wallet' ? walletProofOf(ownerAddress, message, signature) : null,
     });
 
     return NextResponse.json({ object }, { status: 201, headers: rl.headers });

@@ -8,6 +8,7 @@ import { EXPERIENCE_ACTIONS } from '@/lib/experience-integrity';
 import { judgeExperienceManifest } from '@/lib/experience-judge';
 import { serializeExperience, probeAndPersist, maybeReprobeStale, persistBrainRejection } from '@/lib/experience-service';
 import { enforceRateLimit, EXPERIENCE_WRITE_LIMIT } from '@/lib/api-rate-limit';
+import { emitExperience, walletProofOf } from '@/lib/block-event-emitters';
 
 function zodMessage(err: z.ZodError): string {
   return err.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; ');
@@ -205,6 +206,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (!gate.ok) return error(gate.error, gate.status);
 
     await prisma.experience.delete({ where: { id } });
+    await emitExperience('experience.removed', exp, gate.signed ? walletProofOf(walletAddress, message, signature) : null);
     return success({ id, removed: true });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';

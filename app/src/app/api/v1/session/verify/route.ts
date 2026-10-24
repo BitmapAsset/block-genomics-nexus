@@ -31,6 +31,7 @@ import {
 } from '@/lib/verified-sessions';
 import { rateLimitDurable, clientIpFrom } from '@/lib/rate-limit-db';
 import { logActivity } from '@/lib/activity';
+import { emitDeedVerified, walletProofOf } from '@/lib/block-event-emitters';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -100,6 +101,7 @@ export async function POST(req: NextRequest) {
 
     // ── 3. On-chain check proves bitmap ownership, per block ──────
     const verifiedBlocks: number[] = [];
+    const verifiedInscriptions = new Map<number, string | null>();
     const rejected: Array<{ blockHeight: number; reason: string; retryable: boolean }> = [];
 
     for (const blockHeight of blocks) {
@@ -111,6 +113,7 @@ export async function POST(req: NextRequest) {
       );
       if (check.verified) {
         verifiedBlocks.push(blockHeight);
+        verifiedInscriptions.set(blockHeight, check.inscriptionId ?? null);
       } else {
         rejected.push({
           blockHeight,
@@ -145,6 +148,20 @@ export async function POST(req: NextRequest) {
     const { token, session } = await mintVerifiedSession(walletAddress, verifiedBlocks, {
       label: typeof body?.label === 'string' ? body.label.slice(0, 80) : undefined,
     });
+
+    // Living Block: one `deed.verified` per proven block. The challenge message
+    // carries a nonce consumed above, so publishing it as the proof re-authorizes
+    // nothing. The session token never leaves this response.
+    const proof = walletProofOf(walletAddress, message, signature);
+    for (const blockHeight of verifiedBlocks) {
+      await emitDeedVerified({
+        block: blockHeight,
+        holder: walletAddress,
+        inscriptionId: verifiedInscriptions.get(blockHeight) ?? null,
+        via: 'session',
+        walletProof: proof,
+      });
+    }
 
     logActivity(walletAddress, 'session_verified', {
       blocks: verifiedBlocks.length,

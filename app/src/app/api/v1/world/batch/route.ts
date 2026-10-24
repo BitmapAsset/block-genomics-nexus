@@ -8,6 +8,7 @@ import { requireSignedBlockOwner, authorizeObjectWrite } from '@/lib/block-write
 import { gateDenialResponse, requireVerifiedBlock, sessionTokenFromHeaders } from '@/lib/ownership-gate';
 import { looksLikeSessionToken } from '@/lib/verified-sessions';
 import { enforceRateLimit, WORLD_BATCH_LIMIT } from '@/lib/api-rate-limit';
+import { emitWorldWrite, walletProofOf, type WalletProof } from '@/lib/block-event-emitters';
 
 // H-03: Allowlist of fields for block objects
 const ALLOWED_OBJECT_FIELDS = ['objectType', 'geometry', 'color', 'material', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ', 'name', 'visible'];
@@ -43,6 +44,8 @@ interface AuthorizedBatch {
    * a forged sub-op rejects the batch with the nonce still intact.
    */
   consumeNonce?: () => Promise<boolean>;
+  /** The action-bound signature, on the wallet path (published once the nonce is spent). */
+  walletProof?: WalletProof | null;
 }
 
 /**
@@ -134,6 +137,7 @@ async function authorizeBatch(
   return {
     ownerAddress,
     consumeNonce: () => consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }),
+    walletProof: walletProofOf(ownerAddress, message, signature),
   };
 }
 
@@ -272,6 +276,15 @@ export async function POST(req: NextRequest) {
       opCounts,
       totalOps: operations.length,
       summary: `Owner batch-updated block #${blockHeight}: ${JSON.stringify(opCounts)}`,
+    });
+
+    // One signed batch → one Living Block event (counts per op), after the commit.
+    await emitWorldWrite({
+      block: blockHeight,
+      ownerAddress,
+      via: auth.walletProof ? 'wallet' : 'session',
+      ops: results.filter((r) => r.id).map((r) => ({ op: r.action as 'create' | 'update' | 'delete', id: r.id! })),
+      walletProof: auth.walletProof ?? null,
     });
 
     return NextResponse.json({ results }, { headers: rl.headers });

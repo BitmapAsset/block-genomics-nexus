@@ -38,6 +38,7 @@ import prisma from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 import { consumeChallengeFromMessage } from '@/lib/challenges';
+import { emitGuardianTransition, walletProofOf } from '@/lib/block-event-emitters';
 
 // Binds a nonce to this flow, so a nonce signed for a session cannot beat here.
 // Deliberately not exported: Next rejects any route export that is not a route
@@ -81,10 +82,21 @@ export async function POST(req: NextRequest) {
     const gate = await requireLiveBlockOwner(ownerAddress, guardian.blockHeight);
     if (!gate.ok) return gateDenialResponse(gate);
 
+    const beatAt = new Date();
     await prisma.guardianAgent.update({
       where: { id: guardianId },
-      data: { lastHeartbeat: new Date(), endpointVerified: true },
+      data: { lastHeartbeat: beatAt, endpointVerified: true },
     });
+
+    // Living Block: a beat emits only when it brings the guardian back from
+    // offline (spec §5.4: never per heartbeat). Its nonce was consumed above, so
+    // the signed beat is safe to publish as the proof.
+    await emitGuardianTransition(
+      guardian,
+      { ...guardian, lastHeartbeat: beatAt },
+      walletProofOf(ownerAddress, message, signature),
+      beatAt.getTime(),
+    );
 
     return NextResponse.json({ success: true, timestamp: new Date().toISOString() });
   } catch (err: unknown) {
