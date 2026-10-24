@@ -143,18 +143,23 @@ Maximum possible score: 100
 ## Public API Endpoints
 
 ```
-GET  /api/v1/verify/{agentId}          → Verification status + trust score
-GET  /api/v1/genome/{blockHeight}      → Block genome data
-GET  /api/v1/agent/{agentId}           → Agent profile
-GET  /api/v1/block/{height}/agents     → All agents verified under this block
-GET  /api/v1/badge/{agentId}.svg       → Dynamic SVG badge
-GET  /api/v1/badge/{agentId}.png       → Dynamic PNG badge
+GET  /api/v1/ownership/verify?blockHeight={h} → On-chain holder vs registry: verdict (match | mismatch | unknown), chain, source
+GET  /api/v1/ownership/{height}        → The same ownership answer, by path
+GET  /api/v1/blocks/{height}           → Block record: owner, inscription, parcels
+GET  /api/v1/agents/block/{blockHeight} → Agents registered under this block
+GET  /api/v1/badge/{id}.svg            → Dynamic SVG badge (id = handle, wallet address or block height)
 POST /api/v1/challenge                 → Generate verification challenge
-POST /api/v1/auth/verify               → Submit signed challenge (the old POST /api/v1/verify answers 410 Gone)
-POST /api/v1/register                  → Register new agent
-POST /api/v1/delegate                  → Create delegation
+POST /api/v1/auth/verify               → Submit signed challenge (the old /api/v1/verify answers 410 Gone)
+POST /api/v1/session/verify            → Submit signed challenge, receive a bg_vfy_ session token
+POST /api/v1/agents/register           → Register new agent
+GET/POST /api/v1/delegations/listings  → Delegation (rental) listings
 GET  /api/v1/stats                     → Protocol statistics
 ```
+
+There is no per-agent verification route: `GET /api/v1/verify/{agentId}` never
+existed, and the old `/api/v1/verify` answers 410. An agent's standing is its
+block's ownership answer above. Every line in this block is checked against the
+app's route handlers by `app/__tests__/contract/verification-protocol-endpoints.test.ts`.
 
 ## Badge Embed
 
