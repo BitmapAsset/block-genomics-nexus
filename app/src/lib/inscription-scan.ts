@@ -9,7 +9,7 @@
  * js/request-forgery). In-process there is no URL to forge.
  */
 
-import { getAddressInscriptions as ordGetAddressInscriptions } from '@/lib/onchain/ord';
+import { getAddressInscriptions as ordGetAddressInscriptions, getInscriptionContent } from '@/lib/onchain/ord';
 
 export interface BitmapResult {
   type: 'block' | 'parcel';
@@ -57,10 +57,12 @@ export async function scanAddressForBitmaps(address: string): Promise<Inscriptio
   // miniature. Any failure aborts the whole scan.
   const contentResults = await Promise.allSettled(
     inscriptionIds.slice(0, 50).map(async (id) => {
-      // ordinals.com/content is the .bitmap content source.
-      const r = await fetch(`https://ordinals.com/content/${id}`, { signal: AbortSignal.timeout(5000) });
-      if (!r.ok) throw new Error(`content/${id} -> ${r.status}`);
-      return { id, content: (await r.text()).trim() };
+      // Same ord host list as the holdings above (ORD_BASE_URLS, tried in
+      // order), not a hard-coded ordinals.com: one blocked host must not fail
+      // a scan another configured host can answer.
+      const content = await getInscriptionContent(id);
+      if (content === null) throw new Error(`content/${id} unavailable on every ord host`);
+      return { id, content: content.trim() };
     })
   );
 

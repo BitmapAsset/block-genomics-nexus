@@ -49,8 +49,11 @@ jest.mock('@/lib/api-rate-limit', () => ({
   PUBLIC_READ_LIMIT: 120,
 }));
 
-// The wallet's live inscription list (indexers); content is fetched below.
+// The wallet's live inscription list (indexers) is stubbed. Content goes
+// through the real ord client (default host ordinals.com) into the fetch below,
+// so the assertion that only the chain's host is asked covers that client too.
 jest.mock('@/lib/onchain/ord', () => ({
+  ...jest.requireActual('@/lib/onchain/ord'),
   getAddressInscriptions: async () => ['realbitmapi0'],
 }));
 
