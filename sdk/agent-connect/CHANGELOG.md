@@ -4,6 +4,23 @@ All notable changes to `block-genomics-connect` are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] — 2026-10-23 (unreleased)
+
+### Fixed
+
+- **`OwnershipResult` now says what the API says during a chain outage.**
+  `match` is typed `boolean | null` (the API sends `null` when no source could
+  name the holder; reading it as a boolean meant "does not hold"). The type
+  gains `verdict` (`match` | `mismatch` | `unknown`), `chain` (`ok` |
+  `unavailable` | `unchecked`), `source`, `checkedAt`, `lastVerifiedAt` and
+  `unavailableSince`.
+
+### Added
+
+- `ownershipVerdict(result)` returns the three-valued verdict, derived from
+  `match` for servers older than the field, and never turns a null `match` into
+  a mismatch. New exported type `OwnershipVerdict`.
+
 ## [0.4.1] — 2026-10-16
 
 ### Fixed

@@ -110,8 +110,26 @@ GET https://ordinals.com/content/{inscriptionId}          -> "840000.bitmap"
 
 These are ord's recursive endpoints, which carry ord's backwards-compatibility
 promise. The non-recursive JSON API (`/inscription/{id}`, `/address/{addr}`) is
-disabled on ordinals.com (HTTP 406), and `ORD_BASE_URL` can point the app at a
-self-hosted ord.
+disabled on ordinals.com (HTTP 406).
+
+`ordinals.com` above is only the default ord host. Every ord read in the app
+(holder, holdings, content, the wallet scan and tier resolution) goes through one
+client that tries the hosts in `ORD_BASE_URLS`:
+
+- `ORD_BASE_URLS`: comma-separated ord base URLs, tried in order, e.g.
+  `https://ord.example.net,https://ordinals.com`. A configured list replaces the
+  default, so list `https://ordinals.com` yourself if you want it as a backup.
+- `ORD_BASE_URL`: the older single-host setting, still honoured and tried first.
+- Neither set: `https://ordinals.com` only.
+- A host that answers 403, 429 or 5xx, or times out, gets one retry inside an 8 s
+  budget, then the next host is tried; a host that is out of attempts is skipped
+  for 60 s. A 404/400/406 is the host's real answer and is not retried elsewhere.
+- When no host can answer, the app fails closed: the wallet scan
+  (`GET /api/v1/inscriptions/scan`) answers 503 with
+  `{ "code": "onchain_unavailable", "chain": "unavailable" }` and `Retry-After`,
+  and ownership answers `verdict: "unknown"`. An outage is never read as "holds
+  nothing". Since 2026-10-22 ordinals.com refuses scripted requests with a
+  Cloudflare 403, so a self-hosted ord first in the list is what keeps the scan up.
 
 ### Which copy is the deed
 Several inscriptions can say "840000.bitmap"; only the first valid one is the

@@ -97,7 +97,7 @@ export function launchMap(startHeight = 840000) {
           `${chalk.bold("Owner")}: ${info.ownerAddress ? info.ownerAddress.slice(0, 18) + "…" : "—"}\n` +
           `${chalk.bold("Handle")}: ${info.ownerHandle ? "@" + info.ownerHandle : "—"}\n` +
           `${chalk.bold("Tier")}: ${info.tier ?? "—"}\n` +
-          `${chalk.bold("Chain match")}: ${info.onChainMatch ? "yes" : "no"}\n\n` +
+          `${chalk.bold("Chain match")}: ${info.chainLabel}\n\n` +
           chalk.gray("Live from /api/v1. Arrows • Enter • / • q")
       );
     } catch (e) {

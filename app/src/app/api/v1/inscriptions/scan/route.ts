@@ -34,6 +34,8 @@ export async function GET(req: NextRequest) {
           success: false,
           error: OUTAGE_MESSAGE[scan.reason],
           code: 'onchain_unavailable',
+          // Same word the ownership answer uses: no source could answer.
+          chain: 'unavailable',
         },
         { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '15' } }
       );

@@ -7,7 +7,7 @@ import { deriveGenomeHash } from '@/lib/genome-utils';
 import { normalizeHandle, isValidHandle, HANDLE_ERROR } from '@/lib/handle';
 import { verifyBip322 } from '@/lib/bip322';
 import { verifyInscriptionOwnership, scanWalletForBitmap } from '@/lib/onchain/bitmap-ownership';
-import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { enforceRateLimit, AUTH_VERIFY_LIMIT } from '@/lib/api-rate-limit';
 
 /**
  * POST /api/v1/auth/verify
@@ -18,6 +18,17 @@ import { enforceRateLimit } from '@/lib/api-rate-limit';
  * Step 3: Upsert user with tier, handle, genome
  */
 export async function POST(req: NextRequest) {
+  // Charged before the body is read: every POST that gets past this line can
+  // cost a BIP-322 verification, a DB nonce consume and a live indexer call.
+  const rl = await enforceRateLimit(req, { bucket: 'v1-auth-verify-post', limit: AUTH_VERIFY_LIMIT });
+  if (rl.response) return rl.response;
+
+  const res = await verifyPost(req);
+  for (const [k, v] of Object.entries(rl.headers)) res.headers.set(k, v);
+  return res;
+}
+
+async function verifyPost(req: NextRequest) {
   // A body that is not JSON is the caller's mistake: 400, never the 500 below.
   let parsed: unknown;
   try {
@@ -239,8 +250,10 @@ export async function POST(req: NextRequest) {
       holderCheck,
     });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'Unknown error';
-    return error(message, 500);
+    // The detail (often a Prisma error naming tables and columns) stays in the
+    // server log; the caller gets a generic message.
+    console.error('[auth/verify] POST failed:', e instanceof Error ? e.message : e);
+    return error('Verification failed. Please try again.', 500);
   }
 }
 
@@ -266,7 +279,7 @@ export async function GET(req: NextRequest) {
     ]);
     return success({ handle, available: !existingUser && !existingProfile });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'Unknown error';
-    return error(message, 500);
+    console.error('[auth/verify] GET failed:', e instanceof Error ? e.message : e);
+    return error('Handle check failed. Please try again.', 500);
   }
 }

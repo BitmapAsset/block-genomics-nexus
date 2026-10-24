@@ -75,6 +75,15 @@ export const ESTATE_WRITE_LIMIT = 20;
  */
 export const EXPERIENCE_VERIFY_LIMIT = 30;
 
+/**
+ * Ceiling for wallet sign-in (`POST /api/v1/auth/verify`), per identity, per
+ * minute. Each attempt costs a BIP-322 verification and a DB nonce consume, and
+ * a block claim adds a live indexer call. Same number as the session/verify
+ * route that the MCP `bg_verify_submit` tool calls; a person signs in a few
+ * times, not twenty.
+ */
+export const AUTH_VERIFY_LIMIT = 20;
+
 /** Anything exposing a `headers.get` — NextRequest, Request, or a test stub. */
 export type RateLimitedRequest = { headers: { get(name: string): string | null } };
 

@@ -22,7 +22,8 @@ export type Config = {
     block: number;
     verifiedAt: string;
     ownerAddress?: string | null;
-    onChainMatch?: boolean;
+    /** null = the chain could not be checked when this was saved. */
+    onChainMatch?: boolean | null;
   };
   resources?: Array<{ type: string; value: string; block: number; createdAt: string }>;
   agents?: Array<{ id: string; blockHeight: number; walletAddress: string; createdAt: string }>;

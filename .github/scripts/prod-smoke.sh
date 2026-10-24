@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Read-only production smoke probes for blockgenomics.io.
 #
-# Every probe is a plain GET with no credentials, so this is safe to run
-# against production at any time, from CI or from a laptop:
+# Every probe is a plain GET with no credentials, except one POST of a body
+# that is not JSON, which the route rejects (400) before any work. So this is
+# safe to run against production at any time, from CI or from a laptop:
 #
 #   bash .github/scripts/prod-smoke.sh            # probes https://blockgenomics.io
 #   SMOKE_BASE_URL=https://example.vercel.app bash .github/scripts/prod-smoke.sh
@@ -54,7 +55,7 @@ fetch() {
   local out
   out="$(curl -sS $follow_flag --max-time 20 \
     -A "bg-prod-smoke (+https://github.com/BitmapAsset/block-genomics-nexus)" \
-    -o "$TMP/body" \
+    -o "$TMP/body" -D "$TMP/headers" \
     -w '%{http_code}\t%{content_type}\t%{redirect_url}' \
     "$BASE$1" 2>"$TMP/err")" || out="000		"
   CODE="$(printf '%s' "$out" | cut -f1)"
@@ -138,6 +139,58 @@ check_chain_health() {
   esac
 }
 
+header() { # header <name> -> value from the last fetch, empty when absent
+  grep -i "^$1:" "$TMP/headers" 2>/dev/null | tail -n 1 | cut -d: -f2- | tr -d '\r' | sed 's/^ *//'
+}
+
+# /api/v1/stats is served from a shared CDN copy (s-maxage=30). The route sends
+# `public, s-maxage=30`; Vercel's edge consumes s-maxage and hands the client
+# `public`, so `public` without no-store/private is what proves the cached path
+# ran (the no-DB fallback answers no-store). The copy carries X-RateLimit-Limit
+# and no per-caller Remaining, which would be wrong for everyone sharing it.
+# Whether the edge then serves a HIT is reported, and only warns.
+STATS_EDGE=""
+check_stats_headers() {
+  fetch /api/v1/stats 1
+  local cc limit remaining
+  cc="$(header cache-control)"
+  limit="$(header x-ratelimit-limit)"
+  remaining="$(header x-ratelimit-remaining)"
+  OBSERVED="$CODE, cache-control: ${cc:-none}, X-RateLimit-Limit: ${limit:-none}"
+  [ "$CODE" = 200 ] || return 1
+  case "$cc" in *public*) ;; *) return 1 ;; esac
+  case "$cc" in *no-store* | *private*) return 1 ;; esac
+  case "$limit" in '' | *[!0-9]*) return 1 ;; esac
+  if [ -n "$remaining" ]; then
+    OBSERVED="$OBSERVED, X-RateLimit-Remaining: $remaining on a shared copy"
+    return 1
+  fi
+  fetch /api/v1/stats 1
+  STATS_EDGE="$(header x-vercel-cache)"
+}
+
+# A body that is not JSON is the caller's mistake: 400 invalid_json, fast, never
+# a 500 (QA 2026-10-22 #15). A 429 means the route's rate limit answered first,
+# which is also a correct, cheap refusal.
+check_auth_verify_junk() {
+  local out code secs
+  out="$(curl -sS --max-time 20 -X POST \
+    -A "bg-prod-smoke (+https://github.com/BitmapAsset/block-genomics-nexus)" \
+    -H 'Content-Type: application/json' --data '{not json' \
+    -o "$TMP/body" -w '%{http_code}\t%{time_total}' \
+    "$BASE/api/v1/auth/verify" 2>"$TMP/err")" || out="000	0"
+  code="$(printf '%s' "$out" | cut -f1)"
+  secs="$(printf '%s' "$out" | cut -f2)"
+  OBSERVED="$code in ${secs}s"
+  case "$code" in
+    400) jq -e '.error == "invalid_json"' "$TMP/body" >/dev/null 2>&1 || { OBSERVED="$OBSERVED, body without invalid_json"; return 1; } ;;
+    429) OBSERVED="$OBSERVED (rate limited)" ;;
+    *) return 1 ;;
+  esac
+  # Fast: the route parses the body before any database or chain work.
+  awk -v s="$secs" 'BEGIN { exit !(s + 0 < 5) }'
+}
+
 probe() { # probe <label> <expected> <check...>
   local label="$1" expected="$2"
   shift 2
@@ -154,6 +207,16 @@ for p in /explore /my-bitmaps /account /block/840000; do
   probe "$p" "200" check_page "$p"
 done
 probe "/api/v1/stats" "200 JSON" check_json /api/v1/stats
+OBSERVED=""
+if with_retries check_stats_headers; then
+  case "$STATS_EDGE" in
+    HIT | STALE | PRERENDER) record "/api/v1/stats headers" "200, public (s-maxage at the edge), X-RateLimit-Limit, edge HIT on repeat (⚠️ if not)" "$OBSERVED, repeat ${STATS_EDGE}" ok ;;
+    *) record "/api/v1/stats headers" "200, public (s-maxage at the edge), X-RateLimit-Limit, edge HIT on repeat (⚠️ if not)" "$OBSERVED, repeat ${STATS_EDGE:-no x-vercel-cache}" warn ;;
+  esac
+else
+  record "/api/v1/stats headers" "200, public (s-maxage at the edge), X-RateLimit-Limit, edge HIT on repeat (⚠️ if not)" "$OBSERVED" FAIL
+fi
+probe "POST /api/v1/auth/verify (junk body)" "400 invalid_json (or 429) in < 5 s" check_auth_verify_junk
 probe "/.well-known/mcp.json" "200, ≥ $MCP_JSON_MIN_TOOLS tools" check_tools /.well-known/mcp.json "$MCP_JSON_MIN_TOOLS"
 probe "/.well-known/mcp/server-card.json" "200, ≥ $MCP_CARD_MIN_TOOLS tools" check_tools /.well-known/mcp/server-card.json "$MCP_CARD_MIN_TOOLS"
 probe "/explorer" "301 → /explore → 200" check_redirect /explorer /explore

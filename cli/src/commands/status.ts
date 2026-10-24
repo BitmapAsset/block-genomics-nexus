@@ -14,7 +14,7 @@ export async function runStatus() {
       ["Block", verification ? `#${verification.block}` : "—"],
       ["Handle", config.profile ? `@${config.profile.handle}` : "—"],
       ["Owner", verification?.ownerAddress ?? "—"],
-      ["DB ↔ chain", verification ? (verification.onChainMatch ? "match" : "mismatch") : "—"],
+      ["DB ↔ chain", verification ? (verification.onChainMatch == null ? "unknown" : verification.onChainMatch ? "match" : "mismatch") : "—"],
       ["Resources", `${config.resources?.length ?? 0}`],
     ]) + `\n\n${miniHelix(hash)}`;
 
