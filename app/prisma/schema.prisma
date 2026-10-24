@@ -823,3 +823,38 @@ model VerifiedSession {
   @@index([walletAddress])
   @@index([expiresAt])
 }
+
+// ─── Living Block event spine (`bg-event/1`) ───
+// One append-only, per-block hash chain of public events: who built, verified,
+// moved or registered what on a block, each with a proof that can be re-checked
+// offline. `seq` is per block and gap-free; `prev` is the `hash` of the previous
+// event on the same block, so a deleted or edited row breaks the chain visibly.
+// Written only by the server (lib/block-events.ts). RLS on, no anon grant, and a
+// trigger refuses UPDATE / DELETE / TRUNCATE (see the migration).
+//
+// Never in a row: chat text, guardian memory/soul/config/keys, visitor wallets,
+// IPs or user agents (spec §5.6). `payload` holds public facts only.
+model BlockEvent {
+  id             String   @id // ULID (time-sortable)
+  block          Int
+  seq            Int
+  kind           String
+  actorType      String
+  actorId        String?
+  actorHandle    String?
+  signerScheme   String // bip322 | ed25519 | unsigned
+  signerAddress  String? // wallet address (bip322) or system key id (ed25519)
+  summary        String
+  payload        Json
+  payloadHash    String // sha256 of proofMessage
+  prev           String
+  hash           String
+  ts             DateTime
+  proofMessage   String // the exact bytes that were signed (or would have been)
+  proofSignature String? // BIP-322 (base64) or ed25519 (base64); null when unsigned
+  attestation    String? // ed25519 signature by the system key over `hash`
+  attestationKid String?
+
+  @@unique([block, seq])
+  @@index([block, ts])
+}
