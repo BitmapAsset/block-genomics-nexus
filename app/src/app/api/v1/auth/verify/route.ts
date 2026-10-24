@@ -250,8 +250,10 @@ async function verifyPost(req: NextRequest) {
       holderCheck,
     });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'Unknown error';
-    return error(message, 500);
+    // The detail (often a Prisma error naming tables and columns) stays in the
+    // server log; the caller gets a generic message.
+    console.error('[auth/verify] POST failed:', e instanceof Error ? e.message : e);
+    return error('Verification failed. Please try again.', 500);
   }
 }
 
@@ -277,7 +279,7 @@ export async function GET(req: NextRequest) {
     ]);
     return success({ handle, available: !existingUser && !existingProfile });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'Unknown error';
-    return error(message, 500);
+    console.error('[auth/verify] GET failed:', e instanceof Error ? e.message : e);
+    return error('Handle check failed. Please try again.', 500);
   }
 }

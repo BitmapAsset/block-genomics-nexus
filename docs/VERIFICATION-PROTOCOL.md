@@ -165,8 +165,12 @@ app's route handlers by `app/__tests__/contract/verification-protocol-endpoints.
 
 ### Simple Image
 ```html
-<img src="https://blockgenomics.io/api/v1/badge/bg_agent_7a3f....svg" />
+<img src="https://blockgenomics.io/api/v1/badge/718840.svg" />
 ```
+
+The badge id is a user handle, a Bitcoin wallet address or a block height
+(all digits, rendered at that block owner's tier), with an optional `.svg`.
+An id that matches none of these renders the Tier 0 (unverified) badge.
 
 No hosted widget script ships today: `verify.blockgenomics.io` (the host the
 earlier draft of this spec used) does not resolve, and there is no
