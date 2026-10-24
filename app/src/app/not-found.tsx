@@ -4,7 +4,8 @@ import NotFoundContent from '@/components/NotFoundContent';
 
 export const metadata: Metadata = {
   title: 'Not found | Block Genomics',
-  robots: { index: false, follow: false },
+  // No robots entry: Next writes <meta name="robots" content="noindex"> on every
+  // 404 it renders, and a second one here gave the page two robots metas.
 };
 
 // Unmatched URLs render here, under the root layout only (no route group), so
