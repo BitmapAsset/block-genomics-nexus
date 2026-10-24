@@ -5,6 +5,22 @@ All notable changes to the `block-genomics` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] — 2026-10-23 (unreleased)
+
+### Fixed
+- A chain outage no longer prints as a mismatch. When the API answers
+  `verdict: "unknown"` (no source could name the holder, `match: null`), `bg block`,
+  `bg verify`, `bg status` and the map panel print
+  `unknown (chain unreachable since <time>)`, or `unknown (no inscription on file)`
+  when nothing was asked, instead of "mismatch" / "no".
+
+### Changed
+- `OwnershipResult.match` is typed `boolean | null`, and the type gains the
+  server's `verdict`, `chain`, `source`, `checkedAt`, `lastVerifiedAt` and
+  `unavailableSince`. `--json` output of `bg block` and `bg verify` adds
+  `verdict`, `chain`, `source` and `unavailableSince`; `dbOnChainMatch` is `null`
+  during an outage.
+
 ## [0.4.0] — 2026-10-16
 
 First npm release since 0.3.0. It also carries the experience-hosting commands

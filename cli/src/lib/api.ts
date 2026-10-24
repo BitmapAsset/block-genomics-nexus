@@ -64,11 +64,23 @@ export type Stats = {
   blocksVerified: number;
 };
 
+export type OwnershipVerdict = "match" | "mismatch" | "unknown";
+
 export type OwnershipResult = {
   blockHeight: number;
   dbOwner: string | null;
   onChainOwner: string | null;
-  match: boolean;
+  /** null when no source could name the holder (a chain outage), never false. */
+  match: boolean | null;
+  /** Absent only on servers older than 2026-10-22; read it through ownershipVerdict(). */
+  verdict?: OwnershipVerdict;
+  /** ok = a source named the holder, unavailable = none could, unchecked = no inscription on file. */
+  chain?: "ok" | "unavailable" | "unchecked";
+  /** The ord host or `esplora:<host>` that answered, when one did. */
+  source?: string | null;
+  checkedAt?: string | null;
+  lastVerifiedAt?: string | null;
+  unavailableSince?: string | null;
   inscriptionId: string | null;
   action: string;
   lastChecked: string;

@@ -4,6 +4,7 @@ import { deriveGenomeHash } from "../lib/genome";
 import { getOwnership, getBlock, requestChallenge, ApiError } from "../lib/api";
 import { loadConfig, updateConfig } from "../lib/config";
 import { dnaVisualization, panel, printKeyValues } from "../lib/display";
+import { ownershipVerdict, verdictLabel } from "../lib/ownership-verdict";
 
 // `bg verify` performs a REAL, read-only on-chain ownership check against the
 // live Block Genomics API. It does NOT fake a successful identity claim:
@@ -79,6 +80,10 @@ export async function runVerify(block?: number, json = false) {
           label,
           inscriptionId: ownership.inscriptionId,
           dbOnChainMatch: ownership.match,
+          verdict: ownershipVerdict(ownership),
+          chain: ownership.chain ?? null,
+          source: ownership.source ?? null,
+          unavailableSince: ownership.unavailableSince ?? null,
           genomeHash,
           lastChecked: ownership.lastChecked,
           note:
@@ -104,7 +109,11 @@ export async function runVerify(block?: number, json = false) {
       ["Handle", ownerHandle ? `@${ownerHandle}` : "—"],
       ["Tier", tier !== null ? `${tier}` : "—"],
       ["Inscription", ownership.inscriptionId ?? "—"],
-      ["DB ↔ chain match", ownership.match ? chalk.green("yes") : chalk.yellow("no")],
+      ["DB ↔ chain match", (() => {
+        const v = ownershipVerdict(ownership);
+        const tone = v === "match" ? chalk.green : v === "mismatch" ? chalk.yellow : chalk.gray;
+        return tone(verdictLabel(ownership, { match: "yes", mismatch: "no" }));
+      })()],
       ["Genome", genomeHash!.slice(0, 26) + "…"],
     ])
   );

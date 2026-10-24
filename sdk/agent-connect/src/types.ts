@@ -7,18 +7,48 @@ export type Stats = {
   blocksVerified: number;
 };
 
+export type OwnershipVerdict = 'match' | 'mismatch' | 'unknown';
+
 export type OwnershipResult = {
   blockHeight: number;
   /** Owner recorded in the Block Genomics DB (null if the block is unclaimed). */
   dbOwner: string | null;
-  /** Current on-chain owner of the .bitmap inscription (authoritative). */
+  /** Current on-chain owner of the .bitmap inscription (authoritative); null when no source could name it. */
   onChainOwner: string | null;
-  /** Whether dbOwner === onChainOwner. */
-  match: boolean;
+  /**
+   * Whether dbOwner === onChainOwner when the chain answered. `null` during a
+   * chain outage: nobody could check, which is not a mismatch. Prefer `verdict`
+   * (or `ownershipVerdict()`).
+   */
+  match: boolean | null;
+  /** `match` | `mismatch` | `unknown`. Absent only on servers older than 2026-10-22. */
+  verdict?: OwnershipVerdict;
+  /** `ok` = a source named the holder, `unavailable` = none could, `unchecked` = no inscription on file. */
+  chain?: 'ok' | 'unavailable' | 'unchecked';
+  /** The ord host or `esplora:<host>` that answered, when one did. */
+  source?: string | null;
+  /** When the check behind this answer ran. */
+  checkedAt?: string | null;
+  /** When a source last named the holder. */
+  lastVerifiedAt?: string | null;
+  /** When answers stopped, during an outage. */
+  unavailableSince?: string | null;
   inscriptionId: string | null;
   action: string;
   lastChecked: string;
 };
+
+/**
+ * The three-valued answer to "does the chain agree with the registry?". Reads
+ * the server's `verdict`; for a server older than that field it derives one
+ * from `match`, and a null `match` stays `unknown`, never `mismatch`.
+ */
+export function ownershipVerdict(o: Pick<OwnershipResult, 'match' | 'verdict'>): OwnershipVerdict {
+  if (o.verdict) return o.verdict;
+  if (o.match === true) return 'match';
+  if (o.match === false) return 'mismatch';
+  return 'unknown';
+}
 
 export type BlockOwner = {
   walletAddress: string;

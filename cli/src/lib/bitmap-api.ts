@@ -1,4 +1,5 @@
 import { getOwnership, getBlock, ApiError } from "./api";
+import { verdictLabel } from "./ownership-verdict";
 
 export type BlockInfo = {
   height: number;
@@ -7,7 +8,10 @@ export type BlockInfo = {
   ownerHandle: string | null;
   tier: number | null;
   inscriptionId: string | null;
-  onChainMatch: boolean;
+  /** null when the chain could not be checked (an outage), never false. */
+  onChainMatch: boolean | null;
+  /** Same words as `bg block`: match, mismatch, or unknown (why). */
+  chainLabel: string;
 };
 
 // Real on-chain + DB block lookup. Combines ownership/verify (authoritative
@@ -37,6 +41,7 @@ export async function getBlockInfo(height: number): Promise<BlockInfo> {
     tier,
     inscriptionId,
     onChainMatch: ownership.match,
+    chainLabel: verdictLabel(ownership, { match: "yes", mismatch: "no" }),
   };
 }
 

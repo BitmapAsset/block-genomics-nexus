@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { getOwnership, getBlock, getWorld, ApiError } from "../lib/api";
 import { deriveGenomeHash } from "../lib/genome";
 import { panel, printKeyValues } from "../lib/display";
+import { ownershipVerdict, verdictLabel } from "../lib/ownership-verdict";
 
 // Real, read-only block lookup — the fastest "get started" command for an
 // external agent. Hits the live public API — ownership/verify + blocks/[h] + world.
@@ -39,6 +40,10 @@ export async function runBlock(height: number, json = false) {
           onChainOwner: ownership.onChainOwner,
           dbOwner: ownership.dbOwner,
           dbOnChainMatch: ownership.match,
+          verdict: ownershipVerdict(ownership),
+          chain: ownership.chain ?? null,
+          source: ownership.source ?? null,
+          unavailableSince: ownership.unavailableSince ?? null,
           inscriptionId: ownership.inscriptionId,
           label: blockRecord?.label ?? null,
           ownerHandle: blockRecord?.owner?.handle ?? null,
@@ -62,7 +67,7 @@ export async function runBlock(height: number, json = false) {
     ["Handle", blockRecord?.owner?.handle ? `@${blockRecord.owner.handle}` : "—"],
     ["Tier", blockRecord?.owner?.tier != null ? `${blockRecord.owner.tier}` : "—"],
     ["Inscription", ownership.inscriptionId ?? "—"],
-    ["DB ↔ chain", ownership.match ? chalk.green("match") : chalk.yellow("mismatch")],
+    ["DB ↔ chain", verdictTone(ownership)(verdictLabel(ownership))],
     ["Parcels", `${blockRecord?.parcelCount ?? 0}`],
     ["World objects", `${world.objects.length}`],
     ["Terrain", world.terrain ? "set" : "none"],
@@ -71,4 +76,9 @@ export async function runBlock(height: number, json = false) {
 
   console.log(panel(`Block #${height}`, printKeyValues(rows)));
   console.log(chalk.gray("Live data from /api/v1 (ownership/verify, blocks, world)."));
+}
+
+function verdictTone(o: Parameters<typeof ownershipVerdict>[0]): (s: string) => string {
+  const v = ownershipVerdict(o);
+  return v === "match" ? chalk.green : v === "mismatch" ? chalk.yellow : chalk.gray;
 }

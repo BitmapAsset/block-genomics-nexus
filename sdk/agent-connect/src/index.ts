@@ -23,9 +23,11 @@ export {
   sha256Hex,
 } from './action-message.js';
 export type { ActionBinding } from './action-message.js';
+export { ownershipVerdict } from './types.js';
 export type {
   Stats,
   OwnershipResult,
+  OwnershipVerdict,
   BlockRecord,
   BlockOwner,
   WorldObject,
