@@ -15,6 +15,8 @@ import prisma from '@/lib/prisma';
 import { encryptApiKey, maskApiKey } from '@/lib/key-encryption';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
+import { emitGuardianTransition } from '@/lib/block-event-emitters';
+import { guardianLiveState } from '@/lib/block-events';
 
 function sanitizeGuardian(g: Record<string, unknown>) {
   return { ...g, llmApiKey: maskApiKey(g.llmApiKey as string) };
@@ -94,7 +96,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data.llmApiKey = null;
     }
 
+    // The state is read before the write, so nothing the write does to
+    // `existing` can make before and after look the same.
+    const before = guardianLiveState(existing);
     const updated = await prisma.guardianAgent.update({ where: { id }, data });
+    // `guardian.status` only if this edit moved it between idle/resting/offline.
+    await emitGuardianTransition(before, updated);
     return NextResponse.json({ guardian: sanitizeGuardian(updated as unknown as Record<string, unknown>) });
   } catch (err: unknown) {
     console.error('[Guardian PATCH]', err);
@@ -120,7 +127,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
     const gate = await requireLiveBlockOwner(ownerAddress, target.blockHeight);
     if (!gate.ok) return gateDenialResponse(gate);
+    const before = guardianLiveState(target);
     await prisma.guardianAgent.update({ where: { id }, data: { status: 'stopped' } });
+    await emitGuardianTransition(before, { ...target, status: 'stopped' });
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
     console.error('[Guardian DELETE]', err);

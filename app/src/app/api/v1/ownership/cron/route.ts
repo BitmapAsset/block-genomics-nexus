@@ -4,6 +4,7 @@ import { success, error } from '@/lib/api-helpers';
 import { batchVerifyOwnership } from '@/lib/ownership-sync';
 import { bearerFrom } from '@/lib/sandbox-tier';
 import { secretMatches } from '@/lib/secret-match';
+import { emitDeedMoved } from '@/lib/block-event-emitters';
 
 if (!process.env.CRON_SECRET && !process.env.OWNERSHIP_SYNC_SECRET) {
   console.warn('[ownership/cron] neither CRON_SECRET nor OWNERSHIP_SYNC_SECRET set — cron endpoint disabled');
@@ -67,6 +68,23 @@ export async function GET(req: NextRequest) {
     const results = await batchVerifyOwnership(heights);
 
     const transfers = results.filter(r => r.action === 'update');
+
+    // Living Block: `deed.moved` only for a transfer that actually landed. A
+    // mismatch can be deferred (derived holder, insane indexer tip), so re-read
+    // the rows rather than trusting `action`: moved = the stored owner is now the
+    // on-chain holder and was someone else before this run.
+    if (transfers.length > 0) {
+      const after = await prisma.block.findMany({
+        where: { height: { in: transfers.map(t => t.blockHeight) } },
+        select: { height: true, ownerAddress: true, inscriptionId: true },
+      });
+      for (const t of transfers) {
+        const row = after.find(b => b.height === t.blockHeight);
+        if (row?.ownerAddress && row.ownerAddress === t.onChainOwnerAddress && row.ownerAddress !== t.dbOwnerAddress) {
+          await emitDeedMoved({ block: t.blockHeight, holder: row.ownerAddress, inscriptionId: row.inscriptionId ?? t.inscriptionId });
+        }
+      }
+    }
 
     console.log(`[ownership-cron] Checked ${results.length} blocks, ${transfers.length} transfers detected`);
 

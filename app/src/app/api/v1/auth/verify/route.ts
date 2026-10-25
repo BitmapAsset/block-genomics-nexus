@@ -8,6 +8,7 @@ import { normalizeHandle, isValidHandle, HANDLE_ERROR } from '@/lib/handle';
 import { verifyBip322 } from '@/lib/bip322';
 import { verifyInscriptionOwnership, scanWalletForBitmap } from '@/lib/onchain/bitmap-ownership';
 import { enforceRateLimit, AUTH_VERIFY_LIMIT } from '@/lib/api-rate-limit';
+import { emitDeedVerified, walletProofOf } from '@/lib/block-event-emitters';
 
 /**
  * POST /api/v1/auth/verify
@@ -207,6 +208,9 @@ async function verifyPost(req: NextRequest) {
           ...(inscriptionId && { inscriptionId }),
         },
       });
+      // Living Block: `deed.verified`, wallet-proofed by the challenge message
+      // whose nonce was consumed above (it re-authorizes nothing). Never throws.
+      await emitDeedVerified({ block: verifiedBlockHeight, holder: walletAddress, inscriptionId: inscriptionId ?? null, via: 'auth', walletProof: walletProofOf(walletAddress, message, signature) });
     }
 
     // Auto-create BlockProfile for the anchor block if one doesn't exist yet

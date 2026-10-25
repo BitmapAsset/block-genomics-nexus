@@ -5,6 +5,7 @@ import { generateGuardianBundle, GUARDIAN_PROTOCOL_VERSION } from '@/lib/guardia
 import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
+import { emitGuardianRegistered, emitGuardianTransition } from '@/lib/block-event-emitters';
 
 const VALID_PROVIDERS = ['openai', 'anthropic', 'google', 'xai', 'custom'];
 
@@ -113,6 +114,11 @@ export async function POST(req: NextRequest) {
         escalateTelegram, escalateEmail, autoApproveDelegationUnder,
       },
     });
+
+    // Living Block, after the commit. System-signed on purpose: this route's
+    // wallet signature is unbound (replayable here), so it is never published.
+    if (!existing) await emitGuardianRegistered(guardian);
+    else await emitGuardianTransition(existing, guardian);
 
     return NextResponse.json({ guardian: sanitizeGuardian(guardian as unknown as Record<string, unknown>) });
   } catch (err: unknown) {

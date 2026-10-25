@@ -21,6 +21,9 @@ import BlockTabs from './block-tabs';
 import OwnerBar from './owner-bar';
 import DeedRecheck from './deed-recheck';
 import { deedStatus, type DeedTone } from './deed-status';
+import ActivityFeed from './activity-feed';
+import { listBlockEvents } from '@/lib/block-events';
+import type { PublicBlockEvent } from '@/lib/block-event-core';
 
 /**
  * The public page for a single bitmap block — the canonical URL people paste
@@ -558,7 +561,29 @@ function ExperiencesPanel({ data }: { data: BlockPageData }) {
   );
 }
 
-function ActivityPanel({ data, mined }: { data: BlockPageData; mined: string | null }) {
+/**
+ * The latest 30 Living Block events, or null to keep today's build list: flag
+ * off, migration not applied, no events yet, or any read error. Never throws,
+ * so the event store can never take the block page down.
+ */
+async function latestEvents(height: number): Promise<{ events: PublicBlockEvent[]; readAt: number } | null> {
+  try {
+    const page = await listBlockEvents(height, { limit: 30 });
+    return page.enabled && page.events.length > 0 ? { events: page.events, readAt: Date.now() } : null;
+  } catch {
+    return null;
+  }
+}
+
+function ActivityPanel({
+  data,
+  mined,
+  events,
+}: {
+  data: BlockPageData;
+  mined: string | null;
+  events: { events: PublicBlockEvent[]; readAt: number } | null;
+}) {
   const builds = [...data.objects].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return (
     <>
@@ -584,28 +609,37 @@ function ActivityPanel({ data, mined }: { data: BlockPageData; mined: string | n
         </Section>
       )}
 
-      <Section title="Builds">
-        {builds.length === 0 ? (
-          <Empty>No builds recorded on this block yet.</Empty>
-        ) : (
-          <ol className="divide-y divide-white/[0.06] rounded-2xl border border-white/[0.07] bg-white/[0.02]">
-            {builds.map((o) => (
-              <li key={o.id} className="flex flex-wrap items-baseline justify-between gap-2 px-5 py-3">
-                <span className="text-sm text-text-primary">
-                  {o.name || 'Untitled'} <span className="text-text-secondary">· {o.objectType}</span>
-                </span>
-                <span className="text-xs text-text-secondary">
-                  <CreatorTag creator={o.creator} prefix="by" /> ·{' '}
-                  {new Date(o.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })}
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
-        <p className="mt-4 text-xs text-text-secondary">
-          Attribution is permanent: it records who built each object, not who owns the block today.
-        </p>
-      </Section>
+      {events ? (
+        <Section title="Activity">
+          <ActivityFeed events={events.events} now={events.readAt} />
+          <p className="mt-4 text-xs text-text-secondary">
+            Each entry is chained to the one before it and links to a proof you can check yourself.
+          </p>
+        </Section>
+      ) : (
+        <Section title="Builds">
+          {builds.length === 0 ? (
+            <Empty>No builds recorded on this block yet.</Empty>
+          ) : (
+            <ol className="divide-y divide-white/[0.06] rounded-2xl border border-white/[0.07] bg-white/[0.02]">
+              {builds.map((o) => (
+                <li key={o.id} className="flex flex-wrap items-baseline justify-between gap-2 px-5 py-3">
+                  <span className="text-sm text-text-primary">
+                    {o.name || 'Untitled'} <span className="text-text-secondary">· {o.objectType}</span>
+                  </span>
+                  <span className="text-xs text-text-secondary">
+                    <CreatorTag creator={o.creator} prefix="by" /> ·{' '}
+                    {new Date(o.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+          <p className="mt-4 text-xs text-text-secondary">
+            Attribution is permanent: it records who built each object, not who owns the block today.
+          </p>
+        </Section>
+      )}
     </>
   );
 }
@@ -618,7 +652,11 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
   if (height === undefined) notFound();
   if (await isUnmined(height)) notFound();
 
-  const [data, guardianView] = await Promise.all([getBlockData(height), fetchBlockGuardian(height)]);
+  const [data, guardianView, events] = await Promise.all([
+    getBlockData(height),
+    fetchBlockGuardian(height),
+    latestEvents(height),
+  ]);
   const epoch = epochFor(height);
   const epochColor = getEpochColor(height);
 
@@ -731,7 +769,7 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
             world: <WorldPanel data={data} />,
             guardian: <GuardianPanel height={height} view={guardianView} />,
             experiences: <ExperiencesPanel data={data} />,
-            activity: <ActivityPanel data={data} mined={mined} />,
+            activity: <ActivityPanel data={data} mined={mined} events={events} />,
           }}
         />
       </div>

@@ -7,6 +7,7 @@ import { requireVerifiedBlock, gateDenialResponse, sessionTokenFromHeaders } fro
 import { requireSignedBlockOwner, authorizeObjectWrite } from '@/lib/block-write-auth';
 import { looksLikeSessionToken } from '@/lib/verified-sessions';
 import { enforceRateLimit, WORLD_WRITE_LIMIT } from '@/lib/api-rate-limit';
+import { emitWorldWrite, walletProofOf, type WalletProof } from '@/lib/block-event-emitters';
 
 // H-03: Allowlist of fields that can be updated on block objects
 const ALLOWED_UPDATE_FIELDS = ['objectType', 'geometry', 'color', 'material', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ', 'name', 'visible', 'locked'];
@@ -45,11 +46,11 @@ async function resolveActor(
   body: Record<string, unknown>,
   action: 'world.update' | 'world.delete',
   method: 'PATCH' | 'DELETE',
-): Promise<{ ownerAddress: string } | { response: NextResponse }> {
+): Promise<{ ownerAddress: string; walletProof: WalletProof | null } | { response: NextResponse }> {
   if (looksLikeSessionToken(sessionTokenFromHeaders(req.headers))) {
     const gate = await requireVerifiedBlock(req, existing.blockHeight);
     if (!gate.ok) return { response: gateDenialResponse(gate) };
-    return { ownerAddress: gate.walletAddress! };
+    return { ownerAddress: gate.walletAddress!, walletProof: null };
   }
 
   const ownerAddress = typeof body.ownerAddress === 'string' ? body.ownerAddress : '';
@@ -104,7 +105,7 @@ async function resolveActor(
     };
   }
 
-  return { ownerAddress };
+  return { ownerAddress, walletProof: walletProofOf(ownerAddress, message, signature) };
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -128,6 +129,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const updates = pickAllowed(body);
     const updated = await prisma.blockObject.update({ where: { id }, data: updates });
+    await emitWorldWrite({
+      block: existing.blockHeight,
+      ownerAddress: actor.ownerAddress,
+      via: actor.walletProof ? 'wallet' : 'session',
+      ops: [{ op: 'update', id, objectType: (updated as { objectType?: string }).objectType ?? null, name: (updated as { name?: unknown }).name }],
+      walletProof: actor.walletProof,
+    });
     return NextResponse.json({ object: updated }, { headers: rl.headers });
   } catch (err) {
     console.error('[World PATCH]', err);
@@ -153,6 +161,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (!allowed.ok) return gateDenialResponse(allowed);
 
     await prisma.blockObject.delete({ where: { id } });
+    await emitWorldWrite({
+      block: existing.blockHeight,
+      ownerAddress: actor.ownerAddress,
+      via: actor.walletProof ? 'wallet' : 'session',
+      ops: [{ op: 'delete', id, objectType: (existing as { objectType?: string }).objectType ?? null, name: (existing as { name?: unknown }).name }],
+      walletProof: actor.walletProof,
+    });
     return NextResponse.json({ success: true }, { headers: rl.headers });
   } catch (err) {
     console.error('[World DELETE]', err);
