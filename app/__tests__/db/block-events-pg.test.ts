@@ -55,6 +55,14 @@ maybe('BlockEvent on real Postgres', () => {
   beforeAll(async () => {
     db = new PrismaClient({ datasources: { db: { url: URL_! } } });
     await db.$executeRawUnsafe('DROP TABLE IF EXISTS "BlockEvent" CASCADE');
+    // A stock Postgres has none of Supabase's roles. In the real chain the
+    // replayable baseline (20260715043118) creates them before this migration
+    // runs; here only this migration is applied, so create them the same way.
+    await db.$executeRawUnsafe(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role NOLOGIN BYPASSRLS; END IF;
+    END $$`);
     const sql = fs.readFileSync(path.join(__dirname, '..', '..', 'prisma', 'migrations', '20261023180000_add_block_event', 'migration.sql'), 'utf8');
     // Prisma runs one statement per call, and the migration has dollar-quoted
     // bodies containing ';', so split outside $$ … $$ only.
