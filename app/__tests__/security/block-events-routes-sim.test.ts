@@ -7,7 +7,7 @@
  * yields exactly one event whose BIP-322 proof verifies with the offline script
  * (`scripts/verify-event-proof.ts`), with nothing private in it (§5.6). Around
  * it: the session path, PATCH / DELETE / batch, session/verify (= MCP
- * bg_verify_submit), guardian register + heartbeat, the public reads and the
+ * bg_verify_submit), auth/verify, guardian register + heartbeat, the public reads and the
  * key file, and the two switches (flag off, table missing).
  */
 
@@ -49,7 +49,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import prisma from '@/lib/prisma';
-import { verifyBlockOwnedBy } from '@/lib/onchain/bitmap-ownership';
+import { verifyBlockOwnedBy, verifyInscriptionOwnership } from '@/lib/onchain/bitmap-ownership';
 import { issueChallenge } from '@/lib/challenges';
 import { buildActionMessage, hashBody } from '@/lib/action-message';
 import { __resetBlockEventsState } from '@/lib/block-events';
@@ -59,6 +59,7 @@ import { PATCH as worldPatch, DELETE as worldDelete } from '@/app/api/v1/world/[
 import { POST as worldBatch } from '@/app/api/v1/world/batch/route';
 import { POST as sessionStart } from '@/app/api/v1/session/start/route';
 import { POST as sessionVerify } from '@/app/api/v1/session/verify/route';
+import { POST as authVerify } from '@/app/api/v1/auth/verify/route';
 import { POST as guardianPost } from '@/app/api/v1/guardian/route';
 import { POST as heartbeatPost } from '@/app/api/v1/guardian/heartbeat/route';
 import { GET as eventsGet } from '@/app/api/v1/blocks/[height]/events/route';
@@ -329,6 +330,43 @@ describe('session/verify', () => {
     // Re-verifying minutes later adds nothing (dedupe under the block lock).
     expect(((await handshake()) as any).status).toBe(201);
     expect(rows()).toHaveLength(1);
+  });
+});
+
+// ── deed.verified from auth/verify (the web /verify flow) ────────────────
+
+describe('auth/verify', () => {
+  const ownerCheck = verifyInscriptionOwnership as jest.Mock;
+
+  async function verify(extra: Record<string, unknown> = {}): Promise<any> {
+    const message = challengeMessage(await nonceFor(owner.address, 'auth'));
+    return authVerify(
+      req({ walletAddress: owner.address, message, signature: sign(owner.privKey, owner.address, message), blockHeight: BLOCK, inscriptionId: 'insc-840000i0', ...extra }),
+    );
+  }
+
+  beforeEach(() => {
+    ownerCheck.mockReset();
+    ownerCheck.mockImplementation(async (w: string) => (w === owner.address ? { verified: true } : { verified: false, reason: 'not held' }));
+  });
+
+  it('a live holder check emits one deed.verified whose BIP-322 proof is the consumed challenge', async () => {
+    const res: any = await verify({ displayName: PRIVATE.chatText });
+    expect(res.status).toBe(200);
+    expect(res.body.data.holderCheck).toBe('live');
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0]).toMatchObject({ kind: 'deed.verified', actorType: 'owner', signerScheme: 'bip322', signerAddress: owner.address });
+    expect(rows()[0].payload).toEqual({ holder: owner.address, inscriptionId: 'insc-840000i0', via: 'auth' });
+    expectNothingPrivate();
+    expect(verifyCli([writeTmp('p-auth', await proofOf(rows()[0].id))]).lines).toContain('  ok   signature');
+  });
+
+  it('a failed holder check or an indexer outage emits nothing', async () => {
+    ownerCheck.mockResolvedValueOnce({ verified: false, reason: 'not held' });
+    expect(((await verify()) as any).status).toBe(403);
+    ownerCheck.mockResolvedValueOnce({ verified: false, unavailable: true });
+    expect(((await verify()) as any).status).toBe(503);
+    expect(rows()).toHaveLength(0);
   });
 });
 
