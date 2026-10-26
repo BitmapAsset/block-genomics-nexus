@@ -33,8 +33,22 @@ export function createEventStore(opts: { lock?: boolean; missing?: boolean } = {
     findFirst: async ({ where, orderBy }: any) => {
       await tick();
       if (missing) throw missingErr();
-      const list = rows.filter((r) => r.block === where.block && (where.kind === undefined || r.kind === where.kind));
-      list.sort((a, b) => (orderBy?.seq === 'desc' ? b.seq - a.seq : a.seq - b.seq));
+      const list = rows.filter(
+        (r) =>
+          r.block === where.block &&
+          (where.kind === undefined || r.kind === where.kind) &&
+          (where.ts?.gte === undefined || new Date(r.ts).getTime() >= new Date(where.ts.gte).getTime()),
+      );
+      // `orderBy` as Prisma takes it: one `{ field: dir }` or a list of them.
+      const keys: Array<[string, string]> = (Array.isArray(orderBy) ? orderBy : [orderBy ?? { seq: 'asc' }]).map((o: any) => Object.entries(o)[0] as [string, string]);
+      const val = (r: Row, k: string) => (k === 'ts' ? new Date(r.ts).getTime() : r[k]);
+      list.sort((a, b) => {
+        for (const [k, dir] of keys) {
+          const d = val(a, k) - val(b, k);
+          if (d !== 0) return dir === 'desc' ? -d : d;
+        }
+        return 0;
+      });
       return list[0] ? { ...list[0] } : null;
     },
     findMany: async ({ where, orderBy, take }: any) => {

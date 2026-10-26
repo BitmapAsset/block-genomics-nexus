@@ -273,9 +273,13 @@ type Db = any;
 
 /**
  * The `dedupe` rule as one read on `model` (the client's or the transaction's
- * `blockEvent`). The `ts` bound keeps it to the `(block, ts)` index range of
- * the window; the newest row in that range is the newest of its kind whenever
- * that one is inside the window, so the rule is unchanged.
+ * `blockEvent`): the newest event of this kind inside the window. Bounded by
+ * `ts` and ordered by `ts` so Postgres answers it from the `(block, ts)` index,
+ * reading at most the window's rows (ordered by `seq` the planner walks the
+ * block's whole history backwards when nothing is in the window). `ts` is set
+ * under the block lock in `seq` order, so "newest by ts" is the newest event
+ * (a same-millisecond tie of two same-kind events is harmless here, and a
+ * `seq` tie-break would cost an extra sort over the whole window).
  */
 async function isDuplicate(model: Db, input: EmitInput, payload: Record<string, unknown>): Promise<boolean> {
   const dedupe = input.dedupe;
@@ -283,7 +287,7 @@ async function isDuplicate(model: Db, input: EmitInput, payload: Record<string, 
   const now = Date.now();
   const last = await model.findFirst({
     where: { block: input.block, kind: input.kind, ts: { gte: new Date(now - dedupe.withinMs) } },
-    orderBy: { seq: 'desc' },
+    orderBy: { ts: 'desc' },
     select: { ts: true, payload: true },
   });
   const lastPayload = (last?.payload ?? {}) as Record<string, unknown>;

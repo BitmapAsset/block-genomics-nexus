@@ -148,7 +148,10 @@ describe('dedupe: unlocked pre-check, locked re-check', () => {
     expect(tx).not.toHaveBeenCalled();
     expect(db.rawCalls).toHaveLength(0);
     expect(find).toHaveBeenCalledTimes(10);
-    expect(find.mock.calls[0][0]).toMatchObject({ where: { block: BLOCK, kind: 'deed.verified', ts: { gte: expect.any(Date) } } });
+    expect(find.mock.calls[0][0]).toMatchObject({
+      where: { block: BLOCK, kind: 'deed.verified', ts: { gte: expect.any(Date) } },
+      orderBy: { ts: 'desc' },
+    });
     expect(db.__rows).toHaveLength(1);
   });
 
