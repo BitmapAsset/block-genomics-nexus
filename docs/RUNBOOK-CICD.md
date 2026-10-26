@@ -14,7 +14,7 @@ nothing for public repos.
 | Preview | Vercel GitHub integration | One preview deploy per PR, URL posted on the PR |
 | Merge to `main` | Branch protection | Checks green, conversations resolved, no force push, admins included |
 | Production deploy | Vercel GitHub integration | Every merge to `main` deploys `app/` to blockgenomics.io |
-| Post-deploy smoke | `post-deploy-smoke.yml` | 13 read-only probes; failure opens a `prod-smoke-failed` issue |
+| Post-deploy smoke | `post-deploy-smoke.yml` | 17 read-only probes; failure opens a `prod-smoke-failed` issue |
 | Database migrations | `migrate-production.yml` | Manual, `main` only, approval by the `production-db` environment reviewer |
 | npm releases | `release.yml` | `v*` tag; see `RELEASING.md` |
 
@@ -89,6 +89,47 @@ CLI equivalent: `gh workflow run migrate-production.yml --ref main -f mode=statu
 If a migration fails halfway, the job fails and the status output names the
 failed migration together with Prisma's `migrate resolve` instructions.
 Resolve it by hand; do not re-run `deploy` blindly.
+
+## Turning on the Living Block event spine
+
+The per-block signed event spine ships dark: with `BG_EVENTS_ENABLED` unset
+every emitter returns before touching the database and every read answers
+`{"enabled": false}`. Turn it on in this order, and do not skip ahead:
+
+1. **Apply the migration.** `20261023180000_add_block_event` (one new table,
+   two indexes, one function, two triggers; no existing table changes) goes
+   through `migrate-production.yml` and the `production-db` environment
+   exactly as in *Applying migrations* above: check `.protection_rules`
+   (setup step 3), run mode **status**, read the list, then mode **deploy**.
+2. **Set `BG_EVENT_SIGNING_KEY` before anything fetches the keys file.** A
+   32-byte ed25519 seed, 64 hex characters or base64, generated locally
+   (`openssl rand -hex 32`), kept in your password manager, and added to the
+   **Production** environment of the **app** project only (Vercel → app →
+   Settings → Environment Variables, or `vercel env add BG_EVENT_SIGNING_KEY production`).
+   Never commit it. Environment changes apply from the next deployment, so
+   redeploy, then check that the file lists exactly one key:
+   `curl -s https://blockgenomics.io/.well-known/bg-event-keys.json | jq '.keys | length'` → `1`.
+   Why first: `/.well-known/bg-event-keys.json` is edge-cached
+   (`s-maxage=300, stale-while-revalidate=60`, browsers `max-age=300`), so
+   an empty list fetched before the key exists can be served for minutes,
+   and verifiers pin the key id they first see. Once published, the key id
+   (`bg-sys-<16 hex>`) is public; rotating it later needs a key-list entry
+   for the old one (not built yet).
+3. **Set `BG_EVENTS_ENABLED=true`** in the same place (Production only) and
+   redeploy. Only `true` or `1` turns it on.
+4. **Check `GET /api/v1/health/events`:**
+   `curl -s https://blockgenomics.io/api/v1/health/events | jq .data` →
+   `enabled: true`, `lost: 0`, `backoffUntil: null`. The counts are per
+   server instance since its process started (each serverless instance keeps
+   its own), so a fresh instance reads `emitted: 0` until it handles a
+   write. `backoffUntil` set means that instance found no `BlockEvent` table:
+   step 1 did not land on the database this deployment uses. A growing `lost`
+   means emits are timing out behind the block lock (5 s budget); each loss
+   is also one `[block-events] emit failed` line in the Vercel logs.
+
+To turn it off again, unset `BG_EVENTS_ENABLED` (or set it to anything other
+than `true` / `1`) and redeploy. Recorded events stay; the table is
+append-only.
 
 ## Post-deploy smoke
 

@@ -472,6 +472,12 @@ describe('GET /api/v1/blocks/<h>/events', () => {
 });
 
 describe('/.well-known/bg-event-keys.json', () => {
+  it('is edge-cached 5 minutes with a 60 s stale window (not an hour), open to any origin', () => {
+    const res = keysGet() as Response;
+    expect(res.headers.get('Cache-Control')).toBe('public, max-age=300, s-maxage=300, stale-while-revalidate=60');
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
+  });
+
   it('publishes the public key only; with no key configured it lists none and events run unsigned', async () => {
     const withKey = await keysFile();
     expect(withKey.keys).toHaveLength(1);
