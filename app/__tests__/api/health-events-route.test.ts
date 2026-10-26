@@ -16,7 +16,7 @@ jest.mock('next/server', () => ({
   },
 }));
 
-const mockEnforce = jest.fn(async (..._a: unknown[]) => ({ response: null, headers: {} }));
+const mockEnforce = jest.fn();
 jest.mock('@/lib/api-rate-limit', () => ({
   enforceRateLimit: (...a: unknown[]) => mockEnforce(...a),
 }));
@@ -46,7 +46,8 @@ function timingOutStore() {
 
 beforeEach(() => {
   __resetBlockEventsState();
-  mockEnforce.mockClear();
+  mockEnforce.mockReset();
+  mockEnforce.mockResolvedValue({ response: null, headers: {} });
   delete process.env.BG_EVENTS_ENABLED;
 });
 
@@ -66,7 +67,7 @@ it('flag off: enabled false, zero counts, no-store, rate-limited like the other 
 
 it('a 429 from the limiter is returned as is', async () => {
   const limited = { status: 429 };
-  mockEnforce.mockResolvedValueOnce({ response: limited, headers: {} } as any);
+  mockEnforce.mockResolvedValueOnce({ response: limited, headers: {} });
   const res: any = await GET({ nextUrl: new URL('http://test.local/api/v1/health/events'), headers: new Headers() } as any);
   expect(res).toBe(limited);
 });

@@ -36,9 +36,11 @@ jest.mock('@/lib/blockGuardian', () => ({ fetchBlockGuardian: async () => ({ gua
 jest.mock('@/app/(site)/block/[height]/copy-button', () => () => null);
 jest.mock('@/app/(site)/block/[height]/owner-bar', () => () => null);
 jest.mock('@/app/(site)/block/[height]/deed-recheck', () => () => null);
-jest.mock('@/app/(site)/block/[height]/block-tabs', () => (p: { panels: Record<string, React.ReactNode> }) => (
-  <div data-testid="activity-panel">{p.panels.activity}</div>
-));
+jest.mock('@/app/(site)/block/[height]/block-tabs', () =>
+  function BlockTabs(p: { panels: Record<string, React.ReactNode> }) {
+    return <div data-testid="activity-panel">{p.panels.activity}</div>;
+  },
+);
 
 import BlockPage from '@/app/(site)/block/[height]/page';
 import type { PublicBlockEvent } from '@/lib/block-event-core';
