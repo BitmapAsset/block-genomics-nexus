@@ -165,6 +165,28 @@ describe('public ownership check → observed deed.verified', () => {
     expect(proof).not.toBe('disabled');
   });
 
+  it('50 concurrent live-match GETs on one block: at most one event; once recorded, a GET never takes the lock', async () => {
+    mockVerifyOwnership.mockResolvedValue({
+      blockHeight: BLOCK, dbOwnerAddress: owner.address, onChainOwnerAddress: owner.address, inscriptionId: 'insc-840000i0',
+      match: true, indeterminate: false, action: 'none',
+    });
+    // 50 different visitors (one IP each), so the route's 30/min bucket is not what limits them.
+    const visit = (i: number) =>
+      ownershipVerifyGet(req(null, { 'x-forwarded-for': `203.0.113.${i}` }, `http://test.local/api/v1/ownership/verify?blockHeight=${BLOCK}`)) as Promise<any>;
+    const first = await Promise.all(Array.from({ length: 50 }, (_, i) => visit(i)));
+    expect(first.every((r) => r.status === 200)).toBe(true);
+    expect(rows().filter((r) => r.kind === 'deed.verified')).toHaveLength(1);
+
+    const tx = jest.spyOn(db, '$transaction');
+    const locksBefore = db.__events.rawCalls.length;
+    const again = await Promise.all(Array.from({ length: 50 }, (_, i) => visit(100 + i)));
+    expect(again.every((r) => r.status === 200)).toBe(true);
+    expect(tx).not.toHaveBeenCalled();
+    expect(db.__events.rawCalls).toHaveLength(locksBefore);
+    expect(rows()).toHaveLength(1);
+    tx.mockRestore();
+  });
+
   it('an outage or a mismatch emits nothing', async () => {
     mockVerifyOwnership.mockResolvedValue({ blockHeight: BLOCK, dbOwnerAddress: owner.address, onChainOwnerAddress: null, inscriptionId: 'x', match: false, indeterminate: true, action: 'none' });
     await get();

@@ -27,7 +27,9 @@ export async function GET(req: NextRequest) {
 
     // Living Block: a live match is an observed `deed.verified`, system-signed
     // (nobody signed anything here) and deduped to one per holder per day, so a
-    // public GET cannot be used to flood a block's chain.
+    // public GET cannot be used to flood a block's chain. Once today's event
+    // exists, the dedupe answers from one plain read (no transaction, no block
+    // lock), so page traffic here never queues behind the block's real writes.
     if (check.match && !check.indeterminate && check.onChainOwnerAddress) {
       await emitDeedVerified({
         block: blockHeight,

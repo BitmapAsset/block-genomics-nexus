@@ -128,6 +128,49 @@ describe('ordering', () => {
   });
 });
 
+describe('dedupe: unlocked pre-check, locked re-check', () => {
+  const system = { type: 'system' as const, id: null, handle: null };
+  const verified = (holder: string) => ({
+    block: BLOCK,
+    kind: 'deed.verified' as const,
+    actor: system,
+    payload: { holder, via: 'ownership-check' },
+    dedupe: { withinMs: 24 * 60 * 60 * 1000, samePayload: ['holder'] },
+  });
+
+  it('already recorded: one plain read, no transaction, the lock helper is never called', async () => {
+    const db = createEventStore();
+    expect(await emitBlockEvent(verified('bc1pholder'), db)).not.toBeNull();
+    const tx = jest.spyOn(db, '$transaction');
+    const find = jest.spyOn(db.blockEvent, 'findFirst');
+    db.rawCalls.length = 0;
+    for (let i = 0; i < 10; i++) expect(await emitBlockEvent(verified('bc1pholder'), db)).toBeNull();
+    expect(tx).not.toHaveBeenCalled();
+    expect(db.rawCalls).toHaveLength(0);
+    expect(find).toHaveBeenCalledTimes(10);
+    expect(find.mock.calls[0][0]).toMatchObject({ where: { block: BLOCK, kind: 'deed.verified', ts: { gte: expect.any(Date) } } });
+    expect(db.__rows).toHaveLength(1);
+  });
+
+  it('50 concurrent first verifies of one holder: exactly one event (the locked re-check wins the race)', async () => {
+    const db = createEventStore();
+    const out = await Promise.all(Array.from({ length: 50 }, () => emitBlockEvent(verified('bc1pholder'), db)));
+    expect(out.filter((e) => e !== null)).toHaveLength(1);
+    expect(db.__rows).toHaveLength(1);
+  });
+
+  it('a different holder, or an event older than the window, still goes through the lock and emits', async () => {
+    const db = createEventStore();
+    await emitBlockEvent(verified('bc1pholder'), db);
+    expect(await emitBlockEvent(verified('bc1pnewholder'), db)).not.toBeNull();
+    db.__rows[1].ts = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    const tx = jest.spyOn(db, '$transaction');
+    expect(await emitBlockEvent(verified('bc1pnewholder'), db)).not.toBeNull();
+    expect(tx).toHaveBeenCalledTimes(1);
+    expect(db.__rows).toHaveLength(3);
+  });
+});
+
 describe('signing', () => {
   it('without a key: signer "unsigned", no signature, no attestation', async () => {
     const db = createEventStore();

@@ -177,8 +177,10 @@ export interface EmitInput {
   /**
    * Skip the emit when the newest event of the same kind on this block is
    * younger than `withinMs` and carries the same values for `samePayload`
-   * (e.g. a deed re-verified by the same holder). Checked under the block lock,
-   * so two concurrent verifies cannot both pass it.
+   * (e.g. a deed re-verified by the same holder). Checked twice: first by one
+   * plain read with no lock and no transaction, so the common "already
+   * recorded" case never queues behind the block's real writes; then again
+   * under the block lock, so two concurrent verifies cannot both pass it.
    */
   dedupe?: { withinMs: number; samePayload: string[] };
 }
@@ -210,6 +212,29 @@ export interface StoredBlockEvent {
 type Db = any;
 
 /**
+ * The `dedupe` rule as one read on `model` (the client's or the transaction's
+ * `blockEvent`). The `ts` bound keeps it to the `(block, ts)` index range of
+ * the window; the newest row in that range is the newest of its kind whenever
+ * that one is inside the window, so the rule is unchanged.
+ */
+async function isDuplicate(model: Db, input: EmitInput, payload: Record<string, unknown>): Promise<boolean> {
+  const dedupe = input.dedupe;
+  if (!dedupe) return false;
+  const now = Date.now();
+  const last = await model.findFirst({
+    where: { block: input.block, kind: input.kind, ts: { gte: new Date(now - dedupe.withinMs) } },
+    orderBy: { seq: 'desc' },
+    select: { ts: true, payload: true },
+  });
+  const lastPayload = (last?.payload ?? {}) as Record<string, unknown>;
+  return (
+    !!last &&
+    now - new Date(last.ts).getTime() < dedupe.withinMs &&
+    dedupe.samePayload.every((k) => lastPayload[k] === payload[k])
+  );
+}
+
+/**
  * Append one event to `input.block`'s chain. Call it AFTER the action's own
  * write has committed, and await it (a serverless function may freeze once the
  * response is sent). Returns the stored row, or null when disabled, when the
@@ -221,6 +246,9 @@ export async function emitBlockEvent(input: EmitInput, db: Db = prisma): Promise
     if (!Number.isInteger(input.block) || input.block < 0) return null;
 
     const payload = publicPayload(input.payload ?? {});
+    // Unlocked pre-check: no transaction, no advisory lock. Only when it finds
+    // nothing does the emit queue for the lock, where the same rule runs again.
+    if (input.dedupe && (await isDuplicate(db.blockEvent, input, payload))) return null;
     const summary = summaryFor(input.kind, input.summary);
     const key = systemKey();
 
@@ -246,21 +274,7 @@ export async function emitBlockEvent(input: EmitInput, db: Db = prisma): Promise
     const row = await db.$transaction(
       async (tx: Db) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${EVENT_LOCK_NS}::int4, ${input.block}::int4)`;
-        if (input.dedupe) {
-          const last = await tx.blockEvent.findFirst({
-            where: { block: input.block, kind: input.kind },
-            orderBy: { seq: 'desc' },
-            select: { ts: true, payload: true },
-          });
-          const lastPayload = (last?.payload ?? {}) as Record<string, unknown>;
-          if (
-            last &&
-            Date.now() - new Date(last.ts).getTime() < input.dedupe.withinMs &&
-            input.dedupe.samePayload.every((k) => lastPayload[k] === payload[k])
-          ) {
-            return null;
-          }
-        }
+        if (input.dedupe && (await isDuplicate(tx.blockEvent, input, payload))) return null;
         const head = await tx.blockEvent.findFirst({
           where: { block: input.block },
           orderBy: { seq: 'desc' },
