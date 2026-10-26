@@ -390,6 +390,24 @@ describe('guardian', () => {
     expect(rows()).toHaveLength(1);
   });
 
+  it('re-register with a selfHosted flip → exactly one guardian.status per change (state read before the upsert)', async () => {
+    const message = `Register guardian for block ${BLOCK}`;
+    const signature = sign(owner.privKey, owner.address, message);
+    const register = (extra: Record<string, unknown>) =>
+      guardianPost(req({ blockHeight: BLOCK, ownerAddress: owner.address, name: 'Satoshis Keeper', message, signature, ...extra })) as Promise<any>;
+    expect((await register({})).status).toBe(200);
+    // Self-hosted with no heartbeat yet reads as offline.
+    expect((await register({ selfHosted: true })).status).toBe(200);
+    expect((await register({ selfHosted: true })).status).toBe(200);
+    expect((await register({ selfHosted: false })).status).toBe(200);
+    expect(rows().map((r) => [r.kind, r.payload.from ?? null, r.payload.to ?? null, r.signerScheme])).toEqual([
+      ['guardian.registered', null, null, 'ed25519'],
+      ['guardian.status', 'idle', 'offline', 'ed25519'],
+      ['guardian.status', 'offline', 'idle', 'ed25519'],
+    ]);
+    expectNothingPrivate([message, signature]);
+  });
+
   it('heartbeat emits guardian.status only when it brings the guardian back, never per beat', async () => {
     await db.guardianAgent.create({
       data: { id: 'gdn_1', blockHeight: BLOCK, ownerAddress: owner.address, name: 'Keeper', status: 'active', selfHosted: true, lastHeartbeat: new Date(Date.now() - 60 * 60 * 1000), memoryMd: 'PRIVATE-memory-0a0b' },
