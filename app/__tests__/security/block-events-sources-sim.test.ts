@@ -141,6 +141,43 @@ describe('ownership cron → deed.moved', () => {
     expectNothingPrivate(['test-cron-secret']);
   });
 
+  it('flag off: a landed transfer still answers 200 and the post-transfer re-read never runs', async () => {
+    delete process.env.BG_EVENTS_ENABLED;
+    const buyer = makeWallet('p2tr');
+    await db.block.create({ data: { height: 700001, ownerAddress: owner.address, inscriptionId: 'insc-a' } });
+    mockBatchVerify.mockImplementation(async () => {
+      await db.block.update({ where: { height: 700001 }, data: { ownerAddress: buyer.address } });
+      return [{ blockHeight: 700001, dbOwnerAddress: owner.address, onChainOwnerAddress: buyer.address, inscriptionId: 'insc-a', match: false, indeterminate: false, action: 'update' }];
+    });
+    const findMany = jest.spyOn(db.block, 'findMany');
+    const res: any = await cronGet(req(null, { authorization: 'Bearer test-cron-secret' }));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ checked: 1, transfers: 1 });
+    // Exactly one read: the cron's own block selection. No `height: { in: … }` re-read.
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(findMany.mock.calls)).not.toContain('"in"');
+    expect(rows()).toHaveLength(0);
+    findMany.mockRestore();
+  });
+
+  it('flag off: a failing re-read could not turn the committed sync into a 500', async () => {
+    delete process.env.BG_EVENTS_ENABLED;
+    await db.block.create({ data: { height: 700001, ownerAddress: owner.address, inscriptionId: 'insc-a' } });
+    mockBatchVerify.mockResolvedValue([{ blockHeight: 700001, dbOwnerAddress: owner.address, onChainOwnerAddress: 'bc1pbuyer', inscriptionId: 'insc-a', match: false, indeterminate: false, action: 'update' }]);
+    const real = db.block.findMany;
+    let calls = 0;
+    const findMany = jest.spyOn(db.block, 'findMany').mockImplementation(async (...a: any[]) => {
+      calls += 1;
+      if (calls > 1) throw new Error('re-read failed');
+      return real(...a);
+    });
+    const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const res: any = await cronGet(req(null, { authorization: 'Bearer test-cron-secret' }));
+    expect(res.status).toBe(200);
+    findMany.mockRestore();
+    err.mockRestore();
+  });
+
   it('an unauthenticated cron call emits nothing', async () => {
     const res: any = await cronGet(req(null));
     expect(res.status).toBe(401);
