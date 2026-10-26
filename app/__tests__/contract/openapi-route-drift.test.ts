@@ -39,6 +39,7 @@ const UNDOCUMENTED_BY_DESIGN: Record<string, string> = {
   //    only have to reject, and none of them are protocol surface. ──
   '/api/health': 'liveness probe for the deployment, not a protocol route',
   '/api/v1/health/chain': 'upstream reachability probe for operators and the post-deploy smoke, not a protocol route',
+  '/api/v1/health/events': 'per-instance event-spine counters for operators and the post-deploy smoke, not a protocol route',
   '/api/v1/activity': 'internal activity write, called by our own routes',
   '/api/v1/admin/cleanup': 'operator-only maintenance',
   '/api/v1/admin/cleanup-duplicates': 'operator-only maintenance',

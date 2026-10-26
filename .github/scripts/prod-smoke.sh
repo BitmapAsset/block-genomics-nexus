@@ -139,6 +139,24 @@ check_chain_health() {
   esac
 }
 
+# Living Block event spine: read-only, per-instance counters. A 200 whose body
+# carries `enabled` (boolean) and the `emitted` / `lost` numbers passes; lost
+# events are reported in the observed column, not failed on (the counts are per
+# instance and say nothing about the deploy itself).
+check_events_health() {
+  fetch /api/v1/health/events 1
+  OBSERVED="$CODE"
+  [ "$CODE" = 200 ] || return 1
+  local summary
+  summary="$(jq -r 'if (.data.enabled | type) == "boolean" and (.data.emitted | type) == "number" and (.data.lost | type) == "number"
+    then "enabled \(.data.enabled), emitted \(.data.emitted), lost \(.data.lost)" else empty end' "$TMP/body" 2>/dev/null || true)"
+  if [ -z "$summary" ]; then
+    OBSERVED="200, body without enabled/emitted/lost"
+    return 1
+  fi
+  OBSERVED="200, $summary"
+}
+
 header() { # header <name> -> value from the last fetch, empty when absent
   grep -i "^$1:" "$TMP/headers" 2>/dev/null | tail -n 1 | cut -d: -f2- | tr -d '\r' | sed 's/^ *//'
 }
@@ -235,6 +253,8 @@ if with_retries check_chain_health; then
 else
   record "/api/v1/health/chain" "200, chain ok (⚠️ if degraded/unavailable)" "$OBSERVED" FAIL
 fi
+
+probe "/api/v1/health/events" "200, enabled/emitted/lost in body" check_events_health
 
 total=$(printf '%s' "$rows" | grep -c '^|')
 {

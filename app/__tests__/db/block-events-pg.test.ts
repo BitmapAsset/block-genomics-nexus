@@ -42,7 +42,7 @@ import fs from 'fs';
 import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import routePrisma from '@/lib/prisma';
-import { emitBlockEvent, __resetBlockEventsState } from '@/lib/block-events';
+import { emitBlockEvent, eventStats, EVENT_LOCK_NS, __resetBlockEventsState } from '@/lib/block-events';
 import { verifyChain, type ChainRow } from '@/lib/block-event-core';
 import { GET as ownershipVerifyGet } from '@/app/api/v1/ownership/verify/route';
 
@@ -149,6 +149,35 @@ maybe('BlockEvent on real Postgres', () => {
     expect(tx).not.toHaveBeenCalled();
     expect(await db.blockEvent.count({ where: { block: HOLDER_BLOCK } })).toBe(1);
   }, 60_000);
+
+  it('an emit stuck behind the block lock past the 5 s budget is lost, counted once and logged once', async () => {
+    const STUCK = 900001;
+    __resetBlockEventsState();
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    // Another session holds this block's advisory lock for 7 s.
+    const holder = db.$transaction(
+      async (t) => {
+        await t.$executeRaw`SELECT pg_advisory_xact_lock(${EVENT_LOCK_NS}::int4, ${STUCK}::int4)`;
+        await t.$executeRaw`SELECT pg_sleep(7)`;
+      },
+      { maxWait: 5_000, timeout: 20_000 },
+    );
+    await new Promise((r) => setTimeout(r, 500));
+    const t0 = Date.now();
+    const out = await emitBlockEvent({ block: STUCK, kind: 'build.placed', actor: { type: 'owner', id: 'bc1pholder', handle: null } }, db);
+    const waited = Date.now() - t0;
+    await holder;
+    expect(out).toBeNull();
+    expect(waited).toBeGreaterThanOrEqual(4_500);
+    expect(await db.blockEvent.count({ where: { block: STUCK } })).toBe(0);
+    const s = eventStats();
+    expect(s).toMatchObject({ enabled: true, emitted: 0, lost: 1, lastLossKind: 'build.placed', lastLossBlock: STUCK, backoffUntil: null });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toBe('[block-events] emit failed');
+    expect(warn.mock.calls[0][1]).toMatchObject({ block: STUCK, kind: 'build.placed', lost: 1 });
+    console.log(`[bg91] stuck emit returned after ${waited} ms: ${JSON.stringify(String((warn.mock.calls[0][1] as { err: string }).err).trim().slice(0, 200))}`);
+    warn.mockRestore();
+  }, 30_000);
 
   it('the table is append-only, even for the owner role', async () => {
     await expect(db.$executeRawUnsafe(`UPDATE "BlockEvent" SET "summary" = 'x' WHERE "seq" = 1`)).rejects.toThrow(/append-only/);
