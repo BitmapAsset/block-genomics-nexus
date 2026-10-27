@@ -23,6 +23,9 @@
  * The route's own write stands and the chain simply has no event for it: the
  * chain stays valid (no gap, no fork) and the miss is logged
  * `[block-events] emit failed`. An outbox that retries is a later wave.
+ *
+ * Every lost event is also counted in-process (`eventStats()`, served by
+ * `GET /api/v1/health/events`): per instance, since that process started.
  */
 
 import prisma from '@/lib/prisma';
@@ -79,11 +82,68 @@ function tableKnownMissing(): boolean {
   return Date.now() < tableMissingUntil;
 }
 
+// ── Loss counter ─────────────────────────────────────────────────────────
+
+/**
+ * What this process has emitted and lost since it started. In-process on
+ * purpose (no table, no write on the hot path): on serverless every instance
+ * keeps its own counts, and a cold start begins at zero.
+ *
+ * `lost` counts every event an enabled emitter should have stored and did
+ * not: a failed or timed-out transaction (also logged, one `console.warn`
+ * each), the emit that found the table missing, and every emit skipped while
+ * that table-missing back-off lasts. A dedupe skip is not a loss.
+ */
+interface EventCounters {
+  emitted: number;
+  lost: number;
+  lastLossAt: number | null;
+  lastLossKind: string | null;
+  lastLossBlock: number | null;
+}
+
+const PROCESS_STARTED_AT = Date.now();
+let counters: EventCounters = { emitted: 0, lost: 0, lastLossAt: null, lastLossKind: null, lastLossBlock: null };
+
+function noteLoss(block: number, kind: string): void {
+  counters.lost += 1;
+  counters.lastLossAt = Date.now();
+  counters.lastLossKind = kind;
+  counters.lastLossBlock = block;
+}
+
+export interface EventStats {
+  enabled: boolean;
+  emitted: number;
+  lost: number;
+  lastLossAt: string | null;
+  lastLossKind: string | null;
+  lastLossBlock: number | null;
+  /** End of the current table-missing back-off, or null when none is active. */
+  backoffUntil: string | null;
+  /** When this process started counting. */
+  since: string;
+}
+
+export function eventStats(now: number = Date.now()): EventStats {
+  return {
+    enabled: eventsEnabled(),
+    emitted: counters.emitted,
+    lost: counters.lost,
+    lastLossAt: counters.lastLossAt === null ? null : new Date(counters.lastLossAt).toISOString(),
+    lastLossKind: counters.lastLossKind,
+    lastLossBlock: counters.lastLossBlock,
+    backoffUntil: now < tableMissingUntil ? new Date(tableMissingUntil).toISOString() : null,
+    since: new Date(PROCESS_STARTED_AT).toISOString(),
+  };
+}
+
 /** Tests only. */
 export function __resetBlockEventsState(): void {
   tableMissingUntil = 0;
   cachedKeyRaw = undefined;
   cachedKey = null;
+  counters = { emitted: 0, lost: 0, lastLossAt: null, lastLossKind: null, lastLossBlock: null };
 }
 
 let cachedKeyRaw: string | undefined;
@@ -177,8 +237,10 @@ export interface EmitInput {
   /**
    * Skip the emit when the newest event of the same kind on this block is
    * younger than `withinMs` and carries the same values for `samePayload`
-   * (e.g. a deed re-verified by the same holder). Checked under the block lock,
-   * so two concurrent verifies cannot both pass it.
+   * (e.g. a deed re-verified by the same holder). Checked twice: first by one
+   * plain read with no lock and no transaction, so the common "already
+   * recorded" case never queues behind the block's real writes; then again
+   * under the block lock, so two concurrent verifies cannot both pass it.
    */
   dedupe?: { withinMs: number; samePayload: string[] };
 }
@@ -210,17 +272,51 @@ export interface StoredBlockEvent {
 type Db = any;
 
 /**
+ * The `dedupe` rule as one read on `model` (the client's or the transaction's
+ * `blockEvent`): the newest event of this kind inside the window. Bounded by
+ * `ts` and ordered by `ts` so Postgres answers it from the `(block, ts)` index,
+ * reading at most the window's rows (ordered by `seq` the planner walks the
+ * block's whole history backwards when nothing is in the window). `ts` is set
+ * under the block lock in `seq` order, so "newest by ts" is the newest event
+ * (a same-millisecond tie of two same-kind events is harmless here, and a
+ * `seq` tie-break would cost an extra sort over the whole window).
+ */
+async function isDuplicate(model: Db, input: EmitInput, payload: Record<string, unknown>): Promise<boolean> {
+  const dedupe = input.dedupe;
+  if (!dedupe) return false;
+  const now = Date.now();
+  const last = await model.findFirst({
+    where: { block: input.block, kind: input.kind, ts: { gte: new Date(now - dedupe.withinMs) } },
+    orderBy: { ts: 'desc' },
+    select: { ts: true, payload: true },
+  });
+  const lastPayload = (last?.payload ?? {}) as Record<string, unknown>;
+  return (
+    !!last &&
+    now - new Date(last.ts).getTime() < dedupe.withinMs &&
+    dedupe.samePayload.every((k) => lastPayload[k] === payload[k])
+  );
+}
+
+/**
  * Append one event to `input.block`'s chain. Call it AFTER the action's own
  * write has committed, and await it (a serverless function may freeze once the
  * response is sent). Returns the stored row, or null when disabled, when the
  * table is missing, when `dedupe` skipped it, or on any failure — never throws.
  */
 export async function emitBlockEvent(input: EmitInput, db: Db = prisma): Promise<StoredBlockEvent | null> {
-  if (!eventsEnabled() || tableKnownMissing()) return null;
+  if (!eventsEnabled()) return null;
+  if (tableKnownMissing()) {
+    noteLoss(input.block, input.kind);
+    return null;
+  }
   try {
     if (!Number.isInteger(input.block) || input.block < 0) return null;
 
     const payload = publicPayload(input.payload ?? {});
+    // Unlocked pre-check: no transaction, no advisory lock. Only when it finds
+    // nothing does the emit queue for the lock, where the same rule runs again.
+    if (input.dedupe && (await isDuplicate(db.blockEvent, input, payload))) return null;
     const summary = summaryFor(input.kind, input.summary);
     const key = systemKey();
 
@@ -246,21 +342,7 @@ export async function emitBlockEvent(input: EmitInput, db: Db = prisma): Promise
     const row = await db.$transaction(
       async (tx: Db) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${EVENT_LOCK_NS}::int4, ${input.block}::int4)`;
-        if (input.dedupe) {
-          const last = await tx.blockEvent.findFirst({
-            where: { block: input.block, kind: input.kind },
-            orderBy: { seq: 'desc' },
-            select: { ts: true, payload: true },
-          });
-          const lastPayload = (last?.payload ?? {}) as Record<string, unknown>;
-          if (
-            last &&
-            Date.now() - new Date(last.ts).getTime() < input.dedupe.withinMs &&
-            input.dedupe.samePayload.every((k) => lastPayload[k] === payload[k])
-          ) {
-            return null;
-          }
-        }
+        if (input.dedupe && (await isDuplicate(tx.blockEvent, input, payload))) return null;
         const head = await tx.blockEvent.findFirst({
           where: { block: input.block },
           orderBy: { seq: 'desc' },
@@ -302,8 +384,10 @@ export async function emitBlockEvent(input: EmitInput, db: Db = prisma): Promise
       },
       { maxWait: TX_BUDGET_MS, timeout: TX_BUDGET_MS },
     );
+    if (row) counters.emitted += 1;
     return (row ?? null) as StoredBlockEvent | null;
   } catch (err) {
+    noteLoss(input.block, input.kind);
     if (isTableMissingError(err)) {
       noteTableMissing();
       return null;
@@ -312,6 +396,7 @@ export async function emitBlockEvent(input: EmitInput, db: Db = prisma): Promise
       block: input.block,
       kind: input.kind,
       err: err instanceof Error ? err.message : String(err),
+      lost: counters.lost,
     });
     return null;
   }

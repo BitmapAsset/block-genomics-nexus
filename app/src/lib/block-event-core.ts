@@ -17,6 +17,17 @@
  *
  * Canonical JSON is `stableStringify` from `action-message.ts` (sorted keys),
  * the same serialisation the signed world-write body hash already uses.
+ *
+ * `payload` is NOT part of a public event. It is the allowlisted fact set
+ * (`publicPayload` in `block-events.ts`) stored on the row so the server can
+ * dedupe ("same holder re-verified today"). It is not served: neither the
+ * events feed nor the proof route returns it. And for a wallet-signed event it
+ * is not covered by anything a verifier checks: `payloadHash` is sha256 of the
+ * signed action message (`proofMessage`), not of `payload`, so the stored
+ * payload has no signature behind it. (For a system event `proofMessage` is
+ * `systemProofMessage(block, kind, payload)`, so there it is covered through
+ * the message.) Anything that starts serving `payload` must label it
+ * unverified, or bind it into the hashed body first (a new format version).
  */
 
 import { ed25519 } from '@noble/curves/ed25519';

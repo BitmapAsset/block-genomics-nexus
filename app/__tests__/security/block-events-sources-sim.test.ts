@@ -141,6 +141,43 @@ describe('ownership cron → deed.moved', () => {
     expectNothingPrivate(['test-cron-secret']);
   });
 
+  it('flag off: a landed transfer still answers 200 and the post-transfer re-read never runs', async () => {
+    delete process.env.BG_EVENTS_ENABLED;
+    const buyer = makeWallet('p2tr');
+    await db.block.create({ data: { height: 700001, ownerAddress: owner.address, inscriptionId: 'insc-a' } });
+    mockBatchVerify.mockImplementation(async () => {
+      await db.block.update({ where: { height: 700001 }, data: { ownerAddress: buyer.address } });
+      return [{ blockHeight: 700001, dbOwnerAddress: owner.address, onChainOwnerAddress: buyer.address, inscriptionId: 'insc-a', match: false, indeterminate: false, action: 'update' }];
+    });
+    const findMany = jest.spyOn(db.block, 'findMany');
+    const res: any = await cronGet(req(null, { authorization: 'Bearer test-cron-secret' }));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ checked: 1, transfers: 1 });
+    // Exactly one read: the cron's own block selection. No `height: { in: … }` re-read.
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(findMany.mock.calls)).not.toContain('"in"');
+    expect(rows()).toHaveLength(0);
+    findMany.mockRestore();
+  });
+
+  it('flag off: a failing re-read could not turn the committed sync into a 500', async () => {
+    delete process.env.BG_EVENTS_ENABLED;
+    await db.block.create({ data: { height: 700001, ownerAddress: owner.address, inscriptionId: 'insc-a' } });
+    mockBatchVerify.mockResolvedValue([{ blockHeight: 700001, dbOwnerAddress: owner.address, onChainOwnerAddress: 'bc1pbuyer', inscriptionId: 'insc-a', match: false, indeterminate: false, action: 'update' }]);
+    const real = db.block.findMany;
+    let calls = 0;
+    const findMany = jest.spyOn(db.block, 'findMany').mockImplementation(async (...a: any[]) => {
+      calls += 1;
+      if (calls > 1) throw new Error('re-read failed');
+      return real(...a);
+    });
+    const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const res: any = await cronGet(req(null, { authorization: 'Bearer test-cron-secret' }));
+    expect(res.status).toBe(200);
+    findMany.mockRestore();
+    err.mockRestore();
+  });
+
   it('an unauthenticated cron call emits nothing', async () => {
     const res: any = await cronGet(req(null));
     expect(res.status).toBe(401);
@@ -163,6 +200,28 @@ describe('public ownership check → observed deed.verified', () => {
     expect(rows()[0].payload).toEqual({ holder: owner.address, inscriptionId: 'insc-840000i0', via: 'ownership-check' });
     const proof = await getEventProof(BLOCK, rows()[0].id);
     expect(proof).not.toBe('disabled');
+  });
+
+  it('50 concurrent live-match GETs on one block: at most one event; once recorded, a GET never takes the lock', async () => {
+    mockVerifyOwnership.mockResolvedValue({
+      blockHeight: BLOCK, dbOwnerAddress: owner.address, onChainOwnerAddress: owner.address, inscriptionId: 'insc-840000i0',
+      match: true, indeterminate: false, action: 'none',
+    });
+    // 50 different visitors (one IP each), so the route's 30/min bucket is not what limits them.
+    const visit = (i: number) =>
+      ownershipVerifyGet(req(null, { 'x-forwarded-for': `203.0.113.${i}` }, `http://test.local/api/v1/ownership/verify?blockHeight=${BLOCK}`)) as Promise<any>;
+    const first = await Promise.all(Array.from({ length: 50 }, (_, i) => visit(i)));
+    expect(first.every((r) => r.status === 200)).toBe(true);
+    expect(rows().filter((r) => r.kind === 'deed.verified')).toHaveLength(1);
+
+    const tx = jest.spyOn(db, '$transaction');
+    const locksBefore = db.__events.rawCalls.length;
+    const again = await Promise.all(Array.from({ length: 50 }, (_, i) => visit(100 + i)));
+    expect(again.every((r) => r.status === 200)).toBe(true);
+    expect(tx).not.toHaveBeenCalled();
+    expect(db.__events.rawCalls).toHaveLength(locksBefore);
+    expect(rows()).toHaveLength(1);
+    tx.mockRestore();
   });
 
   it('an outage or a mismatch emits nothing', async () => {
