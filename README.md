@@ -31,7 +31,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-2d3748?style=flat-square&logo=prisma&logoColor=white)](https://www.prisma.io)
 [![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 
-[**Live Demo**](https://blockgenomics.io) · [**Whitepaper**](whitepaper.html) · [**Nexus**](index.html) · [**RuneBolt**](runebolt) · [**SDK Docs**](docs/sdk)
+[**Live Demo**](https://blockgenomics.io) · [**Whitepaper**](whitepaper.html) · [**Nexus**](index.html) · [**RuneBolt**](packages/runebolt) · [**SDK Docs**](docs/sdk)
 
 </div>
 
@@ -335,7 +335,7 @@ Full guide: [**/docs/experience-hosting**](https://blockgenomics.io/docs/experie
 - 🌐 **Website:** [blockgenomics.io](https://blockgenomics.io)
 - 📜 **Whitepaper:** [`whitepaper.html`](whitepaper.html)
 - 🧬 **Nexus Brain:** [`index.html`](index.html)
-- ⚡ **RuneBolt:** [`runebolt/`](runebolt)
+- ⚡ **RuneBolt:** [`runebolt/`](packages/runebolt)
 - 📚 **SDK Docs:** [`docs/sdk`](docs/sdk)
 - 💬 **Bitmap Community:** [bitmap.community](https://bitmap.community)
 - 📊 **Mempool API:** [mempool.space/docs/api](https://mempool.space/docs/api)
