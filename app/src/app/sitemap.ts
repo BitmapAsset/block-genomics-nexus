@@ -63,7 +63,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { path: '/directory', priority: 0.7, changeFrequency: 'daily' },
     { path: '/rentals', priority: 0.6, changeFrequency: 'daily' },
     { path: '/whitepaper', priority: 0.6, changeFrequency: 'monthly' },
-    { path: '/history', priority: 0.4, changeFrequency: 'weekly' },
+    { path: '/docs/experience-hosting', priority: 0.6, changeFrequency: 'monthly' },
   ];
 
   const staticEntries = routes.map((r) => ({

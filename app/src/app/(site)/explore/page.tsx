@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   title: "Explore — Block Genomics",
   description:
     "Look up any Bitcoin block and see its bitmap art, then browse the blocks people have verified and built on.",
+  alternates: { canonical: "/explore" },
 };
 
 // Recent blocks are database state. Regenerated at most once a minute and held

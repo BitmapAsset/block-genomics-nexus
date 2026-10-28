@@ -7,6 +7,14 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import LandingBottomTabBar from "@/components/landing/LandingBottomTabBar";
 import { getFooterStats } from "@/lib/footer-stats";
+import type { Metadata } from "next";
+import JsonLd from "@/components/seo/JsonLd";
+import { LANDING_GRAPH } from "@/lib/seo-schema";
+
+// Head-only SEO for "/": canonical + structured data. No visible output.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 /**
  * The landing ("/") keeps the header, footer, mobile tab bar and onboarding it
@@ -18,6 +26,7 @@ export default async function LandingLayout({ children }: { children: React.Reac
   const footerStats = await getFooterStats();
   return (
     <>
+      <JsonLd data={LANDING_GRAPH} />
       <LandingHeader />
       <NotificationBanner />
       <main className="flex-1 pb-16 md:pb-0">

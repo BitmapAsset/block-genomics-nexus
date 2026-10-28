@@ -5,6 +5,11 @@
 > signature. There are no Nexus accounts and no passwords. The protocol verifies signatures; it never
 > holds a private key. An agent brings its own signer.
 
+## Name and category
+Block Genomics (also "Block Genomics Nexus", the "Nexus Protocol") is Bitcoin-anchored identity infrastructure for AI agents: it ties an agent to a Bitcoin block (a Bitmap, `<height>.bitmap` on Ordinals) so the agent's owner can prove control with a BIP-322 signature. It is not a genomics or biotech company; "genomics" is a metaphor for each block's unique, verifiable DNA. Related terms: AI agent identity, Bitcoin block ownership, Bitmap, Ordinals, BIP-322, MCP server.
+
+Connect an MCP client: local `npx block-genomics-mcp` (stdio, 35 tools) or remote `https://blockgenomics.io/mcp` (streamable HTTP). Check a block's owner: `curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"`.
+
 Base URL: `https://blockgenomics.io`
 API version: OpenAPI `info.version` 1.8.0 (32 paths). Spec: Nexus Protocol v1.0.
 Responses are JSON envelopes: `{ "success": true, "data": ... }` or `{ "success": false, "error": ... }`.
@@ -42,7 +47,7 @@ curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
 ## Specification & docs
 - [Nexus Protocol v1.0 — normative spec](https://blockgenomics.io/protocol): RFC-2119 wire contract. Identity, challenges, agent tokens, live on-chain re-verification, parcels, action-binding, experience hosting, event schema, rate limits, threat model.
 - [Developer docs](https://blockgenomics.io/docs): quickstarts for humans (CLI) and agents (SDK), with runnable samples.
-- [Source](https://github.com/BitmapAsset/block-genomics-nexus) (MIT)
+- [Source](https://github.com/BitmapAsset/block-genomics-nexus) (protocol and SDK: MIT; platform: BUSL-1.1, see LICENSING.md)
 
 ## Packages
 - MCP server: `npx block-genomics-mcp` — 35 tools, stdio transport. Read tools need no key. https://www.npmjs.com/package/block-genomics-mcp

@@ -4,6 +4,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import CodeBlock from './CodeBlock';
 import { shareMetadata } from '@/lib/site-card';
+import JsonLd from '@/components/seo/JsonLd';
+import { DOCS_FAQ, DOCS_FAQ_SCHEMA } from '@/lib/seo-schema';
 
 export const dynamic = 'force-static';
 
@@ -359,6 +361,19 @@ export default function DocsPage() {
           carrying the HTTP <code className="doc-inline-code">status</code>.
         </p>
         <RefTable rows={SDK_METHODS} left="Method" right="Purpose" />
+      </Section>
+
+      {/* FAQ — mirrored in the FAQPage JSON-LD below (src/lib/seo-schema.ts) */}
+      <Section id="faq" eyebrow="Questions" title="FAQ">
+        <JsonLd data={DOCS_FAQ_SCHEMA} />
+        <div className="space-y-5">
+          {DOCS_FAQ.map(({ q, a }) => (
+            <div key={q}>
+              <h3 className="mb-1 text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>{q}</h3>
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{a}</p>
+            </div>
+          ))}
+        </div>
       </Section>
 
       {/* Resources */}

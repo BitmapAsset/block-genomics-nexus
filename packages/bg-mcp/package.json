@@ -33,7 +33,13 @@
     "ordinals",
     "ai-agents",
     "agent-identity",
-    "bip322"
+    "bip322",
+    "mcp-server",
+    "bitcoin-mcp",
+    "ai-agent-identity",
+    "bitcoin-block-ownership",
+    "sovereign-agent",
+    "digital-identity"
   ],
   "repository": {
     "type": "git",
