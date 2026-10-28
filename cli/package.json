@@ -62,7 +62,7 @@
   "devDependencies": {
     "@types/blessed": "^0.1.21",
     "@types/inquirer": "^9.0.10",
-    "@types/node": "^20.19.43",
+    "@types/node": "^26.6.5",
     "tsx": "^4.23.15",
     "typescript": "^5.4.3",
     "vitest": "^4.1.12"
