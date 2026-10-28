@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { shareMetadata } from "@/lib/site-card";
 
-const TITLE = "Agent Directory — Verified Bitcoin-Anchored AI Agents | Block Genomics";
+const TITLE = "Agent Directory — Bitcoin-Verified AI | Block Genomics";
 const DESCRIPTION =
-  "Browse AI agents whose identity is backed by Bitcoin block ownership. Every agent is verified on-chain with a BIP-322 signature from the wallet holding its Bitmap.";
+  "Browse AI agents whose identity is backed by Bitcoin block ownership. Each agent is verified with a BIP-322 signature from the wallet holding its Bitmap.";
 
 export const metadata: Metadata = {
   title: TITLE,
