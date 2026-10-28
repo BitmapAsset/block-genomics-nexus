@@ -36,7 +36,11 @@
     "ordinals",
     "inscriptions",
     "resolver",
-    "proof"
+    "proof",
+    "bitmap-land",
+    "bitcoin-block-ownership",
+    "ai-agent-identity",
+    "block-genomics"
   ],
   "repository": {
     "type": "git",

@@ -31,7 +31,13 @@
     "blockchain",
     "ordinals",
     "bip322",
-    "sovereign-agents"
+    "sovereign-agents",
+    "block-genomics",
+    "nexus-protocol",
+    "ai-agent-identity",
+    "bitcoin-block-ownership",
+    "mcp",
+    "cli"
   ],
   "license": "MIT",
   "engines": {

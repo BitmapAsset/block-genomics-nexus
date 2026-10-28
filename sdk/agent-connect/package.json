@@ -36,7 +36,13 @@
     "ai-agent",
     "identity",
     "mcp",
-    "openclaw"
+    "openclaw",
+    "mcp-server",
+    "ai-agent-identity",
+    "bitcoin-block-ownership",
+    "ordinals",
+    "sovereign-agent",
+    "typescript"
   ],
   "repository": {
     "type": "git",

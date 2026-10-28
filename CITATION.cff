@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use Block Genomics Nexus in research or software, please cite it as below."
+title: "Block Genomics Nexus: Bitcoin-anchored identity for AI agents"
+type: software
+abstract: >-
+  Block Genomics (the Nexus Protocol) is an open protocol, MCP server, CLI, SDK
+  and API that give an AI agent a verifiable identity anchored to a Bitcoin
+  block (a Bitmap on Ordinals). Block ownership is proven with a BIP-322
+  signature and re-checked on Bitcoin before every write.
+authors:
+  - name: "Block Genomics"
+repository-code: "https://github.com/BitmapAsset/block-genomics-nexus"
+url: "https://blockgenomics.io"
+license: MIT
+keywords:
+  - AI agent identity
+  - Bitcoin
+  - Bitmap
+  - Ordinals
+  - BIP-322
+  - Model Context Protocol
+  - MCP
+  - decentralized identity

@@ -2,7 +2,9 @@
 
 <img src="brand/bg-hero-banner.jpg" alt="Block Genomics" width="100%" />
 
-# Block Genomics Nexus
+# Block Genomics Nexus: Bitcoin Identity for AI Agents
+
+**Block Genomics** is an open protocol, MCP server, CLI, SDK and API that give an **AI agent identity** anchored to a **Bitcoin block** (a Bitmap on Ordinals). The owner proves **Bitcoin block ownership** with a **BIP-322** signature; the agent then acts under that identity. Try it with `npx block-genomics-mcp` or at [blockgenomics.io](https://blockgenomics.io). Not a genomics company: "genomics" is the metaphor for each block's unique DNA.
 
 ### Bitcoin-Anchored Identity for AI Agents and Humans
 
@@ -34,6 +36,23 @@
 </div>
 
 <br>
+
+---
+
+## For AI agents reading this
+
+Everything below is copy-paste. Reads are public; writes need a BIP-322 ownership signature.
+
+| Goal | Command | Expected |
+|---|---|---|
+| Local MCP server (35 tools, stdio) | `npx -y block-genomics-mcp` | process stays up and speaks MCP on stdio; read tools need no key |
+| Remote MCP server | point your MCP client at `https://blockgenomics.io/mcp` (streamable HTTP) | tool list returned, no key needed for reads |
+| Who owns Bitcoin block 840000? | `curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"` | HTTP 200, JSON `{ "success": true, "data": { "blockHeight": 840000, ... } }` |
+| Protocol stats | `curl -s https://blockgenomics.io/api/v1/stats` | HTTP 200, JSON with `verifiedAgents`, `genomesMinted`, `blocksVerified` |
+| Read-only trial key | `curl -s -X POST https://blockgenomics.io/api/v1/sandbox/key -H 'content-type: application/json' -d '{"label":"my-agent"}'` | HTTP 200, JSON with `apiKey` (read-only, 100 requests per UTC day) |
+| CLI | `npx block-genomics --help` | usage text |
+
+Errors come back as `{ "success": false, "error": ... }` with a non-2xx status; a missing or foreign-block signature on a write is a 4xx, never a silent success. Agent-readable summaries: [`llms.txt`](https://blockgenomics.io/llms.txt), [`llms-full.txt`](https://blockgenomics.io/llms-full.txt), [`openapi.json`](https://blockgenomics.io/openapi.json), [`mcp.json`](https://blockgenomics.io/.well-known/mcp.json). Repo guide for agents: [`AGENTS.md`](AGENTS.md).
 
 ---
 
@@ -322,6 +341,26 @@ Full guide: [**/docs/experience-hosting**](https://blockgenomics.io/docs/experie
 - 📊 **Mempool API:** [mempool.space/docs/api](https://mempool.space/docs/api)
 - 📜 **Ordinals:** [ordinals.com](https://ordinals.com)
 - ⚖️ **Licensing:** [`LICENSING.md`](LICENSING.md)
+
+---
+
+## FAQ
+
+**What is Block Genomics?** An open protocol that gives an AI agent a verifiable identity anchored to a Bitcoin block. Ownership comes from the block's `.bitmap` inscription and is proven with a BIP-322 signature. No accounts, no passwords.
+
+**Is Block Genomics a genomics or biotech company?** No. It is a Bitcoin and AI-agent identity project.
+
+**What is a Bitmap?** A Bitcoin block inscribed as `<height>.bitmap` on Ordinals: one block, one unit of digital land and identity, owned by one wallet.
+
+**How do I connect an AI agent over MCP?** `npx block-genomics-mcp` (local, 35 tools) or the remote endpoint `https://blockgenomics.io/mcp`.
+
+**How do I check who owns a Bitcoin block?** `curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"`. No key needed.
+
+**How does BIP-322 verification work here?** The API issues a single-use, purpose-scoped challenge; the wallet holding the block's inscription signs it; the server verifies the signature and never holds a private key. Ownership is re-checked on Bitcoin at the moment of every write.
+
+**Is it open source?** Protocol, SDK, CLI and MCP server are MIT; the platform is BUSL-1.1 ([LICENSING.md](LICENSING.md)).
+
+**How do I cite it?** See [`CITATION.cff`](CITATION.cff).
 
 ---
 
