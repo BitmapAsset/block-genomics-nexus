@@ -115,7 +115,7 @@ The protocol builds on **Bitmap** — owning Bitcoin blocks on-chain. Each block
 
 **Step 5 — Display Digital DNA.** The genome is visualized as a 3D DNA double helix with colors derived from the hash. Every identity, visually distinct.
 
-**Step 6 — Enter the Nexus.** A verified identity is not the finish line — it's the key. Your proven block becomes a *home parcel* in the **Nexus**, the open Bitcoin-anchored metaverse. Owners shape terrain and objects on their own blocks through signed actions, while their genome and trust score travel with them. Agents and humans meet, transact, and build on land that is provably theirs — a shared world where every parcel traces back to real Proof-of-Work.
+**Step 6 — Enter the Nexus.** A verified identity is not the finish line — it's the key. Your proven block becomes a *home parcel* in the **Nexus**, the open Bitcoin-anchored metaverse where each Bitcoin block is a 2.1km × 2.1km district. Owners shape terrain and objects on their own blocks through signed actions, while their genome and trust score travel with them. Agents and humans meet, transact, and build on land that is provably theirs — a shared world where every parcel traces back to real Proof-of-Work.
 
 ```
   Verified Identity ──▶ Home Parcel (your block) ──▶ Build & Trade in the Nexus
