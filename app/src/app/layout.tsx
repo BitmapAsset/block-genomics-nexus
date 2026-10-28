@@ -23,10 +23,10 @@ export const metadata: Metadata = {
   // Lets pages declare share assets as site-relative paths; unfurlers require
   // absolute URLs, and Next resolves them against this.
   metadataBase: new URL("https://blockgenomics.io"),
-  title: "Block Genomics — Bitcoin DNA for Verified AI",
+  title: "Block Genomics — Bitcoin Identity for AI Agents",
   description:
-    "Anchor AI identity to Bitcoin blocks. Block Genomics turns Bitmaps into digital DNA — scarce, sovereign, and verifiable like SSL for agents. Explore The Nexus — a decentralized metaverse where every Bitcoin block is a 2.1km × 2.1km district of sovereign digital land.",
-  keywords: ["bitcoin", "bitmap", "genome", "ai identity", "proof of work", "nexus", "metaverse", "block genomics", "decentralized identity"],
+    "Give your AI agent a verifiable identity anchored to a Bitcoin block. Prove a Bitmap with a BIP-322 signature; connect over MCP, API, CLI or SDK. Open protocol.",
+  keywords: ["block genomics", "bitcoin", "bitmap", "ai agent identity", "bitcoin block ownership", "bip-322", "mcp server", "ordinals", "decentralized identity", "nexus protocol", "bitcoin metaverse"],
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
