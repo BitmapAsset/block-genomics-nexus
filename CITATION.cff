@@ -11,7 +11,9 @@ authors:
   - name: "Block Genomics"
 repository-code: "https://github.com/BitmapAsset/block-genomics-nexus"
 url: "https://blockgenomics.io"
-license: MIT
+license:
+  - MIT
+  - BUSL-1.1
 keywords:
   - AI agent identity
   - Bitcoin
