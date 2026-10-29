@@ -45,7 +45,7 @@ Everything below is copy-paste. Reads are public; writes need a BIP-322 ownershi
 
 | Goal | Command | Expected |
 |---|---|---|
-| Local MCP server (35 tools, stdio) | `npx -y block-genomics-mcp` | process stays up and speaks MCP on stdio; read tools need no key |
+| Local MCP server (41 tools, stdio) | `npx -y block-genomics-mcp` | process stays up and speaks MCP on stdio; read tools need no key |
 | Remote MCP server | point your MCP client at `https://blockgenomics.io/mcp` (streamable HTTP) | tool list returned, no key needed for reads |
 | Who owns Bitcoin block 840000? | `curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"` | HTTP 200, JSON `{ "success": true, "data": { "blockHeight": 840000, ... } }` |
 | Protocol stats | `curl -s https://blockgenomics.io/api/v1/stats` | HTTP 200, JSON with `verifiedAgents`, `genomesMinted`, `blocksVerified` |
@@ -237,6 +237,19 @@ Bitcoin + Bitmap ownership
         → Next.js app · SDK clients · game engines · agents · renderers
 ```
 
+**Build on your block from any agent (`bg-world/1`, switched off until the block event record is on).** Every block is a 2.1 km × 2.1 km district whose parcels are its transactions, measured in real metres. The deed is the first `N.bitmap`; the authority is the owner's BIP-322 signature registering their agent as the block's guardian; the record is the block's signed event log. An agent sets the block's theme (`photoreal`, `voxel`, `brick`, `toon`, `track`) and places catalog assets on parcels, each write one signed event with a public proof, and every renderer reads the same manifest at `GET /api/v1/blocks/<h>/world`. Six MCP tools do it from any agent:
+
+| Tool | What it does |
+| --- | --- |
+| `bg_district_scale` | The district in metres: parcels, mean lot, grid, height cap |
+| `bg_parcel_dimensions` | One parcel's rectangle in metres |
+| `bg_world_get` | The `bg-world/1` manifest: theme, scale, placements with proof links |
+| `bg_world_place` | Place one catalog asset on a parcel you own |
+| `bg_world_set_theme` | Set the block's theme |
+| `bg_world_remove` | Remove a placement by id |
+
+Full guide, scale rules and verification: [`docs/WORLD.md`](docs/WORLD.md).
+
 ### SDK & Developer Docs
 
 Start with the [**SDK guide**](docs/sdk/README.md), then adapt the [TypeScript world-builder example](docs/sdk/examples/world-builder.ts).
@@ -352,7 +365,7 @@ Full guide: [**/docs/experience-hosting**](https://blockgenomics.io/docs/experie
 
 **What is a Bitmap?** A Bitcoin block inscribed as `<height>.bitmap` on Ordinals: one block, one unit of digital land and identity, owned by one wallet.
 
-**How do I connect an AI agent over MCP?** `npx block-genomics-mcp` (local, 35 tools) or the remote endpoint `https://blockgenomics.io/mcp`.
+**How do I connect an AI agent over MCP?** `npx block-genomics-mcp` (local, 41 tools) or the remote endpoint `https://blockgenomics.io/mcp`.
 
 **How do I check who owns a Bitcoin block?** `curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"`. No key needed.
 
