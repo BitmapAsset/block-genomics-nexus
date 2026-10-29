@@ -23,6 +23,7 @@ import DeedRecheck from './deed-recheck';
 import { deedStatus, type DeedTone } from './deed-status';
 import ActivityFeed from './activity-feed';
 import { listBlockEvents } from '@/lib/block-events';
+import { districtScale, scaleLine } from '@/lib/world-scale';
 import type { PublicBlockEvent } from '@/lib/block-event-core';
 
 /**
@@ -575,6 +576,30 @@ async function latestEvents(height: number): Promise<{ events: PublicBlockEvent[
   }
 }
 
+/** Longest the page waits for the block summary before leaving the scale line out. */
+const SCALE_LINE_WAIT_MS = 1500;
+
+/**
+ * "2.1 km × 2.1 km · N parcels · mean lot ≈ M m" (lib/world-scale), or null when
+ * the block summary is slow or unreachable. Never throws.
+ */
+async function scaleCaption(height: number): Promise<string | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const s = await Promise.race([
+      districtScale(height),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), SCALE_LINE_WAIT_MS);
+      }),
+    ]);
+    return s ? scaleLine(s) : null;
+  } catch {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function ActivityPanel({
   data,
   mined,
@@ -652,10 +677,11 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
   if (height === undefined) notFound();
   if (await isUnmined(height)) notFound();
 
-  const [data, guardianView, events] = await Promise.all([
+  const [data, guardianView, events, scale] = await Promise.all([
     getBlockData(height),
     fetchBlockGuardian(height),
     latestEvents(height),
+    scaleCaption(height),
   ]);
   const epoch = epochFor(height);
   const epochColor = getEpochColor(height);
@@ -687,14 +713,21 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
       {/* ── Hero: the art is the hero ── */}
       <header className="mt-4 grid gap-8 md:grid-cols-[minmax(0,320px)_1fr] md:items-center">
         {/* Bitmap art: server-rendered PNG, cached per height */}
-        {/* eslint-disable-next-line @next/next/no-img-element -- dynamic API PNG, already cached server-side */}
-        <img
-          src={`/api/v1/block-thumbnail/${height}.png?v=2`}
-          alt={`${height}.bitmap`}
-          width={256}
-          height={256}
-          className="aspect-square w-full max-w-[320px] rounded-2xl border border-white/[0.08] bg-[#1d1f31]"
-        />
+        <div className="w-full max-w-[320px]">
+          {/* eslint-disable-next-line @next/next/no-img-element -- dynamic API PNG, already cached server-side */}
+          <img
+            src={`/api/v1/block-thumbnail/${height}.png?v=2`}
+            alt={`${height}.bitmap`}
+            width={256}
+            height={256}
+            className="aspect-square w-full max-w-[320px] rounded-2xl border border-white/[0.08] bg-[#1d1f31]"
+          />
+          {scale && (
+            <p className="mt-2 text-xs text-text-secondary tabular-nums" data-testid="block-scale-line">
+              {scale}
+            </p>
+          )}
+        </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span
