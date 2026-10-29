@@ -28,6 +28,14 @@
  * `systemProofMessage(block, kind, payload)`, so there it is covered through
  * the message.) Anything that starts serving `payload` must label it
  * unverified, or bind it into the hashed body first (a new format version).
+ *
+ * The one exception is the `world.*` kinds (`bg-world/1`, `lib/world/`): the
+ * world manifest is a projection of their payloads, and their payloads ARE
+ * covered. Session-path world events are system events, so the payload is in
+ * `proofMessage` itself. Wallet-path world events sign an action message whose
+ * `Body:` line is `hashBody(worldIntent(...))`, and the payload carries exactly
+ * that intent's fields, so a verifier rebuilds the intent from the manifest
+ * entry and the event's `actor.id` and compares the hash (docs/WORLD.md).
  */
 
 import { ed25519 } from '@noble/curves/ed25519';
@@ -56,6 +64,9 @@ export const BLOCK_EVENT_KINDS = [
   'guardian.status',
   'experience.listed',
   'experience.removed',
+  'world.theme',
+  'world.place',
+  'world.remove',
 ] as const;
 export type BlockEventKind = (typeof BLOCK_EVENT_KINDS)[number];
 
@@ -154,6 +165,43 @@ export function eventHash(e: HashedEvent): string {
  */
 export function systemProofMessage(block: number, kind: string, payload: Record<string, unknown>): string {
   return stableStringify({ format: BG_EVENT_PAYLOAD_FORMAT, block, kind, payload });
+}
+
+// ── Flat params (world placements) ───────────────────────────────────────
+
+/** Limits for a placement's `params`: a small flat object of plain values. */
+export const PARAMS_MAX_KEYS = 16;
+export const PARAMS_MAX_BYTES = 1024;
+export const PARAMS_MAX_STR = 64;
+const PARAM_KEY_RE = /^[a-z][a-z0-9_]{0,23}$/;
+// No control characters and no markup brackets in a param string.
+const PARAM_STR_RE = /^[^\u0000-\u001f\u007f<>]*$/;
+
+/**
+ * The params a world placement may carry, or null when `v` breaks a rule: a
+ * plain object, ≤ 16 keys matching `[a-z][a-z0-9_]{0,23}`, values finite
+ * numbers, booleans or strings ≤ 64 chars without control characters or `<>`,
+ * and ≤ 1 KB as canonical JSON. Never rewrites a value: anything that is not
+ * already in shape is refused, so what was signed is what is stored.
+ */
+export function flatParams(v: unknown): Record<string, string | number | boolean> | null {
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return null;
+  const entries = Object.entries(v as Record<string, unknown>);
+  if (entries.length > PARAMS_MAX_KEYS) return null;
+  const out: Record<string, string | number | boolean> = {};
+  for (const [k, val] of entries) {
+    if (!PARAM_KEY_RE.test(k)) return null;
+    if (typeof val === 'number') {
+      if (!Number.isFinite(val)) return null;
+    } else if (typeof val === 'string') {
+      if (val.length > PARAMS_MAX_STR || !PARAM_STR_RE.test(val)) return null;
+    } else if (typeof val !== 'boolean') {
+      return null;
+    }
+    out[k] = val;
+  }
+  if (utf8.encode(stableStringify(out)).length > PARAMS_MAX_BYTES) return null;
+  return out;
 }
 
 // ── Chain verification ────────────────────────────────────────────────────
@@ -350,6 +398,9 @@ export interface SummaryFacts {
   guardianName?: string | null;
   status?: string;
   experienceName?: string | null;
+  theme?: string;
+  asset?: string;
+  parcel?: number;
 }
 
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
@@ -386,6 +437,15 @@ export function summaryFor(kind: BlockEventKind, f: SummaryFacts = {}): string {
       break;
     case 'experience.removed':
       s = f.experienceName ? `“${clip(f.experienceName, 60)}” removed from this block` : 'An experience was removed from this block';
+      break;
+    case 'world.theme':
+      s = `World theme set to ${f.theme ? clip(f.theme, 20) : 'default'}`;
+      break;
+    case 'world.place':
+      s = `Placed a ${f.asset ? clip(f.asset.replace(/_/g, ' '), 30) : 'structure'}${typeof f.parcel === 'number' ? ` on parcel ${f.parcel}` : ''}`;
+      break;
+    case 'world.remove':
+      s = 'Removed a placement from the world';
       break;
   }
   return clip(s, SUMMARY_MAX);
