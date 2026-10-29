@@ -257,6 +257,14 @@ const CASES: Case[] = [
     path: "/api/v1/session/username",
     query: { handle: "gravity" },
   },
+  { tool: "bg_district_scale", args: { height: 612888 }, path: "/api/v1/blocks/612888/world/scale" },
+  {
+    tool: "bg_parcel_dimensions",
+    args: { height: 612888, parcel: 418 },
+    path: "/api/v1/blocks/612888/world/scale",
+    query: { parcel: "418" },
+  },
+  { tool: "bg_world_get", args: { height: 612888 }, path: "/api/v1/blocks/612888/world" },
 ];
 
 describe("public tool requests", () => {

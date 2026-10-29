@@ -35,6 +35,7 @@ import {
   EVENT_MAX_BYTES,
   GENESIS_PREV,
   eventHash,
+  flatParams,
   parseSystemKey,
   sha256Tagged,
   signEd25519,
@@ -80,6 +81,16 @@ function noteTableMissing(): void {
 
 function tableKnownMissing(): boolean {
   return Date.now() < tableMissingUntil;
+}
+
+/** Flag on and the table not known to be missing: a read may try the store. */
+export function eventsReadable(): boolean {
+  return eventsEnabled() && !tableKnownMissing();
+}
+
+/** For readers outside this module: a query said the table is missing. */
+export function noteEventsTableMissing(): void {
+  noteTableMissing();
 }
 
 // ── Loss counter ─────────────────────────────────────────────────────────
@@ -172,6 +183,8 @@ const PAYLOAD_KEYS = new Set([
   'inscriptionId', 'holder',
   'guardianId', 'from', 'to',
   'experienceId', 'experienceType',
+  // world.* (bg-world/1): validated by lib/world/validate before they get here.
+  'theme', 'placementId', 'parcel', 'asset', 'x_m', 'y_m', 'rot_deg', 'scale', 'params',
 ]);
 const MAX_STR = 120;
 
@@ -179,6 +192,12 @@ export function publicPayload(input: Record<string, unknown>): Record<string, un
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(input ?? {})) {
     if (!PAYLOAD_KEYS.has(k) || v === undefined || v === null) continue;
+    if (k === 'params') {
+      // A placement's params: kept whole when in shape, left out otherwise.
+      const p = flatParams(v);
+      if (p) out[k] = p;
+      continue;
+    }
     if (typeof v === 'string') out[k] = v.slice(0, MAX_STR);
     else if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
     else if (typeof v === 'boolean') out[k] = v;

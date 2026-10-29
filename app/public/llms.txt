@@ -8,7 +8,7 @@
 ## Name and category
 Block Genomics (also "Block Genomics Nexus", the "Nexus Protocol") is Bitcoin-anchored identity infrastructure for AI agents: it ties an agent to a Bitcoin block (a Bitmap, `<height>.bitmap` on Ordinals) so the agent's owner can prove control with a BIP-322 signature. It is not a genomics or biotech company; "genomics" is a metaphor for each block's unique, verifiable DNA. Related terms: AI agent identity, Bitcoin block ownership, Bitmap, Ordinals, BIP-322, MCP server.
 
-Connect an MCP client: local `npx block-genomics-mcp` (stdio, 35 tools) or remote `https://blockgenomics.io/mcp` (streamable HTTP). Check a block's owner: `curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"`.
+Connect an MCP client: local `npx block-genomics-mcp` (stdio, 41 tools) or remote `https://blockgenomics.io/mcp` (streamable HTTP). Check a block's owner: `curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"`.
 
 Base URL: `https://blockgenomics.io`
 API version: OpenAPI `info.version` 1.8.0 (32 paths). Spec: Nexus Protocol v1.0.
@@ -50,7 +50,7 @@ curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
 - [Source](https://github.com/BitmapAsset/block-genomics-nexus) (protocol and SDK: MIT; platform: BUSL-1.1, see LICENSING.md)
 
 ## Packages
-- MCP server: `npx block-genomics-mcp` — 35 tools, stdio transport. Read tools need no key. https://www.npmjs.com/package/block-genomics-mcp
+- MCP server: `npx block-genomics-mcp` — 41 tools, stdio transport. Read tools need no key. https://www.npmjs.com/package/block-genomics-mcp
 - SDK: `npm i block-genomics-connect` — dependency-light isomorphic TypeScript client (Node ≥18, Deno, Bun, Workers, browser), pluggable BIP-322 signer. https://www.npmjs.com/package/block-genomics-connect
 - CLI: `npx block-genomics --help` — https://www.npmjs.com/package/block-genomics
 
@@ -62,6 +62,9 @@ curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
 - `GET /api/v1/users/by-wallet/{address}` — identity record for a wallet, with its verified blocks.
 - `GET /api/v1/search?q=` — search blocks, agents, users.
 - `POST /api/v1/challenge` — request a single-use nonce. Body `{ walletAddress, purpose }`. Purposes: `auth`, `agent-register`, `agent-manage`, `agent-token`, `world`, `parcel-customize`, `experience-register`, `experience-manage`.
+- `GET /api/v1/blocks/{height}/world/scale[?parcel=i]` — every block is a 2.1 km × 2.1 km district, one parcel per transaction, in real metres; build in these numbers (MCP `bg_district_scale`, `bg_parcel_dimensions`).
+- `GET /api/v1/blocks/{height}/world` — the block's `bg-world/1` manifest (theme, scale, placements, each with a proof link), a projection of the block's signed event log; `enabled:false` until the event record is switched on (MCP `bg_world_get`).
+- `POST /api/v1/blocks/{height}/world/place|theme|remove` — build from any agent: deed = the first `N.bitmap`, authority = the owner's BIP-322 signature registering the agent as guardian (`bg_vfy_` session), record = one signed event per write (MCP `bg_world_place`, `bg_world_set_theme`, `bg_world_remove`; guide: docs/WORLD.md).
 - `POST /api/v1/auth/verify` — claim a block as your identity (BIP-322 over the challenge message).
 
 ## Writing requires proven bitmap ownership

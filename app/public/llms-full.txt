@@ -8,7 +8,7 @@
 ## Name and category
 Block Genomics (also "Block Genomics Nexus", the "Nexus Protocol") is Bitcoin-anchored identity infrastructure for AI agents: it ties an agent to a Bitcoin block (a Bitmap, `<height>.bitmap` on Ordinals) so the agent's owner can prove control with a BIP-322 signature. It is not a genomics or biotech company; "genomics" is a metaphor for each block's unique, verifiable DNA. Related terms: AI agent identity, Bitcoin block ownership, Bitmap, Ordinals, BIP-322, MCP server.
 
-Connect an MCP client: local `npx block-genomics-mcp` (stdio, 35 tools) or remote `https://blockgenomics.io/mcp` (streamable HTTP). Check a block's owner: `curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"`.
+Connect an MCP client: local `npx block-genomics-mcp` (stdio, 41 tools) or remote `https://blockgenomics.io/mcp` (streamable HTTP). Check a block's owner: `curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"`.
 
 Base URL: `https://blockgenomics.io`
 License: protocol and SDK MIT, platform BUSL-1.1 · Source: https://github.com/BitmapAsset/block-genomics-nexus
@@ -122,7 +122,7 @@ curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
 { "mcpServers": { "block-genomics": { "command": "npx", "args": ["-y", "block-genomics-mcp"] } } }
 ```
 
-35 tools over stdio. Read tools work with no configuration. Set `BG_AGENT_TOKEN` to unlock the
+41 tools over stdio. Read tools work with no configuration. Set `BG_AGENT_TOKEN` to unlock the
 runtime tools, `BG_ENABLE_WRITES=1` to expose ownership-gated tools (you still supply the signer).
 
 ### Via SDK
@@ -191,6 +191,9 @@ the SDK handles challenge fetching, message binding, and envelope parsing.
   Uses an **action-bound** `world` challenge — the signed message commits to the specific action.
 - `POST /api/v1/world/batch` — up to 100 create/update/delete ops in one signed call.
 - `PATCH|DELETE /api/v1/world/{id}` — update/delete an object you own; action-bound signature.
+- `GET /api/v1/blocks/{height}/world/scale[?parcel=i]` — the block as a 2.1 km × 2.1 km district, one parcel per transaction, in metres (`x_m`, `y_m`, `w_m`, `h_m` from the corner of tx 0). Public. MCP `bg_district_scale`, `bg_parcel_dimensions`.
+- `GET /api/v1/blocks/{height}/world` — `bg-world/1` manifest (theme, scale, placements with proof links), folded from the block's signed event log; `enabled:false` until the event record is switched on. Public. MCP `bg_world_get`.
+- `POST /api/v1/blocks/{height}/world/place|theme|remove` — deed = the first `N.bitmap`, authority = the owner's BIP-322 signature registering the agent as guardian (`bg_vfy_` session) or an action-bound signature, record = one signed event per write; catalog v1 assets only, footprint inside the parcel, height ≤ 300 m. MCP `bg_world_place`, `bg_world_set_theme`, `bg_world_remove`. Guide: docs/WORLD.md.
 
 ### Experiences (self-hosted worlds attached to a block)
 - `GET /api/v1/experiences?blockHeight=&type=&status=` — public, paginated discovery.
@@ -239,7 +242,7 @@ Failure modes worth coding against:
 - Developer docs: https://blockgenomics.io/docs
 
 ## 8. Packages
-- `block-genomics-mcp` — MCP server, 35 tools, stdio. `npx block-genomics-mcp`
+- `block-genomics-mcp` — MCP server, 41 tools, stdio. `npx block-genomics-mcp`
 - `block-genomics-connect` — TypeScript SDK with pluggable BIP-322 signer
 - `block-genomics` — CLI. `npx block-genomics --help`
 

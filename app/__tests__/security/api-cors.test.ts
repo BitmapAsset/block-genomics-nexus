@@ -68,6 +68,8 @@ describe('API CORS', () => {
     '/api/v1/blocks/718840/summary',
     '/api/v1/blocks/718840/events',
     '/api/v1/blocks/718840/events/01JB7Z8K2Q4X9M3T6V0R5N1C8D/proof',
+    '/api/v1/blocks/718840/world',
+    '/api/v1/blocks/718840/world/scale',
     '/api/v1/ownership/718840',
     '/api/v1/profiles/by-block/718840',
   ])('public read GET %s → * without credentials', (p) => {
@@ -85,6 +87,8 @@ describe('API CORS', () => {
 
   it.each([
     ['POST', '/api/v1/world'],
+    ['POST', '/api/v1/blocks/718840/world/place'],
+    ['GET', '/api/v1/blocks/718840/world/place'],
     ['GET', '/api/v1/sandbox/whoami'],
     ['GET', '/api/v1/agents/abc/events'],
     ['GET', '/api/v1/history'],
@@ -121,7 +125,7 @@ describe('API CORS', () => {
   it('lists as public only GET handlers that read no credentials', () => {
     // Every public pattern must resolve to a route whose GET reads no caller credential.
     const apiDir = path.join(__dirname, '..', '..', 'src', 'app', 'api', 'v1');
-    const routes = ['stats', 'search', 'blocks/[height]', 'blocks/[height]/summary', 'blocks/[height]/market', 'blocks/[height]/parcels', 'blocks/[height]/events', 'blocks/[height]/events/[id]/proof', 'ownership/[height]', 'ownership/verify', 'world', 'world/terrain', 'users/by-wallet/[address]', 'profiles/by-wallet/[address]', 'profiles/by-block/[height]', 'agents/block/[blockHeight]', 'experiences', 'experiences/[id]'];
+    const routes = ['stats', 'search', 'blocks/[height]', 'blocks/[height]/summary', 'blocks/[height]/market', 'blocks/[height]/parcels', 'blocks/[height]/events', 'blocks/[height]/events/[id]/proof', 'blocks/[height]/world', 'blocks/[height]/world/scale', 'ownership/[height]', 'ownership/verify', 'world', 'world/terrain', 'users/by-wallet/[address]', 'profiles/by-wallet/[address]', 'profiles/by-block/[height]', 'agents/block/[blockHeight]', 'experiences', 'experiences/[id]'];
     for (const r of routes) {
       const src = fs.readFileSync(path.join(apiDir, r, 'route.ts'), 'utf8');
       const start = src.search(/export (async )?function GET\b/);

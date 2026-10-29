@@ -264,6 +264,30 @@ export function buildToolCatalog(call: CallFn): {
       schema: { handle: z.string().describe("lowercase letters, numbers and underscores, max 30 chars") },
       run: (a) => call("/api/v1/session/username", { query: { handle: a.handle } }),
     },
+    {
+      name: "bg_district_scale",
+      description:
+        "The real-world scale of a block: every block is a 2.1 km x 2.1 km district (4.41 km2). Returns edge_m, area_m2, parcels (one per transaction), mean_lot_m2, mean_lot_edge_m, the layout grid in metres per cell, and height_cap_m. Build in these metres; never guess.",
+      schema: { height },
+      run: (a) => call(`/api/v1/blocks/${a.height}/world/scale`),
+    },
+    {
+      name: "bg_parcel_dimensions",
+      description:
+        "One parcel's rectangle in metres: {index, x_m, y_m, w_m, h_m, area_m2}, measured from the district corner where transaction 0 sits (x east, y south). A placement must fit inside it.",
+      schema: {
+        height,
+        parcel: z.number().int().min(0).describe("Parcel = transaction index in the block, 0..N-1"),
+      },
+      run: (a) => call(`/api/v1/blocks/${a.height}/world/scale`, { query: { parcel: a.parcel } }),
+    },
+    {
+      name: "bg_world_get",
+      description:
+        "A block's bg-world/1 manifest: theme, scale, live placements (each with the proof link of the signed event that created it) and head. enabled:false means world building is not switched on yet.",
+      schema: { height },
+      run: (a) => call(`/api/v1/blocks/${a.height}/world`),
+    },
   ];
 
   const agentTools: Tool[] = [
@@ -347,6 +371,67 @@ export function buildToolCatalog(call: CallFn): {
         locked: z.boolean().optional(),
       },
       run: (a) => call("/api/v1/world", { method: "POST", body: a, auth: true }),
+    },
+    {
+      name: "bg_world_place",
+      description:
+        "Place one catalog asset on a parcel of a block you own, as a signed world.place event (bg-world/1); the event id is the placement id. Coordinates are district metres (see bg_parcel_dimensions); the rotated footprint must fit the parcel and the height must stay under the cap. Requires a bg_vfy_ session token for the block, re-checked on-chain at call time.",
+      schema: {
+        blockHeight: height,
+        parcel: z.number().int().min(0).describe("Parcel = transaction index, 0..N-1"),
+        asset: z
+          .enum([
+            "tower",
+            "hall",
+            "house",
+            "pavilion",
+            "tree_cluster",
+            "plaza",
+            "beacon",
+            "track_segment",
+            "cube",
+            "dome",
+            "bridge",
+            "sign",
+          ])
+          .describe("Catalog v1 asset id"),
+        x_m: z.number().describe("Footprint centre, metres east of the district corner of tx 0"),
+        y_m: z.number().describe("Footprint centre, metres south of the district corner of tx 0"),
+        rot_deg: z.number().min(0).lt(360).optional().describe("Rotation in degrees, [0, 360) (default 0)"),
+        scale: z.number().min(0.5).max(2).optional().describe("Uniform scale, 0.5 to 2 (default 1)"),
+        params: z
+          .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+          .optional()
+          .describe("Small flat object (max 16 keys, strings max 64 chars, 1 KB), e.g. {color: '#f7931a'}"),
+      },
+      run: ({ blockHeight, ...body }) =>
+        call(`/api/v1/blocks/${blockHeight}/world/place`, {
+          method: "POST",
+          body: { rot_deg: 0, scale: 1, ...body },
+          auth: true,
+        }),
+    },
+    {
+      name: "bg_world_set_theme",
+      description:
+        "Set the theme every renderer draws a block you own in, as a signed world.theme event: photoreal, voxel, brick, toon or track. Same parcels and placements, different look. Requires a bg_vfy_ session token for the block.",
+      schema: {
+        blockHeight: height,
+        theme: z.enum(["photoreal", "voxel", "brick", "toon", "track"]),
+      },
+      run: ({ blockHeight, ...body }) =>
+        call(`/api/v1/blocks/${blockHeight}/world/theme`, { method: "POST", body, auth: true }),
+    },
+    {
+      name: "bg_world_remove",
+      description:
+        "Remove a placement from a block you own, as a signed world.remove event. The original world.place event stays in the record; the manifest stops listing it. Requires a bg_vfy_ session token for the block.",
+      schema: {
+        blockHeight: height,
+        placementId: z.string().describe("The placement id (the world.place event id) from bg_world_get"),
+      },
+      run: ({ blockHeight, ...body }) =>
+        call(`/api/v1/blocks/${blockHeight}/world/remove`, { method: "POST", body, auth: true }),
     },
   ];
 
