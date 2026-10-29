@@ -82,6 +82,12 @@ const UNDOCUMENTED_BY_DESIGN: Record<string, string> = {
   '/api/v1/blocks/{height}/events':
     'Living Block event feed (bg-event/1), dark behind BG_EVENTS_ENABLED until the BlockEvent migration ships; documented in openapi.json (and the SDK copy) when the flag turns on',
   '/api/v1/blocks/{height}/events/{id}/proof': 'Living Block event proof, dark behind BG_EVENTS_ENABLED (see the events feed above)',
+  '/api/v1/blocks/{height}/world':
+    'bg-world/1 manifest, a projection of the event feed above and dark with it (enabled:false); documented in docs/WORLD.md, joins openapi.json when the flag turns on',
+  '/api/v1/blocks/{height}/world/scale': 'district metres for the bg-world/1 builders (docs/WORLD.md); joins openapi.json with the world routes',
+  '/api/v1/blocks/{height}/world/place': 'bg-world/1 write, dark behind BG_EVENTS_ENABLED (503 while off); docs/WORLD.md',
+  '/api/v1/blocks/{height}/world/theme': 'bg-world/1 write, dark behind BG_EVENTS_ENABLED (503 while off); docs/WORLD.md',
+  '/api/v1/blocks/{height}/world/remove': 'bg-world/1 write, dark behind BG_EVENTS_ENABLED (503 while off); docs/WORLD.md',
   '/api/v1/chat/history': 'block chat product surface',
   '/api/v1/chat/react': 'block chat product surface',
   '/api/v1/chat/{blockHeight}': 'block chat product surface',

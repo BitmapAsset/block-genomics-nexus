@@ -91,6 +91,43 @@ export async function emitWorldWrite(w: WorldWriteEvent): Promise<StoredBlockEve
   });
 }
 
+// ── bg-world/1 writes → world.theme / world.place / world.remove ─────────
+
+export interface WorldEventWrite {
+  block: number;
+  kind: 'world.theme' | 'world.place' | 'world.remove';
+  /** The deed holder the route proved (wallet path) or the session's wallet. */
+  ownerAddress: string;
+  via: 'wallet' | 'session';
+  /** Validated fields (lib/world/validate): the theme, one placement, or a placement id. */
+  fields: Record<string, unknown>;
+  walletProof?: WalletProof | null;
+}
+
+/**
+ * One world write → exactly one event, and the event IS the write: the world
+ * manifest is folded from these rows, so a null return means nothing changed.
+ * Wallet path: the action message (nonce consumed) is the proof, and its Body
+ * hash covers the payload (`worldIntent`). Session path: system-signed over the
+ * payload, like every other session-token write.
+ */
+export async function emitWorldEvent(w: WorldEventWrite): Promise<StoredBlockEvent | null> {
+  if (!eventsEnabled()) return null;
+  const f = w.fields;
+  return emitBlockEvent({
+    block: w.block,
+    kind: w.kind,
+    actor: { type: w.via === 'wallet' ? 'owner' : 'owner-session', id: w.ownerAddress, handle: null },
+    payload: { ...f, via: w.via },
+    summary: {
+      theme: typeof f.theme === 'string' ? f.theme : undefined,
+      asset: typeof f.asset === 'string' ? f.asset : undefined,
+      parcel: typeof f.parcel === 'number' ? f.parcel : undefined,
+    },
+    walletProof: w.via === 'wallet' ? (w.walletProof ?? null) : null,
+  });
+}
+
 // ── Wallet verify / ownership checks → deed.verified ─────────────────────
 
 /** Re-verification by the same holder inside this window adds no event. */

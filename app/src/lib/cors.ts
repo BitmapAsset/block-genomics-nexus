@@ -23,6 +23,7 @@ export const PUBLIC_READ_PATHS: readonly RegExp[] = [
   /^\/api\/v1\/search$/,
   /^\/api\/v1\/blocks\/\d+(\/(summary|market|parcels))?$/,
   /^\/api\/v1\/blocks\/\d+\/events(\/[0-9A-HJKMNP-TV-Z]{26}\/proof)?$/,
+  /^\/api\/v1\/blocks\/\d+\/world(\/scale)?$/,
   /^\/api\/v1\/ownership\/(\d+|verify)$/,
   /^\/api\/v1\/world(\/terrain)?$/,
   /^\/api\/v1\/users\/by-wallet\/[^/]+$/,

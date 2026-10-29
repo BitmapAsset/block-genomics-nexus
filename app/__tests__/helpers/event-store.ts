@@ -54,8 +54,14 @@ export function createEventStore(opts: { lock?: boolean; missing?: boolean } = {
     findMany: async ({ where, orderBy, take }: any) => {
       await tick();
       if (missing) throw missingErr();
-      let list = rows.filter((r) => r.block === where.block && (where.seq?.gt === undefined || r.seq > where.seq.gt));
-      list.sort((a, b) => (orderBy?.seq === 'desc' ? b.seq - a.seq : a.seq - b.seq));
+      let list = rows.filter(
+        (r) =>
+          r.block === where.block &&
+          (where.seq?.gt === undefined || r.seq > where.seq.gt) &&
+          (where.kind?.in === undefined || where.kind.in.includes(r.kind)),
+      );
+      if (orderBy?.id) list.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) * (orderBy.id === 'desc' ? -1 : 1));
+      else list.sort((a, b) => (orderBy?.seq === 'desc' ? b.seq - a.seq : a.seq - b.seq));
       if (take) list = list.slice(0, take);
       return list.map((r) => ({ ...r }));
     },
