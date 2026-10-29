@@ -74,7 +74,7 @@ describe("tool gating", () => {
     expect(activeTools().map((t) => t.name)).toEqual([...PUBLIC_TOOL_NAMES, ...WRITE_TOOL_NAMES]);
   });
 
-  it("exposes the full 35-tool surface with every credential and writes enabled", async () => {
+  it("exposes the full 41-tool surface with every credential and writes enabled", async () => {
     const { activeTools } = await loadTools({
       BG_AGENT_TOKEN: TOKEN,
       BG_SESSION_TOKEN: SESSION,
@@ -87,7 +87,7 @@ describe("tool gating", () => {
       ...OWNER_TOOL_NAMES,
       ...WRITE_TOOL_NAMES,
     ]);
-    expect(names).toHaveLength(35);
+    expect(names).toHaveLength(41);
   });
 
   it("unlocks the agent tools via the BG_API_KEY alias too", async () => {
@@ -340,6 +340,52 @@ describe("credential selection when agent and session tokens are both set", () =
       "/api/v1/world",
     ]);
     for (const c of calls) expect(c.headers.authorization).toBe(`Bearer ${SESSION}`);
+  });
+
+  it("world tools POST bg-world/1 writes with the session token", async () => {
+    const { activeTools } = await loadTools(BOTH);
+    const { calls } = fetchMock(() => ({ status: 201, body: env({}) }));
+    const tools = activeTools();
+    await byName(tools, "bg_world_place").run({ blockHeight: 612888, parcel: 418, asset: "tower", x_m: 100, y_m: 200 });
+    await byName(tools, "bg_world_place").run({
+      blockHeight: 612888,
+      parcel: 2,
+      asset: "house",
+      x_m: 1,
+      y_m: 2,
+      rot_deg: 90,
+      scale: 1.5,
+      params: { color: "#f7931a" },
+    });
+    await byName(tools, "bg_world_set_theme").run({ blockHeight: 612888, theme: "voxel" });
+    await byName(tools, "bg_world_remove").run({ blockHeight: 612888, placementId: "01JB7Z8K2Q4X9M3T6V0R5N1C8D" });
+    expect(calls.map((c) => [c.method, new URL(c.url).pathname])).toEqual([
+      ["POST", "/api/v1/blocks/612888/world/place"],
+      ["POST", "/api/v1/blocks/612888/world/place"],
+      ["POST", "/api/v1/blocks/612888/world/theme"],
+      ["POST", "/api/v1/blocks/612888/world/remove"],
+    ]);
+    // blockHeight travels in the path only; rotation and scale default to 0 and 1.
+    expect(calls[0].body).toEqual({ parcel: 418, asset: "tower", x_m: 100, y_m: 200, rot_deg: 0, scale: 1 });
+    expect(calls[1].body).toEqual({ parcel: 2, asset: "house", x_m: 1, y_m: 2, rot_deg: 90, scale: 1.5, params: { color: "#f7931a" } });
+    expect(calls[2].body).toEqual({ theme: "voxel" });
+    expect(calls[3].body).toEqual({ placementId: "01JB7Z8K2Q4X9M3T6V0R5N1C8D" });
+    for (const c of calls) expect(c.headers.authorization).toBe(`Bearer ${SESSION}`);
+  });
+
+  it("world tool schemas pin the catalog, themes and ranges", async () => {
+    const { activeTools } = await loadTools(BOTH);
+    const tools = activeTools();
+    const place = byName(tools, "bg_world_place").schema as any;
+    expect(place.asset.safeParse("tower").success).toBe(true);
+    expect(place.asset.safeParse("castle").success).toBe(false);
+    expect(place.scale.safeParse(2).success).toBe(true);
+    expect(place.scale.safeParse(2.5).success).toBe(false);
+    expect(place.rot_deg.safeParse(360).success).toBe(false);
+    expect(place.parcel.safeParse(-1).success).toBe(false);
+    const theme = (byName(tools, "bg_world_set_theme").schema as any).theme;
+    for (const t of ["photoreal", "voxel", "brick", "toon", "track"]) expect(theme.safeParse(t).success).toBe(true);
+    expect(theme.safeParse("gta").success).toBe(false);
   });
 
   it("agent runtime tools keep sending the agent token", async () => {

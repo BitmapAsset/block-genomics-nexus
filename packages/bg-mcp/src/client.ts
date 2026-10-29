@@ -23,10 +23,13 @@ export const BEARER = AGENT_TOKEN ?? SESSION_TOKEN;
  * routes must get the session token, not {@link BEARER}.
  */
 const SESSION_ROUTES = ["/api/v1/session", "/api/v1/world"];
+/** The bg-world/1 writes: POST /api/v1/blocks/<h>/world/{place,theme,remove}. */
+const SESSION_ROUTE_RE = /^\/api\/v1\/blocks\/\d+\/world\/(place|theme|remove)$/;
 
 /** The credential a given API path accepts, preferring the one it was built for. */
 export function bearerFor(path: string): string | undefined {
-  const sessionRoute = SESSION_ROUTES.some((r) => path === r || path.startsWith(r + "/"));
+  const sessionRoute =
+    SESSION_ROUTES.some((r) => path === r || path.startsWith(r + "/")) || SESSION_ROUTE_RE.test(path);
   return sessionRoute ? SESSION_TOKEN ?? AGENT_TOKEN : BEARER;
 }
 

@@ -24,9 +24,9 @@ REPORT="${SMOKE_REPORT:-smoke-report.md}"
 ATTEMPTS="${SMOKE_ATTEMPTS:-3}"
 DELAY="${SMOKE_RETRY_DELAY:-10}"
 # /.well-known/mcp.json is a static file; server-card.json is generated from
-# the MCP server's own tool list. Floors are the counts live on 2026-10-18.
-MCP_JSON_MIN_TOOLS="${MCP_JSON_MIN_TOOLS:-24}"
-MCP_CARD_MIN_TOOLS="${MCP_CARD_MIN_TOOLS:-35}"
+# the MCP server's own tool list. Floors are the catalog count (41 since bg92).
+MCP_JSON_MIN_TOOLS="${MCP_JSON_MIN_TOOLS:-41}"
+MCP_CARD_MIN_TOOLS="${MCP_CARD_MIN_TOOLS:-41}"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

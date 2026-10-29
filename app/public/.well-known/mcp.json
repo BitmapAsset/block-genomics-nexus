@@ -29,7 +29,7 @@
       }
     }
   ],
-  "instructions": "Two ways to connect, one protocol: point any MCP client at the remote endpoint https://blockgenomics.io/mcp (Streamable HTTP, nothing to install), or run the npm package `block-genomics-mcp` over stdio. Both serve the same 35 `bg_*` tools from one shared catalog.\n\nCONNECTING GRANTS READS, NOT WRITES. To build anything: call bg_verify_start with your wallet address, sign the returned message with the wallet that holds your <height>.bitmap inscription (BIP-322; base64 or hex both work), then call bg_verify_submit with the signature and the block heights you claim. Each claimed block is checked against the live chain, and you get back a bg_vfy_ session token scoped to the ones that verified. Send it as `Authorization: Bearer <token>`. Ownership is re-verified on-chain at action time, so a transferred bitmap stops working immediately even while the token is still valid. bg_my_blocks shows your current scope; bg_claim_username claims a name once verified.\n\nAgent runtime tools (bg_agent_heartbeat, bg_agent_brief, bg_agent_events) use the separate bg_agent_ token issued at agent registration. The `tools` array below is generated from the shared catalog and lists every `bg_*` tool with its input schema. The block-genomics-connect SDK is a separate, higher-level client that wraps the same REST API around a local signer. No server ever holds keys. See https://blockgenomics.io/docs and the normative spec at https://blockgenomics.io/protocol.",
+  "instructions": "Two ways to connect, one protocol: point any MCP client at the remote endpoint https://blockgenomics.io/mcp (Streamable HTTP, nothing to install), or run the npm package `block-genomics-mcp` over stdio. Both serve the same 41 `bg_*` tools from one shared catalog.\n\nCONNECTING GRANTS READS, NOT WRITES. To build anything: call bg_verify_start with your wallet address, sign the returned message with the wallet that holds your <height>.bitmap inscription (BIP-322; base64 or hex both work), then call bg_verify_submit with the signature and the block heights you claim. Each claimed block is checked against the live chain, and you get back a bg_vfy_ session token scoped to the ones that verified. Send it as `Authorization: Bearer <token>`. Ownership is re-verified on-chain at action time, so a transferred bitmap stops working immediately even while the token is still valid. bg_my_blocks shows your current scope; bg_claim_username claims a name once verified.\n\nAgent runtime tools (bg_agent_heartbeat, bg_agent_brief, bg_agent_events) use the separate bg_agent_ token issued at agent registration. The `tools` array below is generated from the shared catalog and lists every `bg_*` tool with its input schema. The block-genomics-connect SDK is a separate, higher-level client that wraps the same REST API around a local signer. No server ever holds keys. See https://blockgenomics.io/docs and the normative spec at https://blockgenomics.io/protocol.",
   "tools": [
     {
       "name": "bg_stats",
@@ -585,6 +585,73 @@
       }
     },
     {
+      "name": "bg_district_scale",
+      "description": "The real-world scale of a block: every block is a 2.1 km x 2.1 km district (4.41 km2). Returns edge_m, area_m2, parcels (one per transaction), mean_lot_m2, mean_lot_edge_m, the layout grid in metres per cell, and height_cap_m. Build in these metres; never guess.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "height": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Bitcoin block height (the .bitmap number)"
+          }
+        },
+        "required": [
+          "height"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "bg_parcel_dimensions",
+      "description": "One parcel's rectangle in metres: {index, x_m, y_m, w_m, h_m, area_m2}, measured from the district corner where transaction 0 sits (x east, y south). A placement must fit inside it.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "height": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Bitcoin block height (the .bitmap number)"
+          },
+          "parcel": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Parcel = transaction index in the block, 0..N-1"
+          }
+        },
+        "required": [
+          "height",
+          "parcel"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "bg_world_get",
+      "description": "A block's bg-world/1 manifest: theme, scale, live placements (each with the proof link of the signed event that created it) and head. enabled:false means world building is not switched on yet.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "height": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Bitcoin block height (the .bitmap number)"
+          }
+        },
+        "required": [
+          "height"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "bg_agent_events",
       "description": "Poll the event stream for an agent you hold the token for.",
       "requiresToken": true,
@@ -783,6 +850,147 @@
         "required": [
           "blockHeight",
           "objectType"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "bg_world_place",
+      "description": "Place one catalog asset on a parcel of a block you own, as a signed world.place event (bg-world/1); the event id is the placement id. Coordinates are district metres (see bg_parcel_dimensions); the rotated footprint must fit the parcel and the height must stay under the cap. Requires a bg_vfy_ session token for the block, re-checked on-chain at call time.",
+      "requiresToken": true,
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "blockHeight": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Bitcoin block height (the .bitmap number)"
+          },
+          "parcel": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Parcel = transaction index, 0..N-1"
+          },
+          "asset": {
+            "type": "string",
+            "enum": [
+              "tower",
+              "hall",
+              "house",
+              "pavilion",
+              "tree_cluster",
+              "plaza",
+              "beacon",
+              "track_segment",
+              "cube",
+              "dome",
+              "bridge",
+              "sign"
+            ],
+            "description": "Catalog v1 asset id"
+          },
+          "x_m": {
+            "type": "number",
+            "description": "Footprint centre, metres east of the district corner of tx 0"
+          },
+          "y_m": {
+            "type": "number",
+            "description": "Footprint centre, metres south of the district corner of tx 0"
+          },
+          "rot_deg": {
+            "description": "Rotation in degrees, [0, 360) (default 0)",
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMaximum": 360
+          },
+          "scale": {
+            "description": "Uniform scale, 0.5 to 2 (default 1)",
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2
+          },
+          "params": {
+            "description": "Small flat object (max 16 keys, strings max 64 chars, 1 KB), e.g. {color: '#f7931a'}",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          }
+        },
+        "required": [
+          "blockHeight",
+          "parcel",
+          "asset",
+          "x_m",
+          "y_m"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "bg_world_set_theme",
+      "description": "Set the theme every renderer draws a block you own in, as a signed world.theme event: photoreal, voxel, brick, toon or track. Same parcels and placements, different look. Requires a bg_vfy_ session token for the block.",
+      "requiresToken": true,
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "blockHeight": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Bitcoin block height (the .bitmap number)"
+          },
+          "theme": {
+            "type": "string",
+            "enum": [
+              "photoreal",
+              "voxel",
+              "brick",
+              "toon",
+              "track"
+            ]
+          }
+        },
+        "required": [
+          "blockHeight",
+          "theme"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "bg_world_remove",
+      "description": "Remove a placement from a block you own, as a signed world.remove event. The original world.place event stays in the record; the manifest stops listing it. Requires a bg_vfy_ session token for the block.",
+      "requiresToken": true,
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "blockHeight": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Bitcoin block height (the .bitmap number)"
+          },
+          "placementId": {
+            "type": "string",
+            "description": "The placement id (the world.place event id) from bg_world_get"
+          }
+        },
+        "required": [
+          "blockHeight",
+          "placementId"
         ],
         "additionalProperties": false
       }

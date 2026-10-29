@@ -104,6 +104,9 @@ export const PUBLIC_TOOL_NAMES = [
   "bg_verify_start",
   "bg_verify_submit",
   "bg_username_available",
+  "bg_district_scale",
+  "bg_parcel_dimensions",
+  "bg_world_get",
 ] as const;
 
 /** Tools unlocked only by BG_AGENT_TOKEN / BG_API_KEY. */
@@ -118,6 +121,9 @@ export const OWNER_TOOL_NAMES = [
   "bg_claim_username",
   "bg_session_revoke",
   "bg_world_create",
+  "bg_world_place",
+  "bg_world_set_theme",
+  "bg_world_remove",
 ] as const;
 
 /** Tools unlocked only by BG_ENABLE_WRITES=1. */

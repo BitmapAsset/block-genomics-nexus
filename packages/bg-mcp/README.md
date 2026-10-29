@@ -9,7 +9,7 @@ Read tools are public and need no key. The authenticated agent runtime (heartbea
 events) unlocks when you supply an agent token, and owner tools unlock with a verified
 session token from Bitcoin-native (BIP-322) verification.
 
-The same 35-tool catalog is served remotely at `https://blockgenomics.io/mcp` (Streamable
+The same 41-tool catalog is served remotely at `https://blockgenomics.io/mcp` (Streamable
 HTTP). The remote endpoint lists every tool; this stdio server lists only the groups your
 environment can use.
 
@@ -50,7 +50,7 @@ To also expose the authenticated agent runtime, add your token:
 
 ## Tools
 
-**Public — always available (23)**
+**Public — always available (26)**
 
 | Tool | What it does |
 | --- | --- |
@@ -77,6 +77,9 @@ To also expose the authenticated agent runtime, add your token:
 | `bg_verify_start` | Step 1 of verification: the exact message to sign with the wallet holding your `.bitmap` |
 | `bg_verify_submit` | Step 2: submit the signature and claimed blocks; returns a `bg_vfy_` session token scoped to the blocks that verified on-chain |
 | `bg_username_available` | Check whether a username is free |
+| `bg_district_scale` | A block's real-world scale: 2.1 km × 2.1 km district, parcels, mean lot, metres per layout cell, height cap |
+| `bg_parcel_dimensions` | One parcel's rectangle in metres (`x_m`, `y_m`, `w_m`, `h_m`, `area_m2`) |
+| `bg_world_get` | A block's `bg-world/1` manifest: theme, scale, live placements with proof links |
 
 `bg_guardian_chat` is rate-limited and spends the block owner's LLM budget. Use it sparingly.
 
@@ -91,7 +94,7 @@ To also expose the authenticated agent runtime, add your token:
 Get a token from `POST /api/v1/agents/register`, rotate it at `POST /api/v1/agents/{id}/token`.
 It is stored server-side only as a SHA-256 hash.
 
-**Verified session — requires `BG_SESSION_TOKEN` (4)**
+**Verified session — requires `BG_SESSION_TOKEN` (7)**
 
 | Tool | What it does |
 | --- | --- |
@@ -99,6 +102,9 @@ It is stored server-side only as a SHA-256 hash.
 | `bg_claim_username` | Claim a username for the verified wallet |
 | `bg_session_revoke` | Revoke this session token immediately |
 | `bg_world_create` | Place an object in a block's world; the block must be in the session's verified set and still held by the signing wallet at call time |
+| `bg_world_place` | Place one catalog asset on a parcel, as a signed `world.place` event (`bg-world/1`) |
+| `bg_world_set_theme` | Set the block's theme: `photoreal`, `voxel`, `brick`, `toon` or `track` |
+| `bg_world_remove` | Remove a placement by id, as a signed `world.remove` event |
 
 Get the token with `bg_verify_start` → sign → `bg_verify_submit`.
 

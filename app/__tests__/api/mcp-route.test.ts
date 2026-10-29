@@ -2,7 +2,7 @@
  * Tests for src/app/mcp/route.ts — the remote Streamable HTTP MCP endpoint.
  *
  * Covers the handshake a real client performs (initialize → tools/list →
- * tools/call), that the full 35-tool catalog is advertised anonymously, that a
+ * tools/call), that the full 41-tool catalog is advertised anonymously, that a
  * tool call is proxied to the REST API, and that token-gated tools fail with a
  * usable message instead of leaking or hanging.
  *
@@ -87,13 +87,13 @@ describe('POST /mcp — handshake', () => {
 });
 
 describe('POST /mcp — tools/list', () => {
-  it('advertises the full 35-tool catalog to an anonymous caller', async () => {
+  it('advertises the full 41-tool catalog to an anonymous caller', async () => {
     const res = await post({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
     const body = await readResult(res);
 
     const names: string[] = body.result.tools.map((t: { name: string }) => t.name);
-    expect(names).toHaveLength(35);
-    expect(new Set(names).size).toBe(35);
+    expect(names).toHaveLength(41);
+    expect(new Set(names).size).toBe(41);
     expect(names).toEqual(expect.arrayContaining(['bg_stats', 'bg_block', 'bg_agent_heartbeat', 'bg_auth_verify']));
     // The ownership-gated surface is DISCOVERABLE anonymously — a remote endpoint
     // serves every caller, so tools/list must not depend on who is asking — but
@@ -171,6 +171,51 @@ describe('POST /mcp — tools/call', () => {
     expect((init as { headers: Record<string, string> }).headers.authorization).toBe('Bearer bg_agent_test_token');
   });
 
+  it('serves the bg-world/1 read tools anonymously', async () => {
+    for (const [id, name, args] of [
+      [20, 'bg_district_scale', { height: 612888 }],
+      [21, 'bg_parcel_dimensions', { height: 612888, parcel: 418 }],
+      [22, 'bg_world_get', { height: 612888 }],
+    ] as const) {
+      await post({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } });
+    }
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      'https://blockgenomics.io/api/v1/blocks/612888/world/scale',
+      'https://blockgenomics.io/api/v1/blocks/612888/world/scale?parcel=418',
+      'https://blockgenomics.io/api/v1/blocks/612888/world',
+    ]);
+    for (const [, init] of fetchMock.mock.calls) expect((init as RequestInit).headers).not.toHaveProperty('authorization');
+  });
+
+  it('sends a bg-world/1 write with the caller session token, block in the path', async () => {
+    await post(
+      {
+        jsonrpc: '2.0',
+        id: 23,
+        method: 'tools/call',
+        params: { name: 'bg_world_place', arguments: { blockHeight: 612888, parcel: 418, asset: 'tower', x_m: 230.5, y_m: 610.5 } },
+      },
+      { authorization: 'Bearer bg_vfy_test_token' },
+    );
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe('https://blockgenomics.io/api/v1/blocks/612888/world/place');
+    expect((init as RequestInit).method).toBe('POST');
+    expect((init as { headers: Record<string, string> }).headers.authorization).toBe('Bearer bg_vfy_test_token');
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ parcel: 418, asset: 'tower', x_m: 230.5, y_m: 610.5, rot_deg: 0, scale: 1 });
+  });
+
+  it('refuses an anonymous bg-world/1 write before calling the API', async () => {
+    const res = await post({
+      jsonrpc: '2.0',
+      id: 24,
+      method: 'tools/call',
+      params: { name: 'bg_world_set_theme', arguments: { blockHeight: 612888, theme: 'voxel' } },
+    });
+    const body = await readResult(res);
+    expect(body.result.isError).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('tells an anonymous caller how to authenticate instead of calling the API', async () => {
     const res = await post({
       jsonrpc: '2.0',
@@ -236,7 +281,7 @@ describe('POST /mcp — 2026-07-28 era', () => {
 
     const body = await readResult(res);
     expect(body.error).toBeUndefined();
-    expect(body.result.tools).toHaveLength(35);
+    expect(body.result.tools).toHaveLength(41);
   });
 });
 
@@ -283,7 +328,7 @@ describe('/mcp — transport surface', () => {
         transport: 'streamable-http',
         docs: 'https://blockgenomics.io/mcp',
         manifest: 'https://blockgenomics.io/.well-known/mcp.json',
-        tools: 35,
+        tools: 41,
       });
       expect(body.usage).toMatch(/POST/);
     }
@@ -326,7 +371,7 @@ describe('/mcp — transport surface', () => {
     for (const name of ['bg_stats', 'bg_ownership_verify', 'bg_agent_heartbeat', 'bg_auth_verify']) {
       expect(html).toContain(name);
     }
-    expect(html).toContain('35 tools');
+    expect(html).toContain('41 tools');
   });
 
   it('rate limits a flood from one client', async () => {
