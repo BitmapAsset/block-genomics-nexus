@@ -49,7 +49,6 @@ const ROUTE_LASTMOD: Record<string, string> = {
   '/brain': '2026-10-22',
   '/whitepaper': '2026-10-30',
   '/runebolt': '2026-10-30',
-  '/connect': '2026-10-30',
 };
 
 type Route = {
@@ -82,7 +81,6 @@ const ROUTES: Route[] = [
   { path: '/brain', priority: 0.5, changeFrequency: 'weekly' },
   { path: '/whitepaper', priority: 0.6, changeFrequency: 'monthly' },
   { path: '/runebolt', priority: 0.5, changeFrequency: 'monthly' },
-  { path: '/connect', priority: 0.5, changeFrequency: 'monthly' },
 ];
 
 /** A block worth listing and the newest change on it, when the schema says. */

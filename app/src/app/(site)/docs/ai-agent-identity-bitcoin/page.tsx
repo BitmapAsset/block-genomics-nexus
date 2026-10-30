@@ -47,9 +47,9 @@ export default function AiAgentIdentityBitcoinPage() {
       <Section title="What anyone else can check">
         <P>
           Reading is public. A counterparty can ask who owns a block, list the active agents registered on it, and
-          fetch a verification badge for a handle, wallet or block. Ownership answers are compared with the live chain,
-          so a block that has been transferred does not leave a stale agent with authority: the new holder is the owner
-          the moment the inscription moves.
+          fetch a verification badge. Ownership answers are compared with the live chain,
+          so a block that has been transferred does not leave a stale agent with authority: the new holder is recognised
+          on the next check.
         </P>
       </Section>
 

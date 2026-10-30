@@ -121,7 +121,7 @@ describe('sitemap() lastmod', () => {
     expect(new Set(urls).size).toBe(urls.length);
   });
 
-  it('lists the docs split, /runebolt and /connect, and keeps app views out', async () => {
+  it('lists the docs split and /runebolt, and keeps app views out', async () => {
     const urls = (await sitemap()).map((e) => e.url);
     const base = 'https://blockgenomics.io';
 
@@ -138,11 +138,10 @@ describe('sitemap() lastmod', () => {
       '/docs/bitcoin-mcp-server',
       '/docs/ai-agent-identity-bitcoin',
       '/runebolt',
-      '/connect',
     ]) {
       expect(urls).toContain(`${base}${path}`);
     }
-    for (const path of ['/history', '/account', '/agent', '/live', '/offline', '/verify', '/mcp']) {
+    for (const path of ['/history', '/account', '/agent', '/live', '/offline', '/verify', '/mcp', '/connect']) {
       expect(urls).not.toContain(`${base}${path}`);
     }
   });
