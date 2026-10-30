@@ -2,6 +2,10 @@
 
 Thank you for contributing. This repository is security-sensitive because it handles Bitcoin wallet signatures, ownership checks, and world-state writes.
 
+## Code Of Conduct
+
+Everyone interacting in this repository, its issue tracker, pull requests, and community spaces is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## License
 
 This repository is dual-licensed: the Nexus Protocol spec, SDK, MCP server, and CLI are MIT; the Nexus platform is [BUSL 1.1](LICENSE) and converts to Apache 2.0 on 2029-08-10. See [LICENSING.md](LICENSING.md) for the component-by-component breakdown.
