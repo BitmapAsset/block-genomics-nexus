@@ -1,5 +1,5 @@
 /**
- * "Does this wallet hold the .bitmap inscription for this block, right now?"
+ * "Does this wallet hold the deed for this block, right now?"
  *
  * This is the single answer the whole ownership gate rests on. It was previously
  * inlined in `/api/v1/auth/verify`; it lives here because the MCP/agent
@@ -8,6 +8,11 @@
  * and the lenient one would become the way in.
  *
  * SECURITY MODEL — fail closed, always:
+ *   - WHICH inscription is the deed is decided server-side by the bitmap
+ *     resolver (lib/onchain/deed.ts): the first valid `N.bitmap` from block N
+ *     onward. Any other inscription with the same text, a bare number, padded
+ *     text, a delegate or an encoded body is a copy and proves nothing. No
+ *     caller input (a request body, a stored hint) selects the inscription.
  *   - The CURRENT-HOLDER check is mandatory. `.bitmap` inscription content is
  *     public and immutable, so a content match alone proves nothing about who
  *     holds it now. A live indexer must report the current holder, and that
@@ -16,13 +21,15 @@
  *     ordinals.com), then the Esplora sat tracker (both through
  *     owner-freshness), then Unisat as a tertiary fallback — applying the SAME
  *     equality assertion. Unisat is NEVER a content-only bypass.
- *   - The block-number content match is an ADDITIONAL constraint, never a
+ *   - The deed's content is re-read and must be exactly `N.bitmap` (no
+ *     delegate, no content-encoding): an ADDITIONAL constraint, never a
  *     substitute for the holder check. There is no content-only success path.
- *   - Our own database is a CACHE and is deliberately not consulted here.
- *     Trusting it during an indexer outage previously let a stale record
- *     re-grant a sold block.
- *   - When no provider can answer, callers get `unavailable` and must surface a
- *     retryable 503 rather than granting or hard-denying.
+ *   - Our own database is a CACHE and is deliberately not consulted for the
+ *     holder. Trusting it during an indexer outage previously let a stale
+ *     record re-grant a sold block.
+ *   - When the deed or its holder cannot be established, callers get
+ *     `unavailable` and must surface a retryable 503 rather than granting or
+ *     hard-denying. A block with no valid deed is a definitive 403.
  *
  * FRESHNESS: every question this module answers gates a mutation, so the holder
  * lookup always runs on the AUTH tier (lib/onchain/owner-freshness.ts). That is
@@ -31,18 +38,13 @@
  * one block cost one throttled indexer round-trip each.
  */
 
-import {
-  getAddressInscriptions as ordGetAddressInscriptions,
-  getInscriptionContent as ordGetInscriptionContent,
-} from '@/lib/onchain/ord';
+import { getInscriptionBody as ordGetInscriptionBody } from '@/lib/onchain/ord';
 import { resolveInscriptionOwner } from '@/lib/onchain/owner-freshness';
 import { readInscriptionBodyFromChain } from '@/lib/onchain/sat-tracker';
+import { canonicalDeedFor } from '@/lib/onchain/deed';
 
 /** Timeout for the Unisat calls made from this module. */
 const FETCH_TIMEOUT_MS = 8000;
-
-/** Most inscriptions we will content-check when scanning a wallet, to bound latency. */
-const MAX_SCANNED_INSCRIPTIONS = 50;
 
 function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = FETCH_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
@@ -54,16 +56,22 @@ function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = FETCH_TIMEOU
  * Inscription content from the ord hosts, else read out of the reveal
  * transaction via Esplora (which declines delegated or content-encoded
  * inscriptions rather than return different bytes than ord would serve).
- * null = unavailable, never "empty".
+ * null = unavailable, never "empty". `encoded` = the host declared a
+ * Content-Encoding, which a deed never has.
  */
-async function fetchInscriptionContent(inscriptionId: string): Promise<string | null> {
-  return (await ordGetInscriptionContent(inscriptionId)) ?? (await readInscriptionBodyFromChain(inscriptionId));
+async function fetchInscriptionContent(inscriptionId: string): Promise<{ text: string; encoded: boolean } | null> {
+  const fromOrd = await ordGetInscriptionBody(inscriptionId);
+  if (fromOrd) {
+    const enc = (fromOrd.contentEncoding ?? '').trim().toLowerCase();
+    return { text: fromOrd.text, encoded: enc !== '' && enc !== 'identity' };
+  }
+  const fromChain = await readInscriptionBodyFromChain(inscriptionId);
+  return fromChain === null ? null : { text: fromChain, encoded: false };
 }
 
-/** `.bitmap` inscription content is either `<height>` or `<height>.bitmap`. */
+/** A deed's content is exactly the bytes `<height>.bitmap`: no whitespace, no bare number. */
 export function contentNamesBlock(content: string, blockHeight: number): boolean {
-  const trimmed = content.trim();
-  return trimmed === `${blockHeight}` || trimmed === `${blockHeight}.bitmap`;
+  return content === `${blockHeight}.bitmap`;
 }
 
 export interface OwnershipCheck {
@@ -71,16 +79,21 @@ export interface OwnershipCheck {
   /** Set when NO live provider could answer — the caller must retry, not deny. */
   unavailable?: boolean;
   reason?: string;
-  /** The inscription that satisfied the check, when one was found by scanning. */
+  /** The deed inscription the check was about. */
   inscriptionId?: string;
+  /** `ownership_not_proven` when the block has no valid deed at all. */
+  code?: 'ownership_not_proven';
 }
 
 /**
  * Verify a SPECIFIC inscription is currently held by `walletAddress` and names
  * `blockHeight`.
  *
+ * This proves holding of an inscription, NOT that the inscription is the deed:
+ * authorization must go through `verifyBlockOwnedBy`, which picks the deed.
+ *
  * @returns `{ verified: true }` only when a live indexer names this wallet as the
- * current holder AND the inscription content names the claimed block.
+ * current holder AND the inscription content is exactly `<height>.bitmap`.
  */
 export async function verifyInscriptionOwnership(
   walletAddress: string,
@@ -119,7 +132,11 @@ export async function verifyInscriptionOwnership(
       return { verified: false, reason: 'Inscription is not held by this wallet' };
     }
 
-    // ── ADDITIONAL constraint: content must name the claimed block ───
+    // ── ADDITIONAL constraint: exactly `<height>.bitmap` ─────────────
+    if (ordOwner?.delegate) {
+      return { verified: false, reason: 'Inscription delegates its content; a deed carries its own' };
+    }
+
     const content = await fetchInscriptionContent(inscriptionId);
 
     if (content === null) {
@@ -127,10 +144,14 @@ export async function verifyInscriptionOwnership(
       return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
     }
 
-    if (!contentNamesBlock(content, blockHeight)) {
+    if (content.encoded) {
+      return { verified: false, reason: 'Inscription content is encoded; a deed is plain bytes' };
+    }
+
+    if (!contentNamesBlock(content.text, blockHeight)) {
       return {
         verified: false,
-        reason: `Inscription content "${content.trim().slice(0, 64)}" does not match block ${blockHeight}`,
+        reason: `Inscription content ${JSON.stringify(content.text.slice(0, 64))} is not exactly "${blockHeight}.bitmap"`,
       };
     }
 
@@ -142,86 +163,46 @@ export async function verifyInscriptionOwnership(
 }
 
 /**
- * Scan the inscriptions a wallet currently holds for a `.bitmap` naming
- * `blockHeight`.
- *
- * The inscription list comes only from live indexers reporting what the wallet
- * holds NOW, so a content match against a listed inscription proves holding and
- * block identity together.
- *
- * @returns `unavailable` when no provider could list the wallet's inscriptions.
- * An empty list is a real "holds none" negative, not an outage.
- */
-export async function scanWalletForBitmap(
-  walletAddress: string,
-  blockHeight: number
-): Promise<OwnershipCheck> {
-  try {
-    let inscriptionIds: string[] | null = await ordGetAddressInscriptions(walletAddress);
-
-    if (inscriptionIds === null) {
-      try {
-        const res = await fetchWithTimeout(
-          `https://open-api.unisat.io/v1/indexer/address/${encodeURIComponent(walletAddress)}/inscription-utxo-data?cursor=0&size=100`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          const utxos = data?.data?.utxo || [];
-          const ids: string[] = [];
-          for (const utxo of utxos) {
-            for (const insc of utxo?.inscriptions || []) {
-              if (typeof insc?.inscriptionId === 'string') ids.push(insc.inscriptionId);
-            }
-          }
-          inscriptionIds = ids;
-        }
-      } catch {
-        /* Unisat unavailable — fall through to fail-closed below */
-      }
-    }
-
-    if (inscriptionIds === null) {
-      console.warn(`[ownership] no inscription list for ${walletAddress}; failing closed`);
-      return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
-    }
-
-    for (const id of inscriptionIds.slice(0, MAX_SCANNED_INSCRIPTIONS)) {
-      const content = await fetchInscriptionContent(id);
-      if (content !== null && contentNamesBlock(content, blockHeight)) {
-        return { verified: true, inscriptionId: id };
-      }
-    }
-
-    return {
-      verified: false,
-      reason: `No .bitmap inscription for block ${blockHeight} is held by this wallet`,
-    };
-  } catch (e) {
-    console.error('[ownership] wallet scan failed:', e);
-    return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
-  }
-}
-
-/**
  * The one call the ownership gate makes: does `walletAddress` hold block
  * `blockHeight` right now?
  *
- * Prefers the cheap direct check when the caller already knows the inscription
- * id, and falls back to scanning the wallet's current holdings otherwise.
+ * Resolves the block's deed (lib/onchain/deed.ts), then checks the live holder
+ * of THAT inscription. Which inscriptions the wallet holds does not matter: a
+ * wallet holding a copy holds nothing.
  *
- * @param inscriptionId Optional known `.bitmap` inscription for the block.
+ * @param _hint Ignored. Accepted so existing callers that pass a stored or
+ *   caller-supplied inscription id keep compiling; it never selects the
+ *   inscription that is checked.
  */
 export async function verifyBlockOwnedBy(
   walletAddress: string,
   blockHeight: number,
-  inscriptionId?: string | null
+  _hint?: string | null // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<OwnershipCheck> {
-  if (inscriptionId) {
-    const direct = await verifyInscriptionOwnership(walletAddress, inscriptionId, blockHeight);
-    // A definitive negative on a known inscription is the answer — the wallet
-    // was asked about THAT inscription and does not hold it. Only widen the
-    // search when the direct path could not reach a live indexer at all.
-    if (direct.verified || !direct.unavailable) return direct;
+  const deed = await canonicalDeedFor(blockHeight);
+
+  if (deed.verdict === 'none') {
+    return {
+      verified: false,
+      code: 'ownership_not_proven',
+      reason: `Block ${blockHeight} has no valid .bitmap deed${deed.reason ? ` (${deed.reason})` : ''}`,
+    };
   }
-  return scanWalletForBitmap(walletAddress, blockHeight);
+
+  if (deed.verdict !== 'canonical' || !deed.inscriptionId) {
+    console.warn(
+      `[ownership] deed for ${blockHeight} not established (${deed.verdict}${deed.reason ? `: ${deed.reason}` : ''}); failing closed`
+    );
+    return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
+  }
+
+  const check = await verifyInscriptionOwnership(walletAddress, deed.inscriptionId, blockHeight);
+  if (check.verified || check.unavailable) return check;
+  // The deed itself failing the content re-check means our sources disagree
+  // with the resolver: retry, never a definitive answer either way.
+  if (check.reason !== 'Inscription is not held by this wallet') {
+    console.warn(`[ownership] deed ${deed.inscriptionId} for ${blockHeight} failed the content re-check: ${check.reason}`);
+    return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
+  }
+  return { ...check, inscriptionId: deed.inscriptionId };
 }

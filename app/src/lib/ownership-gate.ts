@@ -51,6 +51,7 @@ export type GateDenial =
   | 'unverified'
   | 'out_of_scope'
   | 'ownership_lost'
+  | 'ownership_not_proven'
   | 'onchain_unavailable'
   | 'bad_request';
 
@@ -80,7 +81,7 @@ export const VERIFY_STEPS = [
  *
  * @param req         Anything exposing request headers.
  * @param blockHeight The block the action targets.
- * @param opts.inscriptionId  Known `.bitmap` inscription, skips the wallet scan.
+ * @param opts.inscriptionId  Ignored for authorization (see `requireLiveBlockOwner`).
  * @param opts.verifyOwnership Override the on-chain check (tests).
  * @param opts.now            Override the clock (tests).
  */
@@ -142,9 +143,9 @@ export async function requireVerifiedBlock(
  * wallet still owns the block — and two implementations of "who owns this block"
  * would eventually disagree, with the lenient one becoming the way in.
  *
- * @param opts.inscriptionId Known `.bitmap` inscription, skips the wallet scan.
- *   A hint only: the check still verifies live holder AND that the inscription's
- *   content names this block, so a wrong or stale hint cannot grant anything.
+ * @param opts.inscriptionId Ignored for authorization. The inscription that is
+ *   checked is always the block's deed as the resolver decides it
+ *   (lib/onchain/deed.ts); a stored or caller-supplied id never selects it.
  */
 export async function requireLiveBlockOwner(
   walletAddress: string,
@@ -174,7 +175,7 @@ export async function requireLiveBlockOwner(
     return {
       ok: false,
       status: 403,
-      code: 'ownership_lost',
+      code: onchain.code ?? 'ownership_lost',
       reason:
         `Block ${blockHeight} is not held by this wallet on-chain. ` +
         (onchain.reason ?? 'Ownership check failed.'),
