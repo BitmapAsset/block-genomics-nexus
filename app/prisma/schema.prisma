@@ -62,6 +62,18 @@ model Block {
   @@index([ownerAddress])
 }
 
+/// The deed for a block height, as decided by the bitmap resolver under one rule
+/// id (lib/onchain/deed.ts is the only writer). A cache of a chain fact, never
+/// a claim: only canonical verdicts buried REORG_DEPTH blocks deep are stored.
+model DeedVerdict {
+  height          Int      @id
+  inscriptionId   String
+  ruleId          String
+  revealHeight    Int
+  checkedAtHeight Int
+  resolvedAt      DateTime @default(now())
+}
+
 model Parcel {
   blockHeight  Int
   txIndex      Int
