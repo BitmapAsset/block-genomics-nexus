@@ -45,6 +45,7 @@ import { canonicalDeedFor } from '@/lib/onchain/deed';
 
 /** Timeout for the Unisat calls made from this module. */
 const FETCH_TIMEOUT_MS = 8000;
+const NOT_HELD_REASON = 'Inscription is not held by this wallet';
 
 function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = FETCH_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
@@ -129,7 +130,7 @@ export async function verifyInscriptionOwnership(
     }
 
     if (holderAddress !== walletAddress) {
-      return { verified: false, reason: 'Inscription is not held by this wallet' };
+      return { verified: false, reason: NOT_HELD_REASON };
     }
 
     // ── ADDITIONAL constraint: exactly `<height>.bitmap` ─────────────
@@ -200,7 +201,7 @@ export async function verifyBlockOwnedBy(
   if (check.verified || check.unavailable) return check;
   // The deed itself failing the content re-check means our sources disagree
   // with the resolver: retry, never a definitive answer either way.
-  if (check.reason !== 'Inscription is not held by this wallet') {
+  if (check.reason !== NOT_HELD_REASON) {
     console.warn(`[ownership] deed ${deed.inscriptionId} for ${blockHeight} failed the content re-check: ${check.reason}`);
     return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
   }
