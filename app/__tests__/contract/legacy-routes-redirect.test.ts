@@ -51,7 +51,6 @@ const EXPECTED: Array<[string, string]> = [
   ['/guardians', '/my-bitmaps'],
   ['/badges', '/account'],
   ['/sdk', '/docs'],
-  ['/docs/sdk', '/docs'],
   ['/whitepaper.html', '/whitepaper'],
 ];
 
@@ -80,6 +79,13 @@ describe('legacy routes redirect', () => {
       .map((r) => r.source);
 
     expect(shadowed).toEqual([]);
+  });
+
+  it('does not redirect /docs/sdk: the SDK reference lives there now', async () => {
+    const redirects = await nextConfig.redirects!();
+
+    expect(redirects.find((r) => r.source === '/docs/sdk')).toBeUndefined();
+    expect(fs.existsSync(path.join(appDir, '(site)', 'docs', 'sdk', 'page.tsx'))).toBe(true);
   });
 
   it('removed the pages it redirects away from', () => {

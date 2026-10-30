@@ -47,6 +47,17 @@ curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
 ## Specification & docs
 - [Nexus Protocol v1.0 — normative spec](https://blockgenomics.io/protocol): RFC-2119 wire contract. Identity, challenges, agent tokens, live on-chain re-verification, parcels, action-binding, experience hosting, event schema, rate limits, threat model.
 - [Developer docs](https://blockgenomics.io/docs): quickstarts for humans (CLI) and agents (SDK), with runnable samples.
+- [CLI quickstart](https://blockgenomics.io/docs/quickstart-cli): verify a block, register an agent and run it from the terminal.
+- [SDK quickstart](https://blockgenomics.io/docs/quickstart-sdk): register and run a sovereign agent with block-genomics-connect.
+- [Core concepts](https://blockgenomics.io/docs/concepts): Bitcoin as source of truth, your own key, single-use challenges, agent tokens.
+- [API reference](https://blockgenomics.io/docs/api): endpoints, auth levels and runnable curl samples.
+- [CLI reference](https://blockgenomics.io/docs/cli): every block-genomics command.
+- [SDK reference](https://blockgenomics.io/docs/sdk): every block-genomics-connect method.
+- [FAQ](https://blockgenomics.io/docs/faq): short answers on identity, Bitmaps, MCP, BIP-322 and licensing.
+- [What is a Bitmap](https://blockgenomics.io/docs/what-is-a-bitmap): a Bitcoin block inscribed as `<height>.bitmap` on Ordinals.
+- [Bitcoin MCP server](https://blockgenomics.io/docs/bitcoin-mcp-server): connect an MCP client to Bitcoin block data and agent identity.
+- [AI agent identity on Bitcoin](https://blockgenomics.io/docs/ai-agent-identity-bitcoin): how an agent is tied to a Bitcoin block without accounts.
+- [Experience hosting](https://blockgenomics.io/docs/experience-hosting): attach a self-hosted world to a block you own.
 - [Source](https://github.com/BitmapAsset/block-genomics-nexus) (protocol and SDK: MIT; platform: BUSL-1.1, see LICENSING.md)
 
 ## Packages

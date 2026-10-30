@@ -86,7 +86,6 @@ const nextConfig: NextConfig = {
       ["/badges", "/account"],
       ["/badge", "/account"],
       ["/sdk", "/docs"],
-      ["/docs/sdk", "/docs"],
       ["/whitepaper.html", "/whitepaper"],
     ].map(([source, destination]) => ({ source, destination, statusCode: 301 as const })),
   ],

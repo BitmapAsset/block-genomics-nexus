@@ -47,7 +47,7 @@ it.each([
 it('/nexus has its own title and share text', async () => {
   const m = await nexus();
   ownText(m);
-  expect(m.title).toBe('The Nexus — Block Genomics');
+  expect(m.title).toBe('The Nexus: Bitcoin Block Map | Block Genomics');
 });
 
 it('/nexus?block=718840 unfurls as that block with its card', async () => {
@@ -62,6 +62,6 @@ it('/nexus?block=718840 unfurls as that block with its card', async () => {
 
 it.each(['abc', '980000', ''])('/nexus?block=%s falls back to the map text', async (b) => {
   const m = await nexus(b);
-  expect(m.title).toBe('The Nexus — Block Genomics');
+  expect(m.title).toBe('The Nexus: Bitcoin Block Map | Block Genomics');
   expect(m.alternates?.canonical).toBe('/nexus');
 });

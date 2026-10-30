@@ -5,9 +5,9 @@ import CodeBlock from '../CodeBlock';
 export const dynamic = 'force-static';
 
 export const metadata: Metadata = {
-  title: 'Experience Hosting — Host Any World on Your Block (Nexus Protocol)',
+  title: 'Experience Hosting: Host a World on Your Bitcoin Block',
   description:
-    'Attach a self-hosted world — web, Unreal, Unity, Godot, Minecraft, or VR — to a Bitcoin block you own. Nexus is the internet layer: registry, discovery, probed health, and constitution. It never hosts your world. Bitcoin-anchored ownership gates every write.',
+    'Attach a self-hosted world (web, Unreal, Unity, Godot, Minecraft or VR) to a Bitcoin block you own. Nexus registers and probes it; you host it.',
   keywords: [
     'block genomics experience hosting',
     'nexus protocol',

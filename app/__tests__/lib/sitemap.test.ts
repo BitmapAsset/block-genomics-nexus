@@ -91,3 +91,90 @@ describe('sitemap()', () => {
     expect(mockExperienceFindMany.mock.calls[0][0].where).toEqual({ soulJudged: true });
   });
 });
+
+describe('sitemap() lastmod', () => {
+  const staticEntries = async () => (await sitemap()).filter((e) => !e.url.includes('/block/'));
+
+  it('gives every static entry a real date', async () => {
+    for (const e of await staticEntries()) {
+      expect(e.lastModified).toBeInstanceOf(Date);
+      expect(Number.isNaN((e.lastModified as Date).getTime())).toBe(false);
+    }
+  });
+
+  it('carries more than one distinct lastmod across the static routes', async () => {
+    const days = new Set((await staticEntries()).map((e) => (e.lastModified as Date).toISOString()));
+
+    expect(days.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it('never stamps a static entry with the time the sitemap was built', async () => {
+    const built = Date.now();
+    for (const e of await staticEntries()) {
+      expect(Math.abs(built - (e.lastModified as Date).getTime())).toBeGreaterThan(1000);
+    }
+  });
+
+  it('lists each static route once', async () => {
+    const urls = (await staticEntries()).map((e) => e.url);
+
+    expect(new Set(urls).size).toBe(urls.length);
+  });
+
+  it('lists the docs split and /runebolt, and keeps app views out', async () => {
+    const urls = (await sitemap()).map((e) => e.url);
+    const base = 'https://blockgenomics.io';
+
+    for (const path of [
+      '/docs',
+      '/docs/quickstart-cli',
+      '/docs/quickstart-sdk',
+      '/docs/concepts',
+      '/docs/api',
+      '/docs/cli',
+      '/docs/sdk',
+      '/docs/faq',
+      '/docs/what-is-a-bitmap',
+      '/docs/bitcoin-mcp-server',
+      '/docs/ai-agent-identity-bitcoin',
+      '/runebolt',
+    ]) {
+      expect(urls).toContain(`${base}${path}`);
+    }
+    for (const path of ['/history', '/account', '/agent', '/live', '/offline', '/verify', '/mcp', '/connect']) {
+      expect(urls).not.toContain(`${base}${path}`);
+    }
+  });
+
+  it('stamps a block with the newest updatedAt among its objects and experiences', async () => {
+    mockObjectFindMany.mockResolvedValue([{ blockHeight: 840000, updatedAt: new Date('2026-10-01T00:00:00Z') }]);
+    mockExperienceFindMany.mockResolvedValue([
+      { blockHeight: 840000, updatedAt: new Date('2026-10-20T12:00:00Z') },
+      { blockHeight: 21000, updatedAt: new Date('2026-09-05T00:00:00Z') },
+    ]);
+
+    const blocks = blockUrls(await sitemap()) as { url: string; lastModified?: Date }[];
+
+    expect(blocks.map((b) => [b.url, b.lastModified?.toISOString()])).toEqual([
+      ['https://blockgenomics.io/block/21000', '2026-09-05T00:00:00.000Z'],
+      ['https://blockgenomics.io/block/840000', '2026-10-20T12:00:00.000Z'],
+    ]);
+  });
+
+  it('orders rows newest first per height so distinct keeps the latest', async () => {
+    await sitemap();
+
+    for (const call of [mockObjectFindMany.mock.calls[0][0], mockExperienceFindMany.mock.calls[0][0]]) {
+      expect(call.select).toEqual({ blockHeight: true, updatedAt: true });
+      expect(call.orderBy).toEqual([{ blockHeight: 'asc' }, { updatedAt: 'desc' }]);
+    }
+  });
+
+  it('omits lastModified on a block with no usable timestamp', async () => {
+    mockObjectFindMany.mockResolvedValue([{ blockHeight: 840000 }]);
+
+    const [block] = blockUrls(await sitemap()) as { lastModified?: Date }[];
+
+    expect('lastModified' in block).toBe(false);
+  });
+});
