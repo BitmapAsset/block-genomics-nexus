@@ -21,6 +21,8 @@ import { metadata as faq } from '@/app/(site)/docs/faq/page';
 import { metadata as whatIsABitmap } from '@/app/(site)/docs/what-is-a-bitmap/page';
 import { metadata as bitcoinMcpServer } from '@/app/(site)/docs/bitcoin-mcp-server/page';
 import { metadata as aiAgentIdentity } from '@/app/(site)/docs/ai-agent-identity-bitcoin/page';
+import { metadata as experienceHosting } from '@/app/(site)/docs/experience-hosting/page';
+import { metadata as protocol } from '@/app/(site)/protocol/page';
 import { metadata as runebolt } from '@/app/(site)/runebolt/layout';
 import { metadata as connect } from '@/app/(site)/connect/layout';
 import { metadata as whitepaper } from '@/app/(site)/whitepaper/page';
@@ -95,6 +97,18 @@ describe('docs pages', () => {
     for (const { slug } of DOC_PAGES.filter((p) => p.slug !== 'faq')) {
       expect(read(`${slug}/page.tsx`)).not.toContain('DOCS_FAQ_SCHEMA');
     }
+  });
+});
+
+describe('older indexable pages fit the same limits', () => {
+  it.each([
+    ['/docs', hub],
+    ['/docs/experience-hosting', experienceHosting],
+    ['/protocol', protocol],
+  ])('%s title <= 60, description <= 160, absolute canonical', (path, m) => {
+    expect(text(m.title).length).toBeLessThanOrEqual(60);
+    expect(text(m.description).length).toBeLessThanOrEqual(160);
+    expect(canonical(m)).toBe(`https://blockgenomics.io${path}`);
   });
 });
 

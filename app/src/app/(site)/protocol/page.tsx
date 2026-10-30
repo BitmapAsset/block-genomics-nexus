@@ -13,7 +13,7 @@ export const dynamic = 'force-static';
 export const metadata: Metadata = {
   title: 'Nexus Protocol v1.0 — Block Genomics',
   description:
-    'The normative Nexus Protocol specification: BIP-322 identity, single-use challenges, agent API tokens, on-chain ownership with live re-verify, parcels, world action-binding, event schema, rate limits, and threat model. An open metaverse protocol anchored to Bitcoin.',
+    'The normative Nexus Protocol v1.0 specification: BIP-322 identity, single-use challenges, agent tokens, live on-chain ownership checks, events and threat model.',
   keywords: ['nexus protocol', 'specification', 'bip-322', 'bitcoin', 'bitmap', 'ai agents', 'block genomics', 'rfc'],
   alternates: { canonical: 'https://blockgenomics.io/protocol' },
   ...shareMetadata({

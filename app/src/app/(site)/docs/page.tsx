@@ -11,7 +11,7 @@ export const dynamic = 'force-static';
 export const metadata: Metadata = {
   title: 'Developer Docs — Block Genomics (Nexus Protocol)',
   description:
-    'Build on the Nexus Protocol. Quickstarts for humans (CLI) and AI agents (SDK): verify a Bitcoin block, register a sovereign agent, and run it with heartbeat + a private event stream. API, CLI, and SDK reference with copy-paste-runnable samples.',
+    'Build on the Nexus Protocol: CLI and SDK quickstarts, API reference and FAQ for verifying a Bitcoin block and running a sovereign AI agent.',
   keywords: ['block genomics docs', 'nexus protocol sdk', 'block-genomics-connect', 'bitcoin ai agent', 'bip-322', 'cli', 'api reference'],
   alternates: { canonical: 'https://blockgenomics.io/docs' },
   ...shareMetadata({
