@@ -43,14 +43,9 @@ jest.mock('@/lib/prisma', () => {
   return { __esModule: true, default: client, prisma: client };
 });
 
-// The resolver's answer. `{ virtual: true }` keeps this suite runnable against a
-// tree that predates the deed module, so the red run fails on behaviour.
-jest.mock(
-  '@/lib/onchain/deed',
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  () => require('../helpers/chain-ownership-mock').canonicalDeedFromFixture(),
-  { virtual: true },
-);
+// The resolver's answer: CANON is the deed for 840000 unless a case says otherwise.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@/lib/onchain/deed', () => require('../helpers/chain-ownership-mock').canonicalDeedFromFixture());
 
 jest.mock('@/lib/onchain/owner-freshness', () => ({
   resolveInscriptionOwner: jest.fn(),
