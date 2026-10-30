@@ -6,7 +6,7 @@ import { formatNumber } from "@/lib/genome-utils";
 import { shareMetadata } from "@/lib/site-card";
 import NexusPage from "./nexus-client";
 
-const TITLE = "The Nexus — Block Genomics";
+const TITLE = "The Nexus: Bitcoin Block Map | Block Genomics";
 const DESCRIPTION =
   "A map of every Bitcoin block, each one a 2.1km × 2.1km district of sovereign digital land. Search a block and walk inside it.";
 

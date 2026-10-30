@@ -18,6 +18,9 @@ export async function generateMetadata({ params }: { params: Promise<{ height: s
     title: `World — ${height}.bitmap | Block Genomics`,
     description: `Walk through the world built on Bitcoin block ${height.toLocaleString('en-US')}.`,
     alternates: { canonical: `/world/${height}` },
+    // A fullscreen 3D canvas with no text to index; the block page at
+    // /block/{height} is the indexable page for the same block.
+    robots: { index: false, follow: true },
   };
 }
 

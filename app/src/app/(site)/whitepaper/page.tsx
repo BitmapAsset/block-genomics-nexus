@@ -3,7 +3,7 @@ import WhitePaperClient from "./whitepaper-client";
 import { shareMetadata } from "@/lib/site-card";
 
 export const metadata: Metadata = {
-  title: "White Paper — Block Genomics",
+  title: "White Paper: Bitcoin Identity for AI | Block Genomics",
   description:
     "Block Genomics: An open-source protocol anchoring AI identity to Bitcoin's Proof-of-Work. Digital DNA for agents and humans.",
   alternates: { canonical: "/whitepaper" },

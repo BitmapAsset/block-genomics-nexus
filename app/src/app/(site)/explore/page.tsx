@@ -8,7 +8,7 @@ import { FAMOUS_BLOCKS } from "@/lib/famous-blocks";
 import { formatNumber } from "@/lib/genome-utils";
 
 export const metadata: Metadata = {
-  title: "Explore — Block Genomics",
+  title: "Explore Bitcoin Blocks: Bitmap Explorer | Block Genomics",
   description:
     "Look up any Bitcoin block and see its bitmap art, then browse the blocks people have verified and built on.",
   alternates: { canonical: "/explore" },
