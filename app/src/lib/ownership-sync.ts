@@ -7,6 +7,7 @@
 
 import prisma from '@/lib/prisma';
 import { getStatus as ordGetStatus } from '@/lib/onchain/ord';
+import { canonicalDeedFor } from '@/lib/onchain/deed';
 import {
   resolveInscriptionOwner,
   resolveInscriptionOwnerAddress,
@@ -160,11 +161,20 @@ export async function verifyBlockOwnership(
     };
   }
 
-  const inscriptionId = block.inscriptionId;
+  // The on-chain owner of a block is the holder of its DEED, as the bitmap
+  // resolver decides it. `Block.inscriptionId` is an output of that answer
+  // (written below and by processOwnershipTransfer), never an input: a stored
+  // id that is not the deed would otherwise make its holder the "owner".
+  const deed = await canonicalDeedFor(blockHeight);
+  const inscriptionId = deed.verdict === 'canonical' ? deed.inscriptionId : null;
 
   if (!inscriptionId) {
-    // No inscription linked — can't verify on-chain. Treat as indeterminate
-    // (not a positive ownership proof) so no caller skips the on-chain check.
+    // No established deed (none, disputed, undetermined, out of budget): can't
+    // verify on-chain. Indeterminate, never a positive ownership proof, and
+    // never an action. Stamp the check so the cron rotates to other blocks.
+    await prisma.block
+      .update({ where: { height: blockHeight }, data: { lastOwnerCheck: new Date() } })
+      .catch(() => undefined);
     return {
       blockHeight,
       dbOwnerAddress: block.ownerAddress,
@@ -179,10 +189,10 @@ export async function verifyBlockOwnership(
   const holder = await resolveInscriptionOwner(inscriptionId, freshness);
   const onChainOwner = holder?.address ?? null;
 
-  // Update lastOwnerCheck
+  // Update lastOwnerCheck, and record the deed's id when the stored one differs.
   await prisma.block.update({
     where: { height: blockHeight },
-    data: { lastOwnerCheck: new Date() },
+    data: { lastOwnerCheck: new Date(), ...(block.inscriptionId !== inscriptionId ? { inscriptionId } : {}) },
   });
 
   // FAIL CLOSED: when the indexer returns no owner (down / non-200 / unparsable)
@@ -371,6 +381,7 @@ export async function processOwnershipTransfer(
       where: { height: blockHeight },
       data: {
         ownerAddress: newOwnerAddress,
+        inscriptionId,
         lastOwnerCheck: new Date(),
         transferPrepped: false,
       },

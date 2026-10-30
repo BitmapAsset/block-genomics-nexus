@@ -49,7 +49,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import prisma from '@/lib/prisma';
-import { verifyBlockOwnedBy, verifyInscriptionOwnership } from '@/lib/onchain/bitmap-ownership';
+import { verifyBlockOwnedBy } from '@/lib/onchain/bitmap-ownership';
 import { issueChallenge } from '@/lib/challenges';
 import { buildActionMessage, hashBody } from '@/lib/action-message';
 import { __resetBlockEventsState } from '@/lib/block-events';
@@ -336,19 +336,14 @@ describe('session/verify', () => {
 // ── deed.verified from auth/verify (the web /verify flow) ────────────────
 
 describe('auth/verify', () => {
-  const ownerCheck = verifyInscriptionOwnership as jest.Mock;
-
+  // The deed and its live holder both come from verifyBlockOwnedBy (`chain`);
+  // the body's `inscriptionId` is an old-client field the route ignores.
   async function verify(extra: Record<string, unknown> = {}): Promise<any> {
     const message = challengeMessage(await nonceFor(owner.address, 'auth'));
     return authVerify(
-      req({ walletAddress: owner.address, message, signature: sign(owner.privKey, owner.address, message), blockHeight: BLOCK, inscriptionId: 'insc-840000i0', ...extra }),
+      req({ walletAddress: owner.address, message, signature: sign(owner.privKey, owner.address, message), blockHeight: BLOCK, inscriptionId: 'insc-copy-of-840000i0', ...extra }),
     );
   }
-
-  beforeEach(() => {
-    ownerCheck.mockReset();
-    ownerCheck.mockImplementation(async (w: string) => (w === owner.address ? { verified: true } : { verified: false, reason: 'not held' }));
-  });
 
   it('a live holder check emits one deed.verified whose BIP-322 proof is the consumed challenge', async () => {
     const res: any = await verify({ displayName: PRIVATE.chatText });
@@ -356,15 +351,16 @@ describe('auth/verify', () => {
     expect(res.body.data.holderCheck).toBe('live');
     expect(rows()).toHaveLength(1);
     expect(rows()[0]).toMatchObject({ kind: 'deed.verified', actorType: 'owner', signerScheme: 'bip322', signerAddress: owner.address });
+    // The deed the gate checked, never the id the caller sent.
     expect(rows()[0].payload).toEqual({ holder: owner.address, inscriptionId: 'insc-840000i0', via: 'auth' });
     expectNothingPrivate();
     expect(verifyCli([writeTmp('p-auth', await proofOf(rows()[0].id))]).lines).toContain('  ok   signature');
   });
 
   it('a failed holder check or an indexer outage emits nothing', async () => {
-    ownerCheck.mockResolvedValueOnce({ verified: false, reason: 'not held' });
+    chain.mockResolvedValueOnce({ verified: false, reason: 'not held' });
     expect(((await verify()) as any).status).toBe(403);
-    ownerCheck.mockResolvedValueOnce({ verified: false, unavailable: true });
+    chain.mockResolvedValueOnce({ verified: false, unavailable: true });
     expect(((await verify()) as any).status).toBe(503);
     expect(rows()).toHaveLength(0);
   });

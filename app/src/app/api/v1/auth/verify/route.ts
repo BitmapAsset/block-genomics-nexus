@@ -6,7 +6,7 @@ import { consumeChallengeFromMessage } from '@/lib/challenges';
 import { deriveGenomeHash } from '@/lib/genome-utils';
 import { normalizeHandle, isValidHandle, HANDLE_ERROR } from '@/lib/handle';
 import { verifyBip322 } from '@/lib/bip322';
-import { verifyInscriptionOwnership, scanWalletForBitmap } from '@/lib/onchain/bitmap-ownership';
+import { verifyBlockOwnedBy } from '@/lib/onchain/bitmap-ownership';
 import { enforceRateLimit, AUTH_VERIFY_LIMIT } from '@/lib/api-rate-limit';
 import { emitDeedVerified, walletProofOf } from '@/lib/block-event-emitters';
 
@@ -42,7 +42,9 @@ async function verifyPost(req: NextRequest) {
   const body = (parsed && typeof parsed === 'object' ? parsed : {}) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
   try {
-    const { walletAddress, signature, message, blockHeight, handle, displayName, inscriptionId } = body;
+    // `inscriptionId` from older clients is accepted and ignored: the deed is
+    // decided server-side (lib/onchain/deed.ts), never by the caller.
+    const { walletAddress, signature, message, blockHeight, handle, displayName } = body;
 
     if (!walletAddress || !signature || !message) {
       return error('walletAddress, signature, and message are required', 400);
@@ -93,40 +95,27 @@ async function verifyPost(req: NextRequest) {
       }
     }
 
+    // The deed the live check was about, written to the block record below.
+    let deedInscriptionId: string | null = null;
+
     if (blockHeight && tier !== 1) {
-      // If inscriptionId provided, verify it belongs to this wallet on-chain
-      if (inscriptionId) {
-        const ownerCheck = await verifyInscriptionOwnership(walletAddress, inscriptionId, blockHeight);
-        if (ownerCheck.verified) {
-          verifiedBlockHeight = blockHeight;
-          tier = 1;
-          holderCheck = 'live';
-        } else if (ownerCheck.unavailable) {
-          // FAIL CLOSED: no live indexer could confirm the current holder. Surface
-          // a retryable "temporarily unavailable" (503) instead of a hard 403, and
-          // do NOT grant ownership.
-          return error('On-chain verification temporarily unavailable. Please try again shortly.', 503);
-        } else {
-          return error(`Ownership verification failed: ${ownerCheck.reason}`, 403);
-        }
+      const ownerCheck = await verifyBlockOwnedBy(walletAddress, blockHeight);
+      if (ownerCheck.verified) {
+        verifiedBlockHeight = blockHeight;
+        tier = 1;
+        holderCheck = 'live';
+        deedInscriptionId = ownerCheck.inscriptionId ?? null;
+      } else if (ownerCheck.unavailable) {
+        // FAIL CLOSED: the deed or its live holder could not be established.
+        // Surface a retryable "temporarily unavailable" (503) instead of a hard
+        // 403, and do NOT grant ownership.
+        return error('On-chain verification temporarily unavailable. Please try again shortly.', 503);
       } else {
-        // No inscriptionId — scan wallet for .bitmap inscriptions matching this block
-        const scanResult = await scanWalletForBitmap(walletAddress, blockHeight);
-        if (scanResult.verified) {
-          verifiedBlockHeight = blockHeight;
-          tier = 1;
-          holderCheck = 'live';
-        } else if (scanResult.unavailable) {
-          // FAIL CLOSED, retryable: no indexer could list the wallet's holdings,
-          // which is not the same answer as "this wallet holds nothing".
-          return error('On-chain verification temporarily unavailable. Please try again shortly.', 503);
-        } else {
-          return error(
-            `No .bitmap inscription for block ${blockHeight} found in this wallet. ` +
-            `You must own the .bitmap inscription to verify as Tier 1.`,
-            403
-          );
-        }
+        return error(
+          `This wallet does not hold the .bitmap deed for block ${blockHeight}. ` +
+          `You must hold the block's deed inscription to verify as Tier 1.`,
+          403
+        );
       }
     }
 
@@ -200,17 +189,17 @@ async function verifyPost(req: NextRequest) {
         where: { height: verifiedBlockHeight },
         update: {
           ownerAddress: walletAddress,
-          ...(inscriptionId && { inscriptionId }),
+          ...(deedInscriptionId && { inscriptionId: deedInscriptionId }),
         },
         create: {
           height: verifiedBlockHeight,
           ownerAddress: walletAddress,
-          ...(inscriptionId && { inscriptionId }),
+          ...(deedInscriptionId && { inscriptionId: deedInscriptionId }),
         },
       });
       // Living Block: `deed.verified`, wallet-proofed by the challenge message
       // whose nonce was consumed above (it re-authorizes nothing). Never throws.
-      await emitDeedVerified({ block: verifiedBlockHeight, holder: walletAddress, inscriptionId: inscriptionId ?? null, via: 'auth', walletProof: walletProofOf(walletAddress, message, signature) });
+      await emitDeedVerified({ block: verifiedBlockHeight, holder: walletAddress, inscriptionId: deedInscriptionId, via: 'auth', walletProof: walletProofOf(walletAddress, message, signature) });
     }
 
     // Auto-create BlockProfile for the anchor block if one doesn't exist yet

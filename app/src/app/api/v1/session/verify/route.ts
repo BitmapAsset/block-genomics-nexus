@@ -6,7 +6,9 @@
  *
  *   1. BIP-322 signature over the exact message  → proves wallet control
  *   2. atomic consume of the challenge nonce     → proves freshness (anti-replay)
- *   3. live on-chain check per claimed block     → proves bitmap ownership
+ *   3. live on-chain check per claimed block     → proves the wallet holds the
+ *                                                  block's deed (the resolver
+ *                                                  picks the deed, not the caller)
  *   4. mint `bg_vfy_` token scoped to what passed
  *
  * Step 1 alone is not ownership — a wallet can sign without holding any bitmap,
@@ -67,10 +69,8 @@ export async function POST(req: NextRequest) {
     const walletAddress = typeof body?.walletAddress === 'string' ? body.walletAddress.trim() : '';
     const message = typeof body?.message === 'string' ? body.message : '';
     const signature = typeof body?.signature === 'string' ? body.signature : '';
-    const inscriptionIds: Record<string, string> =
-      body?.inscriptionIds && typeof body.inscriptionIds === 'object' && !Array.isArray(body.inscriptionIds)
-        ? body.inscriptionIds
-        : {};
+    // `inscriptionIds` from older clients is accepted and ignored: which
+    // inscription is a block's deed is decided server-side, never by the caller.
 
     if (!walletAddress || !message || !signature) {
       return error('walletAddress, message and signature are required', 400);
@@ -105,12 +105,7 @@ export async function POST(req: NextRequest) {
     const rejected: Array<{ blockHeight: number; reason: string; retryable: boolean }> = [];
 
     for (const blockHeight of blocks) {
-      const known = inscriptionIds[String(blockHeight)];
-      const check = await verifyBlockOwnedBy(
-        walletAddress,
-        blockHeight,
-        typeof known === 'string' && known.length > 0 ? known : null
-      );
+      const check = await verifyBlockOwnedBy(walletAddress, blockHeight);
       if (check.verified) {
         verifiedBlocks.push(blockHeight);
         verifiedInscriptions.set(blockHeight, check.inscriptionId ?? null);
