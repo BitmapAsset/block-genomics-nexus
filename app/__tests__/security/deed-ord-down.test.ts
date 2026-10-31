@@ -120,19 +120,27 @@ function req(body: Record<string, unknown>): any {
   return { json: async () => body, headers: { get: () => null } };
 }
 
+/**
+ * With 403s each entry point resolves afresh (a refusal answers at once). With timeouts the resolver retries
+ * and the gate waits out its 8 s budget, so the entry points share the cached `undetermined`, as requests in
+ * one process do.
+ */
 async function everyEntryPoint(wallet: string, height: number) {
+  const fresh = () => {
+    if (ordMode === '403') __resetDeedCacheForTest();
+  };
   mockSession.current = { id: 's1', walletAddress: wallet, verifiedBlocks: [height] };
   const header = { headers: { get: () => 'Bearer bg_vfy_test' } };
   const msg = { walletAddress: wallet, message: 'Block Genomics verification: n', signature: 'sig' };
   const out: Record<string, number> = {};
   out.requireLiveBlockOwner = (await requireLiveBlockOwner(wallet, height)).status;
-  __resetDeedCacheForTest();
+  fresh();
   out.requireVerifiedBlock = (await requireVerifiedBlock(header, height)).status;
-  __resetDeedCacheForTest();
+  fresh();
   out.requireSignedBlockOwner = (await requireSignedBlockOwner(wallet, height)).status;
-  __resetDeedCacheForTest();
+  fresh();
   out.sessionVerify = ((await sessionVerify(req({ ...msg, blocks: [height] }))) as any).status;
-  __resetDeedCacheForTest();
+  fresh();
   out.authVerify = ((await authVerify(req({ ...msg, blockHeight: height }))) as any).status;
   return out;
 }
@@ -153,7 +161,7 @@ describe.each(['403', 'timeout'] as const)('every ord host %s', (mode) => {
   it.each([612888, 718840, 840000, 942000])('block %s: the deed is undetermined, every entry point answers 503', async (height) => {
     const deed = await canonicalDeedFor(height);
     expect(deed.verdict).toBe('undetermined');
-    __resetDeedCacheForTest();
+    if (mode === '403') __resetDeedCacheForTest();
     expect(await everyEntryPoint(OWNER, height)).toEqual(ALL_503);
     expect(mockMint).not.toHaveBeenCalled();
   }, 30_000);
