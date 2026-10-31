@@ -229,10 +229,10 @@ export async function verifyBlockOwnedBy(
     }
   }
 
-  const check = await verifyInscriptionOwnership(walletAddress, deed.inscriptionId, blockHeight);
-  if (check.verified && crossCheck && check.holderSource !== 'ord') {
+  const { holderSource, ...check } = await verifyInscriptionOwnership(walletAddress, deed.inscriptionId, blockHeight);
+  if (check.verified && crossCheck && holderSource !== 'ord') {
     // Cross-checked deeds are granted on an ord host's holder answer only.
-    console.warn(`[ownership] holder of ${deed.inscriptionId} known only from ${check.holderSource}; waiting for an ord host`);
+    console.warn(`[ownership] holder of ${deed.inscriptionId} known only from ${holderSource}; waiting for an ord host`);
     return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
   }
   if (check.verified || check.unavailable) return check;
