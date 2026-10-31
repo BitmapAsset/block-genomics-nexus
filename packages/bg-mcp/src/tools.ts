@@ -22,10 +22,9 @@ export type Tool = {
 // cannot drift apart; app/__tests__/lib/mcp-catalog-parity.test.ts fails the
 // moment they do. Edit this copy, then paste it verbatim into the app mirror.
 //
-// It has to stay portable across zod majors — the package is on zod 3, the app
-// on zod 4 — so only constructs valid in both belong here (hence the
-// two-argument `z.record`), and the API client arrives as a parameter rather
-// than an import.
+// The package and the app are both on zod 4. Keep to constructs that read the
+// same in zod 3 and 4 (hence the two-argument `z.record`), and the API client
+// arrives as a parameter rather than an import.
 //
 // A tool whose answer can carry text written by someone other than the caller
 // (a block holder, a guardian owner, a visitor, another agent, a venue) runs
