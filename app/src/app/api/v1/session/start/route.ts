@@ -14,7 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { success, error, isValidBitcoinAddress } from '@/lib/api-helpers';
-import { issueChallenge, cleanupChallenges } from '@/lib/challenges';
+import { issueChallenge, cleanupChallenges, challengeText } from '@/lib/challenges';
 import { rateLimitDurable, clientIpFrom, cleanupRateLimits } from '@/lib/rate-limit-db';
 import {
   cleanupSessions,
@@ -54,13 +54,13 @@ export async function POST(req: NextRequest) {
     void cleanupSessions();
 
     const nonce = crypto.randomBytes(32).toString('hex');
-    // Keep the message plain — Xverse mobile rejects special formatting.
-    const message = `Block Genomics verification: ${nonce}`;
-
     const { expiresAt } = await issueChallenge(nonce, {
       address: walletAddress,
       purpose: SESSION_CHALLENGE_PURPOSE,
     });
+    // Plain lines (Xverse mobile rejects special formatting) naming the site,
+    // what the signature authorizes, the address, the nonce and the expiry.
+    const message = challengeText(SESSION_CHALLENGE_PURPOSE, walletAddress, nonce, expiresAt);
 
     logActivity(walletAddress, 'session_challenge', {});
 

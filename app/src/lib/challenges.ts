@@ -10,6 +10,53 @@ import prisma from '@/lib/prisma';
 
 const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+/**
+ * Every purpose a route consumes, with the plain words the wallet prompt shows.
+ * POST /api/v1/challenge issues nonces for these purposes only.
+ */
+export const CHALLENGE_PURPOSES = {
+  auth: 'sign in with this wallet',
+  session: 'start a verified session for this wallet',
+  world: 'change the world on a block you own',
+  profile: 'create or change your profile',
+  activity: 'record activity for this wallet',
+  encryption: 'register your message encryption key',
+  brain: 'act on block brain content',
+  'parcel-customize': 'customize a parcel you own',
+  'agent-register': 'register an agent for this wallet',
+  'agent-manage': 'change or remove one of your agents',
+  'agent-token': 'issue a new API key for one of your agents',
+  'experience-register': 'register an experience on a block you own',
+  'experience-manage': 'change or remove one of your experiences',
+  'guardian-heartbeat': 'send a heartbeat for your guardian',
+  guardian: 'configure the guardian of a block you own',
+  vps: 'link, unlink or check a server for a block you own',
+  delegation: 'list, withdraw or buy a delegation',
+  ownership: 'sync or prepare the transfer of a block you own',
+  chat: 'send a chat message or reaction',
+  game: 'use the game with this wallet',
+} as const;
+
+export type ChallengePurpose = keyof typeof CHALLENGE_PURPOSES;
+
+export function isChallengePurpose(p: unknown): p is ChallengePurpose {
+  return typeof p === 'string' && Object.prototype.hasOwnProperty.call(CHALLENGE_PURPOSES, p);
+}
+
+/**
+ * The text the wallet signs for a challenge: the site and what it authorizes,
+ * then one fact per line. Plain ASCII, no special formatting (Xverse mobile
+ * rejects it). The nonce is found in it by value (`consumeChallengeFromMessage`).
+ */
+export function challengeText(purpose: ChallengePurpose, address: string, nonce: string, expiresAt: Date): string {
+  return [
+    `blockgenomics.io: ${CHALLENGE_PURPOSES[purpose]}`,
+    `Address: ${address}`,
+    `Nonce: ${nonce}`,
+    `Expires: ${expiresAt.toISOString()}`,
+  ].join('\n');
+}
+
 export interface IssuedChallenge {
   nonce: string;
   expiresAt: Date;
