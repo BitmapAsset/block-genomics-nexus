@@ -210,7 +210,7 @@ export default function AgentProfilePage() {
         const g = data.guardians?.[0];
         if (g) {
           setGuardianNameState(g.name || 'Guardian');
-          if (g.status === 'active' && g.llmApiKey) {
+          if (g.status === 'active' && g.llmConfigured) {
             setGuardianActive(true);
             setGuardianStatus('online');
           } else if (g.status === 'paused') {

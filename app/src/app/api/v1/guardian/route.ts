@@ -1,22 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { encryptApiKey, maskApiKey } from '@/lib/key-encryption';
+import { encryptApiKey } from '@/lib/key-encryption';
 import { generateGuardianBundle, GUARDIAN_PROTOCOL_VERSION } from '@/lib/guardian-templates';
 import { verifySignedAction } from '@/lib/signed-action';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 import { emitGuardianRegistered, emitGuardianTransition } from '@/lib/block-event-emitters';
 import { guardianLiveState } from '@/lib/block-events';
+import { toOwnerGuardian, toPublicGuardian } from '@/lib/guardian-view';
 
 const VALID_PROVIDERS = ['openai', 'anthropic', 'google', 'xai', 'custom'];
-
-function sanitizeGuardian(g: Record<string, unknown>) {
-  return {
-    ...g,
-    llmApiKey: maskApiKey(g.llmApiKey as string),
-    monitorTokenHash: g.monitorTokenHash ? true : false, // Only expose existence, not the hash
-  };
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -124,7 +117,8 @@ export async function POST(req: NextRequest) {
     if (!before) await emitGuardianRegistered(guardian);
     else await emitGuardianTransition(before, guardian);
 
-    return NextResponse.json({ guardian: sanitizeGuardian(guardian as unknown as Record<string, unknown>) });
+    // The signer was just verified as the block's owner: the owner view.
+    return NextResponse.json({ guardian: toOwnerGuardian(guardian as unknown as Record<string, unknown>) });
   } catch (err: unknown) {
     console.error('[Guardian POST]', err);
     return NextResponse.json({ error: 'Failed to create/update guardian' }, { status: 500 });
@@ -148,8 +142,10 @@ export async function GET(req: NextRequest) {
     if (blockHeight) where.blockHeight = parseInt(blockHeight);
     if (ownerAddress) where.ownerAddress = ownerAddress;
 
+    // Anonymous: the public view only. The owner reads the full settings
+    // through /api/v1/guardian/{id} (monitor token or a signed read).
     const guardians = await prisma.guardianAgent.findMany({ where });
-    return NextResponse.json({ guardians: guardians.map(g => sanitizeGuardian(g as unknown as Record<string, unknown>)) });
+    return NextResponse.json({ guardians: guardians.map(g => toPublicGuardian(g as unknown as Record<string, unknown>)) });
   } catch (err: unknown) {
     console.error('[Guardian GET]', err);
     return NextResponse.json({ error: 'Failed to fetch guardians' }, { status: 500 });

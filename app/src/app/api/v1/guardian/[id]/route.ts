@@ -12,29 +12,70 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { encryptApiKey, maskApiKey } from '@/lib/key-encryption';
+import { encryptApiKey } from '@/lib/key-encryption';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 import { emitGuardianTransition } from '@/lib/block-event-emitters';
 import { guardianLiveState } from '@/lib/block-events';
 import { verifySignedAction, signedActionHelp } from '@/lib/signed-action';
+import { validateMonitorAuth } from '@/lib/monitor-tokens';
+import { toOwnerGuardian, toPublicGuardian } from '@/lib/guardian-view';
 
-function sanitizeGuardian(g: Record<string, unknown>) {
-  return { ...g, llmApiKey: maskApiKey(g.llmApiKey as string) };
-}
+type Row = Record<string, unknown>;
 
+/**
+ * Anyone gets the public view. With `Authorization: Bearer <monitor token>`
+ * for THIS guardian, the owner view; any other token is a 401, never a
+ * silent fall-back to the public view.
+ */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-guardian-id' });
   if (rl.response) return rl.response;
 
   try {
     const { id } = await params;
+    const authHeader = req.headers.get('authorization');
+    if (authHeader) {
+      const owned = await validateMonitorAuth(authHeader, id);
+      if (!owned) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ guardian: toOwnerGuardian(owned as unknown as Row) });
+    }
     const row = await prisma.guardianAgent.findUnique({ where: { id } });
     if (!row) return NextResponse.json({ error: 'Guardian not found' }, { status: 404 });
-    return NextResponse.json({ guardian: sanitizeGuardian(row as unknown as Record<string, unknown>) });
+    return NextResponse.json({ guardian: toPublicGuardian(row as unknown as Row) });
   } catch (err: unknown) {
     console.error('[Guardian GET/:id]', err);
     return NextResponse.json({ error: 'Failed to fetch guardian' }, { status: 500 });
+  }
+}
+
+/**
+ * The owner's signed read of the settings: JSON body { ownerAddress, message,
+ * signature }, the signed body is { ownerAddress }, action 'guardian.config.read'
+ * on this guardian's path and block, a one-time 'guardian' nonce. Then the
+ * signer must hold the block now (a seller does not keep reading).
+ */
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+    const { ownerAddress, signature, message } = body ?? {};
+    if (!body || !ownerAddress || !signature || !message) {
+      return NextResponse.json({ error: `Authentication required (ownerAddress, signature, message in a JSON body). ${signedActionHelp({ action: 'guardian.config.read', purpose: 'guardian' })}` }, { status: 401 });
+    }
+    const row = await prisma.guardianAgent.findUnique({ where: { id } });
+    if (!row) return NextResponse.json({ error: 'Guardian not found' }, { status: 404 });
+    const auth = await verifySignedAction(ownerAddress, message, signature, body, {
+      action: 'guardian.config.read', method: 'POST', path: `/api/v1/guardian/${id}`,
+      blockHeight: row.blockHeight, purpose: 'guardian',
+    });
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const gate = await requireLiveBlockOwner(ownerAddress as string, row.blockHeight);
+    if (!gate.ok) return gateDenialResponse(gate);
+    return NextResponse.json({ guardian: toOwnerGuardian(row as unknown as Row) });
+  } catch (err: unknown) {
+    console.error('[Guardian POST/:id]', err);
+    return NextResponse.json({ error: 'Failed to read guardian settings' }, { status: 500 });
   }
 }
 
@@ -105,7 +146,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const updated = await prisma.guardianAgent.update({ where: { id }, data });
     // `guardian.status` only if this edit moved it between idle/resting/offline.
     await emitGuardianTransition(before, updated);
-    return NextResponse.json({ guardian: sanitizeGuardian(updated as unknown as Record<string, unknown>) });
+    return NextResponse.json({ guardian: toOwnerGuardian(updated as unknown as Row) });
   } catch (err: unknown) {
     console.error('[Guardian PATCH]', err);
     return NextResponse.json({ error: 'Failed to update guardian' }, { status: 500 });
