@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyWalletSignature, verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { verifyWalletSignature } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
@@ -46,11 +47,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Verify wallet signature
-    const verified = verifyUnboundWalletSignature(walletAddress, message, signature);
-    if (!verified) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
+    // The canonical 'livestream.start' message for this block and body, with a
+    // one-time 'world' nonce (the same purpose as ending a stream).
+    const auth = await verifySignedAction(walletAddress, message, signature, body, {
+      action: 'livestream.start', method: 'POST', path: '/api/v1/livestream',
+      blockHeight: Number(blockHeight), purpose: 'world',
+    });
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     // OWNERSHIP — asked of the chain, not of our cache. `Block.ownerAddress` is
     // refreshed by a background sync, so between an on-chain sale and the next

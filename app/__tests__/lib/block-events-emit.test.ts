@@ -42,7 +42,8 @@ function rowsAsChain(rows: Record<string, unknown>[]): ChainRow[] {
 beforeEach(() => {
   __resetBlockEventsState();
   process.env.BG_EVENTS_ENABLED = 'true';
-  delete process.env.BG_EVENT_SIGNING_KEY;
+  // Events are published only under a system key (every event is attested).
+  process.env.BG_EVENT_SIGNING_KEY = SEED;
 });
 
 afterAll(() => {
@@ -175,10 +176,19 @@ describe('dedupe: unlocked pre-check, locked re-check', () => {
 });
 
 describe('signing', () => {
-  it('without a key: signer "unsigned", no signature, no attestation', async () => {
+  it('without a key: nothing is published (an unattested event could never verify)', async () => {
+    delete process.env.BG_EVENT_SIGNING_KEY;
     const db = createEventStore();
+    const tx = jest.spyOn(db, '$transaction');
     const e = await emitBlockEvent({ block: BLOCK, kind: 'deed.moved', actor: { type: 'system', id: null, handle: null }, payload: { holder: 'bc1pnew' } }, db);
-    expect(e).toMatchObject({ signerScheme: 'unsigned', signerAddress: null, proofSignature: null, attestation: null });
+    expect(e).toBeNull();
+    expect(tx).not.toHaveBeenCalled();
+    expect(db.__rows).toHaveLength(0);
+  });
+
+  it('every published event carries an attestation and its payload hash covers its message', async () => {
+    const e = await emitBlockEvent({ block: BLOCK, kind: 'deed.moved', actor: { type: 'system', id: null, handle: null }, payload: { holder: 'bc1pnew' } }, createEventStore());
+    expect(e!.attestation).toEqual(expect.any(String));
     expect(e!.payloadHash).toBe(sha256Tagged(e!.proofMessage));
   });
 
@@ -201,7 +211,7 @@ describe('signing', () => {
     process.env.BG_EVENT_SIGNING_KEY = 'not-a-key';
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const e = await emitBlockEvent({ block: BLOCK, kind: 'deed.moved', actor: { type: 'system', id: null, handle: null } }, createEventStore());
-    expect(e!.signerScheme).toBe('unsigned');
+    expect(e).toBeNull();
     expect(JSON.stringify(warn.mock.calls)).not.toContain('not-a-key');
     warn.mockRestore();
   });

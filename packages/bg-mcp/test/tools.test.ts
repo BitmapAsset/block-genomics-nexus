@@ -205,7 +205,7 @@ const CASES: Case[] = [
       visitorAddress: "bc1powner",
       visitorHandle: "gravity",
       signature: "SIG",
-      signedMessage: "Block Genomics verification: abc123",
+      signedMessage: "Block Genomics Authorization v1\nAction: guardian.chat\nNonce: abc123",
     },
     method: "POST",
     path: "/api/v1/guardian/chat",
@@ -215,7 +215,7 @@ const CASES: Case[] = [
       visitorAddress: "bc1powner",
       visitorHandle: "gravity",
       signature: "SIG",
-      signedMessage: "Block Genomics verification: abc123",
+      signedMessage: "Block Genomics Authorization v1\nAction: guardian.chat\nNonce: abc123",
     },
   },
   {
@@ -238,7 +238,7 @@ const CASES: Case[] = [
     tool: "bg_verify_submit",
     args: {
       walletAddress: "bc1powner",
-      message: "Block Genomics verification: abc123",
+      message: "blockgenomics.io: start a verified session for this wallet\nNonce: abc123",
       signature: "SIG",
       blocks: [840000],
     },
@@ -246,7 +246,7 @@ const CASES: Case[] = [
     path: "/api/v1/session/verify",
     body: {
       walletAddress: "bc1powner",
-      message: "Block Genomics verification: abc123",
+      message: "blockgenomics.io: start a verified session for this wallet\nNonce: abc123",
       signature: "SIG",
       blocks: [840000],
     },

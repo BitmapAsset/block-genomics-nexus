@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { success, error } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -11,13 +12,13 @@ export async function PATCH(req: NextRequest) {
       return error('walletAddress and blockHeight are required', 400);
     }
 
-    // SECURITY: Require wallet signature verification
-    if (!signature || !message) {
-      return error('signature and message are required', 401);
-    }
-    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
-      return error('Invalid signature', 401);
-    }
+    // The canonical 'profile.primary' message for this block and body, with a
+    // one-time 'profile' nonce.
+    const auth = await verifySignedAction(walletAddress, message, signature, body, {
+      action: 'profile.primary', method: 'PATCH', path: '/api/v1/profiles/set-primary',
+      blockHeight: Number(blockHeight), purpose: 'profile',
+    });
+    if (!auth.ok) return error(auth.error, auth.status);
 
     // Verify the profile exists and belongs to this wallet
     const profile = await prisma.blockProfile.findUnique({

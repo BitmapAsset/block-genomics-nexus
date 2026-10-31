@@ -50,6 +50,11 @@ jest.mock('@/lib/ownership-gate', () => ({
   },
 }));
 
+// The bound signature (action, path, block, body, one-time nonce) has its own
+// suite, signed-action-routes. Here every signed request is authorized, so a
+// decision can only come from what this suite is about.
+jest.mock('@/lib/signed-action', () => ({ verifySignedAction: async () => ({ ok: true }) }));
+
 import prisma from '@/lib/prisma';
 import { POST } from '@/app/api/v1/vps/link/route';
 import { makeWallet, sign } from '../helpers/wallet-sim';
@@ -69,7 +74,7 @@ function linkReq(wallet: ReturnType<typeof makeWallet>, body: Record<string, unk
       blockHeight: BLOCK,
       parcelIndex: 0,
       serverUrl: 'https://server.example',
-      challenge,
+      message: challenge,
       signature: sign(wallet.privKey, wallet.address, challenge),
       ...body,
     }),

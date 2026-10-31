@@ -103,7 +103,6 @@ jest.mock('@/lib/onchain/bitmap-ownership', () => ({
 // denial can only ever come from the ownership decision under test.
 jest.mock('@/lib/api-helpers', () => ({
   verifyWalletSignature: () => true,
-  verifyUnboundWalletSignature: () => true,
   sanitizeString: (s: string) => s,
   success: (data: unknown, status = 200, headers?: Record<string, string>) =>
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -172,10 +171,9 @@ function req(body: Record<string, unknown>, url = 'https://bg.test/api') {
   return { json: async () => body, headers: { get: () => null }, url, nextUrl: new URL(url) } as never;
 }
 
-/** guardian/[id] DELETE takes its credential from the query string. */
+/** guardian/[id] DELETE takes its signed credential in the JSON body. */
 function deleteReq(wallet: string) {
-  const u = `https://bg.test/api/v1/guardian/grd_1?ownerAddress=${wallet}&signature=sig&message=msg`;
-  return { json: async () => ({}), headers: { get: () => null }, url: u, nextUrl: new URL(u) } as never;
+  return req(signed(wallet), 'https://bg.test/api/v1/guardian/grd_1');
 }
 
 const params = (id: string) => ({ params: Promise.resolve({ id }) });

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { success, error } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 
 const ALLOWED_EMOJIS = ['❤️', '😂', '🔥', '👍', '👎', '🤯'];
 
@@ -12,10 +13,12 @@ export async function POST(req: NextRequest) {
     if (!messageId || typeof messageId !== 'string') return error('messageId required', 400);
     if (!emoji || !ALLOWED_EMOJIS.includes(emoji)) return error('Invalid emoji', 400);
     if (!walletAddress || typeof walletAddress !== 'string') return error('walletAddress required', 400);
-    if (!signature || !message) return error('Authentication required', 401);
-    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
-      return error('Invalid signature', 401);
-    }
+    // The canonical 'chat.react' message for this body (Block 0), with a
+    // one-time 'chat' nonce.
+    const auth = await verifySignedAction(walletAddress, message, signature, body, {
+      action: 'chat.react', method: 'POST', path: '/api/v1/chat/react', blockHeight: 0, purpose: 'chat',
+    });
+    if (!auth.ok) return error(auth.error, auth.status);
 
     // Check message exists
     const msg = await prisma.chatMessage.findUnique({ where: { id: messageId } });

@@ -299,7 +299,7 @@ Ownership + replay protection: the register route rejects with `401` if the chal
 curl -sX POST https://blockgenomics.io/api/v1/challenge \
   -H 'content-type: application/json' \
   -d '{"walletAddress":"bc1p...","purpose":"agent-register"}'
-# → {"success":true,"data":{"message":"Block Genomics verification: <nonce>","nonce":"<nonce>"}}
+# → {"success":true,"data":{"message":"blockgenomics.io: register an agent for this wallet\nAddress: bc1p...\nNonce: <nonce>\nExpires: <ISO time>","nonce":"<nonce>","purpose":"agent-register","expiresAt":"<ISO time>"}}
 
 # 2) Sign the `message` with your BIP-322 signer (Unisat/Xverse/Leather or bip322-js).
 
@@ -313,7 +313,7 @@ curl -sX POST https://blockgenomics.io/api/v1/agents/register \
     "tier":1,
     "permissions":["READ_DMS","SEND_DMS"],
     "signature":"<bip322-signature>",
-    "challenge":"Block Genomics verification: <nonce>"
+    "challenge":"<the exact message from step 1, newlines included>"
   }'
 # → { "success": true, "data": { "id":"<agentId>", ... } }
 ```

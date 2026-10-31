@@ -385,7 +385,7 @@
           "Block"
         ],
         "summary": "Reconcile a block record with its current on-chain owner",
-        "description": "Callable by either the current record owner or the on-chain owner, both proven by BIP-322 signature. When the two disagree the transfer is executed and the record follows the chain.",
+        "description": "Callable by either the current record owner or the on-chain owner. `message` is the canonical `Block Genomics Authorization v1` action message for action `ownership.sync`, POST, this path, this block and the SHA-256 of the body without `message`/`signature`, carrying a nonce from POST /api/v1/challenge with purpose `ownership`; it works once. When the two disagree the transfer is executed and the record follows the chain.",
         "requestBody": {
           "required": true,
           "content": {
@@ -408,7 +408,8 @@
                     "description": "BIP-322 signature over message."
                   },
                   "message": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The canonical action message (action ownership.sync)."
                   },
                   "blockHeight": {
                     "type": "integer",
@@ -441,7 +442,7 @@
             }
           },
           "401": {
-            "description": "Invalid signature",
+            "description": "Invalid signature, or not the bound action message for this request, or its nonce was already used",
             "content": {
               "application/json": {
                 "schema": {
@@ -1117,7 +1118,7 @@
           "Auth"
         ],
         "summary": "Request a one-time challenge nonce",
-        "description": "Returns a fresh nonce plus a short server-formatted message. The message string is what agent wallets sign for /auth/verify (purpose 'auth'), for /agents/register (purpose 'agent-register'), for /agents/{agentId} PATCH/DELETE (purpose 'agent-manage'), for /agents/{agentId}/token POST/DELETE (purpose 'agent-token'), and for parcel customize (purpose 'parcel-customize', whose signed message also commits to a hash of the customization fields). For world writes (purpose 'world'), the nonce alone is bound into the action-message the wallet signs. Nonces are single-use and expire.",
+        "description": "Returns a fresh nonce plus a plain-text message that says what it authorizes: `blockgenomics.io: <purpose in words>`, then `Address:`, `Nonce:` and `Expires:` lines. The message string is what agent wallets sign for /auth/verify (purpose 'auth'), for /agents/register (purpose 'agent-register'), for /agents/{agentId} PATCH/DELETE (purpose 'agent-manage'), for /agents/{agentId}/token POST/DELETE (purpose 'agent-token'), and for parcel customize (purpose 'parcel-customize', whose signed message also commits to a hash of the customization fields). For every action-bound write (world, profile, guardian, vps, delegation, ownership, chat, brain, game), the nonce alone goes into the `Block Genomics Authorization v1` action message the wallet signs. An unknown purpose is a 400. Nonces are single-use and expire.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1139,7 +1140,21 @@
                       "agent-register",
                       "agent-manage",
                       "agent-token",
-                      "parcel-customize"
+                      "parcel-customize",
+                      "session",
+                      "profile",
+                      "activity",
+                      "encryption",
+                      "brain",
+                      "experience-register",
+                      "experience-manage",
+                      "guardian-heartbeat",
+                      "guardian",
+                      "vps",
+                      "delegation",
+                      "ownership",
+                      "chat",
+                      "game"
                     ],
                     "default": "auth"
                   }
@@ -1164,10 +1179,17 @@
                       "properties": {
                         "message": {
                           "type": "string",
-                          "description": "Server-formatted string, e.g. `Block Genomics verification: <nonce>`"
+                          "description": "Server-formatted plain text, one fact per line: `blockgenomics.io: <what it authorizes>`, `Address: <addr>`, `Nonce: <nonce>`, `Expires: <ISO-8601>`"
                         },
                         "nonce": {
                           "type": "string"
+                        },
+                        "purpose": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time"
                         }
                       }
                     }
@@ -1177,7 +1199,7 @@
             }
           },
           "400": {
-            "description": "walletAddress required"
+            "description": "walletAddress required, or unknown purpose"
           },
           "429": {
             "description": "Rate limit exceeded (durable, per client IP). Includes a `Retry-After` header.",

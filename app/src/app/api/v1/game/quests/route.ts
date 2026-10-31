@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
@@ -34,13 +34,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'blockHeight, ownerAddress, name, steps required' }, { status: 400 });
     }
 
-    // SECURITY: Require wallet signature verification
-    if (!signature || !message) {
-      return NextResponse.json({ error: 'signature and message required' }, { status: 401 });
-    }
-    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
+    // Signed action message bound to this request, one-time 'world' nonce.
+    const auth = await verifySignedAction(ownerAddress, message, signature, body, {
+      action: 'game.quest.create', method: 'POST', path: '/api/v1/game/quests', blockHeight: Number(blockHeight), purpose: 'world',
+    });
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     // The block's deed decides who may build on it, as for quest PATCH/DELETE —
     // a tier earned on some other block grants nothing here.

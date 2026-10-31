@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useGlobalWallet } from "@/context/GlobalWalletContext";
+import { signedActionFetch } from "@/lib/signed-fetch";
 import CrownShield, { type ShieldTier } from "@/components/CrownShield";
 import BitmapThumbnail from "@/components/BitmapThumbnail";
 
@@ -194,6 +195,7 @@ function DeploySection({
   walletAddress: string;
   onDeployed: () => void;
 }) {
+  const { signMessage } = useGlobalWallet();
   const [selectedBlock, setSelectedBlock] = useState<number | null>(null);
   const [agentName, setAgentName] = useState("");
   const [deploying, setDeploying] = useState(false);
@@ -208,18 +210,12 @@ function DeploySection({
     setDeploying(true);
     setError(null);
     try {
-      const res = await fetch("/api/v1/guardian", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          blockHeight: selectedBlock,
-          ownerAddress: walletAddress,
-          name: agentName.trim(),
-          // Signature would be required in production — the guardian API enforces it.
-          // For now we pass empty to let the API return a clear auth error if needed.
-          signature: "",
-          message: "",
-        }),
+      // The wallet signs this exact request (one-time 'guardian' nonce).
+      const res = await signedActionFetch({
+        method: "POST", path: "/api/v1/guardian", action: "guardian.create", blockHeight: selectedBlock,
+        purpose: "guardian", address: walletAddress,
+        body: { blockHeight: selectedBlock, ownerAddress: walletAddress, name: agentName.trim() },
+        signMessage,
       });
 
       if (!res.ok) {

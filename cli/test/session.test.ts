@@ -70,7 +70,7 @@ describe("session handshake calls", () => {
 
     await sessionVerify({
       walletAddress: ADDRESS,
-      message: "Block Genomics verification: abc",
+      message: "blockgenomics.io: start a verified session for this wallet\nNonce: abc",
       signature: "SIG",
       blocks: [840000],
     });
@@ -78,7 +78,7 @@ describe("session handshake calls", () => {
     expect(calls[0].url).toContain("/api/v1/session/verify");
     expect(calls[0].body).toEqual({
       walletAddress: ADDRESS,
-      message: "Block Genomics verification: abc",
+      message: "blockgenomics.io: start a verified session for this wallet\nNonce: abc",
       signature: "SIG",
       blocks: [840000],
     });

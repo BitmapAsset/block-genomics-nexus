@@ -7,20 +7,17 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
-import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { generateMonitorToken, revokeMonitorToken } from '@/lib/monitor-tokens';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 
 export async function POST(req: NextRequest) {
   try {
-    const { guardianId, ownerAddress, signature, message } = await req.json();
+    const body = await req.json();
+    const { guardianId, ownerAddress, signature, message } = body;
 
     if (!guardianId || !ownerAddress || !signature || !message) {
       return error('Missing required fields: guardianId, ownerAddress, signature, message');
-    }
-
-    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
-      return error('Invalid signature', 401);
     }
 
     const guardian = await prisma.guardianAgent.findUnique({
@@ -28,6 +25,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (!guardian) return error('Guardian not found', 404);
+    // Bound to this guardian (body) and its block, used once.
+    const auth = await verifySignedAction(ownerAddress, message, signature, body, {
+      action: 'guardian.monitor.mint', method: 'POST', path: '/api/v1/guardian/monitor',
+      blockHeight: guardian.blockHeight, purpose: 'guardian',
+    });
+    if (!auth.ok) return error(auth.error, auth.status);
     const gate = await requireLiveBlockOwner(ownerAddress, guardian.blockHeight);
     if (!gate.ok) return gateDenialResponse(gate);
 
@@ -42,14 +45,11 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { guardianId, ownerAddress, signature, message } = await req.json();
+    const body = await req.json();
+    const { guardianId, ownerAddress, signature, message } = body;
 
     if (!guardianId || !ownerAddress || !signature || !message) {
       return error('Missing required fields: guardianId, ownerAddress, signature, message');
-    }
-
-    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
-      return error('Invalid signature', 401);
     }
 
     const guardian = await prisma.guardianAgent.findUnique({
@@ -57,6 +57,12 @@ export async function DELETE(req: NextRequest) {
     });
 
     if (!guardian) return error('Guardian not found', 404);
+    // Bound to this guardian (body) and its block, used once.
+    const auth = await verifySignedAction(ownerAddress, message, signature, body, {
+      action: 'guardian.monitor.revoke', method: 'DELETE', path: '/api/v1/guardian/monitor',
+      blockHeight: guardian.blockHeight, purpose: 'guardian',
+    });
+    if (!auth.ok) return error(auth.error, auth.status);
     const gate = await requireLiveBlockOwner(ownerAddress, guardian.blockHeight);
     if (!gate.ok) return gateDenialResponse(gate);
 

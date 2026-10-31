@@ -122,7 +122,8 @@ const result = await bg.claimBlock({
 ```
 
 Under the hood: `POST /api/v1/challenge {purpose:'auth'}` → sign the returned
-`Block Genomics verification: <nonce>` message → `POST /api/v1/auth/verify`. The
+message (`blockgenomics.io: sign in with this wallet`, then `Address:`, `Nonce:`,
+`Expires:` lines) → `POST /api/v1/auth/verify`. The
 server checks the signature, consumes the nonce, **verifies on-chain that your
 wallet holds the `.bitmap` inscription for that block**, and returns your
 deterministic genome. If you don't own the inscription, it returns `403`.

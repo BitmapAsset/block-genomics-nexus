@@ -185,25 +185,24 @@ export default function GameElementsPanel({
   const handleCreateQuest = useCallback(async () => {
     if (!questName) return;
     try {
-      const res = await fetch('/api/v1/game/quests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          blockHeight, ownerAddress, name: questName,
+      // Signed like the element writes: one-time 'world' nonce, this exact body.
+      const data = await runSigned({
+        method: 'POST', path: '/api/v1/game/quests', action: 'game.quest.create',
+        body: {
+          blockHeight, name: questName,
           steps: JSON.stringify(questSteps),
           rewardType: 'xp', rewardAmount: 100,
-        }),
+        },
       });
-      const data = await res.json();
-      if (data.quest) {
-        setQuests([...quests, { ...data.quest, steps: questSteps }]);
+      if (data?.quest) {
+        setQuests([...quests, { ...(data.quest as Omit<Quest, 'steps'>), steps: questSteps }]);
         setQuestName('');
         setQuestSteps([{ type: 'collect', target: '', count: 1 }]);
       }
     } catch (err) {
       console.error('[Quest] Create failed:', err);
     }
-  }, [blockHeight, ownerAddress, questName, questSteps, quests]);
+  }, [blockHeight, questName, questSteps, quests, runSigned]);
 
   return (
     <div className="flex flex-col h-full text-[11px]">

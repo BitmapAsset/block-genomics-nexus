@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { success, error } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { verifyBlockOwnership, processOwnershipTransfer, holderMayTriggerTransfer } from '@/lib/ownership-sync';
 
 /**
@@ -20,9 +21,13 @@ export async function POST(req: NextRequest) {
       return error('blockHeight is required', 400);
     }
 
-    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
-      return error('Invalid signature', 401);
-    }
+    // The canonical 'ownership.sync' message for this block, with a one-time
+    // 'ownership' nonce.
+    const auth = await verifySignedAction(walletAddress, message, signature, body, {
+      action: 'ownership.sync', method: 'POST', path: '/api/v1/ownership/sync',
+      blockHeight: Number(blockHeight), purpose: 'ownership',
+    });
+    if (!auth.ok) return error(auth.error, auth.status);
 
     // Verify caller is either current DB owner or on-chain owner
     const block = await prisma.block.findUnique({ where: { height: blockHeight } });

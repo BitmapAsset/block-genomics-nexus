@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
@@ -39,13 +39,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'blockHeight and walletAddress required' }, { status: 400 });
     }
 
-    // SECURITY: Require wallet signature verification
-    if (!signature || !message) {
-      return NextResponse.json({ error: 'signature and message required' }, { status: 401 });
-    }
-    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
+    // Signed action message bound to this request, one-time 'game' nonce.
+    const auth = await verifySignedAction(walletAddress, message, signature, body, {
+      action: 'game.state', method: 'POST', path: '/api/v1/game/state', blockHeight: Number(blockHeight), purpose: 'game',
+    });
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     // Allowlist fields that can be updated (H-03: prevent mass assignment)
     const allowedFields = ['score', 'coins', 'xp', 'level', 'questsCompleted', 'elementsPlaced'];

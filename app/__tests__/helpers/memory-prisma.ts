@@ -154,6 +154,7 @@ export function createMemoryPrisma() {
     'vPSLink', 'delegation', 'delegationListing', 'ownershipTransfer', 'handleHistory', 'parcel',
     'apiRateLimit', 'experience', 'contentFlag', 'contentVerdict', 'brainAction',
     'verifiedSession', 'blockObject', 'blockTerrain', 'activityLog', 'estate', 'chatMessage', 'appeal',
+    'chatReaction', 'flagStrike', 'gameQuest', 'gameElement', 'gameState',
   ] as const;
 
   const client: any = {

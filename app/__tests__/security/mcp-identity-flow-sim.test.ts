@@ -107,7 +107,10 @@ describe('SIM: verification handshake', () => {
     const res: any = await sessionStart(req({ walletAddress: w.address }));
 
     expect(res.status).toBe(200);
-    expect(res.body.data.message).toContain('Block Genomics verification:');
+    // The wallet prompt names the site, what it authorizes, the address and the nonce.
+    expect(res.body.data.message.split('\n')[0]).toBe('blockgenomics.io: start a verified session for this wallet');
+    expect(res.body.data.message).toContain(`Address: ${w.address}`);
+    expect(res.body.data.message).toContain(`Nonce: ${res.body.data.nonce}`);
     expect(res.body.data.walletAddress).toBe(w.address);
     // The nonce is persisted in the SAME challenge store the rest of the app
     // uses — this flow extends that system rather than forking a second one.

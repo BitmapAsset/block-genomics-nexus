@@ -1,23 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { processReward, calculateLevel, checkAchievements } from '@/lib/game-logic';
-import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 
 export async function POST(req: NextRequest) {
   try {
-    const { elementId, walletAddress, blockHeight, signature, message } = await req.json();
+    const body = await req.json();
+    const { elementId, walletAddress, blockHeight, signature, message } = body;
 
     if (!elementId || !walletAddress || !blockHeight) {
       return NextResponse.json({ error: 'elementId, walletAddress, blockHeight required' }, { status: 400 });
     }
 
-    // Verify wallet signature
-    if (!signature || !message) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
-    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
+    // Signed action message bound to this request, one-time 'game' nonce.
+    const auth = await verifySignedAction(walletAddress, message, signature, body, {
+      action: 'game.claim', method: 'POST', path: '/api/v1/game/claim', blockHeight: Number(blockHeight), purpose: 'game',
+    });
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     // Fetch element
     const element = await prisma.gameElement.findUnique({ where: { id: elementId } });

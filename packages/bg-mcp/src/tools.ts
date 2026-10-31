@@ -183,6 +183,7 @@ export function buildToolCatalog(call: CallFn): {
         message: z.string().max(4000).describe("Message to the guardian (max 4000 chars)"),
         visitorHandle: z.string().optional(),
         conversationId: z.string().optional().describe("Reuse to continue an existing conversation"),
+        guardianId: z.string().optional().describe("The block's guardian id (owner path only; covered by the signature)"),
         visitorAddress: z
           .string()
           .optional()
@@ -196,7 +197,9 @@ export function buildToolCatalog(call: CallFn): {
         signedMessage: z
           .string()
           .optional()
-          .describe("Exact message that the visitor signed for wallet verification"),
+          .describe(
+            "Owner path: the 'Block Genomics Authorization v1' message for action guardian.chat, POST /api/v1/guardian/chat, this block, Body = sha256 of the canonical JSON {blockHeight, guardianId, conversationId, text, visitorAddress}, with a nonce from bg_challenge purpose 'guardian'. Used once.",
+          ),
       },
       run: (a) => call("/api/v1/guardian/chat", { method: "POST", body: a }),
     },
@@ -218,6 +221,7 @@ export function buildToolCatalog(call: CallFn): {
             "experience-register",
             "experience-manage",
             "profile",
+            "guardian",
           ])
           .optional(),
       },

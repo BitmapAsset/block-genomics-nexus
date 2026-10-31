@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { useModalClose } from '@/hooks/useModalClose';
+import { signedActionFetch } from '@/lib/signed-fetch';
 
 type WipeOption = 'full' | 'selective';
 
@@ -40,13 +41,11 @@ export default function TransferPrepModal({ onClose, blockHeight, guardianCount,
     setStatus('signing');
     setErrorMsg('');
     try {
-      const message = `prep-transfer:${blockHeight}:${walletAddress}:${Date.now()}`;
-      const signature = await walletSign(message);
-
-      const res = await fetch('/api/v1/ownership/prep-transfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blockHeight, walletAddress, signature, message, wipeOption: selected }),
+      // The wallet signs this exact request (one-time 'ownership' nonce).
+      const res = await signedActionFetch({
+        method: 'POST', path: '/api/v1/ownership/prep-transfer', action: 'ownership.prep-transfer',
+        blockHeight, purpose: 'ownership', address: walletAddress,
+        body: { blockHeight, walletAddress, wipeOption: selected }, signMessage: walletSign,
       });
 
       const data = await res.json();

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
-import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { success, error } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { wipeGuardianMemories, type MemoryWipeOption } from '@/lib/ownership-sync';
 import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 
@@ -22,10 +23,13 @@ export async function POST(req: NextRequest) {
       return error('wipeOption must be full, selective, or none', 400);
     }
 
-    // Verify signature
-    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
-      return error('Invalid signature', 401);
-    }
+    // The canonical 'ownership.prep-transfer' message for this block and body
+    // (the wipe option is in it), with a one-time 'ownership' nonce.
+    const auth = await verifySignedAction(walletAddress, message, signature, body, {
+      action: 'ownership.prep-transfer', method: 'POST', path: '/api/v1/ownership/prep-transfer',
+      blockHeight: Number(blockHeight), purpose: 'ownership',
+    });
+    if (!auth.ok) return error(auth.error, auth.status);
 
     // OWNERSHIP — asked of the chain, not of our cache. This route DESTROYS
     // guardian memory, so the stale window matters more here than anywhere: once

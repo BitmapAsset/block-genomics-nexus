@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { success, error } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { logActivity, logProfileView } from '@/lib/activity';
 import { normalizeHandle } from '@/lib/handle';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
@@ -112,11 +113,13 @@ export async function PATCH(
       return error('walletAddress is required for authentication', 400);
     }
 
-    // Verify wallet signature
-    if (!signature || !message) return error('Authentication required', 401);
-    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
-      return error('Invalid signature', 401);
-    }
+    // The canonical 'user.update' message for this handle's path and body
+    // (Block 0: no block), with a one-time 'profile' nonce.
+    const auth = await verifySignedAction(walletAddress, message, signature, body, {
+      action: 'user.update', method: 'PATCH', path: `/api/v1/users/by-handle/${handle}`,
+      blockHeight: 0, purpose: 'profile',
+    });
+    if (!auth.ok) return error(auth.error, auth.status);
 
     // Check BlockProfile first, then User
     const blockProfile = await prisma.blockProfile.findUnique({ where: { handle: normalizedHandle } });

@@ -67,7 +67,7 @@ jest.mock('@/lib/onchain/deed', () => require('../helpers/chain-ownership-mock')
 import prisma from '@/lib/prisma';
 import { verifyBlockOwnedBy } from '@/lib/onchain/bitmap-ownership';
 import { issueChallenge } from '@/lib/challenges';
-import { buildActionMessage } from '@/lib/action-message';
+import { buildActionMessage, hashBody } from '@/lib/action-message';
 import { computeManifestHash } from '@/lib/experience-protocol';
 import { __resetBlockEventsState } from '@/lib/block-events';
 import { verifyEventProof } from '@/lib/block-event-core';
@@ -278,22 +278,31 @@ describe('guardian PATCH / DELETE → guardian.status on a change only', () => {
       data: { id: 'gdn_9', blockHeight: BLOCK, ownerAddress: owner.address, name: 'Warden', status: 'active', selfHosted: false, memoryMd: 'PRIVATE-memory', soulMd: 'PRIVATE-soul' },
     });
   });
-  const auth = () => {
-    const message = 'Manage guardian gdn_9';
-    return { ownerAddress: owner.address, message, signature: sign(owner.privKey, owner.address, message) };
+  const sent: string[] = [];
+  /** A guardian/[id] body signed over the exact request with a one-time 'guardian' nonce. */
+  const signed = async (action: string, method: string, intent: Record<string, unknown>) => {
+    const nonce = freshNonce();
+    await issueChallenge(nonce, { address: owner.address, purpose: 'guardian' });
+    const body: Record<string, unknown> = { ownerAddress: owner.address, ...intent };
+    const message = buildActionMessage({
+      action, method, path: '/api/v1/guardian/gdn_9', blockHeight: BLOCK,
+      bodyHash: await hashBody(body), nonce, expiresAt: Date.now() + 60_000,
+    });
+    const signature = sign(owner.privKey, owner.address, message);
+    sent.push(message, signature);
+    return { ...body, message, signature };
   };
 
-  it('pause → resting, rename → nothing, DELETE → offline; the unbound signature never appears', async () => {
-    const a = auth();
-    expect(((await guardianPatch(req({ ...a, status: 'paused' }), { params: Promise.resolve({ id: 'gdn_9' }) })) as any).status).toBe(200);
-    expect(((await guardianPatch(req({ ...a, name: 'Warden II', soulMd: 'PRIVATE-soul-2' }), { params: Promise.resolve({ id: 'gdn_9' }) })) as any).status).toBe(200);
-    const url = `http://test.local/api/v1/guardian/gdn_9?ownerAddress=${encodeURIComponent(a.ownerAddress)}&signature=${encodeURIComponent(a.signature)}&message=${encodeURIComponent(a.message)}`;
-    expect(((await guardianDelete(req(null, {}, url), { params: Promise.resolve({ id: 'gdn_9' }) })) as any).status).toBe(200);
+  it('pause → resting, rename → nothing, DELETE → offline; the owner signature never appears', async () => {
+    const params = { params: Promise.resolve({ id: 'gdn_9' }) };
+    expect(((await guardianPatch(req(await signed('guardian.update', 'PATCH', { status: 'paused' })), params)) as any).status).toBe(200);
+    expect(((await guardianPatch(req(await signed('guardian.update', 'PATCH', { name: 'Warden II', soulMd: 'PRIVATE-soul-2' })), { params: Promise.resolve({ id: 'gdn_9' }) })) as any).status).toBe(200);
+    expect(((await guardianDelete(req(await signed('guardian.delete', 'DELETE', {})), { params: Promise.resolve({ id: 'gdn_9' }) })) as any).status).toBe(200);
 
     expect(rows().map((r) => [r.kind, r.payload.from, r.payload.to, r.signerScheme])).toEqual([
       ['guardian.status', 'idle', 'resting', 'ed25519'],
       ['guardian.status', 'resting', 'offline', 'ed25519'],
     ]);
-    expectNothingPrivate([a.signature, a.message, 'PRIVATE-memory', 'PRIVATE-soul']);
+    expectNothingPrivate([...sent, 'PRIVATE-memory', 'PRIVATE-soul']);
   });
 });

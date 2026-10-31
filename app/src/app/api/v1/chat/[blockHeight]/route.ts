@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, sanitizeString, verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { success, error, sanitizeString } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { emitAgentEvent } from '@/lib/agent-events';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
@@ -115,11 +116,12 @@ export async function POST(
     if (!senderAddress || typeof senderAddress !== 'string') return error('senderAddress is required', 400);
     if (!text || typeof text !== 'string' || !text.trim()) return error('text is required', 400);
 
-    // Verify wallet signature
-    if (!signature || !message) return error('Authentication required', 401);
-    if (!verifyUnboundWalletSignature(senderAddress, message, signature)) {
-      return error('Invalid signature', 401);
-    }
+    // One signature per message: the canonical 'chat.send' message for this
+    // block and body (the text is in it), with a one-time 'chat' nonce.
+    const auth = await verifySignedAction(senderAddress, message, signature, body, {
+      action: 'chat.send', method: 'POST', path: `/api/v1/chat/${h}`, blockHeight: h, purpose: 'chat',
+    });
+    if (!auth.ok) return error(auth.error, auth.status);
 
     // Rate limit: 1 message per 2 seconds per wallet
     const now = Date.now();

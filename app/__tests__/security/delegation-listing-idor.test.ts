@@ -54,6 +54,11 @@ jest.mock('@/lib/onchain/bitmap-ownership', () => ({
       : { verified: false, reason: 'not held by this wallet' },
 }));
 
+// The bound signature (action, path, block, body, one-time nonce) has its own
+// suite, signed-action-routes. Here every signed request is authorized, so a
+// decision can only come from what this suite is about.
+jest.mock('@/lib/signed-action', () => ({ verifySignedAction: async () => ({ ok: true }) }));
+
 import prisma from '@/lib/prisma';
 import { POST as LIST } from '@/app/api/v1/delegations/listings/route';
 import { makeWallet, sign } from '../helpers/wallet-sim';

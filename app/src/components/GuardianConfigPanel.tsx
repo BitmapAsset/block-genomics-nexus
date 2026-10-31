@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { generateGuardianBundle, GUARDIAN_PROTOCOL_VERSION } from '@/lib/guardian-templates';
+import { signedActionFetch } from '@/lib/signed-fetch';
 
 interface AutoResponse {
   trigger: string;
@@ -105,25 +106,20 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
   const handleSave = async (goLive = false) => {
     setSaving(true);
     try {
-      const message = `guardian-config:${blockHeight}:${ownerAddress}:${Date.now()}`;
-      const signature = await walletSign(message);
-
-      const payload = {
+      const payload: Record<string, unknown> = JSON.parse(JSON.stringify({
         ...config,
         blockHeight,
         ownerAddress,
-        signature,
-        message,
         autoResponses: config.autoResponses,
         status: goLive ? 'active' : config.status,
-      };
+      }));
       // Don't send empty API key (would overwrite)
-      if (!payload.llmApiKey) delete (payload as Record<string, unknown>).llmApiKey;
+      if (!payload.llmApiKey) delete payload.llmApiKey;
 
-      const res = await fetch('/api/v1/guardian', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      // The wallet signs this exact request (one-time 'guardian' nonce).
+      const res = await signedActionFetch({
+        method: 'POST', path: '/api/v1/guardian', action: 'guardian.create', blockHeight, purpose: 'guardian',
+        address: ownerAddress, body: payload, signMessage: walletSign,
       });
 
       if (!res.ok) throw new Error('Save failed');
@@ -138,12 +134,15 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
 
   const handlePause = async () => {
     if (!config.id) return;
-    await fetch(`/api/v1/guardian/${config.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'paused' }),
-    });
-    update({ status: 'paused' });
+    try {
+      const res = await signedActionFetch({
+        method: 'PATCH', path: `/api/v1/guardian/${config.id}`, action: 'guardian.update', blockHeight, purpose: 'guardian',
+        address: ownerAddress, body: { ownerAddress, status: 'paused' }, signMessage: walletSign,
+      });
+      if (res.ok) update({ status: 'paused' });
+    } catch (err) {
+      console.error('Failed to pause guardian:', err);
+    }
   };
 
   const detectEndpoint = async () => {
@@ -174,12 +173,9 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
     if (!config.id) return;
     setGeneratingToken(true);
     try {
-      const message = `monitor-token:${config.id}:${ownerAddress}:${Date.now()}`;
-      const signature = await walletSign(message);
-      const res = await fetch('/api/v1/guardian/monitor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ guardianId: config.id, ownerAddress, signature, message }),
+      const res = await signedActionFetch({
+        method: 'POST', path: '/api/v1/guardian/monitor', action: 'guardian.monitor.mint', blockHeight, purpose: 'guardian',
+        address: ownerAddress, body: { guardianId: config.id, ownerAddress }, signMessage: walletSign,
       });
       const data = await res.json();
       if (data.success && data.data?.token) {
@@ -199,12 +195,9 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
     if (!config.id) return;
     setRevokingToken(true);
     try {
-      const message = `revoke-monitor:${config.id}:${ownerAddress}:${Date.now()}`;
-      const signature = await walletSign(message);
-      const res = await fetch('/api/v1/guardian/monitor', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ guardianId: config.id, ownerAddress, signature, message }),
+      const res = await signedActionFetch({
+        method: 'DELETE', path: '/api/v1/guardian/monitor', action: 'guardian.monitor.revoke', blockHeight, purpose: 'guardian',
+        address: ownerAddress, body: { guardianId: config.id, ownerAddress }, signMessage: walletSign,
       });
       const data = await res.json();
       if (data.success) {

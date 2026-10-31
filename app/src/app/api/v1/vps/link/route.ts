@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, isValidBitcoinAddress } from '@/lib/api-helpers';
-import { verifyAgentSignature } from '@/lib/agent-protocol';
+import { assertSafePublicUrl } from '@/lib/experience-protocol';
+import { verifySignedAction, signedActionHelp } from '@/lib/signed-action';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
@@ -15,11 +16,14 @@ export async function POST(req: NextRequest) {
       serverUrl,
       connectionType,
       signature,
-      challenge,
+      message,
     } = body;
 
-    if (!walletAddress || blockHeight == null || !serverUrl || !signature || !challenge) {
-      return error('Missing required fields: walletAddress, blockHeight, serverUrl, signature, challenge', 400);
+    if (!signature || !message) {
+      return error(`Missing signature or message. ${signedActionHelp({ action: 'vps.link', purpose: 'vps' })}`, 401);
+    }
+    if (!walletAddress || blockHeight == null || !serverUrl || !signature || !message) {
+      return error('Missing required fields: walletAddress, blockHeight, serverUrl, signature, message', 400);
     }
 
     if (!isValidBitcoinAddress(walletAddress)) {
@@ -29,10 +33,12 @@ export async function POST(req: NextRequest) {
     const height = parseBlockHeight(String(blockHeight));
     if (height === null) return error(INVALID_BLOCK_HEIGHT_MESSAGE, 400);
 
-    /* BIP-322 wallet signature verification */
-    if (!verifyAgentSignature(walletAddress, challenge, signature)) {
-      return error('Invalid wallet signature', 401);
-    }
+    // The holder signs the canonical 'vps.link' message for this block and this
+    // body (serverUrl, connection type, parcel), with a one-time 'vps' nonce.
+    const auth = await verifySignedAction(walletAddress, message, signature, body, {
+      action: 'vps.link', method: 'POST', path: '/api/v1/vps/link', blockHeight: height, purpose: 'vps',
+    });
+    if (!auth.ok) return error(auth.error, auth.status);
 
     // A signature proves the wallet and says nothing about the land. Only the
     // block's live holder may attach a server to it: GET /vps/block/[h] lists
@@ -46,15 +52,20 @@ export async function POST(req: NextRequest) {
       return error(`connectionType must be one of: ${validTypes.join(', ')}`, 400);
     }
 
+    // GET /vps/block/[h] lists this URL publicly as the block's server: a public
+    // https or wss host only.
+    const urlCheck = assertSafePublicUrl(serverUrl);
+    if (!urlCheck.ok) return error(`serverUrl: ${urlCheck.reason ?? 'not a public https or wss URL'}`, 400);
+
     const link = await prisma.vPSLink.create({
       data: {
         walletAddress,
         blockHeight: height,
         parcelIndex: parcelIndex ?? null,
-        serverUrl,
+        serverUrl: serverUrl.trim(),
         connectionType: connType,
         status: 'linked',
-        tlsVerified: serverUrl.startsWith('https://') || serverUrl.startsWith('wss://'),
+        tlsVerified: true,
       },
     });
 

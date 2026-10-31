@@ -446,6 +446,10 @@
             "description": "Reuse to continue an existing conversation",
             "type": "string"
           },
+          "guardianId": {
+            "description": "The block's guardian id (owner path only; covered by the signature)",
+            "type": "string"
+          },
           "visitorAddress": {
             "description": "Optional visitor wallet address. Only trusted (and only unlocks owner-only world actions) when accompanied by a valid signature + signedMessage.",
             "type": "string"
@@ -455,7 +459,7 @@
             "type": "string"
           },
           "signedMessage": {
-            "description": "Exact message that the visitor signed for wallet verification",
+            "description": "Owner path: the 'Block Genomics Authorization v1' message for action guardian.chat, POST /api/v1/guardian/chat, this block, Body = sha256 of the canonical JSON {blockHeight, guardianId, conversationId, text, visitorAddress}, with a nonce from bg_challenge purpose 'guardian'. Used once.",
             "type": "string"
           }
         },
@@ -488,7 +492,8 @@
               "parcel-customize",
               "experience-register",
               "experience-manage",
-              "profile"
+              "profile",
+              "guardian"
             ]
           }
         },
