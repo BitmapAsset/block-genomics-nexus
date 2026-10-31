@@ -115,7 +115,7 @@ async function get(cfg: Config, path: string): Promise<{ status: number; body: u
   if (cfg.authorization) headers.Authorization = cfg.authorization;
   let res: Response;
   try {
-    res = await fetch(`${cfg.base}${path}`, { method: 'GET', headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    res = await fetch(`${cfg.base}${path}`, { method: 'GET', headers, redirect: 'error', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   } catch (e) {
     throw new IndexError(e instanceof Error && e.name === 'TimeoutError' ? 'timeout' : 'unreachable');
   }

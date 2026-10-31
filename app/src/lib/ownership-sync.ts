@@ -460,6 +460,7 @@ export async function batchVerifyOwnership(blockHeights: number[]): Promise<Owne
   for (const height of blockHeights) {
     const check = await verifyBlockOwnership(height, 'display');
     results.push(check);
+    if (check.transferDeferred) console.warn(`[ownership-sync] Deferred transfer for block ${height}: ${check.transferDeferred}`);
 
     // Process transfer only on a live mismatch (action 'update' is set ONLY for a
     // positive on-chain owner that differs from the DB owner; an outage is
@@ -480,9 +481,9 @@ export async function batchVerifyOwnership(blockHeights: number[]): Promise<Owne
 /**
  * Verify and sync a block. Returns whether the given wallet is the owner.
  *
- * AUTH tier, not configurable: every caller of this function is an
- * authorization gate (experience register/update/remove, agent register,
- * delegation listing create). Taking the tier as a parameter would let a future
+ * AUTH tier, not configurable: no route calls this today (its former callers
+ * use the ownership gate); any future caller is an authorization gate. Taking
+ * the tier as a parameter would let a future
  * call site ask to be checked against a staler observation, and per this
  * module's fail-closed model a caller must never be able to request a weaker
  * check. Read paths should call `verifyBlockOwnership(height, 'display')`.
