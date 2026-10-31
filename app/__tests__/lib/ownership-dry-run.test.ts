@@ -4,6 +4,7 @@
  * canonicalDeedFor (persists verdicts), verifyBlockOwnership (stamps the row),
  * processOwnershipTransfer / batchVerifyOwnership, and any non-GET request.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 jest.mock('@/lib/prisma', () => {
   const boom = (): never => {
@@ -44,7 +45,6 @@ import { resolveInscriptionOwner } from '@/lib/onchain/owner-freshness';
 import { processOwnershipTransfer, verifyBlockOwnership } from '@/lib/ownership-sync';
 import { canonicalDeedFor } from '@/lib/onchain/deed';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 const SEED = 'bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978';
 const VECTOR_840000 = '05f8584cf4dbe34ef677f8f316fcac9e6e4ccb0e298d53fd21edaac7787660eei0';
 const VECTOR_HOLDER = 'bc1pacgy5x69zafs30l7c8ym3hfhgme003jwzjkkuwqyqsxrf7j6v2gsk3xknu';

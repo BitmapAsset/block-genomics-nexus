@@ -34,8 +34,12 @@ jest.mock('@/lib/prisma', () => {
 
 // The sat tracker still answers: the holder is known, the deed is not.
 jest.mock('@/lib/onchain/owner-freshness', () => ({
-  resolveInscriptionOwner: jest.fn(async () => ({ address: 'bc1qowner', satpoint: 'x:0:0', source: 'esplora:mempool.space' })),
-  resolveInscriptionOwnerAddress: jest.fn(async () => 'bc1qowner'),
+  resolveInscriptionOwner: jest.fn(async () => ({
+    address: 'bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978',
+    satpoint: 'x:0:0',
+    source: 'esplora:mempool.space',
+  })),
+  resolveInscriptionOwnerAddress: jest.fn(async () => 'bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978'),
   invalidateInscriptionOwner: jest.fn(),
 }));
 
@@ -74,7 +78,7 @@ import { __resetDeedCacheForTest, canonicalDeedFor } from '@/lib/onchain/deed';
 import { __resetDeedCrossCheckForTest } from '@/lib/onchain/deed-crosscheck';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const OWNER = 'bc1qowner';
+const OWNER = 'bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978';
 let ordMode: '403' | 'timeout' = '403';
 let calls: string[] = [];
 
