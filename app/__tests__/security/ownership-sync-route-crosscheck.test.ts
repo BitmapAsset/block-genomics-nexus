@@ -285,6 +285,7 @@ describe('cross-check set and it does not confirm the deed: the transfer waits',
     await expectNothingReleased();
     expect(alertLines()).toHaveLength(alerts);
     expect(telegramSends).toBe(alerts);
-    expect(calls.every((c) => c.startsWith('GET '))).toBe(true);
+    // The index is only ever read; the alert itself goes to Telegram as a POST.
+    expect(calls.filter((c) => c.includes('index.test')).every((c) => c.startsWith('GET '))).toBe(true);
   });
 });
