@@ -110,7 +110,7 @@ function schemaFields(): string[] {
 /** Visible to anyone. */
 const PUBLIC = [
   'id', 'blockHeight', 'name', 'personality', 'status', 'protocolVersion', 'selfHosted',
-  'endpointVerified', 'lastHeartbeat', 'totalVisitors', 'totalMessages', 'createdAt',
+  'endpointVerified', 'lastHeartbeat', 'totalMessages', 'createdAt',
   'llmProvider', // agent hub capability badge ("OpenAI LLM")
 ];
 /** Derived booleans the public answer carries instead of a private column. */
@@ -122,8 +122,8 @@ const OWNER_ONLY = [
   'monitorTokenCreatedAt', 'monitorPairedAt', 'monitorPairedWallet', 'monitorWebhookUrl', 'graceDeadline',
   'llmApiKey', // masked, never the stored value
 ];
-/** Never in any answer. */
-const NEVER = ['monitorTokenHash'];
+/** Never in any answer. `totalVisitors` is never incremented, so no route serves it. */
+const NEVER = ['monitorTokenHash', 'totalVisitors'];
 
 function fullRow(id: string, height: number, owner: string) {
   return {

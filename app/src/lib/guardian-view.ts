@@ -17,10 +17,14 @@ import { maskApiKey } from '@/lib/key-encryption';
 
 type GuardianRow = Record<string, unknown>;
 
-/** Columns anyone may read. `llmProvider` is the agent hub's capability badge. */
+/**
+ * Columns anyone may read. `llmProvider` is the agent hub's capability badge.
+ * `totalVisitors` is in no answer: nothing ever increments it, so no route
+ * serves it (see the api-invents-nothing contract).
+ */
 export const PUBLIC_GUARDIAN_FIELDS = [
   'id', 'blockHeight', 'name', 'personality', 'status', 'protocolVersion', 'selfHosted',
-  'endpointVerified', 'lastHeartbeat', 'totalVisitors', 'totalMessages', 'createdAt', 'llmProvider',
+  'endpointVerified', 'lastHeartbeat', 'totalMessages', 'createdAt', 'llmProvider',
 ] as const;
 
 /** Columns the owner view adds. `llmApiKey` goes out masked. */
