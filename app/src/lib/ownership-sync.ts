@@ -8,6 +8,7 @@
 import prisma from '@/lib/prisma';
 import { getStatus as ordGetStatus } from '@/lib/onchain/ord';
 import { canonicalDeedFor } from '@/lib/onchain/deed';
+import { crossCheckDeed, isDeedCrossCheckConfigured } from '@/lib/onchain/deed-crosscheck';
 import {
   resolveInscriptionOwner,
   resolveInscriptionOwnerAddress,
@@ -88,6 +89,12 @@ export interface OwnershipCheck {
    * `holderMayTriggerTransfer`.
    */
   holderSource?: string | null;
+  /**
+   * Why a live mismatch did not become `action: 'update'`: with the deed
+   * cross-check configured, a transfer needs the index to name the same deed
+   * and an ord host to name the holder.
+   */
+  transferDeferred?: string;
 }
 
 export interface TransferEvent {
@@ -213,6 +220,17 @@ export async function verifyBlockOwnership(
   }
 
   const match = onChainOwner === block.ownerAddress;
+  const holderSource = holder?.source ?? null;
+
+  // A mismatch is the one answer that can start a transfer. With the deed
+  // cross-check configured it must also name this deed, and the holder must be
+  // an ord host's answer; otherwise the transfer waits for a later run.
+  let transferDeferred: string | undefined;
+  if (!match && isDeedCrossCheckConfigured()) {
+    const cc = await crossCheckDeed(blockHeight, inscriptionId);
+    if (cc.state !== 'agree') transferDeferred = `deed cross-check ${cc.state}${cc.reason ? `: ${cc.reason}` : ''}`;
+    else if ((holderSource ?? '').startsWith('esplora:')) transferDeferred = `holder derived by ${holderSource}; waiting for an ord host`;
+  }
 
   return {
     blockHeight,
@@ -221,8 +239,9 @@ export async function verifyBlockOwnership(
     inscriptionId,
     match,
     indeterminate: false,
-    action: match ? 'none' : 'update',
-    holderSource: holder?.source ?? null,
+    action: match || transferDeferred ? 'none' : 'update',
+    holderSource,
+    ...(transferDeferred ? { transferDeferred } : {}),
   };
 }
 
@@ -477,7 +496,7 @@ export async function verifyAndSyncBlock(
   // If on-chain shows this wallet is owner but DB disagrees, sync.
   // Requires a live, positive on-chain owner equal to the wallet (null owner on
   // an outage can never equal the wallet), gated on a sane indexer tip.
-  if (check.onChainOwnerAddress === walletAddress && !check.match && check.inscriptionId) {
+  if (check.onChainOwnerAddress === walletAddress && !check.match && check.inscriptionId && check.action === 'update') {
     if (holderMayTriggerTransfer(check) && (await indexerTipIsSane())) {
       await processOwnershipTransfer(blockHeight, walletAddress, check.inscriptionId);
       return { isOwner: true, check };

@@ -16,12 +16,17 @@
  *
  * Results are memoised briefly so a burst of health checks is not a burst of
  * upstream requests. No host label carries credentials (see ord.ts).
+ *
+ * `deedCrossCheck` reports the independent deed index (deed-crosscheck.ts):
+ * whether one is configured, when it last answered, its indexed height, and
+ * agreement / disagreement counts for this process. Counts only, no ids.
  */
 
 import { getOrdHosts, getOrdHostHealth, probeOrdHost } from '@/lib/onchain/ord';
 import { ESPLORA_BASES } from '@/lib/onchain/esplora';
 import { isSatTrackerEnabled } from '@/lib/onchain/sat-tracker';
 import { CHAIN_USER_AGENT } from '@/lib/onchain/user-agent';
+import { getDeedCrossCheckHealth, type DeedCrossCheckHealth } from '@/lib/onchain/deed-crosscheck';
 
 const PROBE_TIMEOUT_MS = 5000;
 const MEMO_TTL_MS = 15_000;
@@ -52,6 +57,7 @@ export interface ChainHealth {
   ord: { ok: boolean; tip: number | null; version: string | null; hosts: OrdHostReport[] };
   esplora: { ok: boolean; providers: EsploraReport[] };
   satTracker: { enabled: boolean };
+  deedCrossCheck: DeedCrossCheckHealth;
 }
 
 function parseTip(text: string): number | null {
@@ -151,6 +157,7 @@ async function measure(): Promise<ChainHealth> {
     ord: { ok: ordOk, tip: firstOk?.tip ?? null, version: firstOk?.version ?? null, hosts },
     esplora: { ok: esploraOk, providers },
     satTracker: { enabled },
+    deedCrossCheck: getDeedCrossCheckHealth(),
   };
 }
 
