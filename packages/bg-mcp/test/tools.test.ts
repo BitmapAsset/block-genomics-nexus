@@ -93,14 +93,13 @@ describe("tool surface", () => {
     expect(searchLimit.safeParse(0).success).toBe(false);
     expect(searchLimit.safeParse(1.5).success).toBe(false);
 
-    // bg_challenge.purpose must cover every purpose the API actually accepts.
+    // bg_challenge.purpose covers the agent-facing purposes the API accepts;
+    // the agent-key purposes (agent-manage, agent-token) stay with the site and the CLI.
     const purpose = byName(tools, "bg_challenge").schema.purpose as z.ZodTypeAny;
     for (const p of [
       "auth",
       "world",
       "agent-register",
-      "agent-manage",
-      "agent-token",
       "parcel-customize",
       "experience-register",
       "experience-manage",
@@ -108,7 +107,7 @@ describe("tool surface", () => {
     ]) {
       expect(purpose.safeParse(p).success, `purpose:${p}`).toBe(true);
     }
-    for (const p of ["", "unknown", "AUTH", "world-build"]) {
+    for (const p of ["", "unknown", "AUTH", "world-build", "agent-manage", "agent-token"]) {
       expect(purpose.safeParse(p).success, `purpose:${p} rejected`).toBe(false);
     }
   });
@@ -267,6 +266,27 @@ const CASES: Case[] = [
   { tool: "bg_world_get", args: { height: 612888 }, path: "/api/v1/blocks/612888/world" },
 ];
 
+/** Public tools whose answer comes back inside the untrusted_content envelope (see untrusted.test.ts). */
+const THIRD_PARTY_TEXT = new Set([
+  "bg_search",
+  "bg_block",
+  "bg_block_market",
+  "bg_agents_by_block",
+  "bg_agent_briefs",
+  "bg_delegation_listings",
+  "bg_world_elements",
+  "bg_experiences",
+  "bg_experience",
+  "bg_experience_verify",
+  "bg_profiles_by_block",
+  "bg_profiles_by_wallet",
+  "bg_user_by_wallet",
+  "bg_world",
+  "bg_guardians",
+  "bg_guardian_chat",
+  "bg_world_get",
+]);
+
 describe("public tool requests", () => {
   it("covers every public tool", () => {
     expect(new Set(CASES.map((c) => c.tool))).toEqual(new Set(PUBLIC_TOOL_NAMES));
@@ -279,7 +299,11 @@ describe("public tool requests", () => {
       const { calls } = fetchMock(() => ({ body: env({ ok: true }) }));
 
       const out = await byName(activeTools(), c.tool).run(c.args);
-      expect(out).toBe(JSON.stringify(env({ ok: true })));
+      if (THIRD_PARTY_TEXT.has(c.tool)) {
+        expect(JSON.parse(out).untrusted_content).toEqual(env({ ok: true }));
+      } else {
+        expect(out).toBe(JSON.stringify(env({ ok: true })));
+      }
 
       expect(calls).toHaveLength(1);
       const call = calls[0];

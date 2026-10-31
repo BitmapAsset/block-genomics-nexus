@@ -63,6 +63,8 @@ jest.mock('@/lib/prisma', () => ({
       update: (...a: unknown[]) => mockObjectUpdate(...a),
       delete: (...a: unknown[]) => mockObjectDelete(...a),
       create: (...a: unknown[]) => mockObjectCreate(...a),
+      // The legacy world cap counts the block's visible objects before a create.
+      count: async () => 0,
     },
     block: { findUnique: (...a: unknown[]) => mockBlockFindUnique(...a) },
   },
