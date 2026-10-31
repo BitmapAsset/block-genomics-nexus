@@ -375,6 +375,15 @@ describe('resolver none / disputed / undetermined with the cross-check set', () 
     expect(alertLines()).toHaveLength(1);
   });
 
+  it('resolver none but the index cannot answer: 503, not 403', async () => {
+    world();
+    crossCheckOn();
+    setDeedVerdict(900000, 'none');
+    indexMode = 'unreachable';
+    expect(await requireLiveBlockOwner(OTHER, 900000)).toMatchObject({ status: 503, code: 'onchain_unavailable' });
+    expect(alertLines()).toHaveLength(0);
+  });
+
   it.each(['undetermined', 'disputed'] as const)('resolver %s: 503, the index is not needed to say so', async (verdict) => {
     world();
     crossCheckOn();
