@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
+import { signedActionFetch } from '@/lib/signed-fetch';
 
 // ─── Types ─────────────────────────────────────────────────────────
 export type ChatMode = 'block' | 'dm' | 'global';
@@ -151,17 +152,12 @@ export default function ChatWindow({
     if (!text.trim() || !walletAddress || !signMessage || sending) return;
     setSending(true);
     try {
-      const { signature, message } = await signMessage(`chat:${Date.now()}`);
-      const res = await fetch(`/api/v1/chat/${blockHeight}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          senderAddress: walletAddress,
-          text: text.trim(),
-          channel: mode,
-          signature,
-          message,
-        }),
+      // One bound signature per message (one-time 'chat' nonce).
+      const res = await signedActionFetch({
+        method: 'POST', path: `/api/v1/chat/${blockHeight}`, action: 'chat.send', blockHeight,
+        purpose: 'chat', address: walletAddress,
+        body: { senderAddress: walletAddress, text: text.trim(), channel: mode },
+        signMessage: async (m) => (await signMessage(m)).signature,
       });
       if (res.ok) {
         setText('');
@@ -195,11 +191,10 @@ export default function ChatWindow({
     if (!walletAddress || !signMessage) return;
     setPickerMsgId(null);
     try {
-      const { signature, message } = await signMessage(`react:${Date.now()}`);
-      const res = await fetch('/api/v1/chat/react', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId, emoji, walletAddress, signature, message }),
+      const res = await signedActionFetch({
+        method: 'POST', path: '/api/v1/chat/react', action: 'chat.react', blockHeight: 0,
+        purpose: 'chat', address: walletAddress, body: { messageId, emoji, walletAddress },
+        signMessage: async (m) => (await signMessage(m)).signature,
       });
       const json = await res.json();
       if (json.success) {

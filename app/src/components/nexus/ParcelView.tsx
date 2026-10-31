@@ -17,6 +17,7 @@ import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { getStoredAddress, getStoredType } from '@/lib/wallet-utils';
 import { parcelCustomizeBindingString, parcelCustomizeBindingLine } from '@/lib/parcel-customize';
 import { signedWorldFetch } from '@/lib/world-signing';
+import { signAction, signedActionFetch } from '@/lib/signed-fetch';
 import { streamPlatform } from '@/lib/stream-embed';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
@@ -3120,6 +3121,32 @@ function MediaPreviewLink({ text }: { text: string }) {
    Modals
    ═══════════════════════════════════════════ */
 
+/** Sign with whichever extension the user connected (UniSat when unknown). */
+async function signWithWallet(walletType: string | null | undefined, message: string): Promise<string> {
+  let signature = '';
+  if (walletType === 'unisat' && window.unisat) {
+    signature = await window.unisat.signMessage(message);
+  } else if (walletType === 'xverse' && window.BitcoinProvider) {
+    const resp = await window.BitcoinProvider.signMessage(message, { network: 'Mainnet' });
+    signature = typeof resp === 'string' ? resp : '';
+  } else if (walletType === 'leather' && window.LeatherProvider) {
+    const resp = await window.LeatherProvider.request('signMessage', { message, paymentType: 'p2tr' });
+    signature = resp?.result?.signature || '';
+  } else if (window.unisat) {
+    signature = await window.unisat.signMessage(message);
+  } else {
+    throw new Error('No wallet detected');
+  }
+  if (!signature) throw new Error('No signature received from wallet');
+  return signature;
+}
+
+/** Sign with the UniSat extension (the wallet these modals have always used). */
+async function unisatSign(message: string): Promise<string> {
+  if (typeof window === 'undefined' || !window.unisat) throw new Error('UniSat wallet not found');
+  return window.unisat.signMessage(message);
+}
+
 function VPSLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => void; blockHeight: number; parcelIndex: number }) {
   const [url, setUrl] = useState('');
   const [status, setStatus] = useState<'idle' | 'verifying' | 'linked'>('idle');
@@ -3134,21 +3161,19 @@ function VPSLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => vo
     setError('');
     try {
       const walletAddress = getStoredAddress();
-      const challenge = `vps-link:${blockHeight}:${parcelIndex}:${Date.now()}`;
-      const signature = typeof window !== 'undefined' && window.unisat
-        ? await window.unisat.signMessage(challenge) : '';
-      const res = await fetch('/api/v1/vps/link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      if (!walletAddress) throw new Error('Connect your wallet first');
+      // The wallet signs this exact request (one-time 'vps' nonce).
+      const res = await signedActionFetch({
+        method: 'POST', path: '/api/v1/vps/link', action: 'vps.link', blockHeight, purpose: 'vps',
+        address: walletAddress,
+        body: {
           walletAddress,
           blockHeight,
           parcelIndex: linkTarget === 'parcel' ? parcelIndex : null,
           serverUrl: url,
           connectionType: connType,
-          signature,
-          challenge,
-        }),
+        },
+        signMessage: unisatSign,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to link VPS');
@@ -3801,26 +3826,24 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
         return;
       }
 
-      // Request real wallet signature
-      const message = `List delegation for block ${blockHeight} on Block Genomics`;
-      let signature = '';
+      const listingBody = {
+        walletAddress,
+        blockHeight,
+        parcelTxIndex: isBlock ? null : parcelIndex,
+        tier: 3,
+        spotsTotal: unlimited ? -1 : parseInt(maxSpots || '10'),
+        price30d: parseInt(monthlyPrice || '0'),
+        price365d: parseInt(yearlyPrice || '0'),
+        welcomeMessage: welcome,
+      };
+      // The wallet signs this exact listing (one-time 'delegation' nonce).
+      let signed: { message: string; signature: string };
       try {
-        if (walletType === 'unisat' && window.unisat) {
-          signature = await window.unisat.signMessage(message);
-        } else if (walletType === 'xverse' && window.BitcoinProvider) {
-          const resp = await window.BitcoinProvider.signMessage(message, { network: 'Mainnet' });
-          signature = typeof resp === 'string' ? resp : '';
-        } else if (walletType === 'leather' && window.LeatherProvider) {
-          const resp = await window.LeatherProvider.request('signMessage', { message, paymentType: 'p2tr' });
-          signature = resp?.result?.signature || '';
-        } else {
-          // Fallback — try unisat
-          if (window.unisat) {
-            signature = await window.unisat.signMessage(message);
-          } else {
-            throw new Error('No wallet detected');
-          }
-        }
+        signed = await signAction({
+          method: 'POST', path: '/api/v1/delegations/listings', action: 'delegation.list', blockHeight,
+          purpose: 'delegation', address: walletAddress, body: listingBody,
+          signMessage: (m) => signWithWallet(walletType, m),
+        });
       } catch (signErr: unknown) {
         const signMsg = signErr instanceof Error ? signErr.message : '';
         if (signMsg.includes('User rejected') || signMsg.includes('cancel')) {
@@ -3832,27 +3855,10 @@ function DelegationListingModal({ onClose, blockHeight, parcelIndex, owner }: {
         return;
       }
 
-      if (!signature) {
-        setErrorMsg('No signature received from wallet');
-        setStatus('idle');
-        return;
-      }
-
       const res = await fetch('/api/v1/delegations/listings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress,
-          signature,
-          message,
-          blockHeight,
-          parcelTxIndex: isBlock ? null : parcelIndex,
-          tier: 3,
-          spotsTotal: unlimited ? -1 : parseInt(maxSpots || '10'),
-          price30d: parseInt(monthlyPrice || '0'),
-          price365d: parseInt(yearlyPrice || '0'),
-          welcomeMessage: welcome,
-        }),
+        body: JSON.stringify({ ...listingBody, ...signed }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to publish');
@@ -4091,17 +4097,18 @@ function GetAccessModal({ onClose, blockHeight, parcelIndex, owner }: {
     setStatus('signing');
     try {
       const buyerAddress = getStoredAddress();
-      const res = await fetch('/api/v1/delegations/purchase', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      if (!buyerAddress) throw new Error('Connect your wallet first');
+      // The wallet signs this exact purchase (one-time 'delegation' nonce).
+      const res = await signedActionFetch({
+        method: 'POST', path: '/api/v1/delegations/purchase', action: 'delegation.purchase', blockHeight: 0,
+        purpose: 'delegation', address: buyerAddress,
+        body: {
           walletAddress: buyerAddress,
-          signature: 'mock-sig',
-          message: 'Purchase delegation',
           listingId: listing?.id,
           durationDays: selectedDuration,
           txId: `mock-tx-${Date.now()}`,
-        }),
+        },
+        signMessage: (m) => signWithWallet(getStoredType(), m),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Purchase failed');
@@ -4791,10 +4798,9 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
   const handleGameClaim = useCallback(async (elementId: string) => {
     if (!walletAddress) return;
     try {
-      const res = await fetch('/api/v1/game/claim', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ elementId, walletAddress, blockHeight }),
+      const res = await signedActionFetch({
+        method: 'POST', path: '/api/v1/game/claim', action: 'game.claim', blockHeight, purpose: 'game',
+        address: walletAddress, body: { elementId, walletAddress, blockHeight }, signMessage: walletSignMessage,
       });
       const data = await res.json();
       if (data.success) {
@@ -4804,7 +4810,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     } catch (err) {
       console.error('[GameClaim]', err);
     }
-  }, [walletAddress, blockHeight]);
+  }, [walletAddress, blockHeight, walletSignMessage]);
   const [guardianName, setGuardianName] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -5115,20 +5121,12 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
   const handleStartStream = useCallback(async (type: StreamType, url: string) => {
     if (!walletAddress) return;
     try {
-      const message = `Go Live on block ${blockHeight} at ${Date.now()}`;
-      const walletType = getStoredType();
-      let signature = '';
-      if (walletType === 'unisat' && window.unisat) {
-        signature = await window.unisat.signMessage(message);
-      } else if (walletType === 'xverse' && window.BitcoinProvider) {
-        const res = await window.BitcoinProvider.signMessage(message, { network: "Mainnet" });
-        signature = typeof res === 'string' ? res : (res as { signature?: string })?.signature || '';
-      }
-      
-      const resp = await fetch('/api/v1/livestream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blockHeight, streamUrl: url, streamType: type, walletAddress, signature, message }),
+      // Owner-only on the server: an action-bound signature with a one-time
+      // 'world' nonce, the same as ending a stream.
+      const resp = await signedActionFetch({
+        method: 'POST', path: '/api/v1/livestream', action: 'livestream.start', blockHeight, purpose: 'world',
+        address: walletAddress, body: { blockHeight, streamUrl: url, streamType: type, walletAddress },
+        signMessage: walletSignMessage,
       });
       const data = await resp.json();
       if (data.ok) {
@@ -5140,7 +5138,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     } catch (e) {
       console.error('Failed to start stream:', e);
     }
-  }, [walletAddress, blockHeight]);
+  }, [walletAddress, blockHeight, walletSignMessage]);
 
   const handleEndStream = useCallback(async () => {
     if (!walletAddress) return;
@@ -5530,27 +5528,12 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         }
       }
 
-      // Sign message for authentication
-      const challengeMsg = `Block Genomics Chat: ${blockHeight}:${Date.now()}`;
-      let signature = '';
-      try {
-        signature = await walletSignMessage(challengeMsg);
-      } catch {
-        // If signing fails, still try to send (API will reject if auth required)
-      }
-
-      const res = await fetch(`/api/v1/chat/${blockHeight}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          senderAddress,
-          senderHandle,
-          text: msgText,
-          type: msgType,
-          channel: chatMode,
-          signature,
-          message: challengeMsg,
-        }),
+      // One bound signature per message (one-time 'chat' nonce).
+      const res = await signedActionFetch({
+        method: 'POST', path: `/api/v1/chat/${blockHeight}`, action: 'chat.send', blockHeight, purpose: 'chat',
+        address: senderAddress,
+        body: { senderAddress, senderHandle, text: msgText, type: msgType, channel: chatMode },
+        signMessage: walletSignMessage,
       });
       if (res.ok) {
         const json = await res.json();

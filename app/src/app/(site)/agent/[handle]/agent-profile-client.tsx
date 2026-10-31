@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
+import { signedActionFetch } from '@/lib/signed-fetch';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import { LIGHTNING_PAY_ENABLED } from '@/lib/lightning-pay-flag';
 
@@ -316,16 +317,18 @@ export default function AgentProfilePage() {
         const encrypted = await globalWallet.e2eEncrypt(text, agent.handle);
         if (encrypted) { msgText = JSON.stringify(encrypted); msgType = 'encrypted'; }
       }
-      const res = await fetch(`/api/v1/chat/${agent.blockHeight}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          senderAddress: globalWallet.walletAddress,
-          senderHandle: globalWallet.profile?.handle || globalWallet.walletAddress?.slice(0, 8),
+      // One bound signature per message (one-time 'chat' nonce).
+      const sender = globalWallet.walletAddress!;
+      const res = await signedActionFetch({
+        method: 'POST', path: `/api/v1/chat/${agent.blockHeight}`, action: 'chat.send',
+        blockHeight: agent.blockHeight, purpose: 'chat', address: sender, signMessage: globalWallet.signMessage,
+        body: {
+          senderAddress: sender,
+          senderHandle: globalWallet.profile?.handle || sender.slice(0, 8),
           text: msgText,
           type: msgType,
           channel: 'dm',
-        }),
+        },
       });
       if (res.ok) {
         const json = await res.json();
@@ -371,16 +374,17 @@ export default function AgentProfilePage() {
     const stored = localStorage.getItem('bg_wallet');
     if (!stored) return;
     const wallet = JSON.parse(stored);
-    const resp = await fetch(`/api/v1/users/by-handle/${encodeURIComponent(handle)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...fields, walletAddress: wallet.address }),
+    // The wallet signs this exact edit (one-time 'profile' nonce).
+    const resp = await signedActionFetch({
+      method: 'PATCH', path: `/api/v1/users/by-handle/${handle}`, action: 'user.update', blockHeight: 0,
+      purpose: 'profile', address: wallet.address, signMessage: globalWallet.signMessage,
+      body: { ...fields, walletAddress: wallet.address },
     });
     if (!resp.ok) throw new Error('Failed to save');
     const data = await resp.json();
     if (fields.displayName !== undefined) setDisplayName(data.data.displayName);
     if (fields.bio !== undefined) setBio(data.data.bio || '');
-  }, [handle]);
+  }, [handle, globalWallet.signMessage]);
 
   if (loading) {
     return (
