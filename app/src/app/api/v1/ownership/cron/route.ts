@@ -33,9 +33,10 @@ if (!process.env.CRON_SECRET && !process.env.OWNERSHIP_SYNC_SECRET) {
  * value counts as unset):
  *   - `Authorization: Bearer <CRON_SECRET>` — what Vercel cron sends. Header
  *     only; Vercel never puts it in the URL.
- *   - `Authorization: Bearer <OWNERSHIP_SYNC_SECRET>`, or the legacy
- *     `?secret=<OWNERSHIP_SYNC_SECRET>` — the original manual trigger, kept as
- *     an alias so existing callers keep working.
+ *   - `Authorization: Bearer <OWNERSHIP_SYNC_SECRET>` — the manual trigger.
+ *     Header only as well: a secret in the query string lands in request and
+ *     proxy logs, so a request carrying only `?secret=` answers like one with
+ *     no credential.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -50,11 +51,7 @@ export async function GET(req: NextRequest) {
     }
 
     const bearer = bearerFrom(req.headers.get('authorization'));
-    const querySecret = req.nextUrl.searchParams.get('secret');
-    const authorized =
-      secretMatches(bearer, cronSecret) ||
-      secretMatches(bearer, syncSecret) ||
-      secretMatches(querySecret, syncSecret);
+    const authorized = secretMatches(bearer, cronSecret) || secretMatches(bearer, syncSecret);
 
     if (!authorized) {
       return error('Unauthorized', 401);
