@@ -4823,7 +4823,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     if (chatMode === 'dm' && isConnected && !e2eReady && e2eStatus === 'idle') {
       setE2eStatus('setting-up');
       e2eSetup().then(ok => setE2eStatus(ok ? 'ready' : 'failed')).catch(() => setE2eStatus('failed'));
-    } else if (chatMode === 'dm' && e2eReady) {
+    } else if (chatMode === 'dm' && e2eReady && e2eStatus !== 'failed') {
       setE2eStatus('ready');
     }
   }, [chatMode, isConnected, e2eReady, e2eSetup, e2eStatus]);

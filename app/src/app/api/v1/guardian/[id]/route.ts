@@ -56,6 +56,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
  * signer must hold the block now (a seller does not keep reading).
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const rl = await enforceRateLimit(req, { bucket: 'v1-guardian-id' });
+  if (rl.response) return rl.response;
   try {
     const { id } = await params;
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
