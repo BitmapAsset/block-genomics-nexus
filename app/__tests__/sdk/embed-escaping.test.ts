@@ -42,7 +42,7 @@ const hostile = {
 
 const STYLES = ['icon-only', 'minimal', 'standard', 'detailed'];
 
-function injected(markup: string): Element[] {
+function activeElements(markup: string): Element[] {
   const host = document.createElement('div');
   host.innerHTML = markup;
   return Array.from(host.querySelectorAll('img, script, foreignObject, [onerror], [onload]'));
@@ -55,7 +55,7 @@ describe('sdk/embed.js escapes every API field', () => {
     const svg = bgb.svg(hostile, { style });
     expect(svg).not.toContain('<img');
     expect(svg).not.toContain('onerror="');
-    expect(injected(svg)).toHaveLength(0);
+    expect(activeElements(svg)).toHaveLength(0);
     // Only the one outer <svg> element survives.
     const host = document.createElement('div');
     host.innerHTML = svg;
@@ -64,7 +64,7 @@ describe('sdk/embed.js escapes every API field', () => {
 
   it.each(STYLES)('%s: markup in the name and in a tier label renders as text', (style) => {
     const svg = bgb.svg({ ...hostile, name: MARKUP, tier: 1, trustScore: 50, genome: 'ab'.repeat(32) }, { style });
-    expect(injected(svg)).toHaveLength(0);
+    expect(activeElements(svg)).toHaveLength(0);
   });
 
   it('a well-formed agent still renders its numbers and genome', () => {
