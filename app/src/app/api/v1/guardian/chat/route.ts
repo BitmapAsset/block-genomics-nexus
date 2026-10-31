@@ -9,6 +9,7 @@ import { emitAgentEvent } from '@/lib/agent-events';
 import { requireSignedBlockOwner } from '@/lib/block-write-auth';
 import type { GateResult } from '@/lib/ownership-gate';
 import { rateLimitDurable, clientIpFrom } from '@/lib/rate-limit-db';
+import { MAX_PLACEMENTS } from '@/lib/world/types';
 
 /** The hourly LLM budget of one guardian, in outbound calls. */
 const LLM_CALLS_PER_HOUR = 60;
@@ -461,12 +462,29 @@ interface WorldAction {
   id?: string;
 }
 
+/**
+ * Items one `place_group` may place. A group comes from LLM output, so its size
+ * is whatever the model wrote; 25 covers the prefab sets the build prompt asks
+ * for (a cluster of trees, a ring of lamps) while keeping one chat turn from
+ * spending more than an eighth of the block's MAX_PLACEMENTS.
+ */
+const PLACE_GROUP_ITEM_CAP = 25;
+
 async function executeWorldActions(actions: WorldAction[], blockHeight: number, ownerAddress: string) {
   const results: { action: string; success: boolean; error?: string }[] = [];
 
+  // The legacy world counts against the same per-block cap as bg-world/1:
+  // counted once, then decremented as this turn places objects.
+  let room = Math.max(0, MAX_PLACEMENTS - (await prisma.blockObject.count({ where: { blockHeight, visible: true } })));
+  const full = (n: number, m: number) =>
+    `placed ${n} of ${m}: this block holds at most ${MAX_PLACEMENTS} objects; remove some first`;
+
   for (const action of actions) {
     try {
-      if (action.tool === 'place_object' || action.tool === 'place_prefab') {
+      if ((action.tool === 'place_object' || action.tool === 'place_prefab') && room <= 0) {
+        results.push({ action: action.tool, success: false, error: full(0, 1) });
+
+      } else if (action.tool === 'place_object' || action.tool === 'place_prefab') {
         const isPrefab = action.tool === 'place_prefab';
         const obj = await prisma.blockObject.create({
           data: {
@@ -488,12 +506,15 @@ async function executeWorldActions(actions: WorldAction[], blockHeight: number, 
             visible: true,
           },
         });
+        room--;
         results.push({ action: `Placed ${action.name || action.prefabType || action.geometry} (${obj.id})`, success: true });
 
       } else if (action.tool === 'place_group') {
-        const items = action.items || [];
+        const items = Array.isArray(action.items) ? action.items : [];
+        const groupAllows = Math.min(items.length, PLACE_GROUP_ITEM_CAP);
+        const allowed = Math.min(groupAllows, room);
         let placed = 0;
-        for (const item of items) {
+        for (const item of items.slice(0, allowed)) {
           await prisma.blockObject.create({
             data: {
               blockHeight,
@@ -515,8 +536,17 @@ async function executeWorldActions(actions: WorldAction[], blockHeight: number, 
             },
           });
           placed++;
+          room--;
         }
-        results.push({ action: `Placed group of ${placed}/${items.length} objects`, success: placed > 0 });
+        if (placed < items.length) {
+          const why = allowed < groupAllows
+            ? `this block holds at most ${MAX_PLACEMENTS} objects`
+            : `one group places at most ${PLACE_GROUP_ITEM_CAP} items`;
+          const note = `placed ${placed} of ${items.length} (${why})`;
+          results.push({ action: note, success: placed > 0, error: note });
+        } else {
+          results.push({ action: `Placed group of ${placed}/${items.length} objects`, success: placed > 0 });
+        }
 
       } else if (action.tool === 'modify_terrain' || action.tool === 'terraform') {
         const surfaceColors: Record<string, string> = {
