@@ -60,6 +60,10 @@ jest.mock('@/lib/experience-judge', () => ({
   judgeExperienceManifest: jest.fn(async () => ({ violated: false, ruleIndex: null, reasoning: 'clean', brainStatus: 'online' })),
 }));
 
+// The deed seam: the fixture row's inscriptionId is the chain's deed unless a case says otherwise.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@/lib/onchain/deed', () => require('../helpers/chain-ownership-mock').canonicalDeedFromFixture());
+
 import prisma from '@/lib/prisma';
 import { verifyBlockOwnedBy } from '@/lib/onchain/bitmap-ownership';
 import { issueChallenge } from '@/lib/challenges';

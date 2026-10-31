@@ -232,6 +232,8 @@ export interface OrdReply {
   json?: unknown;
   /** Label of the host that answered. */
   host: string;
+  /** The `Content-Encoding` the host declared on a text reply, if any. */
+  contentEncoding?: string | null;
 }
 
 type Expect = 'json' | 'text';
@@ -287,7 +289,8 @@ async function attempt(host: OrdHost, path: string, expect: Expect, timeoutMs: n
     }
     const body = await res.text();
     noteAttempt(host, true, res.status, Date.now() - started, null);
-    return { reply: { status: res.status, ok: res.ok, body, host: host.label } };
+    const contentEncoding = res.headers?.get?.('content-encoding') ?? null;
+    return { reply: { status: res.status, ok: res.ok, body, host: host.label, contentEncoding } };
   } catch {
     const failure = controller.signal.aborted ? 'timeout' : 'network';
     noteAttempt(host, false, null, Date.now() - started, failure);
@@ -396,6 +399,8 @@ export interface InscriptionOwner {
   satpoint: string;
   /** Which source answered: an ord host label, or `esplora:<host>` for the sat tracker. */
   source?: string;
+  /** The inscription this one delegates its content to, when ord reports one. */
+  delegate?: string | null;
 }
 
 export interface OrdStatus {
@@ -424,14 +429,16 @@ export async function getInscriptionOwner(inscriptionId: string): Promise<Inscri
   try {
     const reply = await ordGet(`/r/inscription/${inscriptionId}`);
     if (!reply || !reply.ok) return null;
-    const data = reply.json as { address?: unknown; satpoint?: unknown } | null;
+    const data = reply.json as { address?: unknown; satpoint?: unknown; delegate?: unknown } | null;
     const address: unknown = data?.address;
     if (typeof address !== 'string' || address.length === 0) return null;
     const satpoint: unknown = data?.satpoint;
+    const delegate: unknown = data?.delegate;
     return {
       address,
       satpoint: typeof satpoint === 'string' ? satpoint : '',
       source: reply.host,
+      ...(typeof delegate === 'string' && delegate.length > 0 ? { delegate } : {}),
     };
   } catch (e) {
     console.warn('[ord] getInscriptionOwner failed:', e instanceof Error ? e.message : e);
@@ -452,6 +459,24 @@ export async function getInscriptionContent(inscriptionId: string): Promise<stri
     return reply.body;
   } catch (e) {
     console.warn('[ord] getInscriptionContent failed:', e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/**
+ * Like `getInscriptionContent`, plus the `Content-Encoding` the host declared.
+ * The ownership gate needs it: a deed is never content-encoded, and fetch would
+ * otherwise hand back decoded bytes that look exactly like a deed's.
+ */
+export async function getInscriptionBody(
+  inscriptionId: string,
+): Promise<{ text: string; contentEncoding: string | null } | null> {
+  try {
+    const reply = await ordGet(`/content/${encodeURIComponent(inscriptionId)}`, { throttle: false, expect: 'text' });
+    if (!reply || !reply.ok) return null;
+    return { text: reply.body, contentEncoding: reply.contentEncoding ?? null };
+  } catch (e) {
+    console.warn('[ord] getInscriptionBody failed:', e instanceof Error ? e.message : e);
     return null;
   }
 }

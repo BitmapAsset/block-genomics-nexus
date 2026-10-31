@@ -38,6 +38,10 @@ jest.mock('@/lib/api-rate-limit', () => ({
   PUBLIC_READ_LIMIT: 120,
 }));
 
+// The deed seam: the fixture row's inscriptionId is the chain's deed unless a case says otherwise.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@/lib/onchain/deed', () => require('../helpers/chain-ownership-mock').canonicalDeedFromFixture());
+
 import fixture from '../fixtures/esplora-deed-history.json';
 import prisma from '@/lib/prisma';
 import { __resetOrdClientForTest } from '@/lib/onchain/ord';
@@ -48,6 +52,7 @@ import { GET as verify } from '@/app/api/v1/ownership/verify/route';
 import { buildToolCatalog } from '@/lib/mcp/catalog';
 import { batchVerifyOwnership, verifyAndSyncBlock } from '@/lib/ownership-sync';
 import { verifyBlockOwnedBy } from '@/lib/onchain/bitmap-ownership';
+import { clearDeeds, setDeed } from '../helpers/chain-ownership-mock';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const db = prisma as any;
@@ -69,6 +74,7 @@ const recorded = (fixture as { responses: Record<string, { status: number; body:
 
 beforeEach(() => {
   db.__reset();
+  clearDeeds();
   __resetOwnerObservations();
   __resetSatTracker();
   __resetOrdClientForTest({ list: 'https://a.example,https://b.example', single: null, throttleMs: 0, backoffMs: 0 });
@@ -265,24 +271,26 @@ describe('owner sign-in while every ord host is blocked', () => {
 
   it('the holder verifies: holder from the sat tracker, content from the reveal tx', async () => {
     esplora = 'replay';
-    expect(await verifyBlockOwnedBy(HOLDER, BLOCK, DEED)).toEqual({ verified: true, inscriptionId: DEED });
+    setDeed(BLOCK, DEED);
+    expect(await verifyBlockOwnedBy(HOLDER, BLOCK)).toEqual({ verified: true, inscriptionId: DEED });
   });
 
   it('another wallet gets a real negative, not an outage', async () => {
     esplora = 'replay';
-    expect(await verifyBlockOwnedBy(OTHER, BLOCK, DEED)).toMatchObject({ verified: false, reason: 'Inscription is not held by this wallet' });
+    setDeed(BLOCK, DEED);
+    expect(await verifyBlockOwnedBy(OTHER, BLOCK)).toMatchObject({ verified: false, reason: 'Inscription is not held by this wallet' });
   });
 
-  it('a deed for another block is refused on content', async () => {
+  it('a deed whose content names another block is a source disagreement: retry, never a grant', async () => {
     esplora = 'replay';
-    const check = await verifyBlockOwnedBy(HOLDER, 718841, DEED);
-    expect(check.verified).toBe(false);
-    expect(check.unavailable).toBeUndefined();
-    expect(check.reason).toContain('does not match block 718841');
+    setDeed(718841, DEED); // the resolver and the reveal tx disagree
+    const check = await verifyBlockOwnedBy(HOLDER, 718841);
+    expect(check).toMatchObject({ verified: false, unavailable: true });
   });
 
   it('with Esplora down as well it fails closed as unavailable', async () => {
-    const check = await verifyBlockOwnedBy(HOLDER, BLOCK, DEED);
+    setDeed(BLOCK, DEED);
+    const check = await verifyBlockOwnedBy(HOLDER, BLOCK);
     expect(check).toMatchObject({ verified: false, unavailable: true });
   });
 });

@@ -35,6 +35,10 @@ jest.mock('@/lib/ownership-sync', () => ({
   batchVerifyOwnership: (...a: unknown[]) => mockBatchVerifyOwnership(...(a as [])),
 }));
 
+// The deed seam: the fixture row's inscriptionId is the chain's deed unless a case says otherwise.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@/lib/onchain/deed', () => require('../helpers/chain-ownership-mock').canonicalDeedFromFixture());
+
 import { GET } from '@/app/api/v1/ownership/cron/route';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -80,6 +84,8 @@ function expectRan(res: { status: number; body: any }) {
     data: {
       checked: 2,
       transfers: 1,
+      // Deed pre-resolution report; its content is covered by the deed suites.
+      deeds: expect.any(Array),
       results: [
         { blockHeight: 840000, match: true, action: 'none' },
         { blockHeight: 840001, match: false, action: 'update' },

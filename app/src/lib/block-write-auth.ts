@@ -14,22 +14,18 @@
  * of the action, with the same fail-closed semantics: an indexer outage is a
  * retryable 503, never a grant.
  *
- * The one thing still read from the database is `Block.inscriptionId` — an
- * identifier, not an ownership claim. It lets the check ask about one known
- * inscription instead of scanning up to 50 of the wallet's holdings. It cannot
- * grant anything on its own: the live check still requires that a live indexer
- * names this wallet as the current holder AND that the inscription's content
- * names this block, so a wrong, stale, or attacker-influenced hint can only make
- * the check slower, never more permissive.
+ * Which inscription is checked is the block's deed as the bitmap resolver
+ * decides it (lib/onchain/deed.ts). `Block.inscriptionId` is no longer read
+ * here: a stored id is a record of past answers, and the deed question is
+ * answered from the chain, cached by the resolver's own table.
  */
 
-import prisma from '@/lib/prisma';
 import { requireLiveBlockOwner, type GateResult } from '@/lib/ownership-gate';
 import type { OwnershipCheck } from '@/lib/onchain/bitmap-ownership';
 
 export interface SignedOwnerOptions {
   verifyOwnership?: (wallet: string, height: number, inscriptionId?: string | null) => Promise<OwnershipCheck>;
-  /** Skip the inscription-hint lookup (tests, or when the caller already has it). */
+  /** Ignored for authorization; kept so existing callers compile. */
   inscriptionId?: string | null;
 }
 
@@ -37,31 +33,14 @@ export interface SignedOwnerOptions {
  * Authorize a signature-proved wallet to write to `blockHeight`.
  *
  * @returns A `GateResult` — `ok` when the wallet currently holds the block's
- * `.bitmap` inscription on-chain. Render denials with `gateDenialResponse`.
+ * deed on-chain. Render denials with `gateDenialResponse`.
  */
 export async function requireSignedBlockOwner(
   walletAddress: string,
   blockHeight: number,
   opts: SignedOwnerOptions = {}
 ): Promise<GateResult> {
-  let inscriptionId = opts.inscriptionId ?? null;
-
-  if (inscriptionId === null && opts.inscriptionId === undefined) {
-    // A missing row or an unreachable database costs us the fast path, not the
-    // answer — the live check falls back to scanning the wallet's holdings.
-    try {
-      const block = await prisma.block.findUnique({
-        where: { height: blockHeight },
-        select: { inscriptionId: true },
-      });
-      inscriptionId = block?.inscriptionId ?? null;
-    } catch {
-      inscriptionId = null;
-    }
-  }
-
   return requireLiveBlockOwner(walletAddress, blockHeight, {
-    inscriptionId,
     ...(opts.verifyOwnership ? { verifyOwnership: opts.verifyOwnership } : {}),
   });
 }

@@ -12,6 +12,7 @@
     "test": "jest --forceExit",
     "test:coverage": "jest --coverage --forceExit",
     "test:watch": "jest --watch",
+    "test:live": "BG_LIVE_TESTS=1 jest __tests__/live --forceExit",
     "mcp:manifest": "tsx scripts/generate-mcp-manifest.ts",
     "db:generate": "prisma generate",
     "db:push": "node scripts/db-push-guard.mjs",

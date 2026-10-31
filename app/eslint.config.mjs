@@ -13,6 +13,9 @@ export default [
       'node_modules/**',
       'next-env.d.ts',
       'src/generated/**',
+      // Mirror of packages/bitmap-resolver/src (scripts/sync-bitmap-resolver.mjs);
+      // linted and tested in its own package.
+      'src/vendor/**',
       // Static assets, including the checked-in minified RuneBolt bundle.
       'public/**',
     ],

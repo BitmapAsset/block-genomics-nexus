@@ -12,8 +12,8 @@
 
 const mockFindUser = jest.fn();
 const mockUpsertUser = jest.fn();
+// The one gate: resolves the block's deed, then checks its live holder.
 const mockScan = jest.fn();
-const mockOwnerCheck = jest.fn();
 const mockFindBlock = jest.fn();
 const mockUpsertBlock = jest.fn();
 
@@ -36,8 +36,7 @@ jest.mock('@/lib/bip322', () => ({ verifyBip322: () => true }));
 jest.mock('@/lib/challenges', () => ({ consumeChallengeFromMessage: async () => true }));
 jest.mock('@/lib/activity', () => ({ logActivity: () => {} }));
 jest.mock('@/lib/onchain/bitmap-ownership', () => ({
-  scanWalletForBitmap: (...a: unknown[]) => mockScan(...(a as [])),
-  verifyInscriptionOwnership: (...a: unknown[]) => mockOwnerCheck(...(a as [])),
+  verifyBlockOwnedBy: (...a: unknown[]) => mockScan(...(a as [])),
 }));
 jest.mock('@/lib/api-rate-limit', () => ({
   enforceRateLimit: async () => ({ response: null, headers: {} }),
@@ -68,12 +67,11 @@ beforeEach(() => {
   mockFindUser.mockReset().mockResolvedValue(null);
   mockUpsertUser.mockReset().mockImplementation(async ({ create }: any) => ({ ...create }));
   mockScan.mockReset();
-  mockOwnerCheck.mockReset();
   mockFindBlock.mockReset().mockResolvedValue({ height: 745506, ownerAddress: ADDR });
   mockUpsertBlock.mockReset().mockResolvedValue({});
 });
 
-it("reports 'live' when the wallet scan confirms the holder on this request", async () => {
+it("reports 'live' when the deed's live holder is this wallet on this request", async () => {
   mockScan.mockResolvedValue({ verified: true });
   const res = await call({ blockHeight: 745506 });
   expect(res.status).toBe(200);
@@ -81,10 +79,16 @@ it("reports 'live' when the wallet scan confirms the holder on this request", as
   expect(mockScan).toHaveBeenCalledWith(ADDR, 745506);
 });
 
-it("reports 'live' when a supplied inscription id is confirmed", async () => {
-  mockOwnerCheck.mockResolvedValue({ verified: true });
-  const res = await call({ blockHeight: 745506, inscriptionId: 'abci0' });
+it('ignores a caller-supplied inscription id: the gate is asked about the block, not the id', async () => {
+  mockScan.mockResolvedValue({ verified: true, inscriptionId: 'deedi0' });
+  const res = await call({ blockHeight: 745506, inscriptionId: 'copyi0' });
   expect(res.body.data.holderCheck).toBe('live');
+  expect(mockScan).toHaveBeenCalledWith(ADDR, 745506);
+  // The record names the deed the gate checked, never the id the caller sent.
+  expect(mockUpsertBlock).toHaveBeenCalledWith(
+    expect.objectContaining({ update: expect.objectContaining({ inscriptionId: 'deedi0' }) }),
+  );
+  expect(JSON.stringify(mockUpsertBlock.mock.calls)).not.toContain('copyi0');
 });
 
 it("reports 'previous' and skips the indexer when already verified for this block", async () => {
@@ -93,7 +97,6 @@ it("reports 'previous' and skips the indexer when already verified for this bloc
   const res = await call({ blockHeight: 745506 });
   expect(res.body.data.holderCheck).toBe('previous');
   expect(mockScan).not.toHaveBeenCalled();
-  expect(mockOwnerCheck).not.toHaveBeenCalled();
 });
 
 it("reports 'none' when no block is claimed", async () => {

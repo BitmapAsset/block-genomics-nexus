@@ -139,12 +139,13 @@ describe('SIM: requireSignedBlockOwner — the chain decides, not the cache', ()
     expect(res.ok).toBe(true);
   });
 
-  it('passes the stored inscription id as a hint so the check skips the wallet scan', async () => {
+  it('never hands the stored inscription id to the check: the deed is the resolver\'s answer', async () => {
     await requireSignedBlockOwner(OWNER, BLOCK);
-    expect(seenInscriptionId).toBe('insc_i0');
+    expect(seenInscriptionId).toBeNull();
+    expect(mockBlockFindUnique).not.toHaveBeenCalled();
   });
 
-  it('still answers when the hint lookup fails — a DB outage costs speed, not the answer', async () => {
+  it('answers without reading the block record at all — a DB outage costs nothing', async () => {
     mockBlockFindUnique.mockRejectedValue(new Error('db down'));
 
     const res = await requireSignedBlockOwner(OWNER, BLOCK);

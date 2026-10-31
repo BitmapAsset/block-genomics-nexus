@@ -2,10 +2,17 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { batchVerifyOwnership } from '@/lib/ownership-sync';
+import { prewarmDeeds } from '@/lib/onchain/deed';
 import { bearerFrom } from '@/lib/sandbox-tier';
 import { secretMatches } from '@/lib/secret-match';
 import { emitDeedMoved } from '@/lib/block-event-emitters';
 import { eventsEnabled } from '@/lib/block-events';
+
+export const maxDuration = 60;
+
+/** Per-block and total wait for deed pre-resolution, inside maxDuration. */
+const PREWARM_PER_BLOCK_MS = 20_000;
+const PREWARM_TOTAL_MS = 35_000;
 
 if (!process.env.CRON_SECRET && !process.env.OWNERSHIP_SYNC_SECRET) {
   console.warn('[ownership/cron] neither CRON_SECRET nor OWNERSHIP_SYNC_SECRET set — cron endpoint disabled');
@@ -15,6 +22,12 @@ if (!process.env.CRON_SECRET && !process.env.OWNERSHIP_SYNC_SECRET) {
  * GET /api/v1/ownership/cron
  * Called by Vercel cron every 15 minutes
  * Checks up to 10 blocks per run
+ *
+ * Each run first resolves the deed of the blocks it is about to check
+ * (lib/onchain/deed.ts, cached in the DeedVerdict table), with a longer wait
+ * than a request gets. Blocks from 942,000 are resolved by walking raw blocks,
+ * which can outlast a request's budget; pre-resolving them here is what keeps
+ * their owners' first write from answering 503.
  *
  * Accepted credentials, read from the environment on every request (an empty
  * value counts as unset):
@@ -47,14 +60,12 @@ export async function GET(req: NextRequest) {
       return error('Unauthorized', 401);
     }
 
-    // Find blocks to check — prioritize:
-    // 1. Blocks with inscriptionId (can actually verify)
-    // 2. Recently active / have guardians
-    // 3. Least recently checked
+    // Find blocks to check: every block with a recorded owner, least recently
+    // checked first. The deed comes from the resolver, so a block with no
+    // stored inscriptionId is checkable too.
     const blocks = await prisma.block.findMany({
       where: {
         ownerAddress: { not: null },
-        inscriptionId: { not: null },
       },
       orderBy: { lastOwnerCheck: { sort: 'asc', nulls: 'first' } },
       take: 10,
@@ -62,10 +73,11 @@ export async function GET(req: NextRequest) {
     });
 
     if (blocks.length === 0) {
-      return success({ message: 'No blocks with inscriptionId to verify', checked: 0, transfers: 0 });
+      return success({ message: 'No owned blocks to verify', checked: 0, transfers: 0 });
     }
 
     const heights = blocks.map(b => b.height);
+    const deeds = await prewarmDeeds(heights, { budgetMs: PREWARM_PER_BLOCK_MS, deadline: Date.now() + PREWARM_TOTAL_MS });
     const results = await batchVerifyOwnership(heights);
 
     const transfers = results.filter(r => r.action === 'update');
@@ -94,6 +106,7 @@ export async function GET(req: NextRequest) {
     return success({
       checked: results.length,
       transfers: transfers.length,
+      deeds: deeds.map(d => ({ blockHeight: d.height, verdict: d.verdict })),
       results: results.map(r => ({
         blockHeight: r.blockHeight,
         match: r.match,

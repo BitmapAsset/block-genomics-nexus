@@ -94,3 +94,67 @@ export function verifyBlockOwnedByFromOrdMock() {
     },
   };
 }
+
+// ── The deed seam (`@/lib/onchain/deed`) ─────────────────────────────────────
+
+type DeedVerdictLike = 'canonical' | 'none' | 'disputed' | 'undetermined';
+const deeds = new Map<number, { verdict: DeedVerdictLike; inscriptionId: string | null }>();
+
+/** Make `inscriptionId` the deed for `height` (overrides the DB fixture). */
+export function setDeed(height: number, inscriptionId: string): void {
+  deeds.set(height, { verdict: 'canonical', inscriptionId });
+}
+
+/** Make the resolver answer `verdict` (no deed id) for `height`. */
+export function setDeedVerdict(height: number, verdict: Exclude<DeedVerdictLike, 'canonical'>): void {
+  deeds.set(height, { verdict, inscriptionId: null });
+}
+
+export function clearDeeds(): void {
+  deeds.clear();
+}
+
+/**
+ * Build a `@/lib/onchain/deed` mock. The deed for a height is, in order: what
+ * the suite registered with `setDeed` / `setDeedVerdict`, else the seeded
+ * `block.inscriptionId` fixture (for suites whose fixture row IS the chain
+ * truth), else `undetermined` — the fail-closed answer the gate turns into 503.
+ */
+export function canonicalDeedFromFixture() {
+  const deedFor = async (height: number) => {
+    let entry = deeds.get(height);
+    if (!entry) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const prisma: any = require('@/lib/prisma').default;
+      let block: any = null;
+      try {
+        block = await prisma.block?.findUnique?.({ where: { height } });
+      } catch {
+        block = null;
+      }
+      entry = block?.inscriptionId
+        ? { verdict: 'canonical', inscriptionId: block.inscriptionId }
+        : { verdict: 'undetermined', inscriptionId: null };
+    }
+    return {
+      height,
+      inscriptionId: entry.inscriptionId,
+      ruleId: 'test-rule',
+      verdict: entry.verdict,
+      resolvedAt: new Date(0).toISOString(),
+      source: 'memory' as const,
+    };
+  };
+  return {
+    DEED_RULE_ID: 'test-rule',
+    REQUEST_BUDGET_MS: 8000,
+    canonicalDeedFor: jest.fn(deedFor),
+    prewarmDeeds: jest.fn(async (heights: number[]) =>
+      Promise.all(heights.map(async (h) => {
+        const d = await deedFor(h);
+        return { height: h, verdict: d.verdict, source: d.source };
+      })),
+    ),
+    __resetDeedCacheForTest: () => undefined,
+  };
+}
