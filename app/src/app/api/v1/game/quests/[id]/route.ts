@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -19,9 +19,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!ownerAddress || !signature || !message) {
       return NextResponse.json({ error: 'ownerAddress, signature, and message required' }, { status: 401 });
     }
-    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
+    // Signed action message bound to this request (Block 0), one-time 'world' nonce.
+    const auth = await verifySignedAction(ownerAddress, message, signature, body, {
+      action: 'game.quest.update', method: 'PATCH', path: `/api/v1/game/quests/${id}`, blockHeight: 0, purpose: 'world',
+    });
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const quest = await prisma.gameQuest.findUnique({ where: { id } });
     if (!quest) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -54,9 +56,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (!ownerAddress || !signature || !message) {
       return NextResponse.json({ error: 'ownerAddress, signature, and message required' }, { status: 401 });
     }
-    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
+    // Signed action message bound to this request (Block 0), one-time 'world' nonce.
+    const auth = await verifySignedAction(ownerAddress, message, signature, body, {
+      action: 'game.quest.delete', method: 'DELETE', path: `/api/v1/game/quests/${id}`, blockHeight: 0, purpose: 'world',
+    });
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const quest = await prisma.gameQuest.findUnique({ where: { id } });
     if (!quest) return NextResponse.json({ error: 'Not found' }, { status: 404 });

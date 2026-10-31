@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, sanitizeString, verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { success, error, sanitizeString } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { emitAgentEvent } from '@/lib/agent-events';
 import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
@@ -54,8 +55,13 @@ export async function POST(req: NextRequest) {
     if (![2, 3].includes(tier)) return error('tier must be 2 or 3', 400);
     if (price30d < 0 || price365d < 0) return error('Prices must be non-negative', 400);
 
-    /* BIP-322 wallet signature verification */
-    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) return error('Invalid signature', 401);
+    // The canonical 'delegation.list' message for this block and body, with a
+    // one-time 'delegation' nonce.
+    const auth = await verifySignedAction(walletAddress, message, signature, body, {
+      action: 'delegation.list', method: 'POST', path: '/api/v1/delegations/listings',
+      blockHeight: Number(blockHeight), purpose: 'delegation',
+    });
+    if (!auth.ok) return error(auth.error, auth.status);
 
     // An update is authorized against the listing's OWN block. The ownership
     // check below used to run on body.blockHeight while the upsert edited

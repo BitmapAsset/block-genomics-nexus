@@ -72,6 +72,15 @@ jest.mock('@/lib/agent-events', () => ({
   }),
 }));
 jest.mock('@/lib/escalation-notify', () => ({ notifyEscalation: jest.fn(async () => undefined) }));
+jest.mock('@/lib/api-rate-limit', () => ({ enforceRateLimit: async () => ({ response: null, headers: {} }) }));
+jest.mock('@/lib/activity', () => ({ logActivity: () => undefined, logProfileView: () => undefined }));
+const mockWipe = jest.fn(async () => ({ wiped: 0 }));
+jest.mock('@/lib/ownership-sync', () => ({
+  wipeGuardianMemories: (...a: unknown[]) => mockWipe(...(a as [])),
+  verifyBlockOwnership: async (height: number) => ({ match: true, onChainOwnerAddress: chainOwner[height] ?? null, inscriptionId: 'i' }),
+  processOwnershipTransfer: async () => ({}),
+  holderMayTriggerTransfer: () => true,
+}));
 
 import prisma from '@/lib/prisma';
 import { buildActionMessage, hashBody } from '@/lib/action-message';
@@ -84,6 +93,21 @@ import { POST as GUARDIAN_CHAT } from '@/app/api/v1/guardian/chat/route';
 import { POST as VPS_LINK } from '@/app/api/v1/vps/link/route';
 import { DELETE as VPS_UNLINK } from '@/app/api/v1/vps/[linkId]/route';
 import { POST as VPS_HEALTH } from '@/app/api/v1/vps/[linkId]/health/route';
+import { PATCH as PROFILE_UPDATE } from '@/app/api/v1/profiles/update/route';
+import { PATCH as PROFILE_PRIMARY } from '@/app/api/v1/profiles/set-primary/route';
+import { PATCH as USER_UPDATE } from '@/app/api/v1/users/by-handle/[handle]/route';
+import { POST as LISTING } from '@/app/api/v1/delegations/listings/route';
+import { POST as PURCHASE } from '@/app/api/v1/delegations/purchase/route';
+import { POST as PREP_TRANSFER } from '@/app/api/v1/ownership/prep-transfer/route';
+import { POST as OWNERSHIP_SYNC } from '@/app/api/v1/ownership/sync/route';
+import { POST as BRAIN_FLAG } from '@/app/api/v1/brain/flag/route';
+import { POST as LIVESTREAM_START } from '@/app/api/v1/livestream/route';
+import { POST as CHAT_SEND } from '@/app/api/v1/chat/[blockHeight]/route';
+import { POST as CHAT_REACT } from '@/app/api/v1/chat/react/route';
+import { POST as GAME_CLAIM } from '@/app/api/v1/game/claim/route';
+import { POST as GAME_STATE } from '@/app/api/v1/game/state/route';
+import { POST as QUEST_CREATE } from '@/app/api/v1/game/quests/route';
+import { PATCH as QUEST_PATCH, DELETE as QUEST_DELETE } from '@/app/api/v1/game/quests/[id]/route';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const db = prisma as any;
@@ -109,9 +133,14 @@ interface RouteCase {
   body: (wallet: SimWallet) => Record<string, unknown>;
   /** A body edit the signature must not cover. */
   tamper: (body: Record<string, unknown>) => Record<string, unknown>;
-  okStatus: number;
-  /** The write landed. */
-  landed: () => boolean;
+  /** Status once authorized; undefined = anything but 401 (the route's own logic decides). */
+  okStatus?: number;
+  /** The write landed (undefined: the status alone is checked). */
+  landed?: () => boolean;
+  /** A stranger's own bound request is refused by an ownership check (403). Default true. */
+  gated?: boolean;
+  /** The ownership check is `requireLiveBlockOwner`. Default true. */
+  gateCall?: boolean;
 }
 
 const params = (p: Record<string, string>) => ({ params: Promise.resolve(p) });
@@ -127,6 +156,15 @@ function seed() {
     id: 'l1', blockHeight: BLOCK, walletAddress: OWNER.address, serverUrl: 'https://old.example',
     connectionType: 'https', status: 'linked', lastHealthCheck: null, createdAt: new Date(),
   });
+  db.__rows('block').push({ height: BLOCK, ownerAddress: OWNER.address, inscriptionId: 'i', streamUrl: null });
+  db.__rows('blockProfile').push({
+    id: 'bp1', walletAddress: OWNER.address, blockHeight: BLOCK, handle: 'owner1', displayName: 'Owner', bio: null, isPrimary: false,
+  });
+  db.__rows('delegationListing').push({ id: 'dl1', blockHeight: BLOCK, ownerAddress: OWNER.address, active: true, spotsTotal: -1, spotsUsed: 0, price30d: 1, price365d: 2 });
+  db.__rows('chatMessage').push({ id: 'm1', blockHeight: BLOCK, senderAddress: OWNER.address, text: 'hi' });
+  db.__rows('gameQuest').push({ id: 'q1', blockHeight: BLOCK, ownerAddress: OWNER.address, name: 'Quest', enabled: true });
+  db.__rows('user').push({ walletAddress: OWNER.address, tier: 1 }, { walletAddress: STRANGER.address, tier: 1 });
+  mockWipe.mockClear();
 }
 
 const guardian = () => db.__rows('guardianAgent').find((g: any) => g.id === 'g1');
@@ -163,7 +201,7 @@ const CASES: RouteCase[] = [
     name: 'POST /api/v1/guardian/monitor', handler: MONITOR_POST, method: 'POST', path: '/api/v1/guardian/monitor',
     action: 'guardian.monitor.mint', purpose: 'guardian', blockHeight: BLOCK, addressField: 'ownerAddress',
     body: (w) => ({ guardianId: 'g1', ownerAddress: w.address }),
-    tamper: (b) => ({ ...b, guardianId: 'g2' }),
+    tamper: (b) => ({ ...b, note: 'changed' }),
     okStatus: 200,
     landed: () => !!guardian().monitorTokenHash && guardian().monitorTokenHash !== 'seeded',
   },
@@ -171,7 +209,7 @@ const CASES: RouteCase[] = [
     name: 'DELETE /api/v1/guardian/monitor', handler: MONITOR_DELETE, method: 'DELETE', path: '/api/v1/guardian/monitor',
     action: 'guardian.monitor.revoke', purpose: 'guardian', blockHeight: BLOCK, addressField: 'ownerAddress',
     body: (w) => ({ guardianId: 'g1', ownerAddress: w.address }),
-    tamper: (b) => ({ ...b, guardianId: 'g2' }),
+    tamper: (b) => ({ ...b, note: 'changed' }),
     okStatus: 200,
     landed: () => guardian().monitorTokenHash === null,
   },
@@ -198,6 +236,130 @@ const CASES: RouteCase[] = [
     tamper: (b) => ({ ...b, note: 'changed' }),
     okStatus: 200,
     landed: () => link().lastHealthCheck !== null,
+  },
+  // ── Item 4: the remaining signed writes ──
+  {
+    name: 'PATCH /api/v1/profiles/update', handler: PROFILE_UPDATE, method: 'PATCH', path: '/api/v1/profiles/update',
+    action: 'profile.update', purpose: 'profile', blockHeight: BLOCK, addressField: 'walletAddress', gated: false,
+    body: (w) => ({ walletAddress: w.address, blockHeight: BLOCK, displayName: 'New name' }),
+    tamper: (b) => ({ ...b, displayName: 'Other name' }),
+    okStatus: 200,
+    landed: () => db.__rows('blockProfile')[0].displayName === 'New name',
+  },
+  {
+    name: 'PATCH /api/v1/profiles/set-primary', handler: PROFILE_PRIMARY, method: 'PATCH', path: '/api/v1/profiles/set-primary',
+    action: 'profile.primary', purpose: 'profile', blockHeight: BLOCK, addressField: 'walletAddress', gated: false,
+    body: (w) => ({ walletAddress: w.address, blockHeight: BLOCK }),
+    tamper: (b) => ({ ...b, note: 'changed' }),
+    okStatus: 200,
+    landed: () => db.__rows('blockProfile')[0].isPrimary === true,
+  },
+  {
+    name: 'PATCH /api/v1/users/by-handle/[handle]', handler: USER_UPDATE, ctx: () => params({ handle: 'owner1' }), method: 'PATCH',
+    path: '/api/v1/users/by-handle/owner1', action: 'user.update', purpose: 'profile', blockHeight: 0,
+    addressField: 'walletAddress', gateCall: false,
+    body: (w) => ({ walletAddress: w.address, bio: 'hello' }),
+    tamper: (b) => ({ ...b, bio: 'changed' }),
+    okStatus: 200,
+    landed: () => db.__rows('blockProfile')[0].bio === 'hello',
+  },
+  {
+    name: 'POST /api/v1/delegations/listings', handler: LISTING, method: 'POST', path: '/api/v1/delegations/listings',
+    action: 'delegation.list', purpose: 'delegation', blockHeight: BLOCK, addressField: 'walletAddress',
+    body: (w) => ({ walletAddress: w.address, blockHeight: BLOCK, tier: 2, price30d: 1000, price365d: 10000 }),
+    tamper: (b) => ({ ...b, price30d: 1 }),
+    landed: () => db.__rows('delegationListing').length === 2,
+  },
+  {
+    name: 'POST /api/v1/delegations/purchase', handler: PURCHASE, method: 'POST', path: '/api/v1/delegations/purchase',
+    action: 'delegation.purchase', purpose: 'delegation', blockHeight: 0, addressField: 'walletAddress', gated: false,
+    body: (w) => ({ walletAddress: w.address, listingId: 'dl1', durationDays: 30, txId: 'tx1' }),
+    tamper: (b) => ({ ...b, txId: 'tx2' }),
+    okStatus: 503, // purchases stay disabled; reaching that answer means the signature was accepted
+  },
+  {
+    name: 'POST /api/v1/ownership/prep-transfer', handler: PREP_TRANSFER, method: 'POST', path: '/api/v1/ownership/prep-transfer',
+    action: 'ownership.prep-transfer', purpose: 'ownership', blockHeight: BLOCK, addressField: 'walletAddress',
+    body: (w) => ({ walletAddress: w.address, blockHeight: BLOCK, wipeOption: 'none' }),
+    tamper: (b) => ({ ...b, wipeOption: 'full' }),
+    okStatus: 200,
+    landed: () => mockWipe.mock.calls.length > 0,
+  },
+  {
+    name: 'POST /api/v1/ownership/sync', handler: OWNERSHIP_SYNC, method: 'POST', path: '/api/v1/ownership/sync',
+    action: 'ownership.sync', purpose: 'ownership', blockHeight: BLOCK, addressField: 'walletAddress', gateCall: false,
+    body: (w) => ({ walletAddress: w.address, blockHeight: BLOCK }),
+    tamper: (b) => ({ ...b, note: 'changed' }),
+    okStatus: 200,
+  },
+  {
+    name: 'POST /api/v1/brain/flag', handler: BRAIN_FLAG, method: 'POST', path: '/api/v1/brain/flag',
+    action: 'brain.flag', purpose: 'brain', blockHeight: 0, addressField: 'walletAddress', gated: false,
+    body: (w) => ({ walletAddress: w.address, contentType: 'chat', contentId: 'm1', reason: 'spam' }),
+    tamper: (b) => ({ ...b, contentId: 'm2' }),
+    okStatus: 200,
+    landed: () => db.__rows('contentFlag').length > 0,
+  },
+  {
+    name: 'POST /api/v1/livestream', handler: LIVESTREAM_START, method: 'POST', path: '/api/v1/livestream',
+    action: 'livestream.start', purpose: 'world', blockHeight: BLOCK, addressField: 'walletAddress',
+    body: (w) => ({ walletAddress: w.address, blockHeight: BLOCK, streamUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }),
+    tamper: (b) => ({ ...b, streamUrl: 'https://www.twitch.tv/someone' }),
+    okStatus: 200,
+    landed: () => !!db.__rows('block')[0].streamUrl,
+  },
+  {
+    name: 'POST /api/v1/chat/[blockHeight]', handler: CHAT_SEND, ctx: () => params({ blockHeight: String(BLOCK) }), method: 'POST',
+    path: `/api/v1/chat/${BLOCK}`, action: 'chat.send', purpose: 'chat', blockHeight: BLOCK, addressField: 'senderAddress',
+    gated: false,
+    body: (w) => ({ senderAddress: w.address, text: 'hello block' }),
+    tamper: (b) => ({ ...b, text: 'something else' }),
+    // The route's own 2-second per-wallet limit may answer 429 after a success.
+    landed: () => db.__rows('chatMessage').some((m: any) => m.text === 'hello block'),
+  },
+  {
+    name: 'POST /api/v1/chat/react', handler: CHAT_REACT, method: 'POST', path: '/api/v1/chat/react',
+    action: 'chat.react', purpose: 'chat', blockHeight: 0, addressField: 'walletAddress', gated: false,
+    body: (w) => ({ walletAddress: w.address, messageId: 'm1', emoji: '🔥' }),
+    tamper: (b) => ({ ...b, emoji: '👎' }),
+    okStatus: 201,
+    landed: () => db.__rows('chatReaction').length > 0,
+  },
+  {
+    name: 'POST /api/v1/game/claim', handler: GAME_CLAIM, method: 'POST', path: '/api/v1/game/claim',
+    action: 'game.claim', purpose: 'game', blockHeight: BLOCK, addressField: 'walletAddress', gated: false,
+    body: (w) => ({ walletAddress: w.address, blockHeight: BLOCK, elementId: 'e1' }),
+    tamper: (b) => ({ ...b, elementId: 'e2' }),
+  },
+  {
+    name: 'POST /api/v1/game/state', handler: GAME_STATE, method: 'POST', path: '/api/v1/game/state',
+    action: 'game.state', purpose: 'game', blockHeight: BLOCK, addressField: 'walletAddress', gated: false,
+    body: (w) => ({ walletAddress: w.address, blockHeight: BLOCK, score: 5 }),
+    tamper: (b) => ({ ...b, score: 500 }),
+  },
+  {
+    name: 'POST /api/v1/game/quests', handler: QUEST_CREATE, method: 'POST', path: '/api/v1/game/quests',
+    action: 'game.quest.create', purpose: 'world', blockHeight: BLOCK, addressField: 'ownerAddress',
+    body: (w) => ({ ownerAddress: w.address, blockHeight: BLOCK, name: 'New quest', steps: [{ id: 's1' }] }),
+    tamper: (b) => ({ ...b, name: 'Other quest' }),
+    okStatus: 201,
+    landed: () => db.__rows('gameQuest').some((q: any) => q.name === 'New quest'),
+  },
+  {
+    name: 'PATCH /api/v1/game/quests/[id]', handler: QUEST_PATCH, ctx: () => params({ id: 'q1' }), method: 'PATCH',
+    path: '/api/v1/game/quests/q1', action: 'game.quest.update', purpose: 'world', blockHeight: 0, addressField: 'ownerAddress',
+    body: (w) => ({ ownerAddress: w.address, name: 'Renamed quest' }),
+    tamper: (b) => ({ ...b, name: 'Other' }),
+    okStatus: 200,
+    landed: () => db.__rows('gameQuest')[0]?.name === 'Renamed quest',
+  },
+  {
+    name: 'DELETE /api/v1/game/quests/[id]', handler: QUEST_DELETE, ctx: () => params({ id: 'q1' }), method: 'DELETE',
+    path: '/api/v1/game/quests/q1', action: 'game.quest.delete', purpose: 'world', blockHeight: 0, addressField: 'ownerAddress',
+    body: (w) => ({ ownerAddress: w.address }),
+    tamper: (b) => ({ ...b, note: 'changed' }),
+    okStatus: 200,
+    landed: () => db.__rows('gameQuest').length === 0,
   },
 ];
 
@@ -253,6 +415,15 @@ async function publishedAttestation(wallet: SimWallet) {
   return { message, signature: sign(wallet.privKey, wallet.address, message) };
 }
 
+function expectAuthorized(c: RouteCase, res: { status: number }) {
+  if (c.okStatus !== undefined) expect(res.status).toBe(c.okStatus);
+  else expect(res.status).not.toBe(401);
+}
+
+function notLanded(c: RouteCase) {
+  if (c.landed) expect(c.landed()).toBe(false);
+}
+
 beforeEach(() => {
   seed();
   chainOwner = { [BLOCK]: OWNER.address };
@@ -265,73 +436,81 @@ describe.each(CASES)('$name', (c) => {
     const message = `chat:${Date.now()}`;
     const res = await call(c, { ...c.body(OWNER), message, signature: sign(OWNER.privKey, OWNER.address, message) });
     expect(res.status).toBe(401);
-    expect(c.landed()).toBe(false);
+    notLanded(c);
   });
 
   it('(b) refuses a published experience attestation', async () => {
     const res = await call(c, { ...c.body(OWNER), ...(await publishedAttestation(OWNER)) });
     expect(res.status).toBe(401);
-    expect(c.landed()).toBe(false);
+    notLanded(c);
   });
 
   it('(c) accepts a bound signature with a fresh nonce and gates the signer', async () => {
     const res = await call(c, await signedBody(c, c.body(OWNER)));
-    expect(res.status).toBe(c.okStatus);
-    expect(c.landed()).toBe(true);
+    expectAuthorized(c, res);
+    if (c.landed) expect(c.landed()).toBe(true);
     // vps/[linkId] routes authorize the wallet that made the link (unchanged).
-    if (!c.path.startsWith('/api/v1/vps/l1')) {
+    if ((c.gated ?? true) && (c.gateCall ?? true) && !c.path.startsWith('/api/v1/vps/l1')) {
       expect(gateCalls.some((g) => g.wallet === OWNER.address && g.height === BLOCK)).toBe(true);
     }
   });
 
-  it('(c) a bound signature from a wallet that does not hold the block is refused by the gate', async () => {
-    const res = await call(c, await signedBody(c, c.body(STRANGER), { wallet: STRANGER }));
-    expect(res.status).toBe(403);
-    expect(c.landed()).toBe(false);
-  });
+  // Wallet-scoped routes (a profile, a chat line, game progress) have no block
+  // holder to refuse; their signer acts only for itself (next test).
+  if (c.gated ?? true) {
+    it('(c) a bound signature from a wallet that does not hold the block is refused by the gate', async () => {
+      const res = await call(c, await signedBody(c, c.body(STRANGER), { wallet: STRANGER }));
+      expect(res.status).toBe(403);
+      notLanded(c);
+    });
+  }
 
   it("(c) a signature by one wallet does not act for another wallet's address", async () => {
     const body = c.body(OWNER);
     const signed = await signedBody(c, body, { wallet: STRANGER });
     const res = await call(c, signed);
     expect(res.status).toBe(401);
-    expect(c.landed()).toBe(false);
+    notLanded(c);
   });
 
   it('(d) refuses the same request a second time', async () => {
     const body = await signedBody(c, c.body(OWNER));
     const first = await call(c, body);
-    expect(first.status).toBe(c.okStatus);
+    expectAuthorized(c, first);
+    // Restore the fixtures, keeping the challenge table (the consumed nonce).
+    const challenges = [...db.__rows('challenge')];
     seed();
+    db.__rows('challenge').push(...challenges);
+    expect(challenges.some((r: any) => r.consumedAt)).toBe(true);
     const again = await call(c, body);
     expect(again.status).toBe(401);
-    expect(c.landed()).toBe(false);
+    notLanded(c);
   });
 
   it('(e) refuses a binding made for another route', async () => {
     const other = CASES[(CASES.indexOf(c) + 1) % CASES.length];
     const res = await call(c, await signedBody(c, c.body(OWNER), { action: other.action, path: other.path, method: other.method }));
     expect(res.status).toBe(401);
-    expect(c.landed()).toBe(false);
+    notLanded(c);
   });
 
   it('(e) refuses a binding made for another block', async () => {
     const res = await call(c, await signedBody(c, c.body(OWNER), { blockHeight: c.blockHeight + 1 }));
     expect(res.status).toBe(401);
-    expect(c.landed()).toBe(false);
+    notLanded(c);
   });
 
   it('(f) refuses a body changed after signing', async () => {
     const body = c.body(OWNER);
     const res = await call(c, await signedBody(c, c.tamper(body), { signedBody: body }));
     expect(res.status).toBe(401);
-    expect(c.landed()).toBe(false);
+    notLanded(c);
   });
 
   it('(g) refuses a nonce issued for another purpose', async () => {
     const res = await call(c, await signedBody(c, c.body(OWNER), { purpose: 'auth' }));
     expect(res.status).toBe(401);
-    expect(c.landed()).toBe(false);
+    notLanded(c);
   });
 
   it('points an unbound request at POST /api/v1/challenge with its purpose', async () => {

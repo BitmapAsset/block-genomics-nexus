@@ -1,24 +1,24 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { FLAG_THRESHOLD_SOFT, FLAG_THRESHOLD_HARD } from '@/lib/protocol';
-import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 
 export async function POST(req: Request) {
   try {
-    const { contentType, contentId, walletAddress, reason, ruleIndex, signature, message } = await req.json();
+    const body = await req.json();
+    const { contentType, contentId, walletAddress, reason, ruleIndex, signature, message } = body;
     
     if (!contentType || !contentId || !walletAddress) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Verify wallet signature
-    if (!signature || !message) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
-    if (!verifyUnboundWalletSignature(walletAddress, message, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
+    // The canonical 'brain.flag' message for this body (Block 0), with a
+    // one-time 'brain' nonce.
+    const auth = await verifySignedAction(walletAddress, message, signature, body, {
+      action: 'brain.flag', method: 'POST', path: '/api/v1/brain/flag', blockHeight: 0, purpose: 'brain',
+    });
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     // Check if user is suspended from flagging
     const strike = await prisma.flagStrike.findUnique({ where: { walletAddress } });

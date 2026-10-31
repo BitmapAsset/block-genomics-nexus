@@ -51,12 +51,16 @@ jest.mock('@/lib/api-rate-limit', () => ({
 
 jest.mock('@/lib/api-helpers', () => ({
   verifyWalletSignature: () => true,
-  verifyUnboundWalletSignature: () => true,
 }));
 
 jest.mock('@/lib/ownership-gate', () => ({
   requireLiveBlockOwner: async () => ({ ok: true }),
 }));
+
+// The bound signature (action, path, block, body, one-time nonce) has its own
+// suite, signed-action-routes. Here every signed request is authorized, so a
+// decision can only come from what this suite is about.
+jest.mock('@/lib/signed-action', () => ({ verifySignedAction: async () => ({ ok: true }) }));
 
 import { POST } from '@/app/api/v1/livestream/route';
 import { GET as ACTIVE } from '@/app/api/v1/livestream/active/route';
