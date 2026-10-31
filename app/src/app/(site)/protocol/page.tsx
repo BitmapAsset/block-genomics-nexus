@@ -8,8 +8,6 @@ import rehypeSlug from 'rehype-slug';
 import GithubSlugger from 'github-slugger';
 import { shareMetadata } from '@/lib/site-card';
 
-export const dynamic = 'force-static';
-
 export const metadata: Metadata = {
   title: 'Nexus Protocol v1.0 — Block Genomics',
   description:

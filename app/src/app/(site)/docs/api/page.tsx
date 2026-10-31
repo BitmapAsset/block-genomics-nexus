@@ -4,8 +4,6 @@ import { Badge, DocPage, P, Section, Td, Th, linkStyle, methodColor } from '../D
 import { docMetadata } from '../doc-pages';
 import { CURL_CHALLENGE, CURL_RUNTIME, CURL_SANDBOX, CURL_STATS, ENDPOINTS, openApiVersion } from '../docs-content';
 
-export const dynamic = 'force-static';
-
 export const metadata = docMetadata('api');
 
 export default function ApiReferencePage() {
