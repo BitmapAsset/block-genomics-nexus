@@ -97,6 +97,15 @@ it('holder only from Unisat is reported, and is not a cron source', async () => 
   expect(row.decisionNow).toBe('none');
 });
 
+it('a block without a stored owner is never a transfer', async () => {
+  (resolve as jest.Mock).mockResolvedValue({ verdict: 'canonical', canonicalId: VECTOR_840000 });
+  (resolveInscriptionOwner as jest.Mock).mockResolvedValue({ address: VECTOR_HOLDER, satpoint: 'x:0:0', source: 'ordinals.com' });
+  global.fetch = jest.fn(async () => new Response(JSON.stringify({ success: true, data: { dbOwner: null, inscriptionId: null } }), { status: 200 })) as unknown as typeof fetch;
+  const row = await dryRunHeight(973000, 'https://example.test');
+  expect(row.decisionNow).toBe('none');
+  expect(row.wouldRelease).toEqual([]);
+});
+
 it('a request with a method other than GET is refused', async () => {
   await dryRunHeight(612888, 'https://example.test');
   await expect(fetch('https://example.test/x', { method: 'POST' })).rejects.toThrow(/refusing POST/);

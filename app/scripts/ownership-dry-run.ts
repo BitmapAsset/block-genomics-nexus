@@ -16,7 +16,8 @@
  *     on the first pass where an ord host names that same holder:
  *     none / update-deferred / transfer;
  *   - what processOwnershipTransfer would release, by kind (from its code).
- * `--trace` adds every outbound request: host, route, status, milliseconds.
+ * `--trace` adds every outbound request: host, route, status, milliseconds, and waits for each resolution to
+ * finish so the requests listed under a height are that height's own.
  *
  * Only GET requests leave the process; a request with any other method throws.
  * The run never calls canonicalDeedFor (it would persist a verdict), never
@@ -129,14 +130,18 @@ async function unisatHolder(id: string): Promise<string | null> {
   }
 }
 
-export async function dryRunHeight(height: number, base: string): Promise<DryRunRow> {
+/**
+ * @param opts.awaitDeed Wait for the resolver to finish instead of stopping at 30 s, so every request in the
+ *   trace belongs to this height (a resolution past its deadline keeps running in the background).
+ */
+export async function dryRunHeight(height: number, base: string, opts: { awaitDeed?: boolean } = {}): Promise<DryRunRow> {
   installGetOnlyFetch();
   trace = [];
   const stored = await storedRecord(base, height).catch((e) => ({ owner: null, inscriptionId: null, source: `public GET failed: ${(e as Error).message}` }));
 
   let deed: DryRunRow['deed'];
   try {
-    const r = await resolveDeed(height, { ...deedResolverOptions(), deadlineMs: 30_000 });
+    const r = await resolveDeed(height, { ...deedResolverOptions(), ...(opts.awaitDeed ? {} : { deadlineMs: 30_000 }) });
     deed = { verdict: r.verdict, id: r.verdict === 'canonical' ? r.canonicalId : null, ...(r.reason ? { reason: r.reason } : {}), source: 'resolver (live)' };
   } catch (e) {
     deed = { verdict: 'undetermined', id: null, reason: (e as Error).message, source: 'resolver (live)' };
@@ -208,7 +213,7 @@ async function main(argv: string[]) {
   const heights = argv.filter((a, i) => /^\d+$/.test(a) && argv[i - 1] !== '--base').map(Number);
   if (heights.length === 0) throw new Error('usage: ownership-dry-run.ts [--base URL] [--trace] <height>…');
   for (const h of heights) {
-    const row = await dryRunHeight(h, base);
+    const row = await dryRunHeight(h, base, { awaitDeed: showTrace });
     console.log(JSON.stringify({ ...row, trace: showTrace ? row.trace : undefined }, null, 2));
   }
 }
