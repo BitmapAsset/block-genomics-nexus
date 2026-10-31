@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
-import { verifySignedAction } from '@/lib/signed-action';
+import { verifySignedAction, signedActionHelp } from '@/lib/signed-action';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 
 export async function DELETE(
@@ -13,6 +13,9 @@ export async function DELETE(
     const body = await req.json();
     const { walletAddress, signature, message } = body;
 
+    if (!signature || !message) {
+      return error(`Missing signature or message. ${signedActionHelp({ action: 'vps.unlink', purpose: 'vps' })}`, 401);
+    }
     if (!walletAddress || !signature || !message) {
       return error('Missing walletAddress, signature, or message', 400);
     }

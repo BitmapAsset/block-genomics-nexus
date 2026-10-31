@@ -17,7 +17,7 @@ import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 import { emitGuardianTransition } from '@/lib/block-event-emitters';
 import { guardianLiveState } from '@/lib/block-events';
-import { verifySignedAction } from '@/lib/signed-action';
+import { verifySignedAction, signedActionHelp } from '@/lib/signed-action';
 
 function sanitizeGuardian(g: Record<string, unknown>) {
   return { ...g, llmApiKey: maskApiKey(g.llmApiKey as string) };
@@ -119,7 +119,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
     const { ownerAddress, signature, message } = body ?? {};
     if (!body || !ownerAddress || !signature || !message) {
-      return NextResponse.json({ error: 'Authentication required (ownerAddress, signature, message)' }, { status: 401 });
+      return NextResponse.json({ error: `Authentication required (ownerAddress, signature, message in a JSON body). ${signedActionHelp({ action: 'guardian.delete', purpose: 'guardian' })}` }, { status: 401 });
     }
     const target = await prisma.guardianAgent.findUnique({ where: { id } });
     if (!target) return NextResponse.json({ error: 'Guardian not found' }, { status: 404 });

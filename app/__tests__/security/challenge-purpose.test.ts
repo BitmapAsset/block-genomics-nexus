@@ -61,7 +61,7 @@ describe('POST /api/v1/challenge', () => {
     for (const p of [
       'auth', 'session', 'world', 'profile', 'activity', 'encryption', 'brain', 'parcel-customize',
       'agent-register', 'agent-manage', 'agent-token', 'experience-register', 'experience-manage',
-      'guardian-heartbeat', 'guardian', 'vps',
+      'guardian-heartbeat', 'guardian', 'vps', 'delegation', 'ownership', 'chat', 'game',
     ]) {
       expect(Object.keys(CHALLENGE_PURPOSES)).toContain(p);
     }

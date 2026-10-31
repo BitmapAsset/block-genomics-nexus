@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, isValidBitcoinAddress } from '@/lib/api-helpers';
 import { assertSafePublicUrl } from '@/lib/experience-protocol';
-import { verifySignedAction } from '@/lib/signed-action';
+import { verifySignedAction, signedActionHelp } from '@/lib/signed-action';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 
@@ -19,6 +19,9 @@ export async function POST(req: NextRequest) {
       message,
     } = body;
 
+    if (!signature || !message) {
+      return error(`Missing signature or message. ${signedActionHelp({ action: 'vps.link', purpose: 'vps' })}`, 401);
+    }
     if (!walletAddress || blockHeight == null || !serverUrl || !signature || !message) {
       return error('Missing required fields: walletAddress, blockHeight, serverUrl, signature, message', 400);
     }
