@@ -7,11 +7,15 @@
  *    place that sets it; next.config.ts and vercel.json no longer do.
  * 3. Case-insensitive URL routing for pages: redirects any uppercase path to its
  *    lowercase equivalent (/NEXUS → /nexus, /Verify → /verify).
+ * 4. Pages: a report-only content security policy with a fresh nonce per
+ *    request (lib/csp.ts). The enforced Content-Security-Policy is not set
+ *    here; next.config.ts and vercel.json stay its only source.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { isReadMethod, sandboxKeyFromHeaders, sandboxWriteBlockedBody } from '@/lib/sandbox-tier';
 import { corsHeadersFor } from '@/lib/cors';
+import { buildReportOnlyPolicy, createNonce } from '@/lib/csp';
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -53,7 +57,21 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url, 308); // 308 = permanent redirect, preserves method
   }
 
-  return NextResponse.next();
+  // ── Pages: report-only policy with a per-request nonce ──
+  // Next puts the nonce it finds in the request's CSP header on its own
+  // <script> tags while it renders (app-render reads `content-security-policy`,
+  // then `content-security-policy-report-only`); `x-nonce` is for app code.
+  // Request headers never reach the browser. A `content-security-policy`
+  // request header from the client is dropped so it cannot win that lookup.
+  const nonce = createNonce();
+  const policy = buildReportOnlyPolicy(nonce);
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.delete('content-security-policy');
+  requestHeaders.set('content-security-policy-report-only', policy);
+  requestHeaders.set('x-nonce', nonce);
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+  res.headers.set('Content-Security-Policy-Report-Only', policy);
+  return res;
 }
 
 export const config = {
