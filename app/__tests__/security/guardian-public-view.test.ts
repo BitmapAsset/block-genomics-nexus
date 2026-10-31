@@ -89,7 +89,7 @@ const BLOCK = 840000;
 const OTHER_BLOCK = 840001;
 const OWNER = makeWallet('p2tr');
 const STRANGER = makeWallet('p2tr');
-const CLEAR_KEY = 'sk-owner-clear-key-0001';
+const CLEAR_KEY = 'sk-' + 'x'.repeat(20);
 const TOKEN_HASH = 'f'.repeat(64);
 
 /** Every GuardianAgent column, read from the schema. */

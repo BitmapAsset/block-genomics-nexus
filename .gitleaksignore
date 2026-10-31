@@ -17,3 +17,9 @@ f6aa1cfa8a537317a912faf1f4d351bf73e2b2de:app/__tests__/security/cron-secret-comp
 f6aa1cfa8a537317a912faf1f4d351bf73e2b2de:app/__tests__/security/cron-secret-compare.test.ts:generic-api-key:95
 f6aa1cfa8a537317a912faf1f4d351bf73e2b2de:app/__tests__/security/cron-secret-compare.test.ts:generic-api-key:103
 f6aa1cfa8a537317a912faf1f4d351bf73e2b2de:app/__tests__/security/cron-secret-compare.test.ts:generic-api-key:104
+
+# app/__tests__/security/guardian-public-view.test.ts used a made-up model key shaped
+# like a real one as a test fixture; generic-api-key flagged the assignment by its name
+# and length. The fixture is a non-literal value on the current tree; this entry covers
+# the superseded blob in the wave/bgsec3 history.
+47262e2ba744a201af9192965df54a4bd9c0b37a:app/__tests__/security/guardian-public-view.test.ts:generic-api-key:92
