@@ -8,7 +8,7 @@ import { notifyEscalation } from '@/lib/escalation-notify';
 import { emitAgentEvent } from '@/lib/agent-events';
 import { requireSignedBlockOwner } from '@/lib/block-write-auth';
 import type { GateResult } from '@/lib/ownership-gate';
-import { rateLimitDurable } from '@/lib/rate-limit-db';
+import { rateLimitDurable, clientIpFrom } from '@/lib/rate-limit-db';
 
 /** The hourly LLM budget of one guardian, in outbound calls. */
 const LLM_CALLS_PER_HOUR = 60;
@@ -223,7 +223,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ response: finalResponse, source: 'llm', conversationId: convId });
     }
 
-    // No LLM — escalate
+    // No LLM — escalate. At most 20 forwards an hour from one IP: beyond that
+    // nothing is stored and nobody is notified.
+    const ipLimit = await rateLimitDurable(`guardian-escalation-ip:${clientIpFrom(req)}`, 20, HOUR_MS);
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many messages forwarded from this address. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(ipLimit.retryAfterSec) } }
+      );
+    }
+
     await prisma.guardianEvent.create({
       data: {
         guardianId: guardian.id,
@@ -232,9 +241,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Deliver to the owner's configured Telegram/email (best-effort, no-ops if
-    // env keys or escalation channels aren't configured)
-    await notifyEscalation(guardian.id, guardian.blockHeight, message, visitorHandle || visitorAddress);
+    // Tell the owner's configured Telegram/email that a message waits in the
+    // monitor: a fixed notice, at most 5 an hour per guardian (the event row
+    // above is kept either way). Best-effort; no-ops without env keys.
+    const noticeLimit = await rateLimitDurable(`guardian-escalation-notice:${guardian.id}`, 5, HOUR_MS);
+    if (noticeLimit.allowed) await notifyEscalation(guardian.id, guardian.blockHeight);
 
     // Also broadcast to registered BitmapAgents on this block so autonomous
     // agents can pick up the escalation from their event stream.

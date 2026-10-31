@@ -68,30 +68,41 @@ export async function sendEmailEscalation(to: string, subject: string, text: str
 }
 
 /**
- * Deliver an escalation to whichever channels the guardian owner configured.
- * Call this wherever an escalation GuardianEvent is recorded.
+ * The notice is fixed text: the block number and where to read the message.
+ * Nothing a visitor wrote (message, handle, address) and nothing the owner
+ * typed (the guardian name) goes into it, so the alerts address only ever
+ * sends these words. The message itself is read in the guardian monitor.
  */
-export async function notifyEscalation(
-  guardianId: string,
-  blockHeight: number,
-  message: string,
-  visitor?: string
-): Promise<void> {
+export function escalationNotice(blockHeight: number): { subject: string; text: string } {
+  const block = Number.isSafeInteger(blockHeight) ? blockHeight : 0;
+  return {
+    subject: `Guardian message waiting — block #${block}`,
+    text:
+      `A visitor left a message for the guardian of block #${block}.\n` +
+      'Read it in your guardian monitor (the guardian events of your Block Genomics agent).',
+  };
+}
+
+/**
+ * Tell the guardian owner's configured channels that a message waits.
+ * Call this wherever an escalation GuardianEvent is recorded (callers cap it).
+ */
+export async function notifyEscalation(guardianId: string, blockHeight: number): Promise<void> {
   try {
     const guardian = await prisma.guardianAgent.findUnique({
       where: { id: guardianId },
-      select: { escalateTelegram: true, escalateEmail: true, name: true },
+      select: { escalateTelegram: true, escalateEmail: true },
     });
     if (!guardian || (!guardian.escalateTelegram && !guardian.escalateEmail)) return;
 
-    const text = `🛡️ Guardian escalation — ${guardian.name} (block #${blockHeight})\nFrom: ${visitor || 'anonymous visitor'}\n\n${message}`;
+    const { subject, text } = escalationNotice(blockHeight);
 
     await Promise.all([
       guardian.escalateTelegram
         ? sendTelegramEscalation(guardian.escalateTelegram, text)
         : Promise.resolve(false),
       guardian.escalateEmail
-        ? sendEmailEscalation(guardian.escalateEmail, `Guardian escalation — block #${blockHeight}`, text)
+        ? sendEmailEscalation(guardian.escalateEmail, subject, text)
         : Promise.resolve(false),
     ]);
   } catch (err) {
