@@ -37,6 +37,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(__dirname),
 
+  // No `x-powered-by: Next.js` on responses.
+  poweredByHeader: false,
+
   // ── Performance optimizations ──
   compress: true,
   
