@@ -8,6 +8,7 @@ import CrownShield, { ShieldTier } from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { signedActionFetch } from '@/lib/signed-fetch';
+import { prepareDmPayload, UNENCRYPTED_DM_CONFIRM } from '@/lib/dm-payload';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import { LIGHTNING_PAY_ENABLED } from '@/lib/lightning-pay-flag';
 
@@ -298,6 +299,18 @@ export default function AgentProfilePage() {
   const sendDM = useCallback(async () => {
     if (!dmDraft.trim() || !globalWallet.isConnected || !agent) return;
     const text = dmDraft.trim();
+
+    // Encrypted, or plain text only after the sender says so (no key on file
+    // for the recipient, or this wallet's key is not set up).
+    const encryptFor = (t: string, r: string) => globalWallet.e2eEncrypt(t, r);
+    let payload = await prepareDmPayload({ text, ready: globalWallet.e2eReady, recipient: agent.handle, encrypt: encryptFor });
+    if (!payload.ok) {
+      if (!window.confirm(UNENCRYPTED_DM_CONFIRM)) return; // kept unsent, still in the composer
+      payload = await prepareDmPayload({ text, ready: globalWallet.e2eReady, recipient: agent.handle, encrypt: encryptFor, allowPlaintext: true });
+    }
+    if (!payload.ok) return;
+    const { text: msgText, encrypted } = payload;
+    const msgType = encrypted ? 'encrypted' : 'text';
     setDmDraft('');
     
     const optimisticMsg = {
@@ -305,18 +318,12 @@ export default function AgentProfilePage() {
       text,
       sender: 'me' as const,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      encrypted: true,
+      encrypted,
     };
     setDmMessages(prev => [...prev, optimisticMsg]);
     setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
 
     try {
-      let msgText = text;
-      let msgType = 'text';
-      if (globalWallet.e2eReady && agent.handle) {
-        const encrypted = await globalWallet.e2eEncrypt(text, agent.handle);
-        if (encrypted) { msgText = JSON.stringify(encrypted); msgType = 'encrypted'; }
-      }
       // One bound signature per message (one-time 'chat' nonce).
       const sender = globalWallet.walletAddress!;
       const res = await signedActionFetch({

@@ -41,6 +41,12 @@ export default function GuardianChatWidget({ blockHeight, guardianName, visitorA
         body: JSON.stringify({ blockHeight, message: msg, visitorAddress, visitorHandle, conversationId }),
       });
       const data = await res.json();
+      if (res.status === 404 && data.error === 'conversation_not_found') {
+        // The conversation is gone (e.g. the block changed hands): start a new one.
+        setConversationId(undefined);
+        setMessages(prev => [...prev, { role: 'assistant', content: 'This conversation has ended. Please send your message again to start a new one.', ts: Date.now() }]);
+        return;
+      }
       if (data.conversationId) setConversationId(data.conversationId);
       setMessages(prev => [...prev, { role: 'assistant', content: data.response || data.error || 'No response', ts: Date.now() }]);
     } catch {

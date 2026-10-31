@@ -14,6 +14,7 @@ import {
   type DecryptedMessage,
 } from '@/lib/e2e-crypto';
 import { signWithWallet } from '@/lib/wallet-utils';
+import { registerEncryptionKey } from '@/lib/e2e-register';
 
 /**
  * React hook for Bitcoin-native E2E encryption.
@@ -33,6 +34,8 @@ import { signWithWallet } from '@/lib/wallet-utils';
 export function useE2ECrypto() {
   const [isReady, setIsReady] = useState(false);
   const [myPubKeyHex, setMyPubKeyHex] = useState<string | null>(null);
+  /** Why the last key registration failed, for the UI to show; null when it succeeded. */
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
   const keypairRef = useRef<EncryptionKeypair | null>(null);
   
   // Cache of recipient public keys: handle → pubKeyHex
@@ -60,23 +63,20 @@ export function useE2ECrypto() {
       const pubHex = exportPublicKey(keypair);
       setMyPubKeyHex(pubHex);
 
-      // 4. Register public key on server
-      const res = await fetch('/api/v1/encryption', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress,
-          encryptionPubKey: pubHex,
-        }),
+      // 4. Register the public key on the server (bound, one-time signature).
+      //    The keypair still decrypts locally if this fails, but nobody can
+      //    encrypt to this wallet until it succeeds, so the failure is returned.
+      const reg = await registerEncryptionKey({
+        walletAddress,
+        encryptionPubKey: pubHex,
+        signMessage: (m: string) => signWithWallet(walletType, m, walletAddress),
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.error('Failed to register encryption key:', err);
-        // Still usable locally even if server registration fails
-      }
-
       setIsReady(true);
+      if (!reg.ok) {
+        setRegistrationError(reg.error);
+        return false;
+      }
+      setRegistrationError(null);
       return true;
     } catch (err) {
       console.error('E2E setup failed:', err);
@@ -183,6 +183,7 @@ export function useE2ECrypto() {
   return {
     isReady,
     myPubKeyHex,
+    registrationError,
     setupEncryption,
     encrypt,
     decrypt,
