@@ -99,6 +99,26 @@ it('nothing reachable: unavailable, still a 200', async () => {
   expect((await res.json()).data.chain).toBe('unavailable');
 });
 
+it('reports the deed cross-check: unset by default, configured with its host and counts only', async () => {
+  expect((await (await health()).json()).data.deedCrossCheck).toMatchObject({
+    configured: false,
+    host: null,
+    agreements: 0,
+    disagreements: 0,
+  });
+  __resetChainHealthMemo();
+  process.env.DEED_CROSSCHECK_URL = 'https://index.example/opi';
+  process.env.DEED_CROSSCHECK_AUTH = 'Bearer s3cret-index';
+  try {
+    const data = (await (await health()).json()).data;
+    expect(data.deedCrossCheck).toMatchObject({ configured: true, host: 'index.example/opi', lastOkAt: null, indexedHeight: null });
+    expect(JSON.stringify(data)).not.toContain('s3cret-index');
+  } finally {
+    delete process.env.DEED_CROSSCHECK_URL;
+    delete process.env.DEED_CROSSCHECK_AUTH;
+  }
+});
+
 it('never echoes credentials from a configured ord URL', async () => {
   const body = JSON.stringify(await (await health()).json());
   expect(body).not.toContain('s3cret');
