@@ -430,7 +430,7 @@ writes, and the ownership check runs for the verified signer.
 | `POST /delegations/purchase` (Block 0) | `delegation.purchase` | `delegation` |
 | `POST /ownership/sync` | `ownership.sync` | `ownership` |
 | `POST /ownership/prep-transfer` | `ownership.prep-transfer` | `ownership` |
-| `POST /brain/flag` (Block 0) | `brain.flag` | `brain` |
+| `POST /brain/flag` (Block = `voterBlock`, a block the signer holds) | `brain.flag` | `brain` |
 | `POST /livestream` | `livestream.start` | `world` |
 | `POST /chat/{blockHeight}` | `chat.send` | `chat` |
 | `POST /chat/react` (Block 0) | `chat.react` | `chat` |
