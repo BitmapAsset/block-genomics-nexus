@@ -36,6 +36,14 @@ describe('MCP catalog app <-> npm package parity', () => {
     );
   });
 
+  // Both servers label third-party text with the same envelope and note.
+  const ENVELOPE_CANONICAL = join(__dirname, '../../../packages/bg-mcp/src/untrusted.ts');
+  const ENVELOPE_MIRROR = join(__dirname, '../../src/lib/mcp/untrusted.ts');
+  const code = (source: string) => source.slice(source.indexOf('*/') + 2);
+  (existsSync(ENVELOPE_CANONICAL) ? it : it.skip)('untrusted-content helper is identical below its header', () => {
+    expect(code(readFileSync(ENVELOPE_MIRROR, 'utf8'))).toBe(code(readFileSync(ENVELOPE_CANONICAL, 'utf8')));
+  });
+
   it('mirror carries the marked catalog block', () => {
     expect(extractCatalog(readFileSync(MIRROR, 'utf8')).length).toBeGreaterThan(1000);
   });
