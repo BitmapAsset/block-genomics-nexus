@@ -152,6 +152,9 @@ function seed() {
     soulMd: 'soul', autoResponses: null, llmApiKey: null, llmProvider: null, llmEndpoint: null,
     agentEndpoint: null, selfHosted: false, monitorTokenHash: 'seeded', totalMessages: 0, createdAt: new Date(),
   });
+  // The conversation the owner-path chat cases continue (a conversation id
+  // resolves only under its own guardian).
+  db.__rows('guardianConversation').push({ id: 'conv-1', guardianId: 'g1', visitorAddress: null, visitorHandle: null, messages: '[]' });
   db.__rows('vPSLink').push({
     id: 'l1', blockHeight: BLOCK, walletAddress: OWNER.address, serverUrl: 'https://old.example',
     connectionType: 'https', status: 'linked', lastHealthCheck: null, createdAt: new Date(),

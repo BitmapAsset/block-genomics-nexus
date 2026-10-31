@@ -3,6 +3,7 @@
  * Pushes important events from Guardian → paired OpenClaw agent
  */
 import prisma from '@/lib/prisma';
+import { assertSafeOutboundUrl } from '@/lib/ssrf-fetch';
 
 export type ActivityType =
   | 'visitor'           // New visitor on the block
@@ -51,10 +52,16 @@ export async function pushActivity(event: ActivityEvent): Promise<boolean> {
       timestamp: new Date().toISOString(),
     };
 
-    const res = await fetch(guardian.monitorWebhookUrl, {
+    // Checked again at send time (the stored URL may predate the pairing
+    // check, and DNS may have moved), and no redirects are followed.
+    const target = await assertSafeOutboundUrl(guardian.monitorWebhookUrl);
+    if (!target.ok || !target.url) return false;
+
+    const res = await fetch(target.url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      redirect: 'error',
       signal: AbortSignal.timeout(5000),
     });
 

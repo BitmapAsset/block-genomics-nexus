@@ -58,6 +58,12 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
   const [generatingToken, setGeneratingToken] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
   const [revokingToken, setRevokingToken] = useState(false);
+  // An existing guardian's private settings arrive only with the owner's
+  // signature; until then the panel holds the public view and cannot save
+  // (a save would overwrite the real settings with these placeholders).
+  const [ownerViewNeeded, setOwnerViewNeeded] = useState(false);
+  const [ownerViewError, setOwnerViewError] = useState<string | null>(null);
+  const [loadingOwnerView, setLoadingOwnerView] = useState(false);
 
   const bundle = generateGuardianBundle(blockHeight);
 
@@ -80,23 +86,72 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
     status: 'active',
   });
 
-  // Load existing config
+  // The owner view (one wallet signature, a one-time 'guardian' nonce): the
+  // public guardian answer carries no prompts, contacts or endpoints.
+  const loadOwnerView = useCallback(async (id: string) => {
+    setLoadingOwnerView(true);
+    setOwnerViewError(null);
+    try {
+      const res = await signedActionFetch({
+        method: 'POST', path: `/api/v1/guardian/${id}`, action: 'guardian.config.read', blockHeight, purpose: 'guardian',
+        address: ownerAddress, body: { ownerAddress }, signMessage: walletSign,
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.guardian) {
+        setOwnerViewError(data?.error || `Could not load the guardian settings (HTTP ${res.status})`);
+        return;
+      }
+      const g = data.guardian;
+      setConfig(prev => ({
+        ...prev,
+        ...g,
+        personality: g.personality ?? '',
+        llmProvider: g.llmProvider ?? '',
+        llmModel: g.llmModel ?? '',
+        llmEndpoint: g.llmEndpoint ?? '',
+        agentEndpoint: g.agentEndpoint ?? '',
+        escalateTelegram: g.escalateTelegram ?? '',
+        escalateEmail: g.escalateEmail ?? '',
+        autoResponses: g.autoResponses ? JSON.parse(g.autoResponses) : [],
+        llmApiKey: '', // Never populate the stored key
+      }));
+      setMonitorConnected(!!g.monitorTokenActive);
+      setOwnerViewNeeded(false);
+    } catch (err) {
+      setOwnerViewError(err instanceof Error ? err.message : 'Signature declined');
+    } finally {
+      setLoadingOwnerView(false);
+    }
+  }, [blockHeight, ownerAddress, walletSign]);
+
+  // Load existing config: the public view first, then the owner view.
   useEffect(() => {
+    let guardianId: string | null = null;
     fetch(`/api/v1/guardian?blockHeight=${blockHeight}&ownerAddress=${ownerAddress}`)
       .then(r => r.json())
       .then(data => {
-        if (data.guardians?.[0]) {
-          const g = data.guardians[0];
-          setConfig({
-            ...g,
-            autoResponses: g.autoResponses ? JSON.parse(g.autoResponses) : [],
-            llmApiKey: '', // Never populate encrypted key
-          });
-          if (g.monitorTokenHash) setMonitorConnected(true);
+        const g = data.guardians?.[0];
+        if (g?.id) {
+          guardianId = g.id;
+          setConfig(prev => ({
+            ...prev,
+            id: g.id,
+            name: g.name ?? prev.name,
+            personality: g.personality ?? '',
+            llmProvider: g.llmProvider ?? '',
+            selfHosted: !!g.selfHosted,
+            endpointVerified: !!g.endpointVerified,
+            status: g.status ?? prev.status,
+          }));
+          setOwnerViewNeeded(true);
         }
       })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        if (guardianId) void loadOwnerView(guardianId);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blockHeight, ownerAddress]);
 
   const update = useCallback((partial: Partial<GuardianConfig>) => {
@@ -104,6 +159,7 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
   }, []);
 
   const handleSave = async (goLive = false) => {
+    if (ownerViewNeeded) return;
     setSaving(true);
     try {
       const payload: Record<string, unknown> = JSON.parse(JSON.stringify({
@@ -284,6 +340,26 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
 
         {/* Body */}
         <div className="p-6 space-y-5">
+          {ownerViewNeeded && config.id && (
+            <div className="rounded-xl p-3 text-xs flex items-center gap-3" style={{ background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.2)', color: '#ffc800' }}>
+              <span className="flex-1">
+                {loadingOwnerView
+                  ? 'Waiting for your wallet signature to load the private settings...'
+                  : ownerViewError
+                    ? `Private settings not loaded: ${ownerViewError}`
+                    : 'Sign with your wallet to load the private settings.'}
+              </span>
+              {!loadingOwnerView && (
+                <button
+                  onClick={() => config.id && loadOwnerView(config.id)}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-bold"
+                  style={{ background: 'rgba(255,200,0,0.12)', border: '1px solid rgba(255,200,0,0.3)', color: '#ffc800' }}
+                >
+                  Sign to load
+                </button>
+              )}
+            </div>
+          )}
           {/* Name */}
           <Field label="Agent Name">
             <input
@@ -639,13 +715,14 @@ export default function GuardianConfigPanel({ blockHeight, ownerAddress, onClose
         <div className="p-6 pt-4 flex gap-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           <button
             onClick={() => handleSave(true)}
-            disabled={saving}
+            disabled={saving || ownerViewNeeded}
+            title={ownerViewNeeded ? 'Load the private settings first' : undefined}
             className="flex-1 py-3 rounded-xl text-sm font-bold transition-all hover:brightness-125"
             style={{
               background: 'linear-gradient(135deg, rgba(0,255,136,0.2), rgba(0,200,100,0.15))',
               border: '1.5px solid rgba(0,255,136,0.4)',
               color: '#00ff88',
-              opacity: saving ? 0.6 : 1,
+              opacity: saving || ownerViewNeeded ? 0.6 : 1,
             }}
           >
             {saving ? '⏳ Saving...' : '🚀 Go Live'}

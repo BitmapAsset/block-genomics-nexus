@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { decryptApiKey } from '@/lib/key-encryption';
@@ -7,6 +8,25 @@ import { notifyEscalation } from '@/lib/escalation-notify';
 import { emitAgentEvent } from '@/lib/agent-events';
 import { requireSignedBlockOwner } from '@/lib/block-write-auth';
 import type { GateResult } from '@/lib/ownership-gate';
+import { rateLimitDurable, clientIpFrom } from '@/lib/rate-limit-db';
+
+/** The hourly LLM budget of one guardian, in outbound calls. */
+const LLM_CALLS_PER_HOUR = 60;
+const HOUR_MS = 3_600_000;
+
+/**
+ * Reserve one outbound LLM call against the guardian it is billed to, before
+ * the call. Atomic across instances; the key is the guardian the route
+ * resolved from the block, never anything the caller names.
+ */
+async function reserveLlmCall(guardianId: string): Promise<boolean> {
+  const r = await rateLimitDurable(`guardian-llm:${guardianId}`, LLM_CALLS_PER_HOUR, HOUR_MS);
+  return r.allowed;
+}
+
+const RATE_LIMITED = 'Rate limit exceeded — max 60 messages/hour for this guardian. Please try again later.';
+
+type StoredConversation = { id: string; messages: string; visitorAddress: string | null };
 
 /** Strip control characters to mitigate prompt injection */
 function stripControlChars(str: string): string {
@@ -56,6 +76,26 @@ export async function POST(req: NextRequest) {
       if (auth.ok && guardianId === guardian.id) verifiedVisitorAddress = visitorAddress;
     }
 
+    // A conversation continues only under the guardian it was started with,
+    // and one started by a verified wallet only for that wallet. Anything else
+    // is not found: nothing is appended, nothing is billed, nothing new starts.
+    let conversation: StoredConversation | null = null;
+    if (conversationId !== undefined && conversationId !== null && conversationId !== '') {
+      const found = typeof conversationId === 'string'
+        ? await prisma.guardianConversation.findFirst({ where: { id: conversationId, guardianId: guardian.id } })
+        : null;
+      if (!found || (found.visitorAddress && found.visitorAddress !== verifiedVisitorAddress)) {
+        return NextResponse.json(
+          { error: 'conversation_not_found', message: 'No such conversation with this guardian. Send without conversationId to start one.' },
+          { status: 404 }
+        );
+      }
+      conversation = found;
+    }
+    // Stored as the visitor: the verified signer, or nobody. The body field
+    // alone proves nothing.
+    const storedVisitor = verifiedVisitorAddress ?? null;
+
     // Increment message count
     await prisma.guardianAgent.update({
       where: { id: guardian.id },
@@ -79,8 +119,8 @@ export async function POST(req: NextRequest) {
         const lowerMsg = message.toLowerCase();
         const match = autoResponses.find(ar => lowerMsg.includes(ar.trigger.toLowerCase()));
         if (match) {
-          await storeMessage(guardian.id, visitorAddress, visitorHandle, conversationId, message, match.response);
-          return NextResponse.json({ response: match.response, source: 'auto-response' });
+          const convId = await storeMessage(guardian.id, storedVisitor, visitorHandle, conversation, message, match.response);
+          return NextResponse.json({ response: match.response, source: 'auto-response', conversationId: convId });
         }
       } catch { /* invalid JSON, skip */ }
     }
@@ -89,23 +129,19 @@ export async function POST(req: NextRequest) {
     if (guardian.llmApiKey && guardian.llmProvider && guardian.llmModel) {
       // RATE LIMIT: DB-backed (serverless-safe) so the public can't burn the
       // guardian owner's LLM budget. Fail-closed 429 when over or unknowable.
-      if (!(await checkGuardianRateLimit(guardian.id))) {
-        return NextResponse.json(
-          { error: 'Rate limit exceeded — max 60 messages/hour for this guardian. Please try again later.' },
-          { status: 429 }
-        );
+      // The durable reservation is the budget itself: one unit per outbound
+      // call, taken before the call, on this guardian's key.
+      if (!(await checkGuardianRateLimit(guardian.id)) || !(await reserveLlmCall(guardian.id))) {
+        return NextResponse.json({ error: RATE_LIMITED }, { status: 429 });
       }
 
       const apiKey = decryptApiKey(guardian.llmApiKey);
       const systemPrompt = buildSystemPrompt(guardian);
 
-      // Get conversation history
+      // Conversation history (already resolved under this guardian above)
       let history: { role: string; content: string }[] = [];
-      if (conversationId) {
-        const conv = await prisma.guardianConversation.findUnique({ where: { id: conversationId } });
-        if (conv) {
-          try { history = JSON.parse(conv.messages); } catch { /* fresh */ }
-        }
+      if (conversation) {
+        try { history = JSON.parse(conversation.messages); } catch { /* fresh */ }
       }
 
       history.push({ role: 'user', content: message });
@@ -156,7 +192,10 @@ export async function POST(req: NextRequest) {
       // sent a build request, make a second structured call to generate build actions.
       if (worldActions.length === 0 && isBuildRequest(message) && (await actorHoldsBlock())) {
         console.log('[Guardian Chat] Two-pass build: detected build intent, making structured call');
-        try {
+        // The second pass is a second outbound call: it reserves its own unit.
+        if (!(await reserveLlmCall(guardian.id))) {
+          finalResponse += '\n\n⚠️ This guardian reached its hourly limit, so the build was not started. Please try again later.';
+        } else try {
           const buildActions = await generateBuildActions({
             provider: guardian.llmProvider,
             model: guardian.llmModel,
@@ -180,22 +219,33 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const convId = await storeMessage(guardian.id, visitorAddress, visitorHandle, conversationId, message, finalResponse);
+      const convId = await storeMessage(guardian.id, storedVisitor, visitorHandle, conversation, message, finalResponse);
       return NextResponse.json({ response: finalResponse, source: 'llm', conversationId: convId });
     }
 
-    // No LLM — escalate
+    // No LLM — escalate. At most 20 forwards an hour from one IP: beyond that
+    // nothing is stored and nobody is notified.
+    const ipLimit = await rateLimitDurable(`guardian-escalation-ip:${clientIpFrom(req)}`, 20, HOUR_MS);
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many messages forwarded from this address. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(ipLimit.retryAfterSec) } }
+      );
+    }
+
     await prisma.guardianEvent.create({
       data: {
         guardianId: guardian.id,
         eventType: 'escalation',
-        data: JSON.stringify({ visitorAddress, visitorHandle, message }),
+        data: JSON.stringify({ visitorAddress: storedVisitor, visitorHandle, message }),
       },
     });
 
-    // Deliver to the owner's configured Telegram/email (best-effort, no-ops if
-    // env keys or escalation channels aren't configured)
-    await notifyEscalation(guardian.id, guardian.blockHeight, message, visitorHandle || visitorAddress);
+    // Tell the owner's configured Telegram/email that a message waits in the
+    // monitor: a fixed notice, at most 5 an hour per guardian (the event row
+    // above is kept either way). Best-effort; no-ops without env keys.
+    const noticeLimit = await rateLimitDurable(`guardian-escalation-notice:${guardian.id}`, 5, HOUR_MS);
+    if (noticeLimit.allowed) await notifyEscalation(guardian.id, guardian.blockHeight);
 
     // Also broadcast to registered BitmapAgents on this block so autonomous
     // agents can pick up the escalation from their event stream.
@@ -207,8 +257,8 @@ export async function POST(req: NextRequest) {
     });
 
     const fallback = "I'll forward your message to the block owner. They'll get back to you soon! 📨";
-    await storeMessage(guardian.id, visitorAddress, visitorHandle, conversationId, message, fallback);
-    return NextResponse.json({ response: fallback, source: 'escalation' });
+    const convId = await storeMessage(guardian.id, storedVisitor, visitorHandle, conversation, message, fallback);
+    return NextResponse.json({ response: fallback, source: 'escalation', conversationId: convId });
   } catch (err: unknown) {
     console.error('[Guardian Chat]', err);
     return NextResponse.json({ error: 'Chat failed' }, { status: 500 });
@@ -529,33 +579,38 @@ async function executeWorldActions(actions: WorldAction[], blockHeight: number, 
   return results;
 }
 
+/**
+ * Append to `conversation` (already resolved under `guardianId`), or start a
+ * new one whose id is 32 random bytes: the id is the visitor's capability to
+ * continue the chat, so it must not be guessable.
+ */
 async function storeMessage(
-  guardianId: string, visitorAddress?: string, visitorHandle?: string,
-  conversationId?: string, userMsg?: string, aiMsg?: string
+  guardianId: string, visitorAddress: string | null, visitorHandle: unknown,
+  conversation: StoredConversation | null, userMsg?: string, aiMsg?: string
 ): Promise<string> {
   const newMessages = [];
   if (userMsg) newMessages.push({ role: 'user', content: userMsg, ts: Date.now() });
   if (aiMsg) newMessages.push({ role: 'assistant', content: aiMsg, ts: Date.now() });
 
-  if (conversationId) {
-    const existing = await prisma.guardianConversation.findUnique({ where: { id: conversationId } });
-    if (existing) {
-      let msgs = [];
-      try { msgs = JSON.parse(existing.messages); } catch { /* */ }
-      msgs.push(...newMessages);
-      await prisma.guardianConversation.update({
-        where: { id: conversationId },
-        data: { messages: JSON.stringify(msgs) },
-      });
-      return conversationId;
-    }
+  if (conversation) {
+    // Re-read: the LLM call may have taken a while.
+    const existing = await prisma.guardianConversation.findFirst({ where: { id: conversation.id, guardianId } });
+    let msgs = [];
+    try { msgs = JSON.parse((existing ?? conversation).messages); } catch { /* */ }
+    msgs.push(...newMessages);
+    await prisma.guardianConversation.update({
+      where: { id: conversation.id },
+      data: { messages: JSON.stringify(msgs) },
+    });
+    return conversation.id;
   }
 
   const conv = await prisma.guardianConversation.create({
     data: {
+      id: randomBytes(32).toString('base64url'),
       guardianId,
       visitorAddress,
-      visitorHandle,
+      visitorHandle: typeof visitorHandle === 'string' ? visitorHandle.slice(0, 50) : null,
       messages: JSON.stringify(newMessages),
     },
   });

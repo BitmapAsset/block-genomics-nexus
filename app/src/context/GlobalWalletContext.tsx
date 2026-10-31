@@ -34,6 +34,7 @@ import {
   type EncryptedMessage,
   type DecryptedMessage,
 } from "@/lib/e2e-crypto";
+import { registerEncryptionKey } from "@/lib/e2e-register";
 
 export type { WalletType };
 
@@ -71,6 +72,8 @@ interface GlobalWalletContextValue extends GlobalWalletState {
   clearError: () => void;
   // E2E Encryption
   e2eReady: boolean;
+  /** Why the last key setup did not complete (shown to the user), or null. */
+  e2eError: string | null;
   e2eSetup: () => Promise<boolean>;
   e2eEncrypt: (text: string, recipientIdentifier: string) => Promise<EncryptedMessage | null>;
   e2eDecrypt: (msg: EncryptedMessage) => Promise<DecryptedMessage | null>;
@@ -347,6 +350,7 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
 
   // ═══ E2E Encryption ═══
   const [e2eReady, setE2eReady] = useState(false);
+  const [e2eError, setE2eError] = useState<string | null>(null);
   const keypairRef = useRef<EncryptionKeypair | null>(null);
   const pubKeyCacheRef = useRef<Map<string, string>>(new Map());
 
@@ -358,15 +362,26 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
       const kp = deriveEncryptionKeypair(sig);
       keypairRef.current = kp;
       const pubHex = exportPublicKey(kp);
-      // Register on server
-      await fetch('/api/v1/encryption', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress: state.walletAddress, encryptionPubKey: pubHex }),
-      }).catch(() => {});
+      // Register on the server with a bound, one-time signature. The local
+      // keypair still decrypts what was sent to it; a failed registration is
+      // reported, not hidden: others cannot encrypt to this wallet until it
+      // succeeds.
+      const walletType = state.walletType;
+      const walletAddress = state.walletAddress;
+      const reg = await registerEncryptionKey({
+        walletAddress,
+        encryptionPubKey: pubHex,
+        signMessage: (m: string) => signWithWallet(walletType, m, walletAddress),
+      });
       setE2eReady(true);
+      if (!reg.ok) {
+        setE2eError(`Encryption key not registered: ${reg.error}`);
+        return false;
+      }
+      setE2eError(null);
       return true;
-    } catch {
+    } catch (err) {
+      setE2eError(err instanceof Error ? err.message : 'Encryption setup failed');
       return false;
     }
   }, [state.walletType, state.walletAddress]);
@@ -409,13 +424,14 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
       refreshProfile,
       clearError,
       e2eReady,
+      e2eError,
       e2eSetup,
       e2eEncrypt,
       e2eDecrypt,
       tierResolution: state.tierResolution,
       resolveTier: resolveTierFn,
     }),
-    [state, connect, disconnect, signMessageFn, refreshProfile, clearError, e2eReady, e2eSetup, e2eEncrypt, e2eDecrypt, resolveTierFn]
+    [state, connect, disconnect, signMessageFn, refreshProfile, clearError, e2eReady, e2eError, e2eSetup, e2eEncrypt, e2eDecrypt, resolveTierFn]
   );
 
   return (

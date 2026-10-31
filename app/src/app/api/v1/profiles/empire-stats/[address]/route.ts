@@ -3,6 +3,13 @@ import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 
+// The guardian event log is the owner's, read with the guardian's monitor
+// token; this answer only names the kind of the latest activity.
+const ACTIVITY_LABELS: Record<string, string> = {
+  escalation: 'A visitor left a message',
+};
+const DEFAULT_ACTIVITY_LABEL = 'Guardian activity';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ address: string }> }
@@ -73,7 +80,6 @@ export async function GET(
           select: {
             guardianId: true,
             eventType: true,
-            data: true,
             createdAt: true,
           },
         })
@@ -92,15 +98,11 @@ export async function GET(
 
     const guardianDetails = guardians.map((g) => {
       const event = eventMap.get(g.id);
-      let lastAction: string | null = null;
-      if (event) {
-        try {
-          const data = event.data ? JSON.parse(event.data) : {};
-          lastAction = data.summary || data.message || event.eventType;
-        } catch {
-          lastAction = event.eventType;
-        }
-      }
+      const lastAction = event
+        ? (Object.prototype.hasOwnProperty.call(ACTIVITY_LABELS, event.eventType)
+            ? ACTIVITY_LABELS[event.eventType]
+            : DEFAULT_ACTIVITY_LABEL)
+        : null;
       return {
         blockHeight: g.blockHeight,
         status: g.status,

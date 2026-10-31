@@ -18,6 +18,7 @@ import { getStoredAddress, getStoredType } from '@/lib/wallet-utils';
 import { parcelCustomizeBindingString, parcelCustomizeBindingLine } from '@/lib/parcel-customize';
 import { signedWorldFetch } from '@/lib/world-signing';
 import { signAction, signedActionFetch } from '@/lib/signed-fetch';
+import { prepareDmPayload, UNENCRYPTED_DM_CONFIRM } from '@/lib/dm-payload';
 import { streamPlatform } from '@/lib/stream-embed';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
@@ -4729,7 +4730,7 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
    ═══════════════════════════════════════════ */
 
 export default function ParcelView({ blockHeight, onBack, initialPanelHidden = false }: Props) {
-  const { walletAddress, isConnected, profile, signMessage: walletSignMessage, e2eReady, e2eSetup, e2eEncrypt, e2eDecrypt } = useGlobalWallet();
+  const { walletAddress, isConnected, profile, signMessage: walletSignMessage, e2eReady, e2eError, e2eSetup, e2eEncrypt, e2eDecrypt } = useGlobalWallet();
   const isVerified = !!(isConnected && walletAddress && profile);
   const isWalletConnected = !!(isConnected && walletAddress);
   const ownerLock = !isWalletConnected ? 'connect' : (!isVerified ? 'verify' : null);
@@ -4822,7 +4823,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     if (chatMode === 'dm' && isConnected && !e2eReady && e2eStatus === 'idle') {
       setE2eStatus('setting-up');
       e2eSetup().then(ok => setE2eStatus(ok ? 'ready' : 'failed')).catch(() => setE2eStatus('failed'));
-    } else if (chatMode === 'dm' && e2eReady) {
+    } else if (chatMode === 'dm' && e2eReady && e2eStatus !== 'failed') {
       setE2eStatus('ready');
     }
   }, [chatMode, isConnected, e2eReady, e2eSetup, e2eStatus]);
@@ -5489,6 +5490,18 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     if (!chatInput.trim()) return;
     if (!isVerified) return; // Security: require verified wallet to send
     const text = chatInput;
+
+    // A DM goes out encrypted, or as plain text only after the sender says so
+    // (the recipient has no key on file, or this wallet's key is not set up).
+    let dmPayload: Awaited<ReturnType<typeof prepareDmPayload>> | null = null;
+    if (chatMode === 'dm') {
+      const recipient = realBlockOwner?.handle ?? null;
+      dmPayload = await prepareDmPayload({ text, ready: e2eReady, recipient, encrypt: e2eEncrypt });
+      if (!dmPayload.ok) {
+        if (!window.confirm(UNENCRYPTED_DM_CONFIRM)) return; // kept unsent, still in the composer
+        dmPayload = await prepareDmPayload({ text, ready: e2eReady, recipient, encrypt: e2eEncrypt, allowPlaintext: true });
+      }
+    }
     setChatInput('');
 
     // Get wallet from localStorage
@@ -5517,15 +5530,13 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     });
 
     try {
-      // E2E encrypt DMs — server stores only ciphertext
+      // DMs carry the payload prepared above: ciphertext, or plain text the
+      // sender confirmed (the server stores that in clear).
       let msgText = text;
       let msgType = text.startsWith('http') ? 'link' : 'text';
-      if (chatMode === 'dm' && e2eReady && realBlockOwner?.handle) {
-        const encrypted = await e2eEncrypt(text, realBlockOwner.handle);
-        if (encrypted) {
-          msgText = JSON.stringify(encrypted);
-          msgType = 'encrypted';
-        }
+      if (dmPayload?.ok) {
+        msgText = dmPayload.text;
+        msgType = dmPayload.type;
       }
 
       // One bound signature per message (one-time 'chat' nonce).
@@ -6485,7 +6496,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
             <div className="px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div className="text-[10px]" style={{ color: '#64748b' }}>
                 {chatMode === 'block' && `📢 Block #${blockHeight.toLocaleString()} public chat · Images, GIFs & links in public`}
-                {chatMode === 'dm' && (e2eStatus === 'ready' ? `🔒 Private DM with block owner · E2E encrypted · All media types allowed` : e2eStatus === 'setting-up' ? `🔒 Setting up encryption...` : `🔒 Private DM with block owner · Connect wallet to enable E2E encryption`)}
+                {chatMode === 'dm' && (e2eStatus === 'ready' ? `🔒 Private DM with block owner · E2E encrypted when the owner has a key (you are asked before anything is sent unencrypted)` : e2eStatus === 'setting-up' ? `🔒 Setting up encryption...` : e2eStatus === 'failed' && e2eError ? `⚠️ ${e2eError} · DMs ask before sending unencrypted` : `🔒 Private DM with block owner · Connect wallet to enable E2E encryption`)}
                 {chatMode === 'global' && `🌐 Global Bitmap chat · All blocks, all users · Images, GIFs & links only`}
               </div>
             </div>
