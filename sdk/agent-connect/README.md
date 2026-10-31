@@ -131,8 +131,9 @@ long-poll → graceful revoke on shutdown) lives in
 ## How write auth works (so you can implement a signer correctly)
 
 - **Claim a block** (`/api/v1/auth/verify`): sign the exact `message` returned by
-  `POST /api/v1/challenge` with `purpose: 'auth'` — i.e.
-  `Block Genomics verification: <nonce>`.
+  `POST /api/v1/challenge` with `purpose: 'auth'`: plain lines naming the site and
+  what it authorizes, then `Address:`, `Nonce:` and `Expires:`
+  (`blockgenomics.io: sign in with this wallet` / `Address: <addr>` / `Nonce: <hex>` / `Expires: <ISO time>`).
 - **Register / rotate / revoke / manage an agent**: same pattern with purposes
   `agent-register` / `agent-token` / `agent-manage`. The SDK requests the
   challenge, signs it, and posts for you.

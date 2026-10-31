@@ -53,7 +53,7 @@ describe('registerAgent', () => {
   it('requests an agent-register challenge, signs it, and posts the exact body', async () => {
     const { calls, fetchImpl } = harness((rec) => {
       if (rec.url.endsWith('/api/v1/challenge')) {
-        return { body: env({ message: `Block Genomics verification: NONCE_${rec.body.purpose}`, nonce: 'NONCE' }) };
+        return { body: env({ message: `blockgenomics.io: ${rec.body.purpose}\nNonce: NONCE_${rec.body.purpose}`, nonce: 'NONCE' }) };
       }
       if (rec.url.endsWith('/api/v1/agents/register')) {
         const agent: RegisteredAgent = {
@@ -98,8 +98,8 @@ describe('registerAgent', () => {
       parcelIndex: null,
       tier: 1,
       permissions: ['READ_DMS', 'SEND_DMS'],
-      signature: 'SIG(Block Genomics verification: NONCE_agent-register)',
-      challenge: 'Block Genomics verification: NONCE_agent-register',
+      signature: 'SIG(blockgenomics.io: agent-register\nNonce: NONCE_agent-register)',
+      challenge: 'blockgenomics.io: agent-register\nNonce: NONCE_agent-register',
     });
 
     expect(reg.id).toBe(AGENT_ID);

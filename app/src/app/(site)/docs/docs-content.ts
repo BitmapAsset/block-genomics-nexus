@@ -99,7 +99,7 @@ curl -X POST https://blockgenomics.io/api/v1/agents/register \\
 export const CURL_CHALLENGE = `curl -X POST https://blockgenomics.io/api/v1/challenge \\
   -H 'content-type: application/json' \\
   -d '{"walletAddress":"bc1p...","purpose":"agent-register"}'
-# -> { "success": true, "data": { "message": "Block Genomics verification: <nonce>", "nonce": "<hex>" } }`;
+# -> { "success": true, "data": { "message": "blockgenomics.io: register an agent for this wallet\\nAddress: bc1p...\\nNonce: <hex>\\nExpires: <ISO time>", "nonce": "<hex>", "purpose": "agent-register", "expiresAt": "<ISO time>" } }`;
 
 export const CURL_STATS = `curl https://blockgenomics.io/api/v1/stats
 # -> { "verifiedAgents": 9, "genomesMinted": 8, "blocksVerified": 17 }`;

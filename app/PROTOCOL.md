@@ -95,7 +95,7 @@ All write operations require a BIP-322 signed message proving wallet ownership:
 
 1. Client requests challenge: `POST /api/v1/challenge`
 2. Server generates random nonce with 5-minute TTL
-3. Client signs message `"Block Genomics verification: {nonce}"` with wallet
+3. Client signs the returned message with the wallet: `blockgenomics.io: <what it authorizes>`, then `Address:`, `Nonce:` and `Expires:` lines (plain ASCII)
 4. Server verifies BIP-322 signature against claimed wallet address
 5. Nonce consumed after verification (anti-replay)
 

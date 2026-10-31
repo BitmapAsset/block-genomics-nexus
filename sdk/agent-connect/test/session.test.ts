@@ -39,7 +39,7 @@ const ADDRESS = 'bc1ptestowneraddressxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
 const testSigner = (address = ADDRESS) => makeSigner(address, async (m: string) => `SIG(${m})`);
 
 const CHALLENGE = {
-  message: 'Block Genomics verification: deadbeef',
+  message: 'blockgenomics.io: start a verified session for this wallet\nNonce: deadbeef',
   nonce: 'deadbeef',
   expiresAt: '2026-01-01T00:00:00.000Z',
   walletAddress: ADDRESS,

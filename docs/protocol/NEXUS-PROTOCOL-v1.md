@@ -70,11 +70,14 @@ This is the anti-replay foundation of the protocol.
 ```
 POST /api/v1/challenge
 { "walletAddress": "<address>", "purpose": "<purpose>" }
-→ 200 { "success": true, "data": { "message": "Block Genomics verification: <nonce>", "nonce": "<hex>" } }
+→ 200 { "success": true, "data": { "message": "blockgenomics.io: <what it authorizes>\nAddress: <address>\nNonce: <nonce>\nExpires: <ISO time>", "nonce": "<hex>", "purpose": "<purpose>", "expiresAt": "<ISO time>" } }
 ```
 
 - The `nonce` is a 256-bit random value. The `message` is the exact string the
-  wallet signs for most flows.
+  wallet signs for most flows. It says what it authorizes, one fact per line in
+  plain ASCII: `blockgenomics.io: <purpose in plain words>`, `Address: <address>`,
+  `Nonce: <nonce>`, `Expires: <ISO-8601>`. The server finds the nonce in it by value.
+- `purpose` **MUST** be one of the purposes in §3.2; any other value is a `400`.
 - A challenge is bound to the requesting `walletAddress` and to a `purpose`.
 - A challenge **MUST** expire (default: 5 minutes) and **MUST** be consumable at
   most once. The server consumes it atomically; concurrent attempts to consume the
@@ -94,6 +97,16 @@ POST /api/v1/challenge
 | `world`            | `POST`/`PATCH`/`DELETE /world*`                  | a structured action message (§7.2) |
 | `experience-register` | `POST /experiences`                           | a structured action message binding the manifest hash (§8.7), or the challenge `message` (legacy) |
 | `experience-manage`   | `PATCH`/`DELETE /experiences/{id}`            | a structured action message binding the manifest hash (§8.7), or the challenge `message` (legacy) |
+| `session`          | `POST /session/verify`                           | the `message` from `POST /session/start` |
+| `profile`          | `POST /profiles/create`, `PATCH /profiles/update`, `PATCH /profiles/set-primary`, `PATCH /users/by-handle/{handle}` | a structured action message (§7.2) |
+| `activity`, `encryption`, `brain` | `POST /activity`, `POST /encryption`, `POST /brain/appeal`, `POST /brain/flag` | a structured action message (§7.2) |
+| `guardian-heartbeat` | `POST /guardian/heartbeat`                     | the challenge `message` |
+| `guardian`         | `POST /guardian`, `PATCH`/`DELETE /guardian/{id}`, `POST`/`DELETE /guardian/monitor`, owner path of `POST /guardian/chat` | a structured action message (§7.2) |
+| `vps`              | `POST /vps/link`, `DELETE /vps/{linkId}`, `POST /vps/{linkId}/health` | a structured action message (§7.2) |
+| `delegation`       | `POST /delegations/listings`, `POST /delegations/purchase` | a structured action message (§7.2) |
+| `ownership`        | `POST /ownership/sync`, `POST /ownership/prep-transfer` | a structured action message (§7.2) |
+| `chat`             | `POST /chat/{blockHeight}`, `POST /chat/react` (one signature per request) | a structured action message (§7.2) |
+| `game`             | `POST /game/claim`, `POST /game/state`           | a structured action message (§7.2) |
 
 A challenge issued for one purpose **MUST NOT** satisfy a route expecting another
 purpose. This prevents a signature captured from one flow from being replayed
@@ -345,7 +358,7 @@ challenge, and the signed message **MUST** commit to the exact customization
 fields:
 
 ```
-message = "Block Genomics verification: <nonce>\n" +
+message = <the challenge message> + "\n" +
           "customize:<blockHeight>:<txIndex>:<sha256(canonical-fields)>"
 ```
 
@@ -392,6 +405,42 @@ holding a live `bg_vfy_` session token that covers the block **MAY** send it as
 was itself minted from a signed one-time challenge. On that path the server
 **MUST** attribute the write to the session's wallet and **MUST NOT** read an
 actor from the request body.
+
+The same message form authorizes every other signed write, each with its own
+action label and challenge purpose. `Block` is the block acted on, or `0` when the
+request names none; `Body` hashes the request body without `message` and
+`signature`. The nonce is consumed before the route reads private state or
+writes, and the ownership check runs for the verified signer.
+
+| Route | Action | Purpose |
+|---|---|---|
+| `POST /guardian` | `guardian.create` | `guardian` |
+| `PATCH /guardian/{id}` | `guardian.update` | `guardian` |
+| `DELETE /guardian/{id}` (JSON body) | `guardian.delete` | `guardian` |
+| `POST /guardian/monitor` | `guardian.monitor.mint` | `guardian` |
+| `DELETE /guardian/monitor` | `guardian.monitor.revoke` | `guardian` |
+| `POST /guardian/chat` (owner path; `signedMessage`, Body over `{blockHeight, guardianId, conversationId, text, visitorAddress}`) | `guardian.chat` | `guardian` |
+| `POST /vps/link` | `vps.link` | `vps` |
+| `DELETE /vps/{linkId}` | `vps.unlink` | `vps` |
+| `POST /vps/{linkId}/health` | `vps.health` | `vps` |
+| `PATCH /profiles/update` | `profile.update` | `profile` |
+| `PATCH /profiles/set-primary` | `profile.primary` | `profile` |
+| `PATCH /users/by-handle/{handle}` (Block 0) | `user.update` | `profile` |
+| `POST /delegations/listings` | `delegation.list` | `delegation` |
+| `POST /delegations/purchase` (Block 0) | `delegation.purchase` | `delegation` |
+| `POST /ownership/sync` | `ownership.sync` | `ownership` |
+| `POST /ownership/prep-transfer` | `ownership.prep-transfer` | `ownership` |
+| `POST /brain/flag` (Block 0) | `brain.flag` | `brain` |
+| `POST /livestream` | `livestream.start` | `world` |
+| `POST /chat/{blockHeight}` | `chat.send` | `chat` |
+| `POST /chat/react` (Block 0) | `chat.react` | `chat` |
+| `POST /game/claim` | `game.claim` | `game` |
+| `POST /game/state` | `game.state` | `game` |
+| `POST /game/quests` | `game.quest.create` | `world` |
+| `PATCH`/`DELETE /game/quests/{id}` (Block 0) | `game.quest.update` / `game.quest.delete` | `world` |
+
+A request without such a signature is a `401` whose error names the purpose to
+request from `POST /api/v1/challenge`.
 
 ### 7.3 Batch semantics
 
