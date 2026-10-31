@@ -12,7 +12,15 @@
  *   or not yet indexed up to N            → unavailable: 503
  *
  * With the index unset nothing here runs and the gate behaves as before.
- * Display answers never consult it; it never writes `DeedVerdict`.
+ * It never writes `DeedVerdict`.
+ *
+ * Outside the gate it is consulted in one place: `verifyBlockOwnership`
+ * (lib/ownership-sync.ts) asks it on a live mismatch at every freshness tier,
+ * because the cron's batch runs at the display tier and its transfers must wait
+ * for the same confirmation. So a public `GET /api/v1/ownership/<h>` (or
+ * `/verify`) on a mismatched block also asks the index (cached as below), and its `action`
+ * reads `none` while the transfer waits; verdict, holder and match are
+ * unchanged. A block whose record matches the holder never asks.
  *
  * The index speaks the OPI bitmap API (bestinslot-xyz/OPI, modules/bitmap_api):
  *   GET /v1/bitmap/get_inscription_id_of_bitmap?bitmap_number=N
