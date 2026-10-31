@@ -30,6 +30,11 @@
  *   - When the deed or its holder cannot be established, callers get
  *     `unavailable` and must surface a retryable 503 rather than granting or
  *     hard-denying. A block with no valid deed is a definitive 403.
+ *   - With an independent deed index configured (lib/onchain/deed-crosscheck,
+ *     `DEED_CROSSCHECK_URL`), a grant also needs that index to name the same
+ *     deed AND the holder to come from an ord host. A disagreement, an index
+ *     that cannot answer, or a holder known only from the sat tracker or
+ *     Unisat is `unavailable` (503), never a grant.
  *
  * FRESHNESS: every question this module answers gates a mutation, so the holder
  * lookup always runs on the AUTH tier (lib/onchain/owner-freshness.ts). That is
@@ -42,6 +47,7 @@ import { getInscriptionBody as ordGetInscriptionBody } from '@/lib/onchain/ord';
 import { resolveInscriptionOwner } from '@/lib/onchain/owner-freshness';
 import { readInscriptionBodyFromChain } from '@/lib/onchain/sat-tracker';
 import { canonicalDeedFor } from '@/lib/onchain/deed';
+import { crossCheckDeed, isDeedCrossCheckConfigured } from '@/lib/onchain/deed-crosscheck';
 
 /** Timeout for the Unisat calls made from this module. */
 const FETCH_TIMEOUT_MS = 8000;
@@ -84,6 +90,8 @@ export interface OwnershipCheck {
   inscriptionId?: string;
   /** `ownership_not_proven` when the block has no valid deed at all. */
   code?: 'ownership_not_proven';
+  /** Which kind of source named the holder: an ord host, the Esplora sat tracker, or Unisat. */
+  holderSource?: 'ord' | 'sat-tracker' | 'unisat';
 }
 
 /**
@@ -104,9 +112,13 @@ export async function verifyInscriptionOwnership(
   try {
     // ── MANDATORY current-holder check ──────────────────────────────
     let holderAddress: string | null = null;
+    let holderSource: OwnershipCheck['holderSource'];
 
     const ordOwner = await resolveInscriptionOwner(inscriptionId, 'auth');
-    if (ordOwner) holderAddress = ordOwner.address;
+    if (ordOwner) {
+      holderAddress = ordOwner.address;
+      holderSource = (ordOwner.source ?? '').startsWith('esplora:') ? 'sat-tracker' : 'ord';
+    }
 
     // Tertiary fallback: Unisat, ONLY to learn the current holder.
     if (!holderAddress) {
@@ -117,7 +129,10 @@ export async function verifyInscriptionOwnership(
         if (res.ok) {
           const data = await res.json();
           const address: unknown = data?.data?.address;
-          if (typeof address === 'string' && address.length > 0) holderAddress = address;
+          if (typeof address === 'string' && address.length > 0) {
+            holderAddress = address;
+            holderSource = 'unisat';
+          }
         }
       } catch {
         /* Unisat unavailable — fall through to fail-closed below */
@@ -156,7 +171,7 @@ export async function verifyInscriptionOwnership(
       };
     }
 
-    return { verified: true, inscriptionId };
+    return { verified: true, inscriptionId, holderSource };
   } catch (e) {
     console.error('[ownership] inscription check failed:', e);
     return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
@@ -181,8 +196,17 @@ export async function verifyBlockOwnedBy(
   _hint?: string | null // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<OwnershipCheck> {
   const deed = await canonicalDeedFor(blockHeight);
+  const crossCheck = isDeedCrossCheckConfigured();
 
   if (deed.verdict === 'none') {
+    if (crossCheck) {
+      // The index must also know no deed; if it names one, or cannot say, retry.
+      const cc = await crossCheckDeed(blockHeight, null);
+      if (cc.state !== 'agree') {
+        console.warn(`[ownership] no deed for ${blockHeight} per the resolver, cross-check ${cc.state}${cc.reason ? `: ${cc.reason}` : ''}; failing closed`);
+        return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
+      }
+    }
     return {
       verified: false,
       code: 'ownership_not_proven',
@@ -197,7 +221,20 @@ export async function verifyBlockOwnedBy(
     return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
   }
 
-  const check = await verifyInscriptionOwnership(walletAddress, deed.inscriptionId, blockHeight);
+  if (crossCheck) {
+    const cc = await crossCheckDeed(blockHeight, deed.inscriptionId);
+    if (cc.state !== 'agree') {
+      console.warn(`[ownership] deed for ${blockHeight} not confirmed by the cross-check (${cc.state}${cc.reason ? `: ${cc.reason}` : ''}); failing closed`);
+      return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
+    }
+  }
+
+  const { holderSource, ...check } = await verifyInscriptionOwnership(walletAddress, deed.inscriptionId, blockHeight);
+  if (check.verified && crossCheck && holderSource !== 'ord') {
+    // Cross-checked deeds are granted on an ord host's holder answer only.
+    console.warn(`[ownership] holder of ${deed.inscriptionId} known only from ${holderSource}; waiting for an ord host`);
+    return { verified: false, unavailable: true, reason: 'onchain_unavailable' };
+  }
   if (check.verified || check.unavailable) return check;
   // The deed itself failing the content re-check means our sources disagree
   // with the resolver: retry, never a definitive answer either way.

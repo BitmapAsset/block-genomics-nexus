@@ -55,6 +55,16 @@ export async function POST(req: NextRequest) {
           message: 'The live holder was derived from Esplora while ord hosts are unreachable; the transfer waits until an ord host confirms it. Retry later.',
         });
       }
+      // The same rule as the cron: a transfer runs only on `action: 'update'`.
+      // With the deed cross-check configured, a mismatch it has not confirmed
+      // comes back as `none` + `transferDeferred` and waits for a later run.
+      if (check.action !== 'update') {
+        return success({
+          transferred: false,
+          deferred: true,
+          message: 'The transfer waits until the deed is confirmed. Retry later.',
+        });
+      }
       const transfer = await processOwnershipTransfer(
         blockHeight,
         check.onChainOwnerAddress,

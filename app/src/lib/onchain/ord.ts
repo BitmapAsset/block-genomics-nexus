@@ -22,6 +22,11 @@
  * Pointing at a self-hosted ord is an env change with zero code change and NO
  * new required env for deploy.
  *
+ * Next to these, `DEED_CROSSCHECK_URL` (+ optional `DEED_CROSSCHECK_AUTH`,
+ * `DEED_CROSSCHECK_ALERT_CHAT_ID`) points the ownership gate at an independent
+ * bitmap index that must name the same deed before a grant; see
+ * lib/onchain/deed-crosscheck.ts. Unset, the gate behaves as before.
+ *
  * FAILOVER: a host that answers 403, 429 or 5xx, times out, closes the
  * connection, or sends a body that is not the JSON we asked for gets a second
  * attempt after a short backoff, inside an 8s budget per host, and then the next

@@ -104,7 +104,8 @@ const chainFetch: typeof fetch = (input, init) => {
   return fetch(input, { ...init, headers });
 };
 
-function resolverOptions() {
+/** The resolver options the app uses (also read by scripts/ownership-dry-run.ts). */
+export function deedResolverOptions() {
   const ord = getOrdHosts()[0];
   return {
     freshness: 'display' as const,
@@ -174,7 +175,7 @@ async function store(deed: CanonicalDeed, r: ResolveResult): Promise<void> {
 async function resolveAndStore(height: number): Promise<CanonicalDeed> {
   let deed: CanonicalDeed;
   try {
-    const r = await resolve(height, resolverOptions());
+    const r = await resolve(height, deedResolverOptions());
     deed = fromResult(r);
     await store(deed, r);
   } catch (e) {
