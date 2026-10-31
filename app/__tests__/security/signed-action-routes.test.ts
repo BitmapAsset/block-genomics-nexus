@@ -297,8 +297,9 @@ const CASES: RouteCase[] = [
   },
   {
     name: 'POST /api/v1/brain/flag', handler: BRAIN_FLAG, method: 'POST', path: '/api/v1/brain/flag',
-    action: 'brain.flag', purpose: 'brain', blockHeight: 0, addressField: 'walletAddress', gated: false,
-    body: (w) => ({ walletAddress: w.address, contentType: 'chat', contentId: 'm1', reason: 'spam' }),
+    // The flagger names a block they hold; the signature binds it and the gate checks it.
+    action: 'brain.flag', purpose: 'brain', blockHeight: BLOCK, addressField: 'walletAddress',
+    body: (w) => ({ walletAddress: w.address, voterBlock: BLOCK, contentType: 'chat', contentId: 'm1', reason: 'spam' }),
     tamper: (b) => ({ ...b, contentId: 'm2' }),
     okStatus: 200,
     landed: () => db.__rows('contentFlag').length > 0,

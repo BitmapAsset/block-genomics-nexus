@@ -10,6 +10,7 @@ import { requireSignedBlockOwner } from '@/lib/block-write-auth';
 import { looksLikeSessionToken } from '@/lib/verified-sessions';
 import { enforceRateLimit, WORLD_WRITE_LIMIT } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
+import { MAX_PLACEMENTS } from '@/lib/world/types';
 
 export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-world' });
@@ -19,8 +20,9 @@ export async function GET(req: NextRequest) {
     const blockHeight = parseBlockHeight(req.nextUrl.searchParams.get('blockHeight'));
     if (blockHeight === null) return NextResponse.json({ error: INVALID_BLOCK_HEIGHT_MESSAGE }, { status: 400 });
 
+    // At most the block's cap, oldest first (writes stop at the cap below).
     const [objects, terrain] = await Promise.all([
-      prisma.blockObject.findMany({ where: { blockHeight, visible: true }, orderBy: { createdAt: 'asc' } }),
+      prisma.blockObject.findMany({ where: { blockHeight, visible: true }, orderBy: { createdAt: 'asc' }, take: MAX_PLACEMENTS }),
       prisma.blockTerrain.findUnique({ where: { blockHeight } }),
     ]);
 
@@ -113,6 +115,19 @@ export async function POST(req: NextRequest) {
       if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
         return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
       }
+    }
+
+    // The legacy world counts against the same per-block cap as bg-world/1.
+    const existing = await prisma.blockObject.count({ where: { blockHeight, visible: true } });
+    if (existing >= MAX_PLACEMENTS) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `This block already has ${MAX_PLACEMENTS} objects; remove one first.`,
+          code: 'too_many_placements',
+        },
+        { status: 409, headers: rl.headers },
+      );
     }
 
     // H-03: Allowlist fields to prevent mass assignment

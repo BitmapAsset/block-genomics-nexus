@@ -42,6 +42,7 @@ import { ed25519 } from '@noble/curves/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
 import { parseActionMessage, stableStringify } from './action-message';
 import { verifyBip322 } from './bip322';
+import { RETIRED_SYSTEM_KEYS, type RetiredSystemKey } from './bg-event-retired-keys';
 
 export const BG_EVENT_FORMAT = 'bg-event/1';
 export const BG_EVENT_PAYLOAD_FORMAT = 'bg-event-payload/1';
@@ -318,15 +319,25 @@ export interface PublishedKey {
   alg: 'ed25519';
   publicKey: string; // base64, 32 bytes
   use: string;
+  /** Set on a retired key: it verifies only events dated before this instant (ISO-8601). */
+  retiredAt?: string;
 }
 
-export function publishedKeys(key: SystemKey | null): { format: string; keys: PublishedKey[] } {
-  return {
-    format: BG_EVENT_KEYS_FORMAT,
-    keys: key
-      ? [{ kid: key.kid, alg: 'ed25519', publicKey: toBase64(key.publicKey), use: 'bg-event/1 system signatures and event attestations' }]
-      : [],
-  };
+/**
+ * The keys file: the current system key (if any) plus every retired one with
+ * its `retiredAt`, so a rotation never orphans an earlier attestation.
+ * Public keys only.
+ */
+export function publishedKeys(
+  key: SystemKey | null,
+  retired: readonly RetiredSystemKey[] = RETIRED_SYSTEM_KEYS,
+): { format: string; keys: PublishedKey[] } {
+  const use = 'bg-event/1 system signatures and event attestations';
+  const current: PublishedKey[] = key ? [{ kid: key.kid, alg: 'ed25519', publicKey: toBase64(key.publicKey), use }] : [];
+  const old: PublishedKey[] = retired
+    .filter((r) => !key || r.kid !== key.kid)
+    .map((r) => ({ kid: r.kid, alg: 'ed25519', publicKey: r.publicKey, use, retiredAt: r.retiredAt }));
+  return { format: BG_EVENT_KEYS_FORMAT, keys: [...current, ...old] };
 }
 
 // ── Proof verification (the offline check) ───────────────────────────────
@@ -399,13 +410,19 @@ export function systemMessageBindsEvent(message: string, block: number, kind: st
  *     `keys`. A missing attestation fails ('attestation missing').
  *
  * `keys` is the content of `/.well-known/bg-event-keys.json`, fetched once and
- * pinned by the verifier; it may list previously published keys (rotation).
+ * pinned by the verifier; it may list previously published keys (rotation). A
+ * key with `retiredAt` counts only for an event dated strictly before it.
  */
 export function verifyEventProof(proof: EventProof, keys: PublishedKey[] = []): ProofCheck {
   const checks: Record<string, boolean> = {};
   const e = proof.event;
+  const eventAt = Date.parse(e.ts);
   const keyFor = (kid: string) => {
     const k = keys.find((x) => x.kid === kid);
+    if (k?.retiredAt !== undefined) {
+      const retiredAt = Date.parse(k.retiredAt);
+      if (!Number.isFinite(retiredAt) || !Number.isFinite(eventAt) || eventAt >= retiredAt) return null;
+    }
     const pub = k ? fromBase64(k.publicKey) : null;
     return pub && pub.length === 32 && keyId(pub) === kid ? pub : null;
   };

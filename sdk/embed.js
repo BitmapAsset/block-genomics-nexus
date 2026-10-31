@@ -14,6 +14,13 @@
  *   data-animate  — Enable animations: true | false (default: true)
  *   data-target   — Render target selector (default: renders in-place)
  * 
+ * Not hosted today: no hosted copy of this script ships, and the host it calls
+ * (verify.blockgenomics.io) has no DNS record. blockgenomics.io has no
+ * `/api/v1/verify/<id>` or `/agent/<id>` route answering what this widget
+ * expects, so the host stays as written until one exists
+ * (docs/VERIFICATION-PROTOCOL.md). Every API field is escaped before it is
+ * put into markup, whichever host answers.
+ *
  * @version 1.0.0
  * @license MIT
  */
@@ -65,18 +72,50 @@
 
   // ─── Utilities ───────────────────────────────────────────────────────
 
+  // Text and attribute values: every API string goes through esc() before it
+  // is put into markup (quotes included, since values also land in attributes).
   function esc(s) {
-    var d = document.createElement('div');
-    d.appendChild(document.createTextNode(s));
-    return d.innerHTML;
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  // Numbers from the API: a finite number or the fallback, never a string.
+  function num(n, fallback) {
+    var v = typeof n === 'number' ? n : Number(n);
+    return isFinite(v) ? v : (fallback || 0);
+  }
+
+  // The genome is hex; anything else in it is dropped.
+  function hexOnly(g) {
+    var h = String(g == null ? '' : g).replace(/[^0-9a-fA-F]/g, '');
+    return h || '0';
+  }
+
+  // The fields the badge draws, as finite numbers, a hex genome and plain text.
+  function clean(agent) {
+    var tc = agent.trustComponents;
+    var part = function(p) { return p ? { score: num(p.score), max: num(p.max, 1) || 1 } : { score: 0, max: 1 }; };
+    return {
+      id: agent.id,
+      name: String(agent.name == null ? '' : agent.name),
+      blockHeight: Math.floor(num(agent.blockHeight)),
+      tier: Math.floor(num(agent.tier, 1)),
+      trustScore: Math.max(0, Math.min(100, num(agent.trustScore))),
+      genome: hexOnly(agent.genome),
+      trustComponents: tc && typeof tc === 'object' ? {
+        age: part(tc.age), richness: part(tc.richness), security: part(tc.security),
+        ownership: part(tc.ownership), history: part(tc.history)
+      } : null
+    };
   }
 
   function fmtNum(n) {
-    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return String(num(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
   function truncGenome(g, len) {
-    return g.slice(0, len || 16) + '\u2026';
+    return esc(hexOnly(g).slice(0, len || 16)) + '\u2026';
   }
 
   function genomeColors(genome, count) {
@@ -142,8 +181,8 @@
     }
 
     return '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"' +
-      ' role="img" aria-label="Block Genomics Verified Agent: ' + esc(agent.name) + ', Block #' + fmtNum(agent.blockHeight) + ', Tier ' + agent.tier + ' ' + tier.label + ', Trust Score ' + agent.trustScore + ' out of 100">' +
-      '<title>Block Genomics \u2014 ' + esc(agent.name) + ' \u2014 Tier ' + agent.tier + ' ' + tier.label + '</title>' +
+      ' role="img" aria-label="Block Genomics Verified Agent: ' + esc(agent.name) + ', Block #' + fmtNum(agent.blockHeight) + ', Tier ' + agent.tier + ' ' + esc(tier.label) + ', Trust Score ' + agent.trustScore + ' out of 100">' +
+      '<title>Block Genomics \u2014 ' + esc(agent.name) + ' \u2014 Tier ' + agent.tier + ' ' + esc(tier.label) + '</title>' +
       '<defs>' +
         '<linearGradient id="sbg" x1="0" y1="0" x2="1" y2="1">' +
           '<stop offset="0%" stop-color="' + (thm.bg === 'transparent' ? '#0a0a0f' : thm.bg) + '"/>' +
@@ -168,7 +207,7 @@
         '<text x="52" y="26" font-family="system-ui,-apple-system,sans-serif" font-size="14" font-weight="700" fill="' + thm.text + '">' + esc(agent.name) + '</text>' +
         // Tier label
         '<rect x="52" y="30" width="' + (70 + tier.label.length * 5) + '" height="16" rx="3" fill="' + tier.primary + '" fill-opacity="0.1"/>' +
-        '<text x="58" y="42" font-family="system-ui,-apple-system,sans-serif" font-size="9" font-weight="600" fill="' + tier.primary + '" letter-spacing="0.5">TIER ' + agent.tier + ' \u00B7 ' + tier.label.toUpperCase() + '</text>' +
+        '<text x="58" y="42" font-family="system-ui,-apple-system,sans-serif" font-size="9" font-weight="600" fill="' + tier.primary + '" letter-spacing="0.5">TIER ' + agent.tier + ' \u00B7 ' + esc(tier.label.toUpperCase()) + '</text>' +
         // Meta
         '<text x="52" y="58" font-family="ui-monospace,monospace" font-size="10" fill="' + thm.muted + '">Block #' + fmtNum(agent.blockHeight) + ' \u00B7 ' + truncGenome(agent.genome) + '</text>' +
         // DNA bar
@@ -212,7 +251,7 @@
         var y = 142 + j * 14;
         var filled = (rows[j].score / rows[j].max) * 120;
         breakdown +=
-          '<text x="16" y="' + (y + 9) + '" font-family="system-ui,-apple-system,sans-serif" font-size="9" fill="' + thm.muted + '">' + rows[j].label + '</text>' +
+          '<text x="16" y="' + (y + 9) + '" font-family="system-ui,-apple-system,sans-serif" font-size="9" fill="' + thm.muted + '">' + esc(rows[j].label) + '</text>' +
           '<rect x="85" y="' + (y + 1) + '" width="120" height="8" rx="4" fill="' + thm.border + '" opacity="0.4"/>' +
           '<rect x="85" y="' + (y + 1) + '" width="' + filled + '" height="8" rx="4" fill="' + tier.primary + '" opacity="0.7"/>' +
           '<text x="210" y="' + (y + 9) + '" font-family="ui-monospace,monospace" font-size="8" fill="' + thm.dim + '">' + rows[j].score + '/' + rows[j].max + '</text>';
@@ -220,7 +259,7 @@
     }
 
     return '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"' +
-      ' role="img" aria-label="Block Genomics Detailed Badge for ' + esc(agent.name) + '. Block ' + fmtNum(agent.blockHeight) + ', Tier ' + agent.tier + ' ' + tier.label + ', Trust ' + agent.trustScore + '/100.">' +
+      ' role="img" aria-label="Block Genomics Detailed Badge for ' + esc(agent.name) + '. Block ' + fmtNum(agent.blockHeight) + ', Tier ' + agent.tier + ' ' + esc(tier.label) + ', Trust ' + agent.trustScore + '/100.">' +
       '<title>Block Genomics \u2014 ' + esc(agent.name) + ' \u2014 Full Verification</title>' +
       '<defs>' +
         '<linearGradient id="dbg" x1="0" y1="0" x2="0.3" y2="1">' +
@@ -256,7 +295,7 @@
         '</g>' +
         // Tier label
         '<rect x="48" y="34" width="' + (70 + tier.label.length * 5) + '" height="18" rx="4" fill="' + tier.primary + '" fill-opacity="0.1" stroke="' + tier.primary + '" stroke-width="0.5" stroke-opacity="0.3"/>' +
-        '<text x="56" y="47" font-family="system-ui,-apple-system,sans-serif" font-size="9" font-weight="700" fill="' + tier.primary + '" letter-spacing="0.8">TIER ' + agent.tier + ' \u00B7 ' + tier.label.toUpperCase() + '</text>' +
+        '<text x="56" y="47" font-family="system-ui,-apple-system,sans-serif" font-size="9" font-weight="700" fill="' + tier.primary + '" letter-spacing="0.8">TIER ' + agent.tier + ' \u00B7 ' + esc(tier.label.toUpperCase()) + '</text>' +
         // Block info top-right
         '<text x="' + (w - 16) + '" y="24" font-family="ui-monospace,monospace" font-size="11" fill="' + thm.muted + '" text-anchor="end">Block #' + fmtNum(agent.blockHeight) + '</text>' +
         '<text x="' + (w - 16) + '" y="40" font-family="ui-monospace,monospace" font-size="9" fill="' + thm.dim + '" text-anchor="end">' + truncGenome(agent.genome, 20) + '</text>' +
@@ -285,7 +324,8 @@
 
   // ─── Core Renderer ──────────────────────────────────────────────────
 
-  function renderBadge(agent, opts) {
+  function renderBadge(raw, opts) {
+    var agent = clean(raw || {});
     var style = opts.style || 'standard';
     var theme = opts.theme || 'dark';
     var animate = opts.animate !== false;
@@ -328,7 +368,7 @@
   // ─── Noscript / Fallback Badge ──────────────────────────────────────
 
   function fallbackBadge(genomeId) {
-    return '<a href="' + VERIFY_BASE + '/' + esc(genomeId) + '" target="_blank" rel="noopener" ' +
+    return '<a href="' + VERIFY_BASE + '/' + esc(encodeURIComponent(genomeId)) + '" target="_blank" rel="noopener" ' +
       'style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;' +
       'background:#0a0a0f;border:1px solid rgba(255,255,255,0.1);border-radius:8px;' +
       'color:#f0f0f5;font-family:system-ui,sans-serif;font-size:12px;text-decoration:none;">' +
@@ -401,7 +441,7 @@
       link.href = VERIFY_BASE + '/' + encodeURIComponent(agent.id || genomeId);
       link.target = '_blank';
       link.rel = 'noopener';
-      link.title = 'Verified by Block Genomics \u2014 Trust: ' + agent.trustScore + '/100';
+      link.title = 'Verified by Block Genomics \u2014 Trust: ' + num(agent.trustScore) + '/100';
       link.style.textDecoration = 'none';
       link.style.display = 'inline-block';
       link.innerHTML = svg;
@@ -456,7 +496,7 @@
         link.href = VERIFY_BASE + '/' + encodeURIComponent(agent.id || genomeId);
         link.target = '_blank';
         link.rel = 'noopener';
-        link.title = 'Verified by Block Genomics \u2014 Trust: ' + agent.trustScore + '/100';
+        link.title = 'Verified by Block Genomics \u2014 Trust: ' + num(agent.trustScore) + '/100';
         link.style.textDecoration = 'none';
         link.style.display = 'inline-block';
         link.innerHTML = svg;
@@ -478,7 +518,7 @@
       link.href = VERIFY_BASE + '/' + encodeURIComponent(agent.id);
       link.target = '_blank';
       link.rel = 'noopener';
-      link.title = 'Verified by Block Genomics \u2014 Trust: ' + agent.trustScore + '/100';
+      link.title = 'Verified by Block Genomics \u2014 Trust: ' + num(agent.trustScore) + '/100';
       link.style.textDecoration = 'none';
       link.style.display = 'inline-block';
       link.innerHTML = svg;

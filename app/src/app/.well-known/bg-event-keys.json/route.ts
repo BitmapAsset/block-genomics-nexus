@@ -7,6 +7,10 @@
  * With no key configured the list is empty and events read `signer.scheme:
  * "unsigned"`. A verifier fetches this once and pins it.
  *
+ * Retired keys (`lib/bg-event-retired-keys.ts`) stay listed with their
+ * `retiredAt`, so a rotation never makes an earlier attestation unverifiable;
+ * a verifier accepts a retired key only for events dated before `retiredAt`.
+ *
  * Edge-cached for 5 minutes (+60 s stale-while-revalidate), not an hour: the
  * first fetch after `BG_EVENT_SIGNING_KEY` is set must not keep serving the
  * empty list for long. Still, set the key BEFORE anything fetches this file

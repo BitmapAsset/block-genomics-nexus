@@ -7,12 +7,12 @@ import { activeTools } from "./tools.js";
 const server = new McpServer({ name: "block-genomics-mcp", version: "0.2.2" });
 
 for (const tool of activeTools()) {
-  // Force additionalProperties:false on no-arg tools so callers can't smuggle
-  // undocumented fields past a schema that would otherwise be entirely permissive.
-  // Non-empty raw shapes get the same treatment via z-to-json-schema inside the
-  // SDK, but the empty-shape case has to be spelled out as a strict z.object.
-  const inputSchema =
-    Object.keys(tool.schema).length === 0 ? z.object({}).strict() : tool.schema;
+  // Every tool takes a strict object, so the advertised JSON Schema carries
+  // additionalProperties:false and a call with an undocumented field is refused
+  // rather than passed along. On zod 4 the SDK converts schemas for their input
+  // side, where a plain object allows extra keys, so this has to be spelled out
+  // for every tool, not just the no-arg ones.
+  const inputSchema = z.strictObject(tool.schema);
   server.registerTool(tool.name, { description: tool.description, inputSchema }, async (args: any) => {
     try {
       return { content: [{ type: "text" as const, text: await tool.run(args ?? {}) }] };

@@ -114,7 +114,7 @@ every emitter returns before touching the database and every read answers
    an empty list fetched before the key exists can be served for minutes,
    and verifiers pin the key id they first see. Once published, the key id
    (`bg-sys-<16 hex>`) is public; rotating it later needs a key-list entry
-   for the old one (not built yet).
+   for the old one (see *Rotating the event signing key* below).
 3. **Set `BG_EVENTS_ENABLED=true`** in the same place (Production only) and
    redeploy. Only `true` or `1` turns it on.
 4. **Check `GET /api/v1/health/events`:**
@@ -130,6 +130,31 @@ every emitter returns before touching the database and every read answers
 To turn it off again, unset `BG_EVENTS_ENABLED` (or set it to anything other
 than `true` / `1`) and redeploy. Recorded events stay; the table is
 append-only.
+
+### Rotating the event signing key
+
+Every earlier event was attested under the old key, so the old PUBLIC key
+stays published, with the moment it stopped signing. Do both halves in the
+same deploy:
+
+1. Before changing the env, save the current entry of the keys file:
+   `curl -s https://blockgenomics.io/.well-known/bg-event-keys.json | jq '.keys[0] | {kid, publicKey}'`.
+2. In a PR, append it to `RETIRED_SYSTEM_KEYS` in
+   `app/src/lib/bg-event-retired-keys.ts` as `{ kid, publicKey, retiredAt }`,
+   with `retiredAt` = the ISO-8601 UTC time the new key goes live (the
+   deploy time, rounded up). Public key and id only, never the seed.
+3. Set the new `BG_EVENT_SIGNING_KEY` in Production (as in step 2 above),
+   merge the PR, and let that deploy carry both.
+4. Check: the keys file lists the new key first and the old one with
+   `retiredAt` (`jq '.keys | map({kid, retiredAt})'`). A proof attested
+   under the old key for an event dated before `retiredAt` still verifies
+   (`app/scripts/verify-event-proof.ts`); anything dated later under the old
+   key does not.
+
+The date rule covers a planned rotation. If the old seed may have been
+exposed, whoever holds it could still attest an event dated before
+`retiredAt`, so leave that key out of the list instead: earlier proofs then
+stop verifying, which is the honest answer, and the release note says why.
 
 ## Post-deploy smoke
 

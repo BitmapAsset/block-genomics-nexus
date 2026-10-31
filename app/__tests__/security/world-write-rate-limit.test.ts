@@ -62,6 +62,7 @@ jest.mock('@/lib/prisma', () => ({
       findUnique: (...a: unknown[]) => mockObjectFindUnique(...a),
       update: (...a: unknown[]) => mockObjectUpdate(...a),
       findMany: jest.fn(async () => []),
+      count: jest.fn(async () => 0),
       delete: jest.fn(),
     },
     blockTerrain: { upsert: (...a: unknown[]) => mockTerrainUpsert(...a) },

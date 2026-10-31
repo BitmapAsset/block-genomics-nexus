@@ -4,9 +4,10 @@
  * vercel.json schedules this route every 15 minutes, and Vercel cron
  * authenticates with `Authorization: Bearer <CRON_SECRET>`. The route only knew
  * OWNERSHIP_SYNC_SECRET, so with CRON_SECRET configured every scheduled run was
- * refused. It now takes either secret — CRON_SECRET by header only,
- * OWNERSHIP_SYNC_SECRET also by the legacy `?secret=` param — compares them in
- * constant time, and still fails closed when neither is configured.
+ * refused. It now takes either secret, both by the Authorization header only
+ * (the query-string alias is gone, so a secret never lands in a request log),
+ * compares them in constant time, and still fails closed when neither is
+ * configured.
  *
  * The database and the ownership sync are mocked: these cases are about the
  * gate, so every refusal has to land before either is touched.
@@ -124,24 +125,27 @@ describe('accepted credentials', () => {
     expectRan(await run(cronReq({ authorization: `Bearer ${SYNC}` })));
   });
 
-  it('keeps the legacy ?secret= trigger working for OWNERSHIP_SYNC_SECRET', async () => {
-    secrets({ sync: SYNC });
-    expectRan(await run(cronReq({ secret: SYNC })));
-  });
-
   it('accepts either secret when both are set', async () => {
     secrets({ cron: CRON, sync: SYNC });
     expectRan(await run(cronReq({ authorization: `Bearer ${CRON}` })));
 
     mockBatchVerifyOwnership.mockClear();
     expectRan(await run(cronReq({ authorization: `Bearer ${SYNC}` })));
-
-    mockBatchVerifyOwnership.mockClear();
-    expectRan(await run(cronReq({ secret: SYNC })));
   });
 });
 
 describe('refused credentials — 401 before any work', () => {
+  it.each([
+    ['only OWNERSHIP_SYNC_SECRET set', { sync: SYNC }],
+    ['both set', { cron: CRON, sync: SYNC }],
+  ])('refuses OWNERSHIP_SYNC_SECRET in ?secret= — it is header-only too (%s)', async (_label, env) => {
+    secrets(env);
+    const res = await run(cronReq({ secret: SYNC }));
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ success: false, error: 'Unauthorized' });
+    expectRefusedBeforeWork();
+  });
+
   it.each([
     ['only CRON_SECRET set', { cron: CRON }],
     ['both set', { cron: CRON, sync: SYNC }],

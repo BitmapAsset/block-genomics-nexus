@@ -70,6 +70,10 @@ import prisma from '@/lib/prisma';
 import { callLLM } from '@/lib/llm-proxy';
 import { POST as CHAT } from '@/app/api/v1/guardian/chat/route';
 import { makeWallet, sign } from '../helpers/wallet-sim';
+import { MAX_PLACEMENTS } from '@/lib/world/types';
+
+/** The per-call item cap a legacy `place_group` honours (see guardian/chat executeWorldActions). */
+const PLACE_GROUP_ITEM_CAP = 25;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const db = prisma as any;
@@ -181,5 +185,48 @@ describe('world actions follow the live deed, not guardian.ownerAddress', () => 
 
     expect(objectCount()).toBe(before);
     expect((await res.json()).response).toContain('could not be confirmed');
+  });
+});
+
+describe("legacy world actions count against the block's cap", () => {
+  const onA = () => db.__rows('blockObject').filter((o: any) => o.blockHeight === BLOCK_A && o.visible).length;
+  const fill = async (n: number) => {
+    for (let i = 0; i < n; i++) {
+      await db.blockObject.create({ data: { blockHeight: BLOCK_A, ownerAddress: SELLER.address, visible: true } });
+    }
+  };
+  const group = (n: number) => ({
+    tool: 'place_group',
+    items: Array.from({ length: n }, (_, i) => ({ prefabType: 'tree_oak', posX: i })),
+  });
+
+  it('place_group with 300 items on an empty block places at most the per-call cap, and says so', async () => {
+    db.__rows('blockObject').splice(0); // an empty block
+    llm.mockResolvedValue(jsonAction(group(300)));
+
+    const res: any = await CHAT(chatReq(SELLER, 'plant a forest'));
+
+    expect(onA()).toBe(PLACE_GROUP_ITEM_CAP);
+    expect((await res.json()).response).toContain(`placed ${PLACE_GROUP_ITEM_CAP} of 300`);
+  });
+
+  it('at cap - 2 a group places 2', async () => {
+    await fill(MAX_PLACEMENTS - 2 - onA());
+    llm.mockResolvedValue(jsonAction(group(10)));
+
+    const res: any = await CHAT(chatReq(SELLER, 'plant trees'));
+
+    expect(onA()).toBe(MAX_PLACEMENTS);
+    expect((await res.json()).response).toContain('placed 2 of 10');
+  });
+
+  it('at the cap place_object creates nothing and answers plainly', async () => {
+    await fill(MAX_PLACEMENTS - onA());
+    llm.mockResolvedValue(jsonAction({ tool: 'place_object', geometry: 'box', name: 'tower' }));
+
+    const res: any = await CHAT(chatReq(SELLER, 'place a tower'));
+
+    expect(onA()).toBe(MAX_PLACEMENTS);
+    expect((await res.json()).response).toContain('placed 0 of 1');
   });
 });
