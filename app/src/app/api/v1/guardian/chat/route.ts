@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { decryptApiKey } from '@/lib/key-encryption';
 import { callLLM, checkGuardianRateLimit } from '@/lib/llm-proxy';
-import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { notifyEscalation } from '@/lib/escalation-notify';
 import { emitAgentEvent } from '@/lib/agent-events';
 import { requireSignedBlockOwner } from '@/lib/block-write-auth';
@@ -16,7 +16,7 @@ function stripControlChars(str: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { blockHeight, message: rawMessage, visitorAddress, visitorHandle, conversationId, signature, signedMessage } = await req.json();
+    const { blockHeight, message: rawMessage, visitorAddress, visitorHandle, conversationId, guardianId, signature, signedMessage } = await req.json();
 
     if (!blockHeight || !rawMessage) {
       return NextResponse.json({ error: 'blockHeight and message required' }, { status: 400 });
@@ -30,18 +30,6 @@ export async function POST(req: NextRequest) {
     // SECURITY: Strip control characters to reduce prompt injection risk
     const message = stripControlChars(rawMessage);
 
-    // SECURITY: Verify visitorAddress via wallet signature if provided
-    // This prevents spoofing the visitor identity for owner-only actions
-    let verifiedVisitorAddress = visitorAddress;
-    if (visitorAddress && signature && signedMessage) {
-      if (!verifyUnboundWalletSignature(visitorAddress, signedMessage, signature)) {
-        verifiedVisitorAddress = undefined; // Treat as anonymous if sig fails
-      }
-    } else {
-      // Without signature verification, do not trust visitorAddress for owner checks
-      verifiedVisitorAddress = undefined;
-    }
-
     // Find active guardian for this block
     const guardian = await prisma.guardianAgent.findFirst({
       where: { blockHeight: parseInt(blockHeight), status: 'active' },
@@ -49,6 +37,23 @@ export async function POST(req: NextRequest) {
 
     if (!guardian) {
       return NextResponse.json({ error: 'No active guardian on this block' }, { status: 404 });
+    }
+
+    // The owner path: visitorAddress counts only with that wallet's signature
+    // over the canonical 'guardian.chat' message for this block, this guardian,
+    // this conversation and this exact text, with a one-time 'guardian' nonce.
+    // Anything else (no signature, an ad-hoc or reused one) chats as anonymous.
+    let verifiedVisitorAddress: string | undefined;
+    if (visitorAddress && signature && signedMessage) {
+      const height = parseInt(blockHeight);
+      const auth = await verifySignedAction(
+        visitorAddress,
+        signedMessage,
+        signature,
+        { blockHeight: height, guardianId: guardianId ?? null, conversationId: conversationId ?? null, text: rawMessage, visitorAddress },
+        { action: 'guardian.chat', method: 'POST', path: '/api/v1/guardian/chat', blockHeight: height, purpose: 'guardian' },
+      );
+      if (auth.ok && guardianId === guardian.id) verifiedVisitorAddress = visitorAddress;
     }
 
     // Increment message count
@@ -133,7 +138,7 @@ export async function POST(req: NextRequest) {
       let finalResponse = response;
       if (worldActions.length > 0) {
         if (await actorHoldsBlock()) {
-          const results = await executeWorldActions(worldActions, guardian.blockHeight, verifiedVisitorAddress);
+          const results = await executeWorldActions(worldActions, guardian.blockHeight, verifiedVisitorAddress!);
           finalResponse = response.replace(/```json\n\{[\s\S]*?\}\n```/g, '').trim();
           if (results.length > 0) {
             finalResponse += '\n\n' + results.map(r => r.success ? `✅ ${r.action}` : `❌ ${r.error}`).join('\n');
@@ -162,7 +167,7 @@ export async function POST(req: NextRequest) {
           });
 
           if (buildActions.length > 0) {
-            const results = await executeWorldActions(buildActions, guardian.blockHeight, verifiedVisitorAddress);
+            const results = await executeWorldActions(buildActions, guardian.blockHeight, verifiedVisitorAddress!);
             if (results.length > 0) {
               finalResponse += '\n\n' + results.map(r => r.success ? `✅ ${r.action}` : `❌ ${r.error}`).join('\n');
             }

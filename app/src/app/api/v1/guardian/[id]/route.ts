@@ -17,6 +17,7 @@ import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 import { emitGuardianTransition } from '@/lib/block-event-emitters';
 import { guardianLiveState } from '@/lib/block-events';
+import { verifySignedAction } from '@/lib/signed-action';
 
 function sanitizeGuardian(g: Record<string, unknown>) {
   return { ...g, llmApiKey: maskApiKey(g.llmApiKey as string) };
@@ -42,20 +43,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id } = await params;
     const body = await req.json();
 
-    // Auth: verify the caller owns this guardian
+    // Auth: the signer signs the canonical message for exactly this edit (this
+    // guardian's path and block, this body) with a one-time 'guardian' nonce.
     const { ownerAddress, signature, message } = body;
     if (!ownerAddress || !signature || !message) {
       return NextResponse.json({ error: 'Authentication required (ownerAddress, signature, message)' }, { status: 401 });
     }
     const existing = await prisma.guardianAgent.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ error: 'Guardian not found' }, { status: 404 });
-    const { verifyUnboundWalletSignature } = await import('@/lib/api-helpers');
-    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
     // The height comes from the stored guardian, never the request body, so a
     // caller cannot gate against a block they own while editing an agent on one
     // they do not.
+    const auth = await verifySignedAction(ownerAddress, message, signature, body, {
+      action: 'guardian.update', method: 'PATCH', path: `/api/v1/guardian/${id}`,
+      blockHeight: existing.blockHeight, purpose: 'guardian',
+    });
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
     const gate = await requireLiveBlockOwner(ownerAddress, existing.blockHeight);
     if (!gate.ok) return gateDenialResponse(gate);
 
@@ -112,20 +115,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const { searchParams } = new URL(req.url);
-    const ownerAddress = searchParams.get('ownerAddress');
-    const signature = searchParams.get('signature');
-    const message = searchParams.get('message');
-    if (!ownerAddress || !signature || !message) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    // JSON body { ownerAddress, message, signature }; the signed body is { ownerAddress }.
+    const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+    const { ownerAddress, signature, message } = body ?? {};
+    if (!body || !ownerAddress || !signature || !message) {
+      return NextResponse.json({ error: 'Authentication required (ownerAddress, signature, message)' }, { status: 401 });
     }
     const target = await prisma.guardianAgent.findUnique({ where: { id } });
     if (!target) return NextResponse.json({ error: 'Guardian not found' }, { status: 404 });
-    const { verifyUnboundWalletSignature } = await import('@/lib/api-helpers');
-    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
-    const gate = await requireLiveBlockOwner(ownerAddress, target.blockHeight);
+    const auth = await verifySignedAction(ownerAddress, message, signature, body, {
+      action: 'guardian.delete', method: 'DELETE', path: `/api/v1/guardian/${id}`,
+      blockHeight: target.blockHeight, purpose: 'guardian',
+    });
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const gate = await requireLiveBlockOwner(ownerAddress as string, target.blockHeight);
     if (!gate.ok) return gateDenialResponse(gate);
     const before = guardianLiveState(target);
     await prisma.guardianAgent.update({ where: { id }, data: { status: 'stopped' } });

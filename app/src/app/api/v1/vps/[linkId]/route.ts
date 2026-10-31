@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
-import { verifyAgentSignature } from '@/lib/agent-protocol';
+import { verifySignedAction } from '@/lib/signed-action';
+import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 
 export async function DELETE(
   req: NextRequest,
@@ -10,20 +11,28 @@ export async function DELETE(
   try {
     const { linkId } = await params;
     const body = await req.json();
-    const { walletAddress, signature, challenge } = body;
+    const { walletAddress, signature, message } = body;
 
-    if (!walletAddress || !signature || !challenge) {
-      return error('Missing walletAddress, signature, or challenge', 400);
-    }
-
-    /* BIP-322 wallet signature verification */
-    if (!verifyAgentSignature(walletAddress, challenge, signature)) {
-      return error('Invalid wallet signature', 401);
+    if (!walletAddress || !signature || !message) {
+      return error('Missing walletAddress, signature, or message', 400);
     }
 
     const link = await prisma.vPSLink.findUnique({ where: { id: linkId } });
     if (!link) return error('VPS link not found', 404);
-    if (link.walletAddress !== walletAddress) return error('Unauthorized', 403);
+
+    // The canonical 'vps.unlink' message for this link and its block, used once.
+    const auth = await verifySignedAction(walletAddress, message, signature, body, {
+      action: 'vps.unlink', method: 'DELETE', path: `/api/v1/vps/${linkId}`,
+      blockHeight: link.blockHeight, purpose: 'vps',
+    });
+    if (!auth.ok) return error(auth.error, auth.status);
+
+    // The wallet that made the link may withdraw it; so may the block's live
+    // holder (a link listed against land that changed hands).
+    if (link.walletAddress !== walletAddress) {
+      const gate = await requireLiveBlockOwner(walletAddress, link.blockHeight);
+      if (!gate.ok) return gateDenialResponse(gate);
+    }
 
     await prisma.vPSLink.update({
       where: { id: linkId },

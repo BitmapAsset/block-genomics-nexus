@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { encryptApiKey, maskApiKey } from '@/lib/key-encryption';
 import { generateGuardianBundle, GUARDIAN_PROTOCOL_VERSION } from '@/lib/guardian-templates';
-import { verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 import { emitGuardianRegistered, emitGuardianTransition } from '@/lib/block-event-emitters';
@@ -38,13 +38,13 @@ export async function POST(req: NextRequest) {
     const finalAgentMd = body.agentMd || bundle.agentMd;
     const finalSkillsMd = body.skillsMd || bundle.skillsMd;
 
-    // SECURITY: Actually verify the wallet signature (not just check presence)
-    if (!signature || !signedMessage) {
-      return NextResponse.json({ error: 'Wallet signature required' }, { status: 401 });
-    }
-    if (!verifyUnboundWalletSignature(ownerAddress, signedMessage, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
+    // The owner signs the canonical message for exactly this request, with a
+    // one-time nonce from POST /api/v1/challenge { purpose: 'guardian' }.
+    const auth = await verifySignedAction(ownerAddress, signedMessage, signature, body, {
+      action: 'guardian.create', method: 'POST', path: '/api/v1/guardian',
+      blockHeight: Number(blockHeight), purpose: 'guardian',
+    });
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     // A signature proves the wallet and says nothing about the land. Without
     // this, any wallet could stand an agent up on any block — the upsert key is
@@ -119,8 +119,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Living Block, after the commit. System-signed on purpose: this route's
-    // wallet signature is unbound (replayable here), so it is never published.
+    // Living Block, after the commit. System-signed: the wallet signature is
+    // spent here and stays private.
     if (!before) await emitGuardianRegistered(guardian);
     else await emitGuardianTransition(before, guardian);
 

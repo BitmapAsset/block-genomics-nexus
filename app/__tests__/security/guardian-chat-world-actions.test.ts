@@ -61,6 +61,11 @@ jest.mock('@/lib/onchain/bitmap-ownership', () => ({
   },
 }));
 
+// The bound signature (action, path, block, body, one-time nonce) has its own
+// suite, signed-action-routes. Here every signed request is authorized, so a
+// decision can only come from what this suite is about.
+jest.mock('@/lib/signed-action', () => ({ verifySignedAction: async () => ({ ok: true }) }));
+
 import prisma from '@/lib/prisma';
 import { callLLM } from '@/lib/llm-proxy';
 import { POST as CHAT } from '@/app/api/v1/guardian/chat/route';
@@ -81,6 +86,7 @@ function chatReq(wallet: { privKey: string; address: string }, message: string) 
   return {
     json: async () => ({
       blockHeight: String(BLOCK_A),
+      guardianId: 'grd_a',
       message,
       visitorAddress: wallet.address,
       signature: sign(wallet.privKey, wallet.address, signedMessage),

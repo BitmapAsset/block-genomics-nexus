@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { success, error, verifyUnboundWalletSignature } from '@/lib/api-helpers';
+import { success, error } from '@/lib/api-helpers';
+import { verifySignedAction } from '@/lib/signed-action';
 
 export async function POST(
   _req: NextRequest,
@@ -21,10 +22,13 @@ export async function POST(
     if (!ownerAddress || !signature || !message) {
       return error('Authentication required', 401);
     }
+    // The canonical 'vps.health' message for this link and its block, used once.
+    const auth = await verifySignedAction(ownerAddress, message, signature, body, {
+      action: 'vps.health', method: 'POST', path: `/api/v1/vps/${linkId}/health`,
+      blockHeight: link.blockHeight, purpose: 'vps',
+    });
+    if (!auth.ok) return error(auth.error, auth.status);
     if (link.walletAddress !== ownerAddress) return error('Not the VPS owner', 403);
-    if (!verifyUnboundWalletSignature(ownerAddress, message, signature)) {
-      return error('Invalid signature', 401);
-    }
 
     const now = new Date();
     await prisma.vPSLink.update({
