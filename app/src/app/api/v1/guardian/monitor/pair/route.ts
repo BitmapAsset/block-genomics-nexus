@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
 import { validateMonitorToken } from '@/lib/monitor-tokens';
+import { assertSafeOutboundUrl } from '@/lib/ssrf-fetch';
 
 /**
  * POST /api/v1/guardian/monitor/pair
@@ -64,13 +65,22 @@ export async function POST(req: NextRequest) {
       return error('Wallet does not match guardian owner', 403);
     }
 
+    // The webhook is a server-side destination: https on a public host only,
+    // the same check as the guardian LLM / agent endpoints.
+    let checkedWebhook: string | null = null;
+    if (webhookUrl !== undefined && webhookUrl !== null && webhookUrl !== '') {
+      const check = await assertSafeOutboundUrl(webhookUrl);
+      if (!check.ok || !check.url) return error(`webhookUrl rejected: ${check.reason ?? 'not a public https URL'}`, 400);
+      checkedWebhook = check.url;
+    }
+
     // Pair!
     await prisma.guardianAgent.update({
       where: { id: guardianId },
       data: {
         monitorPairedAt: guardian.monitorPairedAt || new Date(),
         monitorPairedWallet: walletAddress,
-        monitorWebhookUrl: webhookUrl || null,
+        monitorWebhookUrl: checkedWebhook,
       },
     });
 
