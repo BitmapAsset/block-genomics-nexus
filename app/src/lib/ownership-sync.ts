@@ -333,8 +333,9 @@ export async function processOwnershipTransfer(
     });
 
     // 3. Delete the seller's guardian conversation history AND escalation events.
-    //    Both carry visitor PII / message content and are reachable via the public
-    //    guardian + guardian/events read paths, so both must go on release.
+    //    Both carry visitor PII / message content and stay readable with the
+    //    guardian's monitor token (guardian/events, guardian/monitor/*), which
+    //    the release clears; the rows themselves must go on release too.
     const releasedGuardians = await tx.guardianAgent.findMany({
       where: { blockHeight, ownerAddress: { not: newOwnerAddress } },
       select: { id: true },
