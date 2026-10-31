@@ -160,7 +160,8 @@ export async function dryRunHeight(height: number, base: string): Promise<DryRun
   let decisionNow: DryRunRow['decisionNow'] = 'none';
   let decisionNowWhy: string;
   const cronHolder = holder.source && holder.source !== 'unisat' ? holder.address : null;
-  if (deed.verdict !== 'canonical') decisionNowWhy = `deed ${deed.verdict} live: indeterminate, no action`;
+  if (stored.owner === null) decisionNowWhy = 'no stored owner: the cron only checks owned rows, no action';
+  else if (deed.verdict !== 'canonical') decisionNowWhy = `deed ${deed.verdict} live: indeterminate, no action`;
   else if (!cronHolder) decisionNowWhy = 'no ord / sat tracker holder: indeterminate, no action';
   else if (cronHolder === stored.owner) decisionNowWhy = 'holder equals the stored owner: match';
   else if (!holderMayTriggerTransfer({ holderSource: holder.source })) {
