@@ -8,8 +8,10 @@
  *   curl -s https://blockgenomics.io/api/v1/blocks/718840/events/<id>/proof > proof.json
  *   curl -s 'https://blockgenomics.io/api/v1/blocks/718840/events?after=0&limit=200' > events.json
  *
- *   # 2. Check one proof: payload hash, signature (BIP-322 or ed25519), event
- *   #    hash, and the system attestation over the event hash.
+ *   # 2. Check one proof: payload hash, signature (BIP-322 or ed25519), that
+ *   #    the signed message names the event's block and kind, the event hash,
+ *   #    and the system attestation over the event hash under a pinned key.
+ *   #    OK only when all of them pass; a missing attestation is a FAIL.
  *   npx tsx scripts/verify-event-proof.ts proof.json --keys keys.json
  *
  *   # 3. Check a chain window: seq has no gaps, each `prev` is the previous
@@ -76,11 +78,15 @@ export function run(argv: string[]): CliResult {
     const keysPath = flag(argv, '--keys');
     const keys = keysPath ? ((readJson(keysPath) as { keys?: PublishedKey[] }).keys ?? []) : [];
     const res = verifyEventProof(proof, keys);
-    for (const [name, v] of Object.entries(res.checks)) lines.push(`  ${v === true ? 'ok  ' : v === false ? 'FAIL' : 'skip'} ${name}`);
+    for (const [name, v] of Object.entries(res.checks)) lines.push(`  ${v ? 'ok  ' : 'FAIL'} ${name}`);
     lines.unshift(
-      `${res.ok ? 'OK' : 'FAIL'} ${proof.event?.kind ?? '?'} block ${proof.event?.block ?? '?'} seq ${proof.event?.seq ?? '?'} (${proof.scheme}${proof.address ? ' ' + proof.address : ''})`,
+      `${res.ok ? 'OK authenticated' : 'FAIL not authenticated'} ${proof.event?.kind ?? '?'} block ${proof.event?.block ?? '?'} seq ${proof.event?.seq ?? '?'} (${proof.scheme}${proof.address ? ' ' + proof.address : ''})`,
     );
-    if (proof.scheme === 'unsigned') lines.push('  note: unsigned event (no system key was configured); only its hashes are checkable');
+    if (!res.ok) {
+      lines.push(`  reason: ${res.reason ?? 'a check failed'}`);
+      if (res.integrity) lines.push('  note: the hashes agree, but that alone proves nothing (anyone can recompute them)');
+    }
+    if (!keysPath) lines.push('  note: no --keys given; a proof is authenticated only under a pinned published key');
     return { code: res.ok ? 0 : 1, lines };
   } catch (err) {
     lines.push(`error: ${err instanceof Error ? err.message : String(err)}`);

@@ -40,7 +40,7 @@
 
 import { ed25519 } from '@noble/curves/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
-import { stableStringify } from './action-message';
+import { parseActionMessage, stableStringify } from './action-message';
 import { verifyBip322 } from './bip322';
 
 export const BG_EVENT_FORMAT = 'bg-event/1';
@@ -343,50 +343,109 @@ export interface EventProof {
 }
 
 export interface ProofCheck {
+  /** True only for an authenticated proof: every check below passed. */
   ok: boolean;
-  checks: Record<string, boolean | 'skipped'>;
+  /** Same as `ok`; kept separate so integrity can never be read as authenticity. */
+  authenticated: boolean;
+  /** The hashes agree with each other. Proves nothing alone: anyone can recompute an unkeyed hash. */
+  integrity: boolean;
+  checks: Record<string, boolean>;
   reason?: string;
+}
+
+/** The signer schemes a proof can be authenticated under. Anything else never verifies. */
+export const PROOF_SCHEMES = ['bip322', 'ed25519'] as const;
+
+/** Which wallet actions may stand behind an event kind, by kind family. */
+const WALLET_ACTION_PREFIX: Record<string, string> = {
+  build: 'world.',
+  world: 'world.',
+  experience: 'experience.',
+  guardian: 'guardian.',
+};
+
+/**
+ * A wallet-signed message backs an event only when it is a canonical action
+ * message naming the event's block, with an action of the event's kind family.
+ * A challenge text names no block, so it never backs an event.
+ */
+export function walletMessageBindsEvent(message: string, block: number, kind: string): boolean {
+  const parsed = parseActionMessage(message);
+  if (!parsed || parsed.blockHeight !== block) return false;
+  const prefix = WALLET_ACTION_PREFIX[kind.split('.')[0]];
+  return !!prefix && parsed.action.startsWith(prefix);
+}
+
+/** A system-signed message backs an event only when it names the event's block and kind. */
+export function systemMessageBindsEvent(message: string, block: number, kind: string): boolean {
+  try {
+    const m = JSON.parse(message) as { format?: unknown; block?: unknown; kind?: unknown } | null;
+    return !!m && m.format === BG_EVENT_PAYLOAD_FORMAT && m.block === block && m.kind === kind;
+  } catch {
+    return false;
+  }
 }
 
 /**
  * Re-verify a proof from `GET /api/v1/blocks/<h>/events/<id>/proof` with no
- * network and no trust in the server: the payload hash, the signature under
- * its scheme, the event hash, and the system attestation when one is present.
+ * network and no trust in the server. `ok` is true only when ALL hold:
+ *
+ *   - the payload hash and the event hash re-derive (integrity);
+ *   - the scheme is `bip322` or `ed25519` and matches the event's signer;
+ *   - the signature verifies over the message under that scheme;
+ *   - the message names the event's block and kind (and the wallet signer is
+ *     the event's signer);
+ *   - a system attestation over the full event hash verifies under a key in
+ *     `keys`. A missing attestation fails ('attestation missing').
  *
  * `keys` is the content of `/.well-known/bg-event-keys.json`, fetched once and
- * pinned by the verifier.
+ * pinned by the verifier; it may list previously published keys (rotation).
  */
 export function verifyEventProof(proof: EventProof, keys: PublishedKey[] = []): ProofCheck {
-  const checks: Record<string, boolean | 'skipped'> = {};
+  const checks: Record<string, boolean> = {};
   const e = proof.event;
   const keyFor = (kid: string) => {
     const k = keys.find((x) => x.kid === kid);
     const pub = k ? fromBase64(k.publicKey) : null;
     return pub && pub.length === 32 && keyId(pub) === kid ? pub : null;
   };
+  const scheme = proof.scheme as string;
+  const known = (PROOF_SCHEMES as readonly string[]).includes(scheme);
+  const message = typeof proof.message === 'string' ? proof.message : '';
 
-  checks.payloadHash = sha256Tagged(proof.message) === proof.payloadHash && proof.payloadHash === e.payloadHash;
+  checks.payloadHash = sha256Tagged(message) === proof.payloadHash && proof.payloadHash === e.payloadHash;
   checks.eventHash = eventHash(e) === e.hash;
-  checks.signerMatches = proof.scheme === e.signer.scheme && proof.address === e.signer.address;
+  checks.scheme = known && scheme === e.signer.scheme;
+  checks.signerMatches = proof.address === e.signer.address;
 
-  if (proof.scheme === 'bip322') {
-    checks.signature = !!proof.address && !!proof.signature && verifyBip322(proof.address, proof.message, proof.signature);
-  } else if (proof.scheme === 'ed25519') {
+  if (scheme === 'bip322') {
+    checks.signature = !!proof.address && !!proof.signature && verifyBip322(proof.address, message, proof.signature);
+    checks.messageBinding = walletMessageBindsEvent(message, e.block, e.kind);
+  } else if (scheme === 'ed25519') {
     const pub = proof.address ? keyFor(proof.address) : null;
-    checks.signature = !!pub && !!proof.signature && verifyEd25519(pub, proof.message, proof.signature);
+    checks.signature = !!pub && !!proof.signature && verifyEd25519(pub, message, proof.signature);
+    checks.messageBinding = systemMessageBindsEvent(message, e.block, e.kind);
   } else {
-    checks.signature = 'skipped';
+    checks.signature = false;
+    checks.messageBinding = false;
   }
 
   if (proof.attestation) {
     const pub = keyFor(proof.attestation.kid);
     checks.attestation = !!pub && verifyEd25519(pub, e.hash, proof.attestation.signature);
   } else {
-    checks.attestation = 'skipped';
+    checks.attestation = false;
   }
 
-  const failed = Object.entries(checks).find(([, v]) => v === false);
-  return failed ? { ok: false, checks, reason: `${failed[0]} failed` } : { ok: true, checks };
+  const integrity = checks.payloadHash && checks.eventHash;
+  const failed = Object.entries(checks).find(([, v]) => !v);
+  if (!failed) return { ok: true, authenticated: true, integrity, checks };
+  const reason = !known
+    ? `scheme '${scheme}' is not verifiable`
+    : !proof.attestation
+      ? 'attestation missing'
+      : `${failed[0]} failed`;
+  return { ok: false, authenticated: false, integrity, checks, reason };
 }
 
 // ── Summaries (server templates; never free text from an agent) ──────────

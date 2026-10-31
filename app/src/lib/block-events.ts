@@ -41,6 +41,7 @@ import {
   signEd25519,
   summaryFor,
   systemProofMessage,
+  walletMessageBindsEvent,
   ulid,
   type BlockEventKind,
   type EventActor,
@@ -160,13 +161,13 @@ export function __resetBlockEventsState(): void {
 let cachedKeyRaw: string | undefined;
 let cachedKey: SystemKey | null = null;
 
-/** The system signing key from `BG_EVENT_SIGNING_KEY`, or null (unsigned mode). */
+/** The system signing key from `BG_EVENT_SIGNING_KEY`, or null (then no event is published). */
 export function systemKey(): SystemKey | null {
   const raw = process.env.BG_EVENT_SIGNING_KEY;
   if (raw !== cachedKeyRaw) {
     cachedKeyRaw = raw;
     cachedKey = parseSystemKey(raw);
-    if (raw && !cachedKey) console.warn('[block-events] BG_EVENT_SIGNING_KEY is set but is not a 32-byte ed25519 seed; running unsigned');
+    if (raw && !cachedKey) console.warn('[block-events] BG_EVENT_SIGNING_KEY is set but is not a 32-byte ed25519 seed; no events are published');
   }
   return cachedKey;
 }
@@ -338,18 +339,28 @@ export async function emitBlockEvent(input: EmitInput, db: Db = prisma): Promise
     if (input.dedupe && (await isDuplicate(db.blockEvent, input, payload))) return null;
     const summary = summaryFor(input.kind, input.summary);
     const key = systemKey();
+    // An event is only verifiable under a system attestation over its full
+    // hash, so without a key nothing is published (a proof that can never
+    // verify is worse than no proof).
+    if (!key) {
+      noteLoss(input.block, input.kind);
+      return null;
+    }
 
     let signer: EventSigner;
     let proofMessage: string;
     let proofSignature: string | null;
-    if (input.walletProof) {
+    // A wallet proof is published only when its message is an action message
+    // naming this block and an action of this kind's family; otherwise (e.g. a
+    // challenge text, which names no block) the event is system-signed.
+    if (input.walletProof && walletMessageBindsEvent(input.walletProof.message, input.block, input.kind)) {
       signer = { scheme: 'bip322', address: input.walletProof.address };
       proofMessage = input.walletProof.message;
       proofSignature = input.walletProof.signature;
     } else {
       proofMessage = systemProofMessage(input.block, input.kind, payload);
-      signer = key ? { scheme: 'ed25519', address: key.kid } : { scheme: 'unsigned', address: null };
-      proofSignature = key ? signEd25519(key.seed, proofMessage) : null;
+      signer = { scheme: 'ed25519', address: key.kid };
+      proofSignature = signEd25519(key.seed, proofMessage);
     }
     const payloadHash = sha256Tagged(proofMessage);
     const actor: EventActor = {
@@ -396,8 +407,8 @@ export async function emitBlockEvent(input: EmitInput, db: Db = prisma): Promise
             ts,
             proofMessage,
             proofSignature,
-            attestation: key ? signEd25519(key.seed, hash) : null,
-            attestationKid: key ? key.kid : null,
+            attestation: signEd25519(key.seed, hash),
+            attestationKid: key.kid,
           },
         });
       },

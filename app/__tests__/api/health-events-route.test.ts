@@ -49,10 +49,13 @@ beforeEach(() => {
   mockEnforce.mockReset();
   mockEnforce.mockResolvedValue({ response: null, headers: {} });
   delete process.env.BG_EVENTS_ENABLED;
+  // Events are published only under a system key.
+  process.env.BG_EVENT_SIGNING_KEY = '5a'.repeat(32);
 });
 
 afterAll(() => {
   delete process.env.BG_EVENTS_ENABLED;
+  delete process.env.BG_EVENT_SIGNING_KEY;
 });
 
 it('flag off: enabled false, zero counts, no-store, rate-limited like the other health routes', async () => {

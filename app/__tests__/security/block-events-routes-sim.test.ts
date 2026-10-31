@@ -204,7 +204,7 @@ describe('a signed world write', () => {
     const proof = await proofOf(e.id);
     const keys = await keysFile();
     const out = verifyCli([writeTmp('proof', proof), '--keys', writeTmp('keys', keys)]);
-    expect(out.lines.join('\n')).toMatch(/^OK build\.placed block 840000 seq 1 \(bip322 /);
+    expect(out.lines.join('\n')).toMatch(/^OK authenticated build\.placed block 840000 seq 1 \(bip322 /);
     expect(out.lines).toEqual(expect.arrayContaining(['  ok   signature', '  ok   payloadHash', '  ok   eventHash', '  ok   attestation']));
     expect(out.code).toBe(0);
 
@@ -317,15 +317,18 @@ describe('session/verify', () => {
     return sessionVerify(req({ walletAddress: owner.address, message, signature: sign(owner.privKey, owner.address, message), blocks: [BLOCK] }));
   }
 
-  it('emits deed.verified with the consumed challenge as its BIP-322 proof, once per holder per hour', async () => {
+  it('emits deed.verified, system-signed (the challenge text names no block), once per holder per hour', async () => {
     const res: any = await handshake();
     expect(res.status).toBe(201);
     expect(rows()).toHaveLength(1);
-    expect(rows()[0]).toMatchObject({ kind: 'deed.verified', actorType: 'owner', signerScheme: 'bip322', signerAddress: owner.address, summary: 'Deed verified on Bitcoin' });
+    expect(rows()[0]).toMatchObject({ kind: 'deed.verified', actorType: 'owner', signerScheme: 'ed25519', summary: 'Deed verified on Bitcoin' });
     expect(rows()[0].payload).toEqual({ holder: owner.address, inscriptionId: 'insc-840000i0', via: 'session' });
-    expect(rows()[0].proofMessage).toMatch(/^Block Genomics verification: [0-9a-f]{64}$/);
+    expect(rows()[0].proofMessage).not.toContain('Nonce:');
     expectNothingPrivate([res.body.data.token]);
-    expect(verifyCli([writeTmp('p-deed', await proofOf(rows()[0].id))]).lines).toContain('  ok   signature');
+    const keys = await keysFile();
+    const out = verifyCli([writeTmp('p-deed', await proofOf(rows()[0].id)), '--keys', writeTmp('keys-deed', keys)]);
+    expect(out.lines).toContain('  ok   signature');
+    expect(out.code).toBe(0);
 
     // Re-verifying minutes later adds nothing (dedupe under the block lock).
     expect(((await handshake()) as any).status).toBe(201);
@@ -345,16 +348,17 @@ describe('auth/verify', () => {
     );
   }
 
-  it('a live holder check emits one deed.verified whose BIP-322 proof is the consumed challenge', async () => {
+  it('a live holder check emits one system-signed deed.verified', async () => {
     const res: any = await verify({ displayName: PRIVATE.chatText });
     expect(res.status).toBe(200);
     expect(res.body.data.holderCheck).toBe('live');
     expect(rows()).toHaveLength(1);
-    expect(rows()[0]).toMatchObject({ kind: 'deed.verified', actorType: 'owner', signerScheme: 'bip322', signerAddress: owner.address });
+    expect(rows()[0]).toMatchObject({ kind: 'deed.verified', actorType: 'owner', signerScheme: 'ed25519' });
     // The deed the gate checked, never the id the caller sent.
     expect(rows()[0].payload).toEqual({ holder: owner.address, inscriptionId: 'insc-840000i0', via: 'auth' });
     expectNothingPrivate();
-    expect(verifyCli([writeTmp('p-auth', await proofOf(rows()[0].id))]).lines).toContain('  ok   signature');
+    const out = verifyCli([writeTmp('p-auth', await proofOf(rows()[0].id)), '--keys', writeTmp('keys-auth', await keysFile())]);
+    expect(out.code).toBe(0);
   });
 
   it('a failed holder check or an indexer outage emits nothing', async () => {
@@ -369,28 +373,36 @@ describe('auth/verify', () => {
 // ── Guardian ─────────────────────────────────────────────────────────────
 
 describe('guardian', () => {
-  it('register → guardian.registered, system-signed (the unbound owner signature is never published)', async () => {
-    const message = `Register guardian for block ${BLOCK}`;
-    const signature = sign(owner.privKey, owner.address, message);
-    const res: any = await guardianPost(
-      req({ blockHeight: BLOCK, ownerAddress: owner.address, name: 'Satoshis Keeper', soulMd: PRIVATE.soulMd, personality: PRIVATE.personality, message, signature }),
-    );
+  /** A guardian POST body signed over the exact request with a one-time 'guardian' nonce. */
+  async function guardianBody(intent: Record<string, unknown>) {
+    const body: Record<string, unknown> = { blockHeight: BLOCK, ownerAddress: owner.address, ...intent };
+    const message = buildActionMessage({
+      action: 'guardian.create', method: 'POST', path: '/api/v1/guardian', blockHeight: BLOCK,
+      bodyHash: await hashBody(body), nonce: await nonceFor(owner.address, 'guardian'), expiresAt: FUTURE(),
+    });
+    return { ...body, message, signature: sign(owner.privKey, owner.address, message) };
+  }
+
+  it('register → guardian.registered, system-signed (the owner signature is never published)', async () => {
+    const body = await guardianBody({ name: 'Satoshis Keeper', soulMd: PRIVATE.soulMd, personality: PRIVATE.personality });
+    const res: any = await guardianPost(req(body));
     expect(res.status).toBe(200);
     expect(rows()).toHaveLength(1);
     expect(rows()[0]).toMatchObject({ kind: 'guardian.registered', signerScheme: 'ed25519', summary: 'Satoshis Keeper became this block’s guardian' });
-    // The replayable credential stays out of the public record.
-    expectNothingPrivate([message, signature]);
+    expectNothingPrivate([body.message as string, body.signature as string]);
 
     // Re-registering the same guardian with no state change adds nothing.
-    await guardianPost(req({ blockHeight: BLOCK, ownerAddress: owner.address, name: 'Satoshis Keeper', message, signature }));
+    await guardianPost(req(await guardianBody({ name: 'Satoshis Keeper' })));
     expect(rows()).toHaveLength(1);
   });
 
   it('re-register with a selfHosted flip → exactly one guardian.status per change (state read before the upsert)', async () => {
-    const message = `Register guardian for block ${BLOCK}`;
-    const signature = sign(owner.privKey, owner.address, message);
-    const register = (extra: Record<string, unknown>) =>
-      guardianPost(req({ blockHeight: BLOCK, ownerAddress: owner.address, name: 'Satoshis Keeper', message, signature, ...extra })) as Promise<any>;
+    const sent: string[] = [];
+    const register = async (extra: Record<string, unknown>) => {
+      const body = await guardianBody({ name: 'Satoshis Keeper', ...extra });
+      sent.push(body.message as string, body.signature as string);
+      return guardianPost(req(body)) as Promise<any>;
+    };
     expect((await register({})).status).toBe(200);
     // Self-hosted with no heartbeat yet reads as offline.
     expect((await register({ selfHosted: true })).status).toBe(200);
@@ -401,7 +413,7 @@ describe('guardian', () => {
       ['guardian.status', 'idle', 'offline', 'ed25519'],
       ['guardian.status', 'offline', 'idle', 'ed25519'],
     ]);
-    expectNothingPrivate([message, signature]);
+    expectNothingPrivate(sent);
   });
 
   it('heartbeat emits guardian.status only when it brings the guardian back, never per beat', async () => {
@@ -416,7 +428,7 @@ describe('guardian', () => {
     expect(((await beat()) as any).status).toBe(200);
     expect(((await beat()) as any).status).toBe(200);
     expect(rows()).toHaveLength(1);
-    expect(rows()[0]).toMatchObject({ kind: 'guardian.status', summary: 'Keeper is now idle', signerScheme: 'bip322' });
+    expect(rows()[0]).toMatchObject({ kind: 'guardian.status', summary: 'Keeper is now idle', signerScheme: 'ed25519' });
     expect(rows()[0].payload).toEqual({ guardianId: 'gdn_1', from: 'offline', to: 'idle' });
     expectNothingPrivate(['PRIVATE-memory-0a0b']);
   });
@@ -474,7 +486,7 @@ describe('/.well-known/bg-event-keys.json', () => {
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
   });
 
-  it('publishes the public key only; with no key configured it lists none and events run unsigned', async () => {
+  it('publishes the public key only; with no key configured it lists none and no event is published', async () => {
     const withKey = await keysFile();
     expect(withKey.keys).toHaveLength(1);
     expect(JSON.stringify(withKey)).not.toContain(SEED);
@@ -488,8 +500,9 @@ describe('/.well-known/bg-event-keys.json', () => {
     const message = started.body.data.message;
     const verified: any = await sessionVerify(req({ walletAddress: owner.address, message, signature: sign(owner.privKey, owner.address, message), blocks: [BLOCK] }));
     rows().length = 0;
-    await worldPost(req({ blockHeight: BLOCK, objectType: 'crate' }, { authorization: `Bearer ${verified.body.data.token}` }));
-    expect(rows()[0]).toMatchObject({ signerScheme: 'unsigned', proofSignature: null, attestation: null });
+    const wrote: any = await worldPost(req({ blockHeight: BLOCK, objectType: 'crate' }, { authorization: `Bearer ${verified.body.data.token}` }));
+    expect(wrote.status).toBeLessThan(300);
+    expect(rows()).toHaveLength(0);
   });
 });
 

@@ -11,11 +11,12 @@
  * anything again once used: action-bound messages whose one-time nonce the
  * route has just consumed (world writes, signed experience manifests) and
  * nonce-carrying challenge messages (auth/verify, session/verify, heartbeat).
- * `verifyUnboundWalletSignature` refuses both shapes, and the bound routes
- * refuse a spent nonce. The guardian register / PATCH / DELETE signatures are
- * UNBOUND (any message the wallet signed passes there, and is replayable on
- * those routes), so publishing them would hand anyone a reusable owner
- * credential: guardian events are therefore system-signed, never wallet-proofed.
+ * Every signed route verifies an action binding for its own action, path,
+ * block and body and refuses a spent nonce, so a published proof authorizes
+ * nothing anywhere. `emitBlockEvent` publishes a wallet proof only when its
+ * message is an action message naming the event's block and an action of the
+ * event's kind family; anything else (a challenge text) is system-signed.
+ * Guardian register / PATCH / DELETE events stay system-signed.
  */
 
 import {
