@@ -162,7 +162,7 @@ function AgentCard({
         {/* Last Action */}
         {empireDetail?.lastAction && (
           <p className="text-gray-500 text-xs italic mb-3 truncate">
-            &ldquo;{empireDetail.lastAction}&rdquo; — {timeAgo(empireDetail.lastActionTime)}
+            {empireDetail.lastAction} — {timeAgo(empireDetail.lastActionTime)}
           </p>
         )}
 
