@@ -9,6 +9,7 @@ import { gateDenialResponse, requireVerifiedBlock, sessionTokenFromHeaders } fro
 import { looksLikeSessionToken } from '@/lib/verified-sessions';
 import { enforceRateLimit, WORLD_BATCH_LIMIT } from '@/lib/api-rate-limit';
 import { emitWorldWrite, walletProofOf, type WalletProof } from '@/lib/block-event-emitters';
+import { MAX_PLACEMENTS } from '@/lib/world/types';
 
 // H-03: Allowlist of fields for block objects
 const ALLOWED_OBJECT_FIELDS = ['objectType', 'geometry', 'color', 'material', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ', 'name', 'visible'];
@@ -180,11 +181,11 @@ export async function POST(req: NextRequest) {
       .filter(op => (op.action === 'update' || op.action === 'delete') && op.id)
       .map(op => op.id!);
 
-    const existingMap = new Map<string, { id: string; blockHeight: number; locked: boolean }>();
+    const existingMap = new Map<string, { id: string; blockHeight: number; locked: boolean; visible: boolean }>();
     if (idsToCheck.length > 0) {
       const existing = await prisma.blockObject.findMany({
         where: { id: { in: idsToCheck } },
-        select: { id: true, blockHeight: true, locked: true },
+        select: { id: true, blockHeight: true, locked: true, visible: true },
       });
       for (const obj of existing) {
         existingMap.set(obj.id, obj);
@@ -222,6 +223,40 @@ export async function POST(req: NextRequest) {
       } else {
         return NextResponse.json({ error: `Invalid batch: unknown action ${op.action}` }, { status: 400 });
       }
+    }
+
+    // The block's cap, as on a single placement: refuse the whole batch when it
+    // raises the visible count above MAX_PLACEMENTS. A swap at the cap (delete
+    // one, create one) and a clean-up batch still apply. Checked before the
+    // nonce is spent. Two batches at once can both pass the same count.
+    const shown = new Map<string, boolean>();
+    for (const [id, obj] of existingMap) shown.set(id, obj.visible === true);
+    let visibleDelta = 0;
+    for (const op of operations) {
+      if (op.action === 'create') {
+        // A create without `visible` is visible (schema default).
+        if (pickAllowed(op.data ?? {}).visible !== false) visibleDelta++;
+      } else if (op.action === 'update') {
+        const next = pickAllowed(op.data ?? {}).visible;
+        const was = shown.get(op.id!) ?? false;
+        if (next === true && !was) visibleDelta++;
+        if (next === false && was) visibleDelta--;
+        if (typeof next === 'boolean') shown.set(op.id!, next);
+      } else if (op.action === 'delete') {
+        if (shown.get(op.id!)) visibleDelta--;
+        shown.set(op.id!, false);
+      }
+    }
+    const visibleNow = visibleDelta > 0 ? await prisma.blockObject.count({ where: { blockHeight, visible: true } }) : 0;
+    if (visibleDelta > 0 && visibleNow + visibleDelta > MAX_PLACEMENTS) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `This block already has ${MAX_PLACEMENTS} objects; remove one first.`,
+          code: 'too_many_placements',
+        },
+        { status: 409, headers: rl.headers },
+      );
     }
 
     // Only now — after the whole batch is known valid — spend the one-time
