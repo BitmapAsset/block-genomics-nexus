@@ -85,7 +85,7 @@ function config(): Config | null {
   const path = url.pathname.replace(/\/+$/, '');
   const auth = (process.env.DEED_CROSSCHECK_AUTH ?? '').trim();
   const chat = (process.env.DEED_CROSSCHECK_ALERT_CHAT_ID ?? '').trim();
-  return { base: `${url.origin}${path}`, label: `${url.host}${path}`, authorization: auth || null, alertChatId: chat || null };
+  return { base: `${url.origin}${path}`, label: url.host, authorization: auth || null, alertChatId: chat || null };
 }
 
 /** True when an index is configured (a malformed URL counts as configured: it can only fail closed). */
@@ -250,7 +250,7 @@ export async function crossCheckDeed(height: number, resolverId: string | null):
 
 export interface DeedCrossCheckHealth {
   configured: boolean;
-  /** host[/path] of the index; never carries credentials. */
+  /** host of the index (no path); never carries credentials. */
   host: string | null;
   lastOkAt: string | null;
   indexedHeight: number | null;
