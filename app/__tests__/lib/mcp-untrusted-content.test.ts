@@ -92,6 +92,43 @@ describe('hosted MCP: third-party text comes back labelled as data', () => {
   });
 });
 
+describe('hosted MCP: a third-party tool error comes back labelled as data', () => {
+  // An API error carries the answer body, which can hold third-party text.
+  const ERROR_TEXT = `400 Bad Request — ${STEERING}`;
+  const failing = buildToolCatalog(jest.fn(async () => {
+    throw new Error(ERROR_TEXT);
+  }));
+  const failingAll = [...failing.publicTools, ...failing.agentTools, ...failing.ownerTools, ...failing.writeTools];
+
+  it('the catalog still has 41 tools', () => {
+    expect(failingAll).toHaveLength(41);
+  });
+
+  it.each(ENVELOPED)('%s rejects with the error text inside untrusted_content and the note', async (name) => {
+    const tool = failingAll.find((t) => t.name === name)!;
+    const err = await tool.run(ARGS).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(Error);
+    expect(JSON.parse((err as Error).message)).toEqual({ untrusted_content: ERROR_TEXT, note: NOTE });
+  });
+
+  it('a rejection that is not an Error is labelled the same way', async () => {
+    const odd = buildToolCatalog(jest.fn(() => Promise.reject(ERROR_TEXT)));
+    const tool = odd.publicTools.find((t) => t.name === 'bg_block')!;
+    await expect(tool.run(ARGS)).rejects.toHaveProperty('message', JSON.stringify({ untrusted_content: ERROR_TEXT, note: NOTE }));
+  });
+
+  it('every other tool keeps its error text as it is', async () => {
+    const plain = failingAll.filter((t) => !ENVELOPED.includes(t.name));
+    expect(plain).toHaveLength(41 - ENVELOPED.length);
+    for (const tool of plain) {
+      await expect(tool.run(ARGS)).rejects.toHaveProperty('message', ERROR_TEXT);
+    }
+  });
+});
+
 describe('hosted MCP: bg_challenge offers no agent-key purposes', () => {
   const purpose = publicTools.find((t) => t.name === 'bg_challenge')!.schema.purpose as z.ZodTypeAny;
 

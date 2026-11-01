@@ -39,11 +39,18 @@ jest.mock('@/lib/prisma', () => {
   const client = createMemoryPrisma();
   return { __esModule: true, default: client, prisma: client };
 });
-jest.mock('@/lib/agent-events', () => ({ emitAgentEvent: async () => undefined }));
+const mockEmitAgentEvent = jest.fn(async (..._a: unknown[]) => undefined);
+jest.mock('@/lib/agent-events', () => ({ emitAgentEvent: (...a: unknown[]) => mockEmitAgentEvent(...a) }));
+// Only the LLM guardian case below reaches these; the model answer is fixed.
+jest.mock('@/lib/llm-proxy', () => ({
+  callLLM: async () => 'A fixed guardian reply.',
+  checkGuardianRateLimit: async () => true,
+}));
 
 import prisma from '@/lib/prisma';
 import { POST as CHAT } from '@/app/api/v1/guardian/chat/route';
 import { notifyEscalation } from '@/lib/escalation-notify';
+import { encryptApiKey } from '@/lib/key-encryption';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const db = prisma as any;
@@ -77,10 +84,22 @@ function req(ip: string, body: Record<string, unknown> = {}) {
   } as any;
 }
 const events = () => db.__rows('guardianEvent').filter((e: any) => e.eventType === 'escalation');
+// The in-memory client stores `{ increment: 1 }` as it is, so the message
+// counter is read from the increments the route asks for.
+let counted = 0;
+const realGuardianUpdate = db.guardianAgent.update;
+db.guardianAgent.update = async (args: any) => {
+  counted += args?.data?.totalMessages?.increment ?? 0;
+  return realGuardianUpdate(args);
+};
+const messageCount = () => counted;
+const dmReceived = () => mockEmitAgentEvent.mock.calls.filter((c) => c[1] === 'dm_received').length;
 
 beforeEach(async () => {
   db.__reset();
   installCounter();
+  mockEmitAgentEvent.mockClear();
+  counted = 0;
   sent.length = 0;
   process.env.RESEND_API_KEY = 'test-resend-placeholder';
   process.env.BG_TELEGRAM_BOT_TOKEN = 'test-telegram-placeholder';
@@ -114,6 +133,47 @@ describe('per-IP cap on forwarded messages', () => {
     expect(res.status).toBe(429);
     expect(events().length).toBe(rowsBefore);
     expect(sent.length).toBe(sendsBefore);
+  });
+
+  it('a forward refused for the hourly limit is neither counted nor announced to the owner\'s agents', async () => {
+    for (let i = 0; i < 20; i++) await CHAT(req('198.51.100.1'));
+    expect(messageCount()).toBe(20);
+    expect(dmReceived()).toBe(20);
+    const res: any = await CHAT(req('198.51.100.1'));
+    expect(res.status).toBe(429);
+    expect(res.body.error).toBe('Too many messages forwarded from this address. Please try again later.');
+    expect(res.headers.get('Retry-After')).toEqual(expect.any(String));
+    expect(messageCount()).toBe(20);
+    expect(dmReceived()).toBe(20);
+  });
+
+  it('an auto-response answer is never subject to the forward limit', async () => {
+    await db.guardianAgent.update({
+      where: { id: 'grd_a' },
+      data: { autoResponses: JSON.stringify([{ trigger: 'opening hours', response: 'Open all day.' }]) },
+    });
+    for (let i = 0; i < 25; i++) {
+      const r: any = await CHAT(req('198.51.100.1', { message: 'What are your opening hours?' }));
+      expect(r.status).toBe(200);
+      expect(r.body).toMatchObject({ response: 'Open all day.', source: 'auto-response' });
+    }
+    expect(messageCount()).toBe(25);
+    expect(dmReceived()).toBe(25);
+  });
+
+  it('an LLM guardian answer is never subject to the forward limit', async () => {
+    process.env.GUARDIAN_ENCRYPTION_KEY = 'a'.repeat(64);
+    await db.guardianAgent.update({
+      where: { id: 'grd_a' },
+      data: { llmApiKey: encryptApiKey('sk-' + 'x'.repeat(20)), llmProvider: 'anthropic', llmModel: 'test-model' },
+    });
+    for (let i = 0; i < 25; i++) {
+      const r: any = await CHAT(req('198.51.100.1'));
+      expect(r.status).toBe(200);
+      expect(r.body).toMatchObject({ response: 'A fixed guardian reply.', source: 'llm' });
+    }
+    expect(messageCount()).toBe(25);
+    expect(events().length).toBe(0);
   });
 
   it('another IP is still served', async () => {
