@@ -108,7 +108,7 @@ const OWNER = 'bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978';
 const OTHER = 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq';
 const INDEX = 'https://index.test/opi';
 
-type IndexMode = 'names' | 'not-found' | 'unreachable' | 'timeout' | 'malformed' | 'behind' | 'http500';
+type IndexMode = 'names' | 'not-found' | 'unreachable' | 'timeout' | 'malformed' | 'behind' | 'http500' | 'height-from-hash' | 'height-none';
 type HolderMode = 'ord' | 'sat-tracker' | 'unisat';
 
 let indexMode: IndexMode = 'names';
@@ -141,7 +141,12 @@ function stubFetch() {
       }
       if (indexMode === 'http500') return new Response('oops', { status: 500 });
       if (url.endsWith('/v1/bitmap/block_height')) {
+        if (indexMode === 'height-from-hash' || indexMode === 'height-none') return new Response('{}', { status: 200 });
         return new Response(indexMode === 'behind' ? String(BLOCK - 1) : '972000', { status: 200 });
+      }
+      if (url.endsWith('/v1/bitmap/get_hash_of_all_bitmaps')) {
+        if (indexMode === 'height-from-hash') return new Response('{"result":{"block_height":972000}}', { status: 200 });
+        return new Response('{}', { status: 200 });
       }
       const m = /bitmap_number=(\d+)$/.exec(url);
       if (m) {
@@ -299,6 +304,18 @@ describe('cross-check names the deed', () => {
   });
 });
 
+describe('the index height comes from the hash route when the height route has none', () => {
+  it('grants at every entry point as with the plain height route', async () => {
+    world();
+    crossCheckOn();
+    indexMode = 'height-from-hash';
+    expect(await everyEntryPoint(OWNER, BLOCK)).toEqual(GRANTED);
+    expect(getDeedCrossCheckHealth()).toMatchObject({ indexedHeight: 972000, disagreements: 0 });
+    expect(calls.some((c) => c.endsWith('/v1/bitmap/block_height'))).toBe(true);
+    expect(calls.some((c) => c.endsWith('/v1/bitmap/get_hash_of_all_bitmaps'))).toBe(true);
+  });
+});
+
 describe('cross-check names another inscription, or none: 503 + alert + counter', () => {
   it('names a different inscription', async () => {
     world();
@@ -349,6 +366,16 @@ describe('cross-check cannot answer: 503 retryable', () => {
     crossCheckOn();
     indexMode = 'unreachable';
     expect(await requireLiveBlockOwner(OWNER, BLOCK)).toMatchObject({ ok: false, status: 503, code: 'onchain_unavailable' });
+  });
+
+  it('a height route with no height and a hash route with none: 503 everywhere, no alert', async () => {
+    world();
+    crossCheckOn();
+    indexMode = 'height-none';
+    expect(await everyEntryPoint(OWNER, BLOCK)).toEqual(ALL(503));
+    expect(mockMint).not.toHaveBeenCalled();
+    expect(alertLines()).toHaveLength(0);
+    expect(calls.some((c) => c.endsWith('/v1/bitmap/get_hash_of_all_bitmaps'))).toBe(true);
   });
 
   it('a configured URL that is not http(s) fails closed', async () => {
