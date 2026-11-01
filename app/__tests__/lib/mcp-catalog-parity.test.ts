@@ -9,10 +9,9 @@ import { buildToolCatalog } from '@/lib/mcp/catalog';
 // canonical; src/lib/mcp/catalog.ts is a verbatim mirror of the block between
 // the markers, and this test fails the moment they drift.
 //
-// The canonical file lives outside the app's Vercel Root Directory, so it is
-// not guaranteed to be present in a serverless build context — the parity
-// assertion skips when unreachable, exactly like scripts/sync-protocol.mjs.
-// CI checks out the whole tree, so drift is always caught there.
+// The canonical files live outside the app's Vercel Root Directory, but jest
+// never runs in the Vercel build; CI checks out the whole tree. So a missing
+// canonical file is a failure here, named in the expectation, never a skip.
 
 const CANONICAL = join(__dirname, '../../../packages/bg-mcp/src/tools.ts');
 const MIRROR = join(__dirname, '../../src/lib/mcp/catalog.ts');
@@ -28,9 +27,8 @@ function extractCatalog(source: string): string {
 }
 
 describe('MCP catalog app <-> npm package parity', () => {
-  const canonicalReachable = existsSync(CANONICAL);
-
-  (canonicalReachable ? it : it.skip)('shared catalog is byte-for-byte identical', () => {
+  it('shared catalog is byte-for-byte identical', () => {
+    expect({ file: CANONICAL, exists: existsSync(CANONICAL) }).toEqual({ file: CANONICAL, exists: true });
     expect(extractCatalog(readFileSync(MIRROR, 'utf8'))).toBe(
       extractCatalog(readFileSync(CANONICAL, 'utf8')),
     );
@@ -40,7 +38,8 @@ describe('MCP catalog app <-> npm package parity', () => {
   const ENVELOPE_CANONICAL = join(__dirname, '../../../packages/bg-mcp/src/untrusted.ts');
   const ENVELOPE_MIRROR = join(__dirname, '../../src/lib/mcp/untrusted.ts');
   const code = (source: string) => source.slice(source.indexOf('*/') + 2);
-  (existsSync(ENVELOPE_CANONICAL) ? it : it.skip)('untrusted-content helper is identical below its header', () => {
+  it('untrusted-content helper is identical below its header', () => {
+    expect({ file: ENVELOPE_CANONICAL, exists: existsSync(ENVELOPE_CANONICAL) }).toEqual({ file: ENVELOPE_CANONICAL, exists: true });
     expect(code(readFileSync(ENVELOPE_MIRROR, 'utf8'))).toBe(code(readFileSync(ENVELOPE_CANONICAL, 'utf8')));
   });
 
