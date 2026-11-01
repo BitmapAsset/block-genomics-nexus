@@ -10,7 +10,8 @@
  * `bip322-js@3.0.0`'s `Verifier.verifySignature(addr, msg, sig)` with
  * `useStrictVerification = false`, so that every signature that verified before
  * the migration still verifies after it. The behaviours that look odd here are
- * bug-for-bug parity, and each is called out at its site.
+ * bug-for-bug parity, and each is called out at its site. One deliberate
+ * difference: only main-network addresses are accepted.
  *
  * Everything fails CLOSED: malformed input returns false rather than throwing.
  */
@@ -89,8 +90,9 @@ interface ParsedAddress {
 }
 
 /**
- * Decode a mainnet, testnet or regtest address into its scriptPubKey.
- * `bip322-js` accepts all three networks, so we do too.
+ * Decode an address into its scriptPubKey, trying each network in turn.
+ * `verifyBip322Signature` only reaches this for a main-network address (it
+ * checks that first); the other networks serve the address derivation below.
  *
  * @returns null when the address is malformed or fails its checksum.
  */
@@ -104,6 +106,15 @@ function parseAddress(address: string): ParsedAddress | null {
     }
   }
   return null;
+}
+
+function isMainNetworkAddress(address: string): boolean {
+  try {
+    btc.Address(btc.NETWORK).decode(address);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function decodeBase64(input: string): Uint8Array | null {
@@ -416,6 +427,8 @@ export function verifyBip322Signature(address: string, message: string, signatur
     return false;
   }
   if (!address || !signatureBase64) return false;
+  // Main-network addresses only: every holder a gate compares against is one.
+  if (!isMainNetworkAddress(address)) return false;
 
   const parsed = parseAddress(address);
   if (!parsed) return false;
