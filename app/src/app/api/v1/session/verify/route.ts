@@ -41,6 +41,46 @@ export const maxDuration = 60;
 const RL_LIMIT = 20;
 const RL_WINDOW_MS = 60_000;
 
+/** At most this many on-chain ownership checks run at once for one sign-in. */
+const OWNERSHIP_CHECK_CONCURRENCY = 4;
+/**
+ * Every ownership check of one sign-in shares this deadline. It sits below
+ * `maxDuration` (60 s) with room for the signature check, the nonce, the token
+ * and the events; a block not settled by then is reported as retryable.
+ */
+const OWNERSHIP_CHECK_DEADLINE_MS = 40_000;
+
+type OwnershipCheck = Awaited<ReturnType<typeof verifyBlockOwnedBy>>;
+
+/**
+ * Check each claimed block, OWNERSHIP_CHECK_CONCURRENCY at a time, until
+ * OWNERSHIP_CHECK_DEADLINE_MS. Results come back in claimed order; `null` is a
+ * block whose check had not settled (or not started) at the deadline.
+ */
+async function checkBlocksWithinDeadline(walletAddress: string, blocks: number[]): Promise<Array<OwnershipCheck | null>> {
+  const results: Array<OwnershipCheck | null> = blocks.map(() => null);
+  let next = 0;
+  let expired = false;
+  const workers = Array.from({ length: Math.min(OWNERSHIP_CHECK_CONCURRENCY, blocks.length) }, async () => {
+    while (!expired && next < blocks.length) {
+      const i = next++;
+      const check = await verifyBlockOwnedBy(walletAddress, blocks[i]);
+      if (!expired) results[i] = check;
+    }
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, OWNERSHIP_CHECK_DEADLINE_MS);
+  });
+  try {
+    await Promise.race([Promise.all(workers), deadline]);
+  } finally {
+    expired = true;
+    clearTimeout(timer);
+  }
+  return results.slice();
+}
+
 /** Parse the caller-supplied block list into clean, bounded, de-duplicated heights. */
 function parseBlocks(raw: unknown): { blocks: number[]; bad: boolean } {
   if (raw === undefined || raw === null) return { blocks: [], bad: false };
@@ -104,9 +144,17 @@ export async function POST(req: NextRequest) {
     const verifiedInscriptions = new Map<number, string | null>();
     const rejected: Array<{ blockHeight: number; reason: string; retryable: boolean }> = [];
 
-    for (const blockHeight of blocks) {
-      const check = await verifyBlockOwnedBy(walletAddress, blockHeight);
-      if (check.verified) {
+    const checks = await checkBlocksWithinDeadline(walletAddress, blocks);
+    for (let i = 0; i < blocks.length; i++) {
+      const blockHeight = blocks[i];
+      const check = checks[i];
+      if (!check) {
+        rejected.push({
+          blockHeight,
+          reason: 'On-chain ownership could not be confirmed right now — retry shortly.',
+          retryable: true,
+        });
+      } else if (check.verified) {
         verifiedBlocks.push(blockHeight);
         verifiedInscriptions.set(blockHeight, check.inscriptionId ?? null);
       } else {
