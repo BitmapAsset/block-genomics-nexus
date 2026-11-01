@@ -129,6 +129,16 @@ export async function POST(req: NextRequest) {
       if (refused) return refused;
       forwardAllowed = true;
     }
+    // An AI answer meets the guardian's hourly limit here for the same reason:
+    // a message refused for it is neither counted nor announced. The AI branch
+    // below checks again only when an auto-response failed to store.
+    let llmReserved = false;
+    if (!autoResponse && hasLlm) {
+      if (!(await checkGuardianRateLimit(guardian.id)) || !(await reserveLlmCall(guardian.id))) {
+        return NextResponse.json({ error: RATE_LIMITED }, { status: 429 });
+      }
+      llmReserved = true;
+    }
 
     // Increment message count
     await prisma.guardianAgent.update({
@@ -160,7 +170,7 @@ export async function POST(req: NextRequest) {
       // guardian owner's LLM budget. Fail-closed 429 when over or unknowable.
       // The durable reservation is the budget itself: one unit per outbound
       // call, taken before the call, on this guardian's key.
-      if (!(await checkGuardianRateLimit(guardian.id)) || !(await reserveLlmCall(guardian.id))) {
+      if (!llmReserved && (!(await checkGuardianRateLimit(guardian.id)) || !(await reserveLlmCall(guardian.id)))) {
         return NextResponse.json({ error: RATE_LIMITED }, { status: 429 });
       }
 

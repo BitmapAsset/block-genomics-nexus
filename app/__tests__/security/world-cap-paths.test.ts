@@ -296,3 +296,48 @@ describe('PATCH re-showing a hidden object counts against the cap', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('a wallet PATCH refused for the cap or a lock keeps its one-time code', () => {
+  const signed = (fields: Record<string, unknown>) =>
+    walletReq({ ownerAddress: OWNER, signature: 'sig', message: 'signed edit', ...fields });
+  async function seedLocked() {
+    await db.blockObject.create({
+      data: { id: 'obj_locked', blockHeight: BLOCK, ownerAddress: OWNER, objectType: 'cube', locked: true, visible: true },
+    });
+  }
+
+  it('200 visible + re-show: 409, the nonce is not consumed', async () => {
+    await seed(MAX_PLACEMENTS);
+    const res: any = await PATCH(signed({ visible: true }), at('obj_hidden'));
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual(CAP_BODY);
+    expect(mockConsumeChallenge).not.toHaveBeenCalled();
+    expect((await db.blockObject.findUnique({ where: { id: 'obj_hidden' } })).visible).toBe(false);
+  });
+
+  it('an edit of a locked object: the lock refusal, the nonce is not consumed', async () => {
+    await seed(3);
+    await seedLocked();
+    const res: any = await PATCH(signed({ color: '#ff0000' }), at('obj_locked'));
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(res.body)).toContain('Object obj_locked is locked.');
+    expect(mockConsumeChallenge).not.toHaveBeenCalled();
+  });
+
+  it('199 visible + re-show: applied, the nonce consumed once', async () => {
+    await seed(MAX_PLACEMENTS - 1);
+    const res: any = await PATCH(signed({ visible: true }), at('obj_hidden'));
+    expect(res.status).toBe(200);
+    expect(await visible()).toBe(MAX_PLACEMENTS);
+    expect(mockConsumeChallenge).toHaveBeenCalledTimes(1);
+  });
+
+  it('an unlock of a locked object still applies, the nonce consumed once', async () => {
+    await seed(3);
+    await seedLocked();
+    const res: any = await PATCH(signed({ locked: false }), at('obj_locked'));
+    expect(res.status).toBe(200);
+    expect((await db.blockObject.findUnique({ where: { id: 'obj_locked' } })).locked).toBe(false);
+    expect(mockConsumeChallenge).toHaveBeenCalledTimes(1);
+  });
+});

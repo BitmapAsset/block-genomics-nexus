@@ -115,14 +115,16 @@ export function clearDeeds(): void {
 }
 
 /**
- * Build a `@/lib/onchain/deed` mock. The deed for a height is, in order: what
- * the suite registered with `setDeed` / `setDeedVerdict`, else the seeded
- * `block.inscriptionId` fixture (for suites whose fixture row IS the chain
- * truth), else `undetermined` — the fail-closed answer the gate turns into 503.
+ * Build a `@/lib/onchain/deed` mock. The deed for a height is what the suite
+ * registered with `setDeed` / `setDeedVerdict`, else `undetermined` — the
+ * fail-closed answer the gate turns into 503. With `seededRowIsDeed: true`
+ * (for suites whose fixture row IS the chain truth) an unregistered height
+ * falls back to the seeded `block.inscriptionId` before `undetermined`.
  */
-export function canonicalDeedFromFixture() {
+export function canonicalDeedFromFixture(opts: { seededRowIsDeed?: boolean } = {}) {
   const deedFor = async (height: number) => {
     let entry = deeds.get(height);
+    if (!entry && !opts.seededRowIsDeed) entry = { verdict: 'undetermined', inscriptionId: null };
     if (!entry) {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const prisma: any = require('@/lib/prisma').default;

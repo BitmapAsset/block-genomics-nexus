@@ -7,7 +7,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
-import { verifySignedAction } from '@/lib/signed-action';
+import { verifySignedAction, signedActionHelp } from '@/lib/signed-action';
 import { generateMonitorToken, revokeMonitorToken } from '@/lib/monitor-tokens';
 import { requireLiveBlockOwner, gateDenialResponse } from '@/lib/ownership-gate';
 
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const { guardianId, ownerAddress, signature, message } = body;
 
     if (!guardianId || !ownerAddress || !signature || !message) {
-      return error('Missing required fields: guardianId, ownerAddress, signature, message');
+      return error(`Missing required fields: guardianId, ownerAddress, signature, message. ${signedActionHelp({ action: 'guardian.monitor.mint', purpose: 'guardian' })}`);
     }
 
     const guardian = await prisma.guardianAgent.findUnique({
@@ -49,7 +49,7 @@ export async function DELETE(req: NextRequest) {
     const { guardianId, ownerAddress, signature, message } = body;
 
     if (!guardianId || !ownerAddress || !signature || !message) {
-      return error('Missing required fields: guardianId, ownerAddress, signature, message');
+      return error(`Missing required fields: guardianId, ownerAddress, signature, message. ${signedActionHelp({ action: 'guardian.monitor.revoke', purpose: 'guardian' })}`);
     }
 
     const guardian = await prisma.guardianAgent.findUnique({

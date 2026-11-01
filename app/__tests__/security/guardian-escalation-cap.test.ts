@@ -41,10 +41,11 @@ jest.mock('@/lib/prisma', () => {
 });
 const mockEmitAgentEvent = jest.fn(async (..._a: unknown[]) => undefined);
 jest.mock('@/lib/agent-events', () => ({ emitAgentEvent: (...a: unknown[]) => mockEmitAgentEvent(...a) }));
-// Only the LLM guardian case below reaches these; the model answer is fixed.
+// Only the LLM guardian cases below reach these; the model answer is fixed.
+const mockCheckGuardianRateLimit = jest.fn<Promise<boolean>, unknown[]>(async () => true);
 jest.mock('@/lib/llm-proxy', () => ({
   callLLM: async () => 'A fixed guardian reply.',
-  checkGuardianRateLimit: async () => true,
+  checkGuardianRateLimit: (...a: unknown[]) => mockCheckGuardianRateLimit(...a),
 }));
 
 import prisma from '@/lib/prisma';
@@ -62,9 +63,17 @@ const VISITOR_HANDLE = 'Visitor Handle 4d1';
 const VISITOR_ADDR = 'bc1pclaimed0000000000000000000000000000000000000000000000000';
 
 const windows = new Map<string, { start: number; count: number }>();
+// Keys forced to a fixed count (a limit already reached), and every key hit.
+const forcedCounts = new Map<string, number>();
+const limiterHits: string[] = [];
 function installCounter() {
   windows.clear();
+  forcedCounts.clear();
+  limiterHits.length = 0;
   db.$queryRaw = async (_s: TemplateStringsArray, key: string, windowStart: Date) => {
+    limiterHits.push(key);
+    const forced = forcedCounts.get(key);
+    if (forced !== undefined) return [{ count: forced }];
     const start = windowStart.getTime();
     const w = windows.get(key);
     const next = w && w.start === start ? { start, count: w.count + 1 } : { start, count: 1 };
@@ -99,6 +108,8 @@ beforeEach(async () => {
   db.__reset();
   installCounter();
   mockEmitAgentEvent.mockClear();
+  mockCheckGuardianRateLimit.mockReset();
+  mockCheckGuardianRateLimit.mockImplementation(async () => true);
   counted = 0;
   sent.length = 0;
   process.env.RESEND_API_KEY = 'test-resend-placeholder';
@@ -180,6 +191,97 @@ describe('per-IP cap on forwarded messages', () => {
     for (let i = 0; i < 21; i++) await CHAT(req('198.51.100.1'));
     const res: any = await CHAT(req('198.51.100.2'));
     expect(res.status).toBe(200);
+  });
+});
+
+describe('an AI guardian over its hourly limit', () => {
+  const llmReservations = () => limiterHits.filter((k) => k === 'guardian-llm:grd_a').length;
+  async function giveGuardianAnLlm() {
+    process.env.GUARDIAN_ENCRYPTION_KEY = 'a'.repeat(64);
+    await db.guardianAgent.update({
+      where: { id: 'grd_a' },
+      data: { llmApiKey: encryptApiKey('sk-' + 'x'.repeat(20)), llmProvider: 'anthropic', llmModel: 'test-model' },
+    });
+  }
+
+  it('a message refused by the guardian limit is neither counted nor announced', async () => {
+    await giveGuardianAnLlm();
+    mockCheckGuardianRateLimit.mockImplementation(async () => false);
+    const res: any = await CHAT(req('198.51.100.1'));
+    expect(res.status).toBe(429);
+    expect(res.body.error).toBe('Rate limit exceeded — max 60 messages/hour for this guardian. Please try again later.');
+    expect(messageCount()).toBe(0);
+    expect(dmReceived()).toBe(0);
+    expect(mockCheckGuardianRateLimit).toHaveBeenCalledTimes(1);
+    expect(llmReservations()).toBe(0);
+  });
+
+  it('a message refused by the hourly AI budget is neither counted nor announced', async () => {
+    await giveGuardianAnLlm();
+    forcedCounts.set('guardian-llm:grd_a', 61);
+    const res: any = await CHAT(req('198.51.100.1'));
+    expect(res.status).toBe(429);
+    expect(res.body.error).toBe('Rate limit exceeded — max 60 messages/hour for this guardian. Please try again later.');
+    expect(messageCount()).toBe(0);
+    expect(dmReceived()).toBe(0);
+    expect(mockCheckGuardianRateLimit).toHaveBeenCalledTimes(1);
+    expect(llmReservations()).toBe(1);
+  });
+
+  it('within the limit the AI answers, and each check runs exactly once', async () => {
+    await giveGuardianAnLlm();
+    const res: any = await CHAT(req('198.51.100.1'));
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ response: 'A fixed guardian reply.', source: 'llm' });
+    expect(messageCount()).toBe(1);
+    expect(dmReceived()).toBe(1);
+    expect(mockCheckGuardianRateLimit).toHaveBeenCalledTimes(1);
+    expect(llmReservations()).toBe(1);
+  });
+
+  it('an auto-response match on an AI guardian runs neither check', async () => {
+    await giveGuardianAnLlm();
+    await db.guardianAgent.update({
+      where: { id: 'grd_a' },
+      data: { autoResponses: JSON.stringify([{ trigger: 'opening hours', response: 'Open all day.' }]) },
+    });
+    const res: any = await CHAT(req('198.51.100.1', { message: 'What are your opening hours?' }));
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ response: 'Open all day.', source: 'auto-response' });
+    expect(mockCheckGuardianRateLimit).not.toHaveBeenCalled();
+    expect(llmReservations()).toBe(0);
+  });
+
+  it('an auto-response that cannot be stored falls through to the AI, which checks its limit once', async () => {
+    await giveGuardianAnLlm();
+    await db.guardianAgent.update({
+      where: { id: 'grd_a' },
+      data: { autoResponses: JSON.stringify([{ trigger: 'opening hours', response: 'Open all day.' }]) },
+    });
+    const realCreate = db.guardianConversation.create;
+    let failOnce = true;
+    db.guardianConversation.create = async (args: any) => {
+      if (failOnce) { failOnce = false; throw new Error('store failed'); }
+      return realCreate(args);
+    };
+    try {
+      const res: any = await CHAT(req('198.51.100.1', { message: 'What are your opening hours?' }));
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ response: 'A fixed guardian reply.', source: 'llm' });
+      expect(mockCheckGuardianRateLimit).toHaveBeenCalledTimes(1);
+      expect(llmReservations()).toBe(1);
+    } finally {
+      db.guardianConversation.create = realCreate;
+    }
+  });
+
+  it('a forward guardian runs neither AI check and forwards as before', async () => {
+    const res: any = await CHAT(req('198.51.100.1'));
+    expect(res.status).toBe(200);
+    expect(messageCount()).toBe(1);
+    expect(events().length).toBe(1);
+    expect(mockCheckGuardianRateLimit).not.toHaveBeenCalled();
+    expect(llmReservations()).toBe(0);
   });
 });
 

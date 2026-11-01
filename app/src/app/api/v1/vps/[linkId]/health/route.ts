@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
-import { verifySignedAction } from '@/lib/signed-action';
+import { verifySignedAction, signedActionHelp } from '@/lib/signed-action';
 
 export async function POST(
   _req: NextRequest,
@@ -20,7 +20,7 @@ export async function POST(
 
     // Auth: wallet signature matching owner
     if (!ownerAddress || !signature || !message) {
-      return error('Authentication required', 401);
+      return error(`Authentication required. ${signedActionHelp({ action: 'vps.health', purpose: 'vps' })}`, 401);
     }
     // The canonical 'vps.health' message for this link and its block, used once.
     const auth = await verifySignedAction(ownerAddress, message, signature, body, {

@@ -527,6 +527,36 @@ describe.each(CASES)('$name', (c) => {
   });
 });
 
+describe('DELETE /api/v1/vps/[linkId]: the block holder may withdraw a link another wallet made', () => {
+  const c = CASES.find((x) => x.action === 'vps.unlink')!;
+  const LINKER = makeWallet('p2wpkh');
+
+  beforeEach(() => {
+    // Wallet L made the link; the chain names OWNER as the block's holder.
+    link().walletAddress = LINKER.address;
+    chainOwner = { [BLOCK]: OWNER.address };
+  });
+
+  it('the holder signs vps.unlink: 200 and the link reads unlinked', async () => {
+    const res = await call(c, await signedBody(c, c.body(OWNER)));
+    expect(res.status).toBe(200);
+    expect(link().status).toBe('unlinked');
+    expect(gateCalls).toContainEqual({ wallet: OWNER.address, height: BLOCK });
+  });
+
+  it('a wallet that neither made the link nor holds the block: 403, still linked', async () => {
+    const res = await call(c, await signedBody(c, c.body(STRANGER), { wallet: STRANGER }));
+    expect(res.status).toBe(403);
+    expect(link().status).toBe('linked');
+  });
+
+  it('the wallet that made the link still withdraws it without holding the block', async () => {
+    const res = await call(c, await signedBody(c, c.body(LINKER), { wallet: LINKER }));
+    expect(res.status).toBe(200);
+    expect(link().status).toBe('unlinked');
+  });
+});
+
 describe('POST /api/v1/vps/link stores only a safe public https/wss server', () => {
   const c = CASES.find((x) => x.action === 'vps.link')!;
   it.each(['http://server.example', 'https://127.0.0.1', 'https://localhost', 'ftp://server.example', 'https://u:p@server.example'])(

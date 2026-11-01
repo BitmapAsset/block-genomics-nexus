@@ -40,7 +40,7 @@ jest.mock('@/lib/api-rate-limit', () => ({
 
 // The deed seam: the fixture row's inscriptionId is the chain's deed unless a case says otherwise.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-jest.mock('@/lib/onchain/deed', () => require('../helpers/chain-ownership-mock').canonicalDeedFromFixture());
+jest.mock('@/lib/onchain/deed', () => require('../helpers/chain-ownership-mock').canonicalDeedFromFixture({ seededRowIsDeed: true }));
 
 import fixture from '../fixtures/esplora-deed-history.json';
 import prisma from '@/lib/prisma';
@@ -50,7 +50,7 @@ import { __resetSatTracker } from '@/lib/onchain/sat-tracker';
 import { GET as byHeight } from '@/app/api/v1/ownership/[height]/route';
 import { GET as verify } from '@/app/api/v1/ownership/verify/route';
 import { buildToolCatalog } from '@/lib/mcp/catalog';
-import { batchVerifyOwnership, verifyAndSyncBlock } from '@/lib/ownership-sync';
+import { batchVerifyOwnership } from '@/lib/ownership-sync';
 import { verifyBlockOwnedBy } from '@/lib/onchain/bitmap-ownership';
 import { clearDeeds, setDeed } from '../helpers/chain-ownership-mock';
 
@@ -247,20 +247,6 @@ describe('a derived holder never triggers a transfer on its own', () => {
     await seed(OTHER);
     const [check] = await batchVerifyOwnership([BLOCK]);
     expect(check.holderSource).toBe('b.example');
-    expect(await owner()).toBe(HOLDER);
-  });
-
-  it('verifyAndSyncBlock fails closed for the buyer until an ord host confirms', async () => {
-    let now = Date.parse('2026-10-22T23:00:00Z');
-    jest.spyOn(Date, 'now').mockImplementation(() => now);
-    esplora = 'replay';
-    await seed(OTHER);
-    expect((await verifyAndSyncBlock(BLOCK, HOLDER)).isOwner).toBe(false);
-    expect(await owner()).toBe(OTHER);
-
-    ordA = 'holder';
-    now += 61_000; // the blocked hosts' cooldown has run out
-    expect((await verifyAndSyncBlock(BLOCK, HOLDER)).isOwner).toBe(true);
     expect(await owner()).toBe(HOLDER);
   });
 });

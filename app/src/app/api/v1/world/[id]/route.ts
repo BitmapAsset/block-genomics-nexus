@@ -120,9 +120,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const existing = await prisma.blockObject.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ error: 'Object not found' }, { status: 404 });
 
-    const actor = await resolveActor(req, existing, body, 'world.update', 'PATCH');
-    if ('response' in actor) return actor.response;
-
+    // The lock and the cap are read from the stored object and the block's
+    // public objects, so they are refused before the actor is resolved: a
+    // refused edit does not spend the wallet's one-time nonce.
     // `existing.ownerAddress` is provenance and is deliberately not consulted:
     // the current block owner edits a previous owner's objects as their own.
     const allowed = authorizeObjectWrite(existing, existing.blockHeight, { unlocking: body.locked === false });
@@ -144,6 +144,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         );
       }
     }
+
+    const actor = await resolveActor(req, existing, body, 'world.update', 'PATCH');
+    if ('response' in actor) return actor.response;
 
     const updated = await prisma.blockObject.update({ where: { id }, data: updates });
     await emitWorldWrite({

@@ -111,11 +111,26 @@ it('reports the deed cross-check: unset by default, configured with its host and
   process.env.DEED_CROSSCHECK_AUTH = 'Bearer s3cret-index';
   try {
     const data = (await (await health()).json()).data;
-    expect(data.deedCrossCheck).toMatchObject({ configured: true, host: 'index.example/opi', lastOkAt: null, indexedHeight: null });
+    expect(data.deedCrossCheck).toMatchObject({ configured: true, host: 'index.example', lastOkAt: null, indexedHeight: null });
     expect(JSON.stringify(data)).not.toContain('s3cret-index');
   } finally {
     delete process.env.DEED_CROSSCHECK_URL;
     delete process.env.DEED_CROSSCHECK_AUTH;
+  }
+});
+
+it('names the cross-check host without the path of its URL', async () => {
+  __resetChainHealthMemo();
+  const segment = 'p'.repeat(12);
+  process.env.DEED_CROSSCHECK_URL = 'https://index.example/opi/' + segment;
+  try {
+    const data = (await (await health()).json()).data;
+    expect(data.deedCrossCheck).toMatchObject({ configured: true, host: 'index.example' });
+    const body = JSON.stringify(data);
+    expect(body).not.toContain(segment);
+    expect(body).not.toContain('/opi');
+  } finally {
+    delete process.env.DEED_CROSSCHECK_URL;
   }
 });
 

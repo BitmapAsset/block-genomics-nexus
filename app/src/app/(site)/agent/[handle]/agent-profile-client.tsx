@@ -379,11 +379,12 @@ export default function AgentProfilePage() {
 
   const patchProfile = useCallback(async (fields: { displayName?: string; bio?: string }) => {
     const stored = localStorage.getItem('bg_wallet');
-    if (!stored) return;
+    if (!stored || !agent) return;
     const wallet = JSON.parse(stored);
-    // The wallet signs this exact edit (one-time 'profile' nonce).
+    // The wallet signs this exact edit (one-time 'profile' nonce), on the
+    // agent's own handle as the API returned it, not the address-bar text.
     const resp = await signedActionFetch({
-      method: 'PATCH', path: `/api/v1/users/by-handle/${handle}`, action: 'user.update', blockHeight: 0,
+      method: 'PATCH', path: `/api/v1/users/by-handle/${agent.handle}`, action: 'user.update', blockHeight: 0,
       purpose: 'profile', address: wallet.address, signMessage: globalWallet.signMessage,
       body: { ...fields, walletAddress: wallet.address },
     });
@@ -391,7 +392,7 @@ export default function AgentProfilePage() {
     const data = await resp.json();
     if (fields.displayName !== undefined) setDisplayName(data.data.displayName);
     if (fields.bio !== undefined) setBio(data.data.bio || '');
-  }, [handle, globalWallet.signMessage]);
+  }, [agent, globalWallet.signMessage]);
 
   if (loading) {
     return (

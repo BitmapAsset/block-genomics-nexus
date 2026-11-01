@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error, sanitizeString } from '@/lib/api-helpers';
-import { verifySignedAction } from '@/lib/signed-action';
+import { verifySignedAction, signedActionHelp } from '@/lib/signed-action';
 import { emitAgentEvent } from '@/lib/agent-events';
 import { requireLiveBlockOwner } from '@/lib/ownership-gate';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
@@ -50,7 +50,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { walletAddress, signature, message, blockHeight, parcelTxIndex, tier, spotsTotal, price30d, price365d } = body;
 
-    if (!walletAddress || !signature || !message) return error('Auth required', 400);
+    if (!walletAddress || !signature || !message) {
+      return error(`Auth required. ${signedActionHelp({ action: 'delegation.list', purpose: 'delegation' })}`, 400);
+    }
     if (!blockHeight || !price30d || !price365d) return error('blockHeight, price30d, price365d required', 400);
     if (![2, 3].includes(tier)) return error('tier must be 2 or 3', 400);
     if (price30d < 0 || price365d < 0) return error('Prices must be non-negative', 400);
