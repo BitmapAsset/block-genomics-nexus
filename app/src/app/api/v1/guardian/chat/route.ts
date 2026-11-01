@@ -29,6 +29,19 @@ const RATE_LIMITED = 'Rate limit exceeded — max 60 messages/hour for this guar
 
 type StoredConversation = { id: string; messages: string; visitorAddress: string | null };
 
+/**
+ * The per-address forward limit: at most 20 forwards an hour from one IP.
+ * Returns the 429 to send when the limit is reached, null when allowed.
+ */
+async function forwardLimitResponse(req: NextRequest): Promise<NextResponse | null> {
+  const ipLimit = await rateLimitDurable(`guardian-escalation-ip:${clientIpFrom(req)}`, 20, HOUR_MS);
+  if (ipLimit.allowed) return null;
+  return NextResponse.json(
+    { error: 'Too many messages forwarded from this address. Please try again later.' },
+    { status: 429, headers: { 'Retry-After': String(ipLimit.retryAfterSec) } }
+  );
+}
+
 /** Strip control characters to mitigate prompt injection */
 function stripControlChars(str: string): string {
   // eslint-disable-next-line no-control-regex
@@ -97,6 +110,26 @@ export async function POST(req: NextRequest) {
     // alone proves nothing.
     const storedVisitor = verifiedVisitorAddress ?? null;
 
+    // Which branch answers is known before anything is counted: a message that
+    // will be forwarded (no auto-response match, no LLM) meets the per-address
+    // forward limit first, so a refused forward is neither counted nor
+    // announced. Auto-response and LLM answers are never subject to it.
+    let autoResponse: { trigger: string; response: string } | undefined;
+    if (guardian.autoResponses) {
+      try {
+        const autoResponses = JSON.parse(guardian.autoResponses) as { trigger: string; response: string }[];
+        const lowerMsg = message.toLowerCase();
+        autoResponse = autoResponses.find(ar => lowerMsg.includes(ar.trigger.toLowerCase()));
+      } catch { /* invalid JSON, skip */ }
+    }
+    const hasLlm = Boolean(guardian.llmApiKey && guardian.llmProvider && guardian.llmModel);
+    let forwardAllowed = false;
+    if (!autoResponse && !hasLlm) {
+      const refused = await forwardLimitResponse(req);
+      if (refused) return refused;
+      forwardAllowed = true;
+    }
+
     // Increment message count
     await prisma.guardianAgent.update({
       where: { id: guardian.id },
@@ -113,17 +146,12 @@ export async function POST(req: NextRequest) {
       summary: `Guardian ${guardian.name} received a message: ${message.slice(0, 140)}`,
     });
 
-    // Check auto-responses
-    if (guardian.autoResponses) {
+    // Auto-response
+    if (autoResponse) {
       try {
-        const autoResponses = JSON.parse(guardian.autoResponses) as { trigger: string; response: string }[];
-        const lowerMsg = message.toLowerCase();
-        const match = autoResponses.find(ar => lowerMsg.includes(ar.trigger.toLowerCase()));
-        if (match) {
-          const convId = await storeMessage(guardian.id, storedVisitor, visitorHandle, conversation, message, match.response);
-          return NextResponse.json({ response: match.response, source: 'auto-response', conversationId: convId });
-        }
-      } catch { /* invalid JSON, skip */ }
+        const convId = await storeMessage(guardian.id, storedVisitor, visitorHandle, conversation, message, autoResponse.response);
+        return NextResponse.json({ response: autoResponse.response, source: 'auto-response', conversationId: convId });
+      } catch { /* fall through, as before */ }
     }
 
     // Try LLM
@@ -225,13 +253,11 @@ export async function POST(req: NextRequest) {
     }
 
     // No LLM — escalate. At most 20 forwards an hour from one IP: beyond that
-    // nothing is stored and nobody is notified.
-    const ipLimit = await rateLimitDurable(`guardian-escalation-ip:${clientIpFrom(req)}`, 20, HOUR_MS);
-    if (!ipLimit.allowed) {
-      return NextResponse.json(
-        { error: 'Too many messages forwarded from this address. Please try again later.' },
-        { status: 429, headers: { 'Retry-After': String(ipLimit.retryAfterSec) } }
-      );
+    // nothing is stored and nobody is notified. Checked above, before the
+    // message was counted, unless an auto-response failed to store.
+    if (!forwardAllowed) {
+      const refused = await forwardLimitResponse(req);
+      if (refused) return refused;
     }
 
     await prisma.guardianEvent.create({
