@@ -23,7 +23,6 @@ jest.mock('@/lib/ownership-sync', () => {
     holderMayTriggerTransfer: actual.holderMayTriggerTransfer,
     verifyBlockOwnership: jest.fn(boom),
     batchVerifyOwnership: jest.fn(boom),
-    verifyAndSyncBlock: jest.fn(boom),
     processOwnershipTransfer: jest.fn(boom),
   };
 });
