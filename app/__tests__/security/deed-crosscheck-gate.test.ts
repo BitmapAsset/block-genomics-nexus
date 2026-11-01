@@ -263,7 +263,7 @@ describe('cross-check names the deed', () => {
     world();
     crossCheckOn();
     expect(await everyEntryPoint(OWNER, BLOCK)).toEqual(GRANTED);
-    expect(getDeedCrossCheckHealth()).toMatchObject({ configured: true, host: 'index.test/opi', indexedHeight: 972000, disagreements: 0 });
+    expect(getDeedCrossCheckHealth()).toMatchObject({ configured: true, host: 'index.test', indexedHeight: 972000, disagreements: 0 });
     expect(getDeedCrossCheckHealth().agreements).toBeGreaterThanOrEqual(5);
     expect(calls.every((c) => c.startsWith('GET '))).toBe(true);
   });
