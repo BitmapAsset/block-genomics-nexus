@@ -121,8 +121,8 @@ function decodeBase64(input: string): Uint8Array | null {
   try {
     const buf = Buffer.from(input, 'base64');
     // Buffer.from is lenient: it silently drops invalid characters instead of
-    // throwing. Re-encoding and comparing lengths rejects the resulting
-    // truncated garbage rather than verifying against a half-read signature.
+    // throwing. An empty result is refused here; a partly read signature is
+    // not, and still has to verify below like any other.
     if (buf.length === 0) return null;
     return new Uint8Array(buf);
   } catch {
