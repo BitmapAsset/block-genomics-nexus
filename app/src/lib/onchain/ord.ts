@@ -239,6 +239,8 @@ export interface OrdReply {
   host: string;
   /** The `Content-Encoding` the host declared on a text reply, if any. */
   contentEncoding?: string | null;
+  /** Set when the body was longer than the request's `maxBytes`: `body` is then '' and was not read in full. */
+  overLimit?: boolean;
 }
 
 type Expect = 'json' | 'text';
@@ -260,7 +262,40 @@ function routeOf(path: string): string {
   return path.split('/').slice(0, 3).join('/');
 }
 
-async function attempt(host: OrdHost, path: string, expect: Expect, timeoutMs: number):
+/**
+ * Read a text body of at most `maxBytes` bytes. A declared `content-length`
+ * above the limit is not read at all; otherwise the stream is read up to one
+ * byte past the limit and the rest is cancelled. `null` = over the limit.
+ */
+async function readCappedText(res: Response, maxBytes: number): Promise<string | null> {
+  const declared = Number(res.headers?.get?.('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel().catch(() => {});
+    return null;
+  }
+  const reader = res.body && typeof res.body.getReader === 'function' ? res.body.getReader() : null;
+  if (!reader) {
+    const text = await res.text();
+    return new TextEncoder().encode(text).byteLength > maxBytes ? null : text;
+  }
+  // Decoded like res.text(): UTF-8, a leading BOM dropped.
+  const decoder = new TextDecoder();
+  let text = '';
+  let size = 0;
+  while (size <= maxBytes) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size <= maxBytes) text += decoder.decode(value, { stream: true });
+  }
+  if (size > maxBytes) {
+    await reader.cancel().catch(() => {});
+    return null;
+  }
+  return text + decoder.decode();
+}
+
+async function attempt(host: OrdHost, path: string, expect: Expect, timeoutMs: number, maxBytes?: number):
   Promise<{ reply: OrdReply } | { failure: string }> {
   const headers: Record<string, string> = {
     Accept: expect === 'json' ? 'application/json' : '*/*',
@@ -292,9 +327,12 @@ async function attempt(host: OrdHost, path: string, expect: Expect, timeoutMs: n
       noteAttempt(host, true, res.status, Date.now() - started, null);
       return { reply: { status: res.status, ok: true, body: '', json, host: host.label } };
     }
-    const body = await res.text();
+    const body = maxBytes === undefined ? await res.text() : await readCappedText(res, maxBytes);
     noteAttempt(host, true, res.status, Date.now() - started, null);
     const contentEncoding = res.headers?.get?.('content-encoding') ?? null;
+    if (body === null) {
+      return { reply: { status: res.status, ok: res.ok, body: '', host: host.label, contentEncoding, overLimit: true } };
+    }
     return { reply: { status: res.status, ok: res.ok, body, host: host.label, contentEncoding } };
   } catch {
     const failure = controller.signal.aborted ? 'timeout' : 'network';
@@ -313,7 +351,7 @@ async function attempt(host: OrdHost, path: string, expect: Expect, timeoutMs: n
  */
 export async function ordGet(
   path: string,
-  opts: { throttle?: boolean; expect?: Expect } = {},
+  opts: { throttle?: boolean; expect?: Expect; maxBytes?: number } = {},
 ): Promise<OrdReply | null> {
   const expect = opts.expect ?? 'json';
   const now = Date.now();
@@ -332,7 +370,7 @@ export async function ordGet(
       const remaining = deadline - Date.now();
       if (remaining <= 0) break;
       attempts++;
-      const result = await attempt(host, path, expect, remaining);
+      const result = await attempt(host, path, expect, remaining, opts.maxBytes);
       if ('reply' in result) return result.reply;
       failure = result.failure;
       if (attempts < ATTEMPTS_PER_HOST && deadline - Date.now() > retryBackoffMs) {
@@ -452,15 +490,29 @@ export async function getInscriptionOwner(inscriptionId: string): Promise<Inscri
 }
 
 /**
+ * A `.bitmap` deed body (`<n>.bitmap`) or parcel body (`<n>:<i>.bitmap`) is
+ * under 32 bytes; 1024 leaves room for whitespace. Anything longer is not a
+ * deed, so its content is not read past this.
+ */
+const CONTENT_SCAN_MAX_BYTES = 1024;
+
+/**
  * Raw content of an inscription (`GET /content/<id>`) as text, from the first
  * ord host that answers. Content is immutable, so this skips the throttle.
  *
- * Returns null when no host answered or the inscription is unknown to it.
+ * Reads at most CONTENT_SCAN_MAX_BYTES: a longer body is a non-match and comes
+ * back as ''. Returns null when no host answered or the inscription is unknown
+ * to it.
  */
 export async function getInscriptionContent(inscriptionId: string): Promise<string | null> {
   try {
-    const reply = await ordGet(`/content/${encodeURIComponent(inscriptionId)}`, { throttle: false, expect: 'text' });
+    const reply = await ordGet(`/content/${encodeURIComponent(inscriptionId)}`, {
+      throttle: false,
+      expect: 'text',
+      maxBytes: CONTENT_SCAN_MAX_BYTES,
+    });
     if (!reply || !reply.ok) return null;
+    if (reply.overLimit) return '';
     return reply.body;
   } catch (e) {
     console.warn('[ord] getInscriptionContent failed:', e instanceof Error ? e.message : e);

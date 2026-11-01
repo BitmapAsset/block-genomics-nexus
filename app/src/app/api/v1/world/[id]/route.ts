@@ -8,6 +8,7 @@ import { requireSignedBlockOwner, authorizeObjectWrite } from '@/lib/block-write
 import { looksLikeSessionToken } from '@/lib/verified-sessions';
 import { enforceRateLimit, WORLD_WRITE_LIMIT } from '@/lib/api-rate-limit';
 import { emitWorldWrite, walletProofOf, type WalletProof } from '@/lib/block-event-emitters';
+import { MAX_PLACEMENTS } from '@/lib/world/types';
 
 // H-03: Allowlist of fields that can be updated on block objects
 const ALLOWED_UPDATE_FIELDS = ['objectType', 'geometry', 'color', 'material', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'scaleX', 'scaleY', 'scaleZ', 'name', 'visible', 'locked'];
@@ -128,6 +129,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!allowed.ok) return gateDenialResponse(allowed);
 
     const updates = pickAllowed(body);
+
+    // Re-showing a hidden object counts against the block's cap, as a placement does.
+    if (existing.visible === false && updates.visible === true) {
+      const shown = await prisma.blockObject.count({ where: { blockHeight: existing.blockHeight, visible: true } });
+      if (shown >= MAX_PLACEMENTS) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `This block already has ${MAX_PLACEMENTS} objects; remove one first.`,
+            code: 'too_many_placements',
+          },
+          { status: 409, headers: rl.headers },
+        );
+      }
+    }
+
     const updated = await prisma.blockObject.update({ where: { id }, data: updates });
     await emitWorldWrite({
       block: existing.blockHeight,

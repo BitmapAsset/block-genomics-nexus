@@ -43,8 +43,10 @@ export function decryptApiKey(encryptedStr: string): string {
   if (!ivHex || !tagHex || !dataHex) throw new Error('Invalid encrypted key format');
   const iv = Buffer.from(ivHex, 'hex');
   const tag = Buffer.from(tagHex, 'hex');
+  // Only the full tag authenticates: GCM would otherwise accept a shortened one.
+  if (tag.length !== TAG_LENGTH) throw new Error('Invalid encrypted key format');
   const encrypted = Buffer.from(dataHex, 'hex');
-  const decipher = crypto.createDecipheriv(ALGORITHM, getEncryptionKey(), iv);
+  const decipher = crypto.createDecipheriv(ALGORITHM, getEncryptionKey(), iv, { authTagLength: TAG_LENGTH });
   decipher.setAuthTag(tag);
   return decipher.update(encrypted) + decipher.final('utf8');
 }
