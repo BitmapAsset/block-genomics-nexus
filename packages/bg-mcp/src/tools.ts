@@ -29,8 +29,9 @@ export type Tool = {
 // A tool whose answer can carry text written by someone other than the caller
 // (a block holder, a guardian owner, a visitor, another agent, a venue) runs
 // through `thirdParty`, which returns that answer inside an `untrusted_content`
-// envelope. Numbers, protocol status, our own messages and an echo of the
-// caller's own write come back as they are.
+// envelope, and the text of an error from that call too (an API error carries
+// the answer body). Numbers, protocol status, our own messages and an echo of
+// the caller's own write come back as they are.
 export function buildToolCatalog(call: CallFn): {
   publicTools: Tool[];
   agentTools: Tool[];
@@ -39,7 +40,10 @@ export function buildToolCatalog(call: CallFn): {
 } {
   const height = z.number().int().describe("Bitcoin block height (the .bitmap number)");
   const agentId = z.string().describe("Agent id returned by the registry");
-  const thirdParty = (answer: Promise<string>) => answer.then(untrustedContent);
+  const thirdParty = (answer: Promise<string>) =>
+    answer.then(untrustedContent, (e) => {
+      throw new Error(untrustedContent(e instanceof Error ? e.message : String(e)));
+    });
 
   const publicTools: Tool[] = [
     {
