@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { success, error } from '@/lib/api-helpers';
-import { verifySignedAction } from '@/lib/signed-action';
+import { verifySignedAction, signedActionHelp } from '@/lib/signed-action';
 import { calculateDelegationFee } from '@/lib/protocol';
 
 export async function POST(req: NextRequest) {
@@ -9,7 +9,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { walletAddress, signature, message, listingId, durationDays, txId } = body;
 
-    if (!walletAddress || !signature || !message) return error('Auth required', 400);
+    if (!walletAddress || !signature || !message) {
+      return error(`Auth required. ${signedActionHelp({ action: 'delegation.purchase', purpose: 'delegation' })}`, 400);
+    }
     if (!listingId || !durationDays || !txId) return error('listingId, durationDays, txId required', 400);
     if (![30, 365].includes(durationDays)) return error('durationDays must be 30 or 365', 400);
 

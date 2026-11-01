@@ -90,7 +90,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // guardian's path and block, this body) with a one-time 'guardian' nonce.
     const { ownerAddress, signature, message } = body;
     if (!ownerAddress || !signature || !message) {
-      return NextResponse.json({ error: 'Authentication required (ownerAddress, signature, message)' }, { status: 401 });
+      return NextResponse.json({ error: `Authentication required (ownerAddress, signature, message). ${signedActionHelp({ action: 'guardian.update', purpose: 'guardian' })}` }, { status: 401 });
     }
     const existing = await prisma.guardianAgent.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ error: 'Guardian not found' }, { status: 404 });
