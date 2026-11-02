@@ -1,5 +1,5 @@
 /**
- * The Activity tab's event feed (Living Block L1): the latest `bg-event/1`
+ * The Activity section's event feed (Living Block L1): the latest `bg-event/1`
  * events on this block, newest first, each with its actor, a relative time
  * (absolute on hover) and a link to its proof. Server-rendered; the live
  * channel (L2) will append to it.
@@ -49,7 +49,8 @@ export default function ActivityFeed({ events, now }: { events: PublicBlockEvent
               {relativeTime(e.ts, now)}
             </time>{' '}
             ·{' '}
-            <a href={e.proof.url} className="hover:text-accent-cyan" rel="nofollow">
+            {/* Padding without layout: a 44 px tap target on a phone, same row height. */}
+            <a href={e.proof.url} className="-my-[14px] inline-block py-[14px] hover:text-accent-cyan" rel="nofollow">
               proof ↗
             </a>
           </span>
