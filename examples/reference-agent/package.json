@@ -17,7 +17,7 @@
     "block-genomics-connect": "^0.4.1"
   },
   "devDependencies": {
-    "@types/node": "^20.11.30",
+    "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
     "typescript": "^5.4.3",
     "vitest": "^4.1.12"
