@@ -164,7 +164,8 @@ function CreatorTag({ creator, prefix }: { creator: Creator; prefix: string }) {
     <span className="text-xs text-text-secondary">
       {prefix}{' '}
       {creator.handle ? (
-        <Link href={`/agent/${creator.handle}`} className="hover:text-accent-cyan">
+        // Padding without layout: a 44 px tap target on a phone, same line height.
+        <Link href={`/agent/${creator.handle}`} className="-my-[14px] inline-block py-[14px] hover:text-accent-cyan">
           {inner}
         </Link>
       ) : (
@@ -404,7 +405,11 @@ const pillSecondary =
 
 // ── Tab panels ──────────────────────────────────────────────────────────
 
-function WorldPanel({ data }: { data: BlockPageData }) {
+/**
+ * `listBuilds` is false while Activity above already lists the builds (event
+ * store off or empty), so the same list is not shown twice.
+ */
+function WorldPanel({ data, listBuilds }: { data: BlockPageData; listBuilds: boolean }) {
   const { height } = data;
   return (
     <>
@@ -427,7 +432,7 @@ function WorldPanel({ data }: { data: BlockPageData }) {
       </div>
 
       {/* Empty land is said once, in Activity above the tabs. */}
-      {data.objects.length > 0 && (
+      {listBuilds && data.objects.length > 0 && (
         <Section title="Built on this block" count={data.objectCount}>
           <ul className="grid gap-3 sm:grid-cols-2">
             {data.objects.map((o) => (
@@ -587,7 +592,14 @@ function ActivitySection({
           </ol>
           {data.objectCount > builds.length && (
             <p className="mt-3 text-sm text-text-secondary">
-              Showing {builds.length} of {formatNumber(data.objectCount)}.
+              Showing {builds.length} of {formatNumber(data.objectCount)}.{' '}
+              <Link
+                href={`/world/${data.height}`}
+                className="inline-flex min-h-[44px] items-center text-accent-cyan hover:underline"
+              >
+                See them all in the world
+              </Link>
+              .
             </p>
           )}
           <p className="mt-4 text-xs text-text-secondary">
@@ -778,7 +790,7 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
             { id: 'facts', label: 'Block facts' },
           ]}
           panels={{
-            world: <WorldPanel data={data} />,
+            world: <WorldPanel data={data} listBuilds={events !== null} />,
             experiences: <ExperiencesPanel data={data} />,
             facts: <BlockFactsPanel data={data} mined={mined} />,
           }}

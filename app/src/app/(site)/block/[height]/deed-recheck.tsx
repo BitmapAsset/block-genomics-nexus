@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-/** Refreshes the page re-renders while a check is running (at 3 s, 6 s, 9 s). */
+/** Refreshes while a check is running: after 3 s, 6 s more, then 9 s more (about 18 s in all). */
 const DEED_RECHECK_ATTEMPTS = 3;
 
 /**
  * The page declines to wait for Bitcoin, so a first render can say
- * "Checking…". This re-renders it a few times (3 s, 6 s, 9 s) until the answer
- * is in, instead of asking the reader to reload. After the last refresh it
+ * "Checking…". This re-renders it a few times (about 3, 9 and 18 s after load)
+ * until the answer is in, instead of asking the reader to reload. After the last refresh it
  * stops and says so in one line: no spinner, no timer left running.
  */
 export default function DeedRecheck({ pending }: { pending: boolean }) {
