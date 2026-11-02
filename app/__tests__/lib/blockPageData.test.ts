@@ -67,6 +67,7 @@ import {
   fetchBlockPageData,
   fetchBlockCardFacts,
   resolveOwnership,
+  resolveDeedOwnership,
   buildCreatorIndex,
   describeBlock,
   displayOwner,
@@ -196,6 +197,33 @@ describe('resolveOwnership()', () => {
     // block as verified.
     const o = resolveOwnership({ ownerAddress: null, inscriptionId: null }, null);
     expect(o.inSync).toBe(false);
+  });
+});
+
+describe('resolveDeedOwnership()', () => {
+  const record = { ownerAddress: ALICE, inscriptionId: INSCRIPTION };
+  const holderFor = () => ({ address: null, pending: false });
+  const availabilityFor = () => ({ chain: 'unchecked' as const, checkedAt: null, lastVerifiedAt: null, unavailableSince: null });
+  const failedCheck = (resolvedAt: string) => ({
+    ...deedAnswer(BLOCK, 'undetermined', null, 'ord answered 403'),
+    verdict: 'undetermined' as const,
+    source: 'resolver' as const,
+    resolvedAt,
+  });
+
+  it('a failed deed check names no outage start: the answer time is only the latest retry', () => {
+    const o = resolveDeedOwnership(record, failedCheck('2026-11-02T11:40:00.000Z'), holderFor, availabilityFor);
+    expect(o.deed?.verdict).toBe('undetermined');
+    expect(o.checkPending).toBe(false);
+    expect(o.deed?.unreachableSince).toBeNull();
+    // The page falls back to `availability.unavailableSince`; none is set here.
+    expect(o.availability).toBeUndefined();
+  });
+
+  it('two failed deed checks 12 s apart give the same deed', () => {
+    const first = resolveDeedOwnership(record, failedCheck('2026-11-02T11:40:00.000Z'), holderFor, availabilityFor);
+    const second = resolveDeedOwnership(record, failedCheck('2026-11-02T11:40:12.000Z'), holderFor, availabilityFor);
+    expect(second.deed).toEqual(first.deed);
   });
 });
 

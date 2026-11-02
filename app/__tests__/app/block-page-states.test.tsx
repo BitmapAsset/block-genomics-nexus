@@ -51,6 +51,7 @@ jest.mock('@/app/(site)/block/[height]/block-tabs', () =>
 );
 
 import BlockPage from '@/app/(site)/block/[height]/page';
+import { resolveDeedOwnership } from '@/lib/blockPageData';
 import { OWNER_GUARDIAN_FIELDS } from '@/lib/guardian-view';
 import type { PublicBlockEvent } from '@/lib/block-event-core';
 
@@ -203,6 +204,21 @@ describe('dark states', () => {
     expect(html).toContain(ALICE);
     expect(html).toContain('Inscription · on record');
     expect(html).toContain(STORED);
+    expect(deedIsGreen(html)).toBe(false);
+    commonChecks(html);
+  });
+
+  it('claimed + indexer unreachable through the deed rule: amber chip with no time, card says right now', async () => {
+    const ownership = resolveDeedOwnership(
+      { ownerAddress: ALICE, inscriptionId: STORED },
+      { height: HEIGHT, inscriptionId: null, ruleId: 'test-rule', verdict: 'undetermined', resolvedAt: new Date(NOW).toISOString(), reason: 'ord answered 403', source: 'resolver' },
+      () => ({ address: null, pending: false }),
+      () => ({ chain: 'unchecked', checkedAt: null, lastVerifiedAt: null, unavailableSince: null }),
+    );
+    mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership }));
+    const html = await render();
+    expect(chipOf(html)).toBe('Not checked · Bitcoin indexer unreachable');
+    expect(html).toContain('could not be checked right now');
     expect(deedIsGreen(html)).toBe(false);
     commonChecks(html);
   });
