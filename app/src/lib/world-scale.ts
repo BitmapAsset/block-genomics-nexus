@@ -167,6 +167,18 @@ export function scaleLine(s: Pick<DistrictScale, 'parcels' | 'mean_lot_edge_m'>)
   return `2.1 km × 2.1 km · ${s.parcels.toLocaleString('en-US')} parcels · mean lot ≈ ${Math.round(s.mean_lot_edge_m)} m`;
 }
 
+/**
+ * The same caption from the block's transaction count alone: `scaleLine` prints
+ * only the parcel count and the mean lot edge, and both follow from the count
+ * (one parcel per transaction, mean = BLOCK_AREA_M2 / parcels, as in
+ * `districtScaleFrom`). Lets the block page print it without the block summary.
+ */
+export function scaleLineForTxCount(n: number): string {
+  const parcels = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  const mean = parcels > 0 ? BLOCK_AREA_M2 / parcels : BLOCK_AREA_M2;
+  return scaleLine({ parcels, mean_lot_edge_m: round(Math.sqrt(mean), 1) });
+}
+
 /** A block's output totals from the cached summary; throws when one is missing (no partial layout). */
 async function blockSats(height: number): Promise<number[]> {
   const summary = await getBlockSummary(height);
