@@ -3,14 +3,17 @@
  */
 
 /**
- * The block page's Activity tab rendered by React Testing Library (Living Block
- * L1): with three events it lists each one's time, summary and proof link;
- * with the event store answering `{enabled:false}` the tab is byte-for-byte
- * the build list the page rendered before the event spine existed.
+ * The block page's Activity section rendered by React Testing Library (Living
+ * Block L1): with three events it lists each one's time, summary and proof
+ * link; with the event store answering `{enabled:false}` the section is
+ * byte-for-byte the dark build list in the golden file.
  *
- * The golden file was rendered by this same harness from the page as it was
- * before the event spine (`f8d74cce`, parent of the bg90 merge). Regenerate it
- * only on purpose: BG_ACTIVITY_GOLDEN_WRITE=1 writes instead of comparing.
+ * bg95 moved Activity out of the tabs to sit under the guardian card, with a
+ * "Built here · N objects · last change" line over the build list, so the
+ * golden changed by design. It was rendered by this same harness from the bg95
+ * page (the earlier one, `activity-tab-builds-f8d74cce.html`, held the build
+ * list from before the event spine). Regenerate it only on purpose:
+ * BG_ACTIVITY_GOLDEN_WRITE=1 writes instead of comparing.
  */
 
 import fs from 'fs';
@@ -31,23 +34,18 @@ jest.mock('@/lib/blockPageData', () => ({
 }));
 jest.mock('@/lib/blockGuardian', () => ({ fetchBlockGuardian: async () => ({ guardian: null }) }));
 
-// Client islands. The tab strip renders only the Activity panel, in a wrapper
-// the test can find.
+// Client islands. Activity sits above the tabs, so the tab strip renders nothing.
 jest.mock('@/app/(site)/block/[height]/copy-button', () => () => null);
 jest.mock('@/app/(site)/block/[height]/owner-bar', () => () => null);
 jest.mock('@/app/(site)/block/[height]/deed-recheck', () => () => null);
-jest.mock('@/app/(site)/block/[height]/block-tabs', () =>
-  function BlockTabs(p: { panels: Record<string, React.ReactNode> }) {
-    return <div data-testid="activity-panel">{p.panels.activity}</div>;
-  },
-);
+jest.mock('@/app/(site)/block/[height]/block-tabs', () => () => null);
 
 import BlockPage from '@/app/(site)/block/[height]/page';
 import type { PublicBlockEvent } from '@/lib/block-event-core';
 
 const HEIGHT = 840000;
 const NOW = Date.UTC(2026, 9, 23, 12, 0, 0);
-const GOLDEN = path.join(__dirname, '__golden__', 'activity-tab-builds-f8d74cce.html');
+const GOLDEN = path.join(__dirname, '__golden__', 'activity-section-dark-bg95.html');
 
 function event(seq: number, over: Partial<PublicBlockEvent> = {}): PublicBlockEvent {
   const id = `01JB7Z8K2Q4X9M3T6V0R5N1C${String(seq).padStart(2, '0')}`;
@@ -90,7 +88,7 @@ const pageData = {
 
 async function activityPanel(): Promise<HTMLElement> {
   const { getByTestId } = render(await BlockPage({ params: Promise.resolve({ height: String(HEIGHT) }) }));
-  return getByTestId('activity-panel');
+  return getByTestId('block-activity');
 }
 
 beforeEach(() => {
@@ -137,11 +135,13 @@ it('three events: newest first, each with its time, summary and proof link', asy
   expect(items[2].textContent).toContain('deed holder bc1pex…8978');
 });
 
-it('{enabled:false}: the tab is identical to the build list before the event spine', async () => {
+it('{enabled:false}: the section is the dark build list under "Built here"', async () => {
   mockListBlockEvents.mockResolvedValue({ format: 'bg-event/1', enabled: false, events: [] });
   const panel = await activityPanel();
   const html = panel.innerHTML;
-  expect(within(panel).getByRole('heading', { name: 'Builds' })).toBeTruthy();
+  expect(within(panel).getByRole('heading', { name: 'Activity' })).toBeTruthy();
+  expect(panel.textContent).toContain('Built here · 2 objects · last change Oct 3, 2026');
+  expect(within(panel).getAllByRole('listitem')).toHaveLength(2);
   expect(within(panel).queryByRole('link', { name: 'proof ↗' })).toBeNull();
 
   if (process.env.BG_ACTIVITY_GOLDEN_WRITE === '1') {

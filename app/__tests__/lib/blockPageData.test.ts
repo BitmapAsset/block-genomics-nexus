@@ -18,11 +18,21 @@ const mockUserFindMany = jest.fn();
 const mockProfileFindMany = jest.fn();
 const mockGetInscriptionOwner = jest.fn();
 const mockFetchOgSummary = jest.fn();
+const mockCanonicalDeedFor = jest.fn();
+const mockVerifyBlockOwnership = jest.fn();
+const mockBlockWrite = jest.fn();
 
 jest.mock('@/lib/prisma', () => ({
   __esModule: true,
   default: {
-    block: { findUnique: (...a: unknown[]) => mockBlockFindUnique(...a) },
+    block: {
+      findUnique: (...a: unknown[]) => mockBlockFindUnique(...a),
+      update: (...a: unknown[]) => mockBlockWrite('update', ...a),
+      updateMany: (...a: unknown[]) => mockBlockWrite('updateMany', ...a),
+      upsert: (...a: unknown[]) => mockBlockWrite('upsert', ...a),
+      create: (...a: unknown[]) => mockBlockWrite('create', ...a),
+      delete: (...a: unknown[]) => mockBlockWrite('delete', ...a),
+    },
     blockObject: {
       findMany: (...a: unknown[]) => mockObjectFindMany(...a),
       count: (...a: unknown[]) => mockObjectCount(...a),
@@ -42,6 +52,11 @@ jest.mock('@/lib/prisma', () => ({
 
 jest.mock('@/lib/ownership-sync', () => ({
   getInscriptionOwner: (...a: unknown[]) => mockGetInscriptionOwner(...a),
+  verifyBlockOwnership: (...a: unknown[]) => mockVerifyBlockOwnership(...a),
+}));
+
+jest.mock('@/lib/onchain/deed', () => ({
+  canonicalDeedFor: (...a: unknown[]) => mockCanonicalDeedFor(...a),
 }));
 
 jest.mock('@/lib/blockOgData', () => ({
@@ -79,11 +94,26 @@ function emptyBlockFixture(block: unknown) {
   mockProfileFindMany.mockResolvedValue([]);
 }
 
+/** A deed-rule answer, as `canonicalDeedFor` returns it. */
+function deedAnswer(height: number, verdict: string, inscriptionId: string | null, reason?: string) {
+  return {
+    height,
+    inscriptionId,
+    ruleId: 'test-rule',
+    verdict,
+    resolvedAt: '2026-11-02T11:40:00.000Z',
+    source: 'memory',
+    ...(reason ? { reason } : {}),
+  };
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   __resetPublicOwnerLookup();
   mockFetchOgSummary.mockResolvedValue(null);
   mockGetInscriptionOwner.mockResolvedValue(null);
+  // By default the deed rule names the inscription the fixtures store.
+  mockCanonicalDeedFor.mockImplementation(async (h: number) => deedAnswer(h, 'canonical', INSCRIPTION));
 });
 
 /** Let a fire-and-forget deed warm settle. */
@@ -239,11 +269,28 @@ describe('describeBlock()', () => {
     expect(describeBlock(data({ degraded: true }))).not.toContain('Not yet on Block Genomics');
   });
 
-  it('names the holder when the chain confirmed the record', () => {
+  it('names the holder when the chain confirmed the record on the deed rule', () => {
     const out = describeBlock(
-      data({ ownership: resolveOwnership({ ownerAddress: ALICE, inscriptionId: INSCRIPTION }, ALICE) }),
+      data({
+        ownership: {
+          ...resolveOwnership({ ownerAddress: ALICE, inscriptionId: INSCRIPTION }, ALICE),
+          deed: { verdict: 'canonical', canonicalId: INSCRIPTION, checkedAt: null, unreachableSince: null },
+        },
+      }),
     );
     expect(out).toBe(`Held by ${shortenAddress(ALICE)}`);
+  });
+
+  it('never says "Held by" off the deed rule, even when the stored id’s holder matches', () => {
+    const stored = resolveOwnership({ ownerAddress: ALICE, inscriptionId: INSCRIPTION }, ALICE);
+    for (const ownership of [
+      stored,
+      { ...stored, deed: { verdict: 'undetermined' as const, canonicalId: null, checkedAt: null, unreachableSince: null } },
+    ]) {
+      const out = describeBlock(data({ ownership }));
+      expect(out).not.toContain('Held by');
+      expect(out).toBe(`Registered to ${shortenAddress(ALICE)} (not verified)`);
+    }
   });
 
   it('labels an unchecked record as registered, not held', () => {
@@ -295,8 +342,9 @@ describe('fetchBlockPageData()', () => {
     expect(data.ownership.onChainOwner).toBeNull();
   });
 
-  it('does not call the indexer for a block with no inscription', async () => {
+  it('does not call the indexer when no id is on file and the deed rule has no canonical deed', async () => {
     emptyBlockFixture({ height: BLOCK, ownerAddress: ALICE, inscriptionId: null, label: null });
+    mockCanonicalDeedFor.mockImplementation(async (h: number) => deedAnswer(h, 'undetermined', null, 'ord answered 403'));
 
     const data = await fetchBlockPageData(BLOCK);
 
@@ -542,6 +590,76 @@ describe('fetchBlockPageData()', () => {
         creator: { address: ALICE, handle: 'alice', displayName: 'Alice' },
       },
     ]);
+  });
+
+  it('a claimed block asks the deed rule once, within the render budget', async () => {
+    emptyBlockFixture({ height: BLOCK, ownerAddress: ALICE, inscriptionId: INSCRIPTION, label: null });
+
+    await fetchBlockPageData(BLOCK);
+
+    expect(mockCanonicalDeedFor).toHaveBeenCalledTimes(1);
+    const [height, opts] = mockCanonicalDeedFor.mock.calls[0];
+    expect(height).toBe(BLOCK);
+    expect(opts.budgetMs).toBeLessThanOrEqual(300);
+  });
+
+  it('looks up the holder of the canonical deed, not of the stored id', async () => {
+    const STORED = 'storedinscription0i0';
+    const CANONICAL = 'canonicalinscription0i0';
+    emptyBlockFixture({ height: BLOCK, ownerAddress: ALICE, inscriptionId: STORED, label: null });
+    mockCanonicalDeedFor.mockImplementation(async (h: number) => deedAnswer(h, 'canonical', CANONICAL));
+    mockGetInscriptionOwner.mockImplementation(async (id: string) => (id === CANONICAL ? ALICE : BOB));
+
+    const data = await fetchAfterWarm(BLOCK);
+
+    const asked = mockGetInscriptionOwner.mock.calls.map((c) => c[0]);
+    expect(asked).toContain(CANONICAL);
+    expect(asked).not.toContain(STORED);
+    expect(data.ownership.onChainOwner).toBe(ALICE);
+    expect(data.ownership.inSync).toBe(true);
+    expect(data.ownership.deed).toMatchObject({ verdict: 'canonical', canonicalId: CANONICAL });
+    // The stored id stays on the page as the one on record.
+    expect(data.ownership.inscriptionId).toBe(STORED);
+  });
+
+  it('an unclaimed block starts no deed lookup', async () => {
+    emptyBlockFixture(null);
+
+    await fetchBlockPageData(999999);
+
+    expect(mockCanonicalDeedFor).not.toHaveBeenCalled();
+    expect(mockGetInscriptionOwner).not.toHaveBeenCalled();
+  });
+
+  it('undetermined → not in sync and indeterminate, even when the stored id’s holder equals the record', async () => {
+    emptyBlockFixture({ height: BLOCK, ownerAddress: ALICE, inscriptionId: INSCRIPTION, label: null });
+    mockCanonicalDeedFor.mockImplementation(async (h: number) => deedAnswer(h, 'undetermined', null, 'ord answered 403'));
+    mockGetInscriptionOwner.mockResolvedValue(ALICE);
+
+    const data = await fetchAfterWarm(BLOCK);
+
+    expect(data.ownership.inSync).toBe(false);
+    expect(data.ownership.indeterminate).toBe(true);
+    expect(data.ownership.deed?.verdict).toBe('undetermined');
+    expect(describeBlock(data)).not.toContain('Held by');
+  });
+
+  it('never calls verifyBlockOwnership and never writes a Block row', async () => {
+    const cases: Array<() => void> = [
+      () => emptyBlockFixture(null),
+      () => emptyBlockFixture({ height: BLOCK, ownerAddress: ALICE, inscriptionId: INSCRIPTION, label: null }),
+      () => {
+        emptyBlockFixture({ height: BLOCK, ownerAddress: ALICE, inscriptionId: null, label: null });
+        mockCanonicalDeedFor.mockImplementation(async (h: number) => deedAnswer(h, 'undetermined', null, 'ord answered 403'));
+      },
+    ];
+    for (const setup of cases) {
+      setup();
+      await fetchAfterWarm(BLOCK);
+    }
+
+    expect(mockVerifyBlockOwnership).not.toHaveBeenCalled();
+    expect(mockBlockWrite).not.toHaveBeenCalled();
   });
 
   it('skips the identity query entirely when nothing references an address', async () => {
