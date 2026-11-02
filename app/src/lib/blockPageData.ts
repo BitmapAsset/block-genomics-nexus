@@ -113,7 +113,12 @@ export interface DeedCheck {
   canonicalId: string | null;
   /** When this server last observed the canonical deed's holder, if it has. */
   checkedAt: string | null;
-  /** Earliest time this server knows Bitcoin could not be checked, while it cannot. */
+  /**
+   * When this server's holder check for the canonical deed first found Bitcoin
+   * unreachable, while it still is. Set only for `canonical`; null when the deed
+   * rule itself could not answer, because this server cannot know when that
+   * outage began (its answer time is only the latest retry).
+   */
   unreachableSince: string | null;
 }
 
@@ -296,7 +301,7 @@ export function resolveDeedOwnership(
       verdict: deed.verdict,
       canonicalId: null,
       checkedAt: null,
-      unreachableSince: deed.verdict === 'undetermined' && !pending ? deed.resolvedAt : null,
+      unreachableSince: null,
     },
   };
 }

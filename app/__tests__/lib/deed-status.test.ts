@@ -92,11 +92,12 @@ describe('every other state of PLAN §7', () => {
     expect(deedStatus(owned(d), NOW).badge).toBe('Checking…');
   });
 
-  it('not checked: indexer unreachable since HH:MM UTC (deed rule failed)', () => {
+  it('not checked: indexer unreachable, with no time (deed rule failed; its answer time is only the latest retry)', () => {
     const s = deedStatus(owned(deed('undetermined', { reason: 'ord answered 403' })), NOW);
-    expect(s.badge).toBe('Not checked · Bitcoin indexer unreachable since 11:40 UTC');
+    expect(s.badge).toBe('Not checked · Bitcoin indexer unreachable');
     expect(s.tone).toBe('outage');
     expect(s.detail).toContain('Last recorded holder');
+    expect(s.detail).toContain('could not be checked right now');
   });
 
   it('not checked: indexer unreachable since HH:MM UTC (holder lookup failed)', () => {
