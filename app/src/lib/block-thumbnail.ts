@@ -51,7 +51,7 @@ function isNegativelyCached(height: number): boolean {
  * the deploy time at ship, so no row the old code wrote after it survives.
  * Set at the 2026-11-05 layout deploy: rows created before this were drawn with the byte-sized rule.
  */
-const THUMBNAIL_REAL_ART_SINCE = new Date('2026-11-05T09:46:00Z');
+const THUMBNAIL_REAL_ART_SINCE = new Date('2026-11-05T10:04:00Z');
 
 /**
  * Live re-renders of stale rows in flight on this instance. The Nexus canvas
