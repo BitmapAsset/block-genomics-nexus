@@ -8,9 +8,10 @@
  * is the caller's choice: a blind SSRF from the server, and attacker-chosen
  * bytes inside our branded card.
  *
- * The request below arrives for `attacker.example`. Only mempool.space (the
- * block data source) may be contacted; with it unreachable the card still
- * renders, with estimated art and the short cache.
+ * The request below arrives for `attacker.example`. Only the two fixed block
+ * data hosts may be contacted: mempool.space, and blockstream.info (the paged
+ * fallback in lib/block-txs when mempool's summary fails). With neither giving
+ * a block the card still renders, with estimated art and the short cache.
  */
 
 const mockImageResponse = jest.fn();
@@ -79,7 +80,8 @@ it('a request for attacker.example never makes the server fetch attacker.example
   })) as unknown as { headers: Record<string, string> };
 
   expect(requested.filter((u) => new URL(u).hostname === 'attacker.example')).toEqual([]);
-  expect(requested.every((u) => new URL(u).hostname === 'mempool.space')).toBe(true);
+  expect(requested.every((u) => ['mempool.space', 'blockstream.info'].includes(new URL(u).hostname))).toBe(true);
+  expect(requested.some((u) => new URL(u).hostname === 'mempool.space')).toBe(true);
   // The card still renders; without real art it keeps the one-minute cache.
   expect(res.headers['Cache-Control']).toBe('public, max-age=60');
 });

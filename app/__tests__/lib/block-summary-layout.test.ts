@@ -1,25 +1,30 @@
 /**
- * The block viewer paints its parcel layout once, from the real block summary.
+ * The block viewer paints its parcel layout once, from the real block summary,
+ * and that layout is the canonical Bitmap picture.
  *
  * Block 612,888 (Gary, 2026-10-20) showed a first layout built from 25 real
  * transactions plus 1,089 synthesized sizes, then re-shuffled into a different
- * map when the paged real data landed. The layout is a pure function of per-tx
- * vsize in block order (bitfeed packer), so the only fix is to feed it the real
- * sizes from the first frame. These tests pin that the summary converts into
- * exactly the input the canonical packer needs, and that the result is the
- * canonical map recorded in research/layout-2026-10-20/TRUTH.md.
+ * map when the paged real data landed: the layout is a pure function of its
+ * per-tx input in block order, so it must be fed the real input from the first
+ * frame. On 2026-11-04 Gary found the input itself was wrong: the squares were
+ * sized by vbytes, while bitmap.land and Magic Eden size them by output value.
+ * These tests pin that the summary converts into exactly the input the
+ * canonical layout needs, and that the result is the oracle's picture.
  *
  * `generateParcels` lives in ParcelView, which pulls in three.js and cannot be
  * imported here (see parcel-view-no-invented-data.test.ts). Its layout input is
- * `{ index: tx.txIndex, weight: tx.size }` → mondrianLayout →
- * packSquaresToWorldSpace(items, BLOCK_SIZE = 20, TREEMAP_GAP = 0.15); the
- * source guard at the bottom keeps that wiring from drifting.
+ * `{ index: p.txIndex, weight: squareSizes[i] }` with squareSizes =
+ * txSatsToSizes(outSats) → mondrianLayout → packSquaresToWorldSpace(items,
+ * BLOCK_SIZE = 20, TREEMAP_GAP = 0.15); the source guard at the bottom keeps
+ * that wiring from drifting.
  */
 
 import fs from 'fs';
 import path from 'path';
 import { summaryToRealBlock, type BlockSummaryPayload } from '@/lib/blockchainApi';
-import { packSquares, packSquaresToWorldSpace } from '@/lib/square-packing';
+import { packSquaresToWorldSpace } from '@/lib/square-packing';
+import { layoutBlock, txSatsToSizes } from '@/lib/bitmap-layout';
+import { MondrianLayout } from '@/lib/vendor/ordpool/mondrian-layout';
 
 const FIXTURE = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', '..', '__fixtures__', 'block-612888-summary.json'), 'utf8'),
@@ -28,10 +33,11 @@ const FIXTURE = JSON.parse(
 const BLOCK_SIZE = 20;
 const TREEMAP_GAP = 0.15;
 
-/** What generateParcels hands mondrianLayout for a RealBlockData. */
+/** What generateParcels hands mondrianLayout for a RealBlockData with every output total. */
 function viewerLayout(block: ReturnType<typeof summaryToRealBlock>) {
+  const sizes = txSatsToSizes(block.txs.map((tx) => tx.outSats as number));
   return packSquaresToWorldSpace(
-    block.txs.map((tx) => ({ index: tx.txIndex, vbytes: tx.size })),
+    block.txs.map((tx, i) => ({ index: tx.txIndex, size: sizes[i] })),
     BLOCK_SIZE,
     TREEMAP_GAP,
   );
@@ -63,33 +69,43 @@ describe('summaryToRealBlock (block 612,888)', () => {
     expect(block.txs[0].fee).toBe(0);
     expect(block.txs.every((t) => typeof t.fee === 'number')).toBe(true);
   });
+
+  it('carries every output total (the layout input), the coinbase paying 12.5 BTC + fees', () => {
+    expect(block.txs.map((t) => t.outSats)).toEqual(FIXTURE.value);
+    expect(block.txs[0].outSats).toBeGreaterThan(12.5e8);
+  });
 });
 
 describe('the viewer layout from the summary is the canonical layout', () => {
   const block = summaryToRealBlock(FIXTURE);
 
-  it('equals the packer run on summary vsize in index order (positions and sizes)', () => {
-    const canonical = packSquaresToWorldSpace(
-      FIXTURE.vsize.map((vbytes, index) => ({ index, vbytes })),
-      BLOCK_SIZE,
-      TREEMAP_GAP,
+  it('equals the oracle packing of the value sizes (positions and sizes, tx order)', () => {
+    const sizes = txSatsToSizes(FIXTURE.value as number[]);
+    const oracle = new MondrianLayout(sizes);
+    const layout = layoutBlock(FIXTURE.value as number[]);
+    expect(layout.squares.map((q) => [q.x, q.y, q.size])).toEqual(
+      oracle.slots.map((s) => [s.position.x, s.position.y, s.size]),
     );
-    expect(viewerLayout(block)).toEqual(canonical);
+    // World space is the same packing, fitted: every rect centre follows its square.
+    const world = viewerLayout(block);
+    const extent = Math.max(layout.width, layout.height);
+    const cell = BLOCK_SIZE / extent;
+    const offX = (extent - layout.width) / 2;
+    world.forEach((r, i) => {
+      const q = layout.squares[i];
+      expect(r.x).toBeCloseTo((q.x + offX + q.size / 2) * cell - BLOCK_SIZE / 2, 9);
+      expect(r.z).toBeCloseTo((q.y + q.size / 2) * cell - BLOCK_SIZE / 2, 9);
+    });
   });
 
-  it('is the 41×41 map recorded in TRUTH.md, big squares in the lower half', () => {
-    const { squares, gridWidth } = packSquares(block.txs.map((t) => ({ index: t.txIndex, vbytes: t.size })));
-    expect(gridWidth).toBe(41);
-    const big = squares.filter((s) => s.size >= 4).map((s) => [s.index, s.x, s.y, s.size]);
-    expect(big).toEqual([
-      [641, 33, 17, 7],
-      [897, 18, 27, 7],
-      [902, 29, 27, 7],
-      [1031, 6, 33, 6],
-      [1033, 15, 34, 4],
-      [1039, 19, 34, 6],
-      [1096, 26, 37, 6],
-    ]);
+  it("puts the coinbase's 5 × 5 square at the top-left, like bitmap.land and Magic Eden", () => {
+    const world = viewerLayout(block);
+    const layout = layoutBlock(FIXTURE.value as number[]);
+    expect(layout.squares[0]).toEqual({ index: 0, x: 0, y: 0, size: 5 });
+    const cb = world[0];
+    expect(cb.width).toBeCloseTo((5 * BLOCK_SIZE) / 50 - TREEMAP_GAP, 9);
+    expect(cb.x - cb.width / 2).toBeLessThan(-BLOCK_SIZE / 2 + 1);
+    expect(cb.z - cb.depth / 2).toBeLessThan(-BLOCK_SIZE / 2 + 0.1);
   });
 
   it('is identical across two conversions and two layouts of the same data', () => {
@@ -104,12 +120,20 @@ describe('ParcelView wiring (source guard)', () => {
     'utf8',
   );
 
-  it('generateParcels feeds the packer tx.size in tx-index order', () => {
-    expect(SRC).toContain('bytes: tx.size,');
-    expect(SRC).toContain('rawParcels.map(p => ({ index: p.txIndex, weight: p.bytes }))');
+  it('generateParcels sizes squares by output value and packs them in tx-index order', () => {
+    expect(SRC).toContain('outSats: tx.outSats,');
+    expect(SRC).toContain('completeSatTotals(rawParcels.map(p => p.outSats))');
+    expect(SRC).toContain('? txSatsToSizes(allSats)');
+    expect(SRC).toContain('rawParcels.map((p, i) => ({ index: p.txIndex, weight: squareSizes[i] }))');
+    expect(SRC).toContain('items.map(it => ({ index: it.index, size: it.weight }))');
     expect(SRC).toContain('mondrianLayout(treemapItems, BLOCK_SIZE, TREEMAP_GAP)');
     expect(SRC).toMatch(/const BLOCK_SIZE = 20;/);
     expect(SRC).toMatch(/const TREEMAP_GAP = 0\.15;/);
+  });
+
+  it('never sizes a parcel by bytes', () => {
+    expect(SRC).not.toMatch(/vbytes:\s*p\.bytes/);
+    expect(SRC).not.toMatch(/weight:\s*p\.bytes/);
   });
 
   it('loads the block through the summary hook, not the paged fetch', () => {

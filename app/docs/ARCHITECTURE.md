@@ -539,8 +539,8 @@ z = row * blockUnit
 Transactions are packed into a Mondrian grid within each block:
 
 ```typescript
-// Transaction size → square dimension
-squareSize = max(1, ceil(sqrt(vbytes / 256)))
+// Transaction output value → square dimension (Bitmap standard, lib/bitmap-layout)
+squareSize = max(1, ceil(log10(outputSats)) - 5)
 
 // Greedy slot-filling algorithm
 // Maintains rows with (x, y, remainingWidth) slots

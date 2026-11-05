@@ -24,6 +24,7 @@ import { deedStatus, type DeedTone } from './deed-status';
 import ActivityFeed from './activity-feed';
 import { listBlockEvents } from '@/lib/block-events';
 import { districtScale, scaleLine } from '@/lib/world-scale';
+import { bitmapThumbnailUrl } from '@/lib/bitmap-layout';
 import type { PublicBlockEvent } from '@/lib/block-event-core';
 
 /**
@@ -383,7 +384,7 @@ function WorldPanel({ data }: { data: BlockPageData }) {
         <div className="max-w-xl">
           <h2 className="text-xl font-semibold tracking-tight text-text-primary">Walk through {height}.bitmap</h2>
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-            Every transaction in this block is a parcel, sized by its bytes. Fly over it, walk its streets and see
+            Every transaction in this block is a parcel, sized by the value it moved: the same squares as the bitmap above. Fly over it, walk its streets and see
             what has been built.
           </p>
         </div>
@@ -716,7 +717,7 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
         <div className="w-full max-w-[320px]">
           {/* eslint-disable-next-line @next/next/no-img-element -- dynamic API PNG, already cached server-side */}
           <img
-            src={`/api/v1/block-thumbnail/${height}.png?v=2`}
+            src={bitmapThumbnailUrl(height)}
             alt={`${height}.bitmap`}
             width={256}
             height={256}

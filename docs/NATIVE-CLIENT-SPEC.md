@@ -60,8 +60,8 @@ Base URL: `https://blockgenomics.io/api/v1`
 - `GET /guardian/[id]` — Guardian status and config
 
 ### Blockchain Data
-- mempool.space API for real block data (tx list, sizes, weights)
-- Bitfeed formula: `gridSize = ceil(sqrt(vbytes / 256))`
+- `GET /api/v1/blocks/{height}/layout` — the canonical layout, ready to draw (`gridLength`, `gridWidth`, `gridHeight`, `sizes`, `squares[i] = [x, y, size]`)
+- Bitmap standard square: `gridSize = max(1, ceil(log10(outputSats)) - 5)` (outputSats = sum of every output; coinbase = subsidy + fees)
 - Grid width: `ceil(sqrt(totalGridArea))`
 - Natural tx order (NOT sorted by size)
 
@@ -172,9 +172,16 @@ Each Bitcoin block = 2.1km × 2.1km territory (immutable protocol rule).
 ### Parcel Calculation
 ```
 For each transaction in the block:
-  gridSize = ceil(sqrt(vbytes / 256))
+  outputSats = sum of every output value in sats (OP_RETURN zeros included;
+               the coinbase pays subsidy + fees)
+  gridSize = max(1, ceil(log10(max(outputSats, 1))) - 5)
+             (1 BTC -> 3, 50 BTC -> 5, under 100k sats -> 1)
   
 Grid width = ceil(sqrt(sum of all gridSize²))
+
+This is the picture bitmap.land, Magic Eden and ordpool draw for <height>.bitmap
+(Bitfeed's value mode). The pre-2026-11-05 rule ceil(sqrt(vbytes / 256)) is
+Bitfeed's vbytes mode and draws a different map; do not use it.
 
 Layout: Mondrian/square-packing algorithm
   - Place transactions in NATURAL order (NOT sorted by size)
@@ -184,9 +191,11 @@ Layout: Mondrian/square-packing algorithm
 
 ### Scale Mapping
 ```
-cellSize = 2100 / gridWidth  (meters per cell)
+extent = max(content width, content height)  (cells actually used)
+cellSize = 2100 / extent  (meters per cell; cells stay square,
+                           content centred on the shorter axis)
 parcelWidth = gridSize × cellSize (meters)
-parcelHeight = derived from vbytes (taller = more value)
+parcelHeight = derived from tx value (taller = more value)
 ```
 
 ### Visual Style

@@ -191,7 +191,7 @@ the SDK handles challenge fetching, message binding, and envelope parsing.
   Uses an **action-bound** `world` challenge — the signed message commits to the specific action.
 - `POST /api/v1/world/batch` — up to 100 create/update/delete ops in one signed call.
 - `PATCH|DELETE /api/v1/world/{id}` — update/delete an object you own; action-bound signature.
-- `GET /api/v1/blocks/{height}/world/scale[?parcel=i]` — the block as a 2.1 km × 2.1 km district, one parcel per transaction, in metres (`x_m`, `y_m`, `w_m`, `h_m` from the corner of tx 0). Public. MCP `bg_district_scale`, `bg_parcel_dimensions`.
+- `GET /api/v1/blocks/{height}/world/scale[?parcel=i]` — the block as a 2.1 km × 2.1 km district, one parcel per transaction (the Bitmap standard square: side = max(1, ⌈log10(output sats)⌉ − 5) grid units, drawn in transaction order, Bitfeed Mondrian), in metres (`x_m`, `y_m`, `w_m`, `h_m` from the district's north-west corner). Public. MCP `bg_district_scale`, `bg_parcel_dimensions`.
 - `GET /api/v1/blocks/{height}/world` — `bg-world/1` manifest (theme, scale, placements with proof links), folded from the block's signed event log; `enabled:false` until the event record is switched on. Public. MCP `bg_world_get`.
 - `POST /api/v1/blocks/{height}/world/place|theme|remove` — deed = the first `N.bitmap`, authority = the owner's BIP-322 signature registering the agent as guardian (`bg_vfy_` session) or an action-bound signature, record = one signed event per write; catalog v1 assets only, footprint inside the parcel, height ≤ 300 m. MCP `bg_world_place`, `bg_world_set_theme`, `bg_world_remove`. Guide: docs/WORLD.md.
 

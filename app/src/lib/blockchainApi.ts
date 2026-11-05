@@ -15,6 +15,12 @@ export interface RealTx {
    * fee, so there is no number here that is derived from anything.
    */
   fee: number | null;
+  /**
+   * Sum of every output in satoshis (the coinbase: subsidy + fees), or null when
+   * not fetched. This sizes the transaction's square in the Bitmap layout
+   * (lib/bitmap-layout), so a block with one null has no canonical layout.
+   */
+  outSats: number | null;
   isCoinbase: boolean;
   /** True when this transaction's figures are synthesized rather than fetched. */
   estimated?: boolean;
@@ -36,6 +42,19 @@ interface RawApiTx {
   weight?: number;
   size?: number;
   fee?: number;
+  /** Esplora (mempool.space) outputs. */
+  vout?: { value?: number }[];
+  /** blockchain.info outputs. */
+  out?: { value?: number }[];
+}
+
+/** A raw tx's output total in sats, or null when the payload has no outputs list. */
+function rawOutSats(tx: RawApiTx): number | null {
+  const outs = tx.vout ?? tx.out;
+  if (!Array.isArray(outs)) return null;
+  let sum = 0;
+  for (const o of outs) sum += typeof o?.value === 'number' && Number.isFinite(o.value) ? o.value : 0;
+  return sum;
 }
 
 // In-memory cache
@@ -101,6 +120,7 @@ function generateEstimatedTxs(
       size: Math.ceil(weight / 4),
       weight,
       fee: null,
+      outSats: null,
       isCoinbase: false,
       estimated: true,
     };
@@ -139,6 +159,7 @@ async function fetchFromMempool(height: number): Promise<RealBlockData | null> {
       // `?? null`, not `|| 0`: a missing fee field is unknown, and a real
       // zero-fee transaction is a fact. Collapsing both to 0 loses that.
       fee: tx.fee ?? null,
+      outSats: rawOutSats(tx),
       isCoinbase: i === 0,
     }));
 
@@ -212,6 +233,7 @@ async function fetchFullFromMempool(height: number): Promise<RealBlockData | nul
       // `?? null`, not `|| 0`: a missing fee field is unknown, and a real
       // zero-fee transaction is a fact. Collapsing both to 0 loses that.
       fee: tx.fee ?? null,
+      outSats: rawOutSats(tx),
       isCoinbase: i === 0,
     }));
 
@@ -251,6 +273,7 @@ async function fetchFromBlockchainInfo(height: number): Promise<RealBlockData | 
       // `?? null`, not `|| 0`: a missing fee field is unknown, and a real
       // zero-fee transaction is a fact. Collapsing both to 0 loses that.
       fee: tx.fee ?? null,
+      outSats: rawOutSats(tx),
       isCoinbase: i === 0,
     }));
 
@@ -343,6 +366,7 @@ export function summaryToRealBlock(s: BlockSummaryPayload): RealBlockData {
       size: Math.ceil(vsize),
       weight: Math.round(vsize * 4),
       fee: s.fee[i] ?? null,
+      outSats: s.value?.[i] ?? null,
       isCoinbase: i === 0,
     })),
     estimated: false,

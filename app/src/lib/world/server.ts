@@ -31,6 +31,7 @@ import { enforceRateLimit, WORLD_WRITE_LIMIT } from '@/lib/api-rate-limit';
 import { parseBlockHeight, INVALID_BLOCK_HEIGHT_MESSAGE } from '@/lib/block-height';
 import { BlockNotFoundError, getBlockSummary, getTipHeight } from '@/lib/block-summary';
 import { HEIGHT_CAP_M, parcelRectsFrom, type DistrictScale } from '@/lib/world-scale';
+import { completeSatTotals } from '@/lib/bitmap-layout';
 import { PARAMS_MAX_BYTES } from '@/lib/block-event-core';
 import { foldWorld, type WorldEventRow, type WorldState } from './project';
 import { onlyKeys, validatePlacement, validateTheme, type Checked } from './validate';
@@ -110,16 +111,21 @@ export async function worldOf(block: number, scale: DistrictScale | null, db: Db
 // ── Block lookup shared by the GET and the writes ───────────────────────
 
 export type BlockLookup =
-  | { ok: true; vsize: number[] }
+  | { ok: true; sats: number[] }
   | { ok: false; status: 404 | 503; error: string };
 
-/** The block's vsizes: 404 above the tip or unknown to mempool, 503 when unreachable. */
+/**
+ * The block's per-transaction output totals (the parcel layout's input):
+ * 404 above the tip or unknown to mempool, 503 when unreachable or incomplete.
+ */
 export async function lookupBlock(height: number): Promise<BlockLookup> {
   const tip = await getTipHeight();
   if (tip !== null && height > tip) return { ok: false, status: 404, error: 'Block not found' };
   try {
     const s = await getBlockSummary(height);
-    return { ok: true, vsize: s.vsize };
+    const sats = completeSatTotals(s.value);
+    if (!sats) return { ok: false, status: 503, error: 'Block summary unavailable' };
+    return { ok: true, sats };
   } catch (e) {
     if (e instanceof BlockNotFoundError) return { ok: false, status: 404, error: 'Block not found' };
     return { ok: false, status: 503, error: 'Block summary unavailable' };
@@ -203,7 +209,7 @@ export async function handleWorldWrite(req: NextRequest, rawHeight: string, kind
     if (!t.ok) return refuse(t);
     fields = { theme: t.value };
   } else if (kind === 'world.place') {
-    const p = validatePlacement(fieldsIn, { rects: parcelRectsFrom(looked.vsize), liveCount: read.state.placements.length });
+    const p = validatePlacement(fieldsIn, { rects: parcelRectsFrom(looked.sats), liveCount: read.state.placements.length });
     if (!p.ok) return refuse(p, p.code === 'too_many_placements' ? 409 : 400);
     fields = { ...p.value };
   } else {

@@ -168,7 +168,7 @@ At this scale, the total Nexus world spans approximately 4.25 million square kil
 
 Within each 2.1 km × 2.1 km district, individual transactions become parcels of land. Parcel dimensions are derived deterministically from Bitcoin transaction data:
 
-• Parcel area is proportional to transaction byte size — larger, more complex transactions occupy more land
+• Parcel area is the Bitmap standard square: side = max(1, ⌈log10(output sats)⌉ − 5) grid units, drawn in transaction order (Bitfeed Mondrian) — the same picture every Bitmap explorer shows
 • Parcel build height is proportional to transaction value (BTC transferred) — high-value transactions can support taller structures
 • The coinbase transaction (the first transaction in every block, paying the miner) occupies the central plaza — always the largest and most prominent location
 • Streets and pathways form naturally in the gaps between parcels, creating walkable spaces

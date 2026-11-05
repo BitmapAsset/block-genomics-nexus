@@ -31,9 +31,9 @@ jest.mock('@/app/(site)/block/[height]/block-tabs', () => () => null);
 import BlockPage from '@/app/(site)/block/[height]/page';
 
 const HEIGHT = 612888;
-const VSIZE = (
-  JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '__fixtures__', 'block-612888-summary.json'), 'utf8')) as { vsize: number[] }
-).vsize;
+const FIXTURE = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '..', '..', '__fixtures__', 'block-612888-summary.json'), 'utf8'),
+) as { vsize: number[]; value: number[] };
 
 const pageData = {
   height: HEIGHT,
@@ -61,10 +61,10 @@ beforeEach(() => {
 });
 
 it('prints the scale line once, right under the block map', async () => {
-  mockGetBlockSummary.mockResolvedValue({ height: HEIGHT, vsize: VSIZE });
+  mockGetBlockSummary.mockResolvedValue({ height: HEIGHT, vsize: FIXTURE.vsize, value: FIXTURE.value });
   const html = await render();
   expect(html.split(LINE)).toHaveLength(2);
-  const img = html.indexOf(`/api/v1/block-thumbnail/${HEIGHT}.png`);
+  const img = html.indexOf(`/api/v1/block-thumbnail/${HEIGHT}.png?v=3`);
   const line = html.indexOf(LINE);
   expect(img).toBeGreaterThan(-1);
   expect(line).toBeGreaterThan(img);

@@ -8,8 +8,15 @@
  * mempool's `GET /api/v1/block/{hash}/summary` returns the whole block in one
  * array (`txid`, `fee`, `vsize`, `value`, `rate`, `flags` per tx). A summary that
  * is empty, shorter than the block's `tx_count`, or has a tx without a usable
- * vsize is a failed fetch: callers fall back or fail, and nothing is cached.
+ * vsize is a failed fetch. Then the same figures are read page by page from
+ * blockstream.info (lib/block-txs); when that fails too, callers fall back or
+ * fail, and nothing is cached.
  */
+
+import { EsploraBlockNotFound, fetchEsploraBlockTxs } from '@/lib/block-txs';
+
+/** Esplora host read page by page when mempool's one-call summary cannot be had. */
+const FALLBACK_ESPLORA = 'https://blockstream.info/api';
 
 export interface BlockSummary {
   height: number;
@@ -54,7 +61,22 @@ const cache = new Map<number, { summary: BlockSummary; at: number }>();
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
+/** mempool's summary, else the paged blockstream walk. A height mempool says is unmined is not retried. */
 async function fetchSummary(height: number): Promise<BlockSummary> {
+  try {
+    return await fetchMempoolSummary(height);
+  } catch (e) {
+    if (e instanceof BlockNotFoundError) throw e;
+    try {
+      return { height, ...(await fetchEsploraBlockTxs(FALLBACK_ESPLORA, height)) };
+    } catch (fallback) {
+      if (fallback instanceof EsploraBlockNotFound) throw new BlockNotFoundError(height);
+      throw e;
+    }
+  }
+}
+
+async function fetchMempoolSummary(height: number): Promise<BlockSummary> {
   const hashRes = await fetch(`https://mempool.space/api/block-height/${height}`, {
     signal: AbortSignal.timeout(8000),
     next: { revalidate: 86400 },

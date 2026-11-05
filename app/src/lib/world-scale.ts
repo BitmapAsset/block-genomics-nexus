@@ -6,16 +6,17 @@
  * through MCP, a human reading a proof) has to mean the same thing by "a 12 m
  * tower on parcel 418", so the numbers live here, once.
  *
- * THE MAPPING. The parcel layout is the canonical bitmap layout: one square per
- * transaction in tx-index order, side = ceil(sqrt(vsize / 256)) cells, packed by
- * `packSquares` (the bitfeed port the thumbnail and `ParcelView.mondrianLayout`
- * use). The packer's canvas is `gridWidth × gridHeight` cells (41 × 43 for block
- * 612,888). That canvas is stretched onto the 2,100 m square, so a cell is
- * `2100 / gridWidth` m east-west and `2100 / gridHeight` m north-south
- * (51.2 m × 48.8 m on 612,888). Every parcel therefore lies inside the district,
- * and occupied + unoccupied cells sum to exactly 4.41 km².
+ * THE MAPPING. The parcel layout is the canonical Bitmap layout (lib/bitmap-layout):
+ * one square per transaction in tx-index order, side = max(1, ⌈log10(output
+ * sats)⌉ − 5) cells, packed by Bitfeed's Mondrian packer, the picture bitmap.land
+ * and Magic Eden draw. The squares use `width × height` cells (47 × 50 for block
+ * 612,888). The larger side spans the 2,100 m square and cells stay square, so a
+ * cell is `2100 / max(width, height)` m (42 m on 612,888) and the content is
+ * centred on the shorter axis, exactly as the thumbnail draws it. Every parcel
+ * lies inside the district, and occupied + unoccupied cells (including the
+ * margin) sum to exactly 4.41 km².
  *
- * Coordinates: metres from the district corner where tx 0 sits (the thumbnail's
+ * Coordinates: metres from the district's north-west corner (the thumbnail's
  * top-left), `x_m` along the packer's x (east), `y_m` along the packer's y
  * (south, the thumbnail's downward axis; +z in the 3D viewer).
  *
@@ -24,11 +25,13 @@
  * cells) is reported separately as `parcel_area_m2`; the difference is the
  * packer's open cells, which is where streets and commons go.
  *
- * The pure half (`*From`) takes the block's vsizes; `districtScale(height)` and
- * `parcelDimensions(height, index)` fetch them through the cached block summary.
+ * The pure half (`*From`) takes the block's per-transaction output totals in
+ * sats; `districtScale(height)` and `parcelDimensions(height, index)` fetch them
+ * through the cached block summary.
  */
 
-import { packSquares, type PackResult } from '@/lib/square-packing';
+import { packFrame, type PackResult } from '@/lib/square-packing';
+import { completeSatTotals, layoutBlock } from '@/lib/bitmap-layout';
 import { getBlockSummary } from '@/lib/block-summary';
 
 /** District edge in metres (Gary, 2026-10-27: a real 2.1 km × 2.1 km plot). */
@@ -39,14 +42,16 @@ export const BLOCK_AREA_M2 = 4_410_000;
 export const WORLD_SCALE = {
   BLOCK_EDGE_M,
   BLOCK_AREA_M2,
-  /** The packer's square side: ceil(sqrt(vsize / VBYTES_PER_CELL)) cells. */
-  VBYTES_PER_CELL: 256,
+  /** The square side rule: max(1, ⌈log10(output sats)⌉ − SATS_LOG10_OFFSET) cells. */
+  SATS_LOG10_OFFSET: 5,
 } as const;
 
 export interface DistrictGrid {
+  /** Columns the squares use. */
   cols: number;
+  /** Rows the squares use. */
   rows: number;
-  /** Metres per layout unit (one packer cell), east-west. */
+  /** Metres per layout unit (one packer cell), east-west. Equal to cell_y_m: cells are square. */
   cell_x_m: number;
   /** Metres per layout unit (one packer cell), north-south. */
   cell_y_m: number;
@@ -88,34 +93,43 @@ const round = (n: number, dp: number) => {
   return Math.round(n * f) / f;
 };
 
-/** The canonical packing of a block's vsizes (tx-index order). */
-export function layoutOf(vsize: readonly number[]): PackResult {
-  return packSquares(vsize.map((vbytes, index) => ({ index, vbytes })), WORLD_SCALE.VBYTES_PER_CELL);
+/** The canonical packing of a block's output totals (tx-index order). */
+export function layoutOf(sats: readonly number[]): PackResult {
+  const l = layoutBlock(sats);
+  return { squares: l.squares, gridWidth: l.gridLength, gridHeight: l.height, contentWidth: l.width };
 }
 
 export function gridOf(layout: PackResult): DistrictGrid {
-  const cols = Math.max(layout.gridWidth, 1);
-  const rows = Math.max(layout.gridHeight, 1);
-  return { cols, rows, cell_x_m: BLOCK_EDGE_M / cols, cell_y_m: BLOCK_EDGE_M / rows };
+  const { extent } = packFrame(layout);
+  const cell = BLOCK_EDGE_M / extent;
+  return { cols: Math.max(layout.contentWidth, 1), rows: Math.max(layout.gridHeight, 1), cell_x_m: cell, cell_y_m: cell };
 }
 
 /** Every parcel's rectangle in metres, by tx index. Full precision (no rounding). */
-export function parcelRectsFrom(vsize: readonly number[]): ParcelRect[] {
-  const layout = layoutOf(vsize);
+export function parcelRectsFrom(sats: readonly number[]): ParcelRect[] {
+  const layout = layoutOf(sats);
   const g = gridOf(layout);
+  const { offsetX, offsetY } = packFrame(layout);
   const rects: ParcelRect[] = new Array(layout.squares.length);
   for (const sq of layout.squares) {
     const w = sq.size * g.cell_x_m;
     const h = sq.size * g.cell_y_m;
-    rects[sq.index] = { index: sq.index, x_m: sq.x * g.cell_x_m, y_m: sq.y * g.cell_y_m, w_m: w, h_m: h, area_m2: w * h };
+    rects[sq.index] = {
+      index: sq.index,
+      x_m: (sq.x + offsetX) * g.cell_x_m,
+      y_m: (sq.y + offsetY) * g.cell_y_m,
+      w_m: w,
+      h_m: h,
+      area_m2: w * h,
+    };
   }
   return rects;
 }
 
 /** One parcel's rectangle, rounded to the centimetre; null when out of range. */
-export function parcelDimensionsFrom(vsize: readonly number[], index: number): ParcelRect | null {
-  if (!Number.isInteger(index) || index < 0 || index >= vsize.length) return null;
-  const r = parcelRectsFrom(vsize)[index];
+export function parcelDimensionsFrom(sats: readonly number[], index: number): ParcelRect | null {
+  if (!Number.isInteger(index) || index < 0 || index >= sats.length) return null;
+  const r = parcelRectsFrom(sats)[index];
   return {
     index,
     x_m: round(r.x_m, 2),
@@ -126,10 +140,11 @@ export function parcelDimensionsFrom(vsize: readonly number[], index: number): P
   };
 }
 
-export function districtScaleFrom(height: number, vsize: readonly number[]): DistrictScale {
-  const layout = layoutOf(vsize);
+export function districtScaleFrom(height: number, sats: readonly number[]): DistrictScale {
+  const layout = layoutOf(sats);
   const g = gridOf(layout);
-  const parcels = vsize.length;
+  const { extent } = packFrame(layout);
+  const parcels = sats.length;
   const cells = layout.squares.reduce((s, q) => s + q.size * q.size, 0);
   const cellArea = g.cell_x_m * g.cell_y_m;
   const mean = parcels > 0 ? BLOCK_AREA_M2 / parcels : BLOCK_AREA_M2;
@@ -142,7 +157,7 @@ export function districtScaleFrom(height: number, vsize: readonly number[]): Dis
     mean_lot_edge_m: round(Math.sqrt(mean), 1),
     grid: { cols: g.cols, rows: g.rows, cell_x_m: round(g.cell_x_m, 2), cell_y_m: round(g.cell_y_m, 2) },
     parcel_area_m2: Math.round(cells * cellArea),
-    open_area_m2: Math.round((g.cols * g.rows - cells) * cellArea),
+    open_area_m2: Math.round((extent * extent - cells) * cellArea),
     height_cap_m: HEIGHT_CAP_M,
   };
 }
@@ -152,14 +167,20 @@ export function scaleLine(s: Pick<DistrictScale, 'parcels' | 'mean_lot_edge_m'>)
   return `2.1 km × 2.1 km · ${s.parcels.toLocaleString('en-US')} parcels · mean lot ≈ ${Math.round(s.mean_lot_edge_m)} m`;
 }
 
+/** A block's output totals from the cached summary; throws when one is missing (no partial layout). */
+async function blockSats(height: number): Promise<number[]> {
+  const summary = await getBlockSummary(height);
+  const sats = completeSatTotals(summary.value);
+  if (!sats) throw new Error('Block summary tx without an output total');
+  return sats;
+}
+
 /** District scale for a mined block (throws BlockNotFoundError / fetch errors from the summary). */
 export async function districtScale(height: number): Promise<DistrictScale> {
-  const summary = await getBlockSummary(height);
-  return districtScaleFrom(height, summary.vsize);
+  return districtScaleFrom(height, await blockSats(height));
 }
 
 /** One parcel of a mined block in metres, or null when `index` is out of range. */
 export async function parcelDimensions(height: number, index: number): Promise<ParcelRect | null> {
-  const summary = await getBlockSummary(height);
-  return parcelDimensionsFrom(summary.vsize, index);
+  return parcelDimensionsFrom(await blockSats(height), index);
 }

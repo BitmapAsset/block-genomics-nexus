@@ -35,6 +35,7 @@ function block(height: number, estimated: boolean): RealBlockData {
       size: estimated ? 100 + i : 250 + i * 10,
       weight: 1000,
       fee: estimated && i > 0 ? null : i * 100,
+      outSats: estimated && i > 0 ? null : 1_000_000 * (i + 1),
       isCoinbase: i === 0,
       ...(estimated && i > 0 ? { estimated: true } : {}),
     })),

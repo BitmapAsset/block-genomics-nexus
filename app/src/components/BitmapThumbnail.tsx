@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { bitmapThumbnailUrl } from "@/lib/bitmap-layout";
 
-// Bitfeed orange, used for the fallback tile when the image cannot load.
-const BITFEED_ORANGE = "#fd931e";
+// Bitcoin orange, used for the fallback tile when the image cannot load.
+const BITFEED_ORANGE = "#F7931A";
 
 /**
  * Bitmap art for one block.
  *
- * Renders the server PNG from `/api/v1/block-thumbnail/{height}` (Mondrian
- * layout, rendered once and cached in the DB). This replaced a client-side
+ * Renders the server PNG from `/api/v1/block-thumbnail/{height}` (the canonical
+ * Bitmap picture: value-sized squares, Mondrian layout, lib/bitmap-layout;
+ * rendered once and cached in the DB). This replaced a client-side
  * renderer that walked mempool.space 25 transactions per request — up to 200
  * sequential calls per block — and showed a bare number whenever mempool
  * rate-limited or was unreachable.
@@ -63,7 +65,7 @@ export default function BitmapThumbnail({
   return (
     // eslint-disable-next-line @next/next/no-img-element -- dynamic API PNG; next/image would re-encode an already-cached image
     <img
-      src={`/api/v1/block-thumbnail/${blockHeight}.png?v=2`}
+      src={bitmapThumbnailUrl(blockHeight)}
       alt={`${blockHeight}.bitmap`}
       width={fill ? 256 : size}
       height={fill ? 256 : size}
