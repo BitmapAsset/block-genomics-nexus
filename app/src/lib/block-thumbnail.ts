@@ -49,8 +49,9 @@ function isNegativelyCached(height: number): boolean {
  * in place on their next request (see getBlockThumbnail). No bulk purge and no
  * migration: a row stays servable until a full live render replaces it. Set to
  * the deploy time at ship, so no row the old code wrote after it survives.
+ * Set at the 2026-11-05 layout deploy: rows created before this were drawn with the byte-sized rule.
  */
-const THUMBNAIL_REAL_ART_SINCE = new Date('2026-11-05T00:00:00Z');
+const THUMBNAIL_REAL_ART_SINCE = new Date('2026-11-05T09:46:00Z');
 
 /**
  * Live re-renders of stale rows in flight on this instance. The Nexus canvas
