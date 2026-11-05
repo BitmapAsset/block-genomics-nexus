@@ -73,7 +73,7 @@ curl -s "https://blockgenomics.io/api/v1/ownership/verify?blockHeight=840000"
 - `GET /api/v1/users/by-wallet/{address}` — identity record for a wallet, with its verified blocks.
 - `GET /api/v1/search?q=` — search blocks, agents, users.
 - `POST /api/v1/challenge` — request a single-use nonce. Body `{ walletAddress, purpose }`. Purposes: `auth`, `agent-register`, `agent-manage`, `agent-token`, `world`, `parcel-customize`, `experience-register`, `experience-manage`.
-- `GET /api/v1/blocks/{height}/world/scale[?parcel=i]` — every block is a 2.1 km × 2.1 km district, one parcel per transaction, in real metres; build in these numbers (MCP `bg_district_scale`, `bg_parcel_dimensions`).
+- `GET /api/v1/blocks/{height}/world/scale[?parcel=i]` — every block is a 2.1 km × 2.1 km district, one parcel per transaction (the Bitmap standard square: side = max(1, ⌈log10(output sats)⌉ − 5) grid units, drawn in transaction order, Bitfeed Mondrian), in real metres; build in these numbers (MCP `bg_district_scale`, `bg_parcel_dimensions`).
 - `GET /api/v1/blocks/{height}/world` — the block's `bg-world/1` manifest (theme, scale, placements, each with a proof link), a projection of the block's signed event log; `enabled:false` until the event record is switched on (MCP `bg_world_get`).
 - `POST /api/v1/blocks/{height}/world/place|theme|remove` — build from any agent: deed = the first `N.bitmap`, authority = the owner's BIP-322 signature registering the agent as guardian (`bg_vfy_` session), record = one signed event per write (MCP `bg_world_place`, `bg_world_set_theme`, `bg_world_remove`; guide: docs/WORLD.md).
 - `POST /api/v1/auth/verify` — claim a block as your identity (BIP-322 over the challenge message).

@@ -27,14 +27,14 @@ Three words carry the whole model:
 |---|---|
 | District | 2,100 m × 2,100 m = 4.41 km² (441 ha) per block |
 | Parcels | one per transaction, in transaction order; parcel `i` = transaction `i` |
-| Layout | the canonical bitmap layout (bitfeed packing: side = ⌈√(vsize / 256)⌉ cells); its `cols × rows` grid is stretched onto the square, so a cell is `2100 / cols` m east-west and `2100 / rows` m north-south |
-| Coordinates | metres from the district corner where transaction 0 sits: `x_m` east, `y_m` south (the thumbnail's top-left corner and downward axis) |
+| Layout | the Bitmap standard square: side = max(1, ⌈log10(output sats)⌉ − 5) grid units, drawn in transaction order (Bitfeed Mondrian), the picture bitmap.land and Magic Eden show; the larger of its `cols × rows` spans the square, cells stay square (`2100 / max(cols, rows)` m) and the content is centred on the shorter axis, exactly like the thumbnail |
+| Coordinates | metres from the district's north-west corner (the thumbnail's top-left): `x_m` east, `y_m` south (the thumbnail's downward axis) |
 | Mean lot | district area ÷ parcels (block 612,888: 1,114 parcels, ≈ 3,959 m², ≈ 63 m square) |
-| Open land | the layout's empty cells (612,888: ≈ 0.35 km²); streets and commons, not buildable in v1 |
+| Open land | the layout's empty cells and margin (612,888: ≈ 0.51 km²); streets and commons, not buildable in v1 |
 | Height cap | 300 m (flat in v1) |
 
-Block 612,888 for reference: grid 41 × 43, a cell is 51.22 m × 48.84 m, parcel 418 is the
-rectangle `x 204.88–256.10, y 586.05–634.88`.
+Block 612,888 for reference: grid 47 × 50, a cell is 42 m × 42 m, the coinbase (12.5 BTC + fees)
+is the 5 × 5 parcel 0 at `x 63–273, y 0–210`, and parcel 418 is the rectangle `x 861–903, y 756–798`.
 
 The block page prints the scale under the map: `2.1 km × 2.1 km · 1,114 parcels · mean lot ≈ 63 m`.
 
@@ -50,11 +50,11 @@ The block page prints the scale under the map: `2.1 km × 2.1 km · 1,114 parcel
   "theme": "voxel",
   "scale": { "height": 612888, "edge_m": 2100, "area_m2": 4410000, "parcels": 1114,
              "mean_lot_m2": 3959, "mean_lot_edge_m": 62.9,
-             "grid": { "cols": 41, "rows": 43, "cell_x_m": 51.22, "cell_y_m": 48.84 },
-             "parcel_area_m2": 4057300, "open_area_m2": 352700, "height_cap_m": 300 },
+             "grid": { "cols": 47, "rows": 50, "cell_x_m": 42, "cell_y_m": 42 },
+             "parcel_area_m2": 3896676, "open_area_m2": 513324, "height_cap_m": 300 },
   "placements": [
     { "id": "01JBZ0W3Q5V8N2K7D4R6T9X1MC", "parcel": 418, "asset": "tower",
-      "x_m": 230.5, "y_m": 610.5, "rot_deg": 0, "scale": 1,
+      "x_m": 882, "y_m": 777, "rot_deg": 0, "scale": 1,
       "placedAt": "2026-10-28T09:00:00.000Z",
       "by": { "type": "owner-session", "id": "bc1p…" },
       "signer": { "scheme": "ed25519", "address": "bg-sys-…" },
@@ -111,15 +111,15 @@ endpoint `https://blockgenomics.io/mcp`, or `BG_SESSION_TOKEN` for `npx block-ge
 ```
 → bg_district_scale { "height": 612888 }
 ← { "height": 612888, "edge_m": 2100, "area_m2": 4410000, "parcels": 1114,
-    "mean_lot_m2": 3959, "mean_lot_edge_m": 62.9, "grid": { "cols": 41, "rows": 43,
-    "cell_x_m": 51.22, "cell_y_m": 48.84 }, "height_cap_m": 300, … }
+    "mean_lot_m2": 3959, "mean_lot_edge_m": 62.9, "grid": { "cols": 47, "rows": 50,
+    "cell_x_m": 42, "cell_y_m": 42 }, "height_cap_m": 300, … }
 ```
 
 **`bg_parcel_dimensions`**: one parcel's rectangle.
 ```
 → bg_parcel_dimensions { "height": 612888, "parcel": 418 }
-← { "block": 612888, "index": 418, "x_m": 204.88, "y_m": 586.05,
-    "w_m": 51.22, "h_m": 48.84, "area_m2": 2501.42 }
+← { "block": 612888, "index": 418, "x_m": 861, "y_m": 756,
+    "w_m": 42, "h_m": 42, "area_m2": 1764 }
   (out of range: 404 { "code": "parcel_out_of_range" })
 ```
 
@@ -134,7 +134,7 @@ endpoint `https://blockgenomics.io/mcp`, or `BG_SESSION_TOKEN` for `npx block-ge
 **`bg_world_place`**: one placement (`rot_deg` defaults to 0, `scale` to 1).
 ```
 → bg_world_place { "blockHeight": 612888, "parcel": 418, "asset": "tower",
-                   "x_m": 230.5, "y_m": 610.5, "params": { "color": "#f7931a" } }
+                   "x_m": 882, "y_m": 777, "params": { "color": "#f7931a" } }
 ← 201 { "format": "bg-world/1", "kind": "world.place", "placement": { "id": "01JBZ0…",
         "parcel": 418, "asset": "tower", …, "proof": { "url": "/api/v1/blocks/612888/events/01JBZ0…/proof" } },
         "event": { "kind": "world.place", "summary": "Placed a tower on parcel 418", … } }

@@ -290,7 +290,7 @@ export function buildToolCatalog(call: CallFn): {
     {
       name: "bg_parcel_dimensions",
       description:
-        "One parcel's rectangle in metres: {index, x_m, y_m, w_m, h_m, area_m2}, measured from the district corner where transaction 0 sits (x east, y south). A placement must fit inside it.",
+        "One parcel's rectangle in metres: {index, x_m, y_m, w_m, h_m, area_m2}, measured from the district's north-west corner (x east, y south). Parcels are the Bitmap standard squares (side from the transaction's output value, the picture bitmap.land and Magic Eden show). A placement must fit inside it.",
       schema: {
         height,
         parcel: z.number().int().min(0).describe("Parcel = transaction index in the block, 0..N-1"),

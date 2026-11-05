@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ heig
   if (!looked.ok && looked.status === 404) {
     return NextResponse.json({ error: looked.error }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
   }
-  const scale = looked.ok ? districtScaleFrom(block, looked.vsize) : null;
+  const scale = looked.ok ? districtScaleFrom(block, looked.sats) : null;
 
   try {
     const manifest = await worldOf(block, scale);

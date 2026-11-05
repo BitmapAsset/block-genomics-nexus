@@ -641,7 +641,7 @@ function SatoshiView() {
           <tr><td>Block district size</td><td>2.1 × 2.1 km</td><td>Bitcoin&apos;s 21M cap</td></tr>
           <tr><td>District area</td><td>4.41 km²</td><td>2.1² km</td></tr>
           <tr><td>Total world area</td><td>~4.25M km²</td><td>~963,000 × 4.41</td></tr>
-          <tr><td>Parcel area</td><td>∝ tx byte size</td><td>Deterministic from chain</td></tr>
+          <tr><td>Parcel area</td><td>Bitmap square from tx output value</td><td>Deterministic from chain</td></tr>
           <tr><td>Build height</td><td>∝ tx BTC value</td><td>Deterministic from chain</td></tr>
           <tr><td>Central plaza</td><td>Coinbase tx</td><td>First tx in every block</td></tr>
         </tbody>

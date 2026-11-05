@@ -7,7 +7,7 @@ import {
 } from './NexusBlockData';
 import type { Visitor } from './NexusSocial';
 import { getLandmark } from './NexusLandmarks';
-import { packSquares } from '@/lib/square-packing';
+import { bitmapThumbnailUrl, drawRects, estimatedSquareSize, layoutFromSizes, logTxSize } from '@/lib/bitmap-layout';
 
 /**
  * PROTOCOL RULE: Each Bitcoin block (Bitmap) = 2.1km × 2.1km in real-world scale.
@@ -16,7 +16,7 @@ import { packSquares } from '@/lib/square-packing';
  * This ensures consistent spatial experience across all blocks and in VR.
  *
  * CELL_SIZE is the visual representation in the world map; the 2.1km rule applies
- * inside ParcelView where parcels divide the 2.1km² block proportionally by vbytes.
+ * inside ParcelView, where parcels are the Bitmap standard squares (lib/bitmap-layout).
  */
 const CELL_SIZE = 10; // base cell size in world pixels (map-level representation)
 const GAP = 1;
@@ -196,12 +196,12 @@ export class NexusCanvasEngine {
 
   /**
    * Fast procedural texture — a TRANSIENT SKELETON shown only until the real
-   * canonical thumbnail loads. Uses the SHARED `packSquares` packer (same as the
-   * server thumbnail route, the 2D bitmap, and the inside-3D parcels) so the
-   * skeleton arrangement already matches the real bitmap; tx vbytes here are PRNG
-   * estimates (real per-tx data is not fetched for off-screen map tiles at 880k
-   * scale). Rendered in the bitfeed palette so the swap to the real thumbnail is
-   * visually seamless.
+   * canonical thumbnail loads. Uses the SHARED layout and drawing rule
+   * (lib/bitmap-layout: same packer and framing as the server thumbnail and the
+   * inside-3D parcels); the square sizes here are PRNG draws from the value
+   * distribution (real per-tx data is not fetched for off-screen map tiles at
+   * 880k scale), with the coinbase at its subsidy's size. Rendered in the same
+   * palette so the swap to the real thumbnail is visually seamless.
    */
   private generateProceduralTexture(height: number): void {
     const size = NexusCanvasEngine.PARCEL_TEX_SIZE;
@@ -214,40 +214,29 @@ export class NexusCanvasEngine {
     const block = generateBlock(height);
     const txCount = Math.min(block.txCount, 1500); // cap for skeleton speed
 
-    // Fast deterministic RNG for estimated tx vbytes
+    // Fast deterministic RNG for estimated square sizes
     let rngState = height * 7919;
     const nextR = () => {
       rngState = (rngState * 1664525 + 1013904223) & 0xffffffff;
       return (rngState >>> 0) / 0xffffffff;
     };
 
-    const items: { index: number; vbytes: number }[] = [];
+    const subsidySats = Math.floor(5_000_000_000 / 2 ** Math.floor(height / 210000));
+    const sizes: number[] = [];
     for (let i = 0; i < txCount; i++) {
-      items.push({ index: i, vbytes: i === 0 ? 300 : Math.floor(150 + Math.pow(nextR(), 3) * 10000) });
+      sizes.push(i === 0 ? logTxSize(subsidySats) : estimatedSquareSize(nextR()));
     }
 
-    // Bitfeed dark background (matches the real thumbnail so the swap is seamless)
+    // Dark background (matches the real thumbnail so the swap is seamless)
     tctx.fillStyle = '#1d1f31';
     tctx.fillRect(0, 0, size, size);
 
-    // Canonical bitfeed packing — IDENTICAL algorithm + framing to the real
-    // thumbnail (renderBitmapThumbnail): scale by gridWidth, pad = pxPerGrid/4.
-    // Only the per-tx vbytes differ (estimated here vs real on the server), so
-    // the canvas footprint/density stay consistent through the real swap.
-    const { squares, gridWidth } = packSquares(items);
-    if (squares.length === 0) { this.cacheTexture(height, tex); return; }
-
-    const pxPerGrid = size / Math.max(gridWidth, 1);
-    const pad = pxPerGrid / 4; // bitfeed unitPadding
-
-    for (const sq of squares) {
-      const x = sq.x * pxPerGrid + pad;
-      const y = sq.y * pxPerGrid + pad;
-      const w = sq.size * pxPerGrid - pad * 2;
-      const h = sq.size * pxPerGrid - pad * 2;
-      if (w <= 0 || h <= 0) continue;
-      tctx.fillStyle = sq.index === 0 ? '#fdb04e' : '#fd931e';
-      tctx.fillRect(x, y, Math.max(0.5, w), Math.max(0.5, h));
+    // Canonical packing and framing, IDENTICAL to the real thumbnail
+    // (renderBitmapThumbnail → drawRects). Only the sizes differ (estimated here
+    // vs real on the server), so the footprint stays consistent through the swap.
+    tctx.fillStyle = '#F7931A';
+    for (const r of drawRects(layoutFromSizes(sizes), size)) {
+      tctx.fillRect(r.x0, r.y0, Math.max(0.5, r.x1 - r.x0), Math.max(0.5, r.y1 - r.y0));
     }
 
     this.cacheTexture(height, tex);
@@ -267,7 +256,7 @@ export class NexusCanvasEngine {
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
         img.onerror = () => reject(new Error('Failed to load'));
-        img.src = `/api/v1/block-thumbnail/${height}.png`;
+        img.src = bitmapThumbnailUrl(height);
       });
 
       // Create texture from loaded image

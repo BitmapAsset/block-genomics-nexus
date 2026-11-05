@@ -1,11 +1,19 @@
 /**
  * Bitfeed Mondrian Layout Algorithm — CANONICAL bitmap standard.
  * Ported from https://github.com/bitfeed-project/bitfeed
+ *
+ * The packer only places squares; it does not decide how big a transaction's
+ * square is. The Bitmap standard sizes a square by the transaction's output
+ * value (`logTxSize` in `@/lib/bitmap-layout`), and every caller hands this
+ * module those sizes. It is held slot-for-slot equal to ordpool-parser's port
+ * of bitlodo's MondrianLayout (lib/vendor/ordpool) by
+ * __tests__/lib/bitmap-layout-conformance.test.ts.
  */
 
 export interface SquarePackInput {
   index: number;
-  vbytes: number;
+  /** Square side in grid units (the Bitmap standard: 1..n from output value). */
+  size: number;
 }
 
 export interface PackedSquare {
@@ -17,12 +25,20 @@ export interface PackedSquare {
 
 export interface PackResult {
   squares: PackedSquare[];
+  /** The packer's row length: ceil(sqrt(Σ size²)). */
   gridWidth: number;
+  /** Rows actually used: max(y + size). Can exceed gridWidth. */
   gridHeight: number;
+  /** Columns actually used: max(x + size). At most gridWidth. */
+  contentWidth: number;
 }
 
-/** Convert transaction vbytes to a square side length using sqrt scaling */
-export function txToSquareSize(vbytes: number, scaleFactor = 256): number {
+/**
+ * The pre-2026-11-05 square size: sqrt of the transaction's vbytes / 256.
+ * This is Bitfeed's "vbytes" mode, NOT the Bitmap standard, and no production
+ * code calls it; it stays so tests can show what the old maps were drawn from.
+ */
+export function legacyVbytesSquareSize(vbytes: number, scaleFactor = 256): number {
   return Math.max(1, Math.ceil(Math.sqrt(Math.max(1, vbytes) / scaleFactor)));
 }
 
@@ -129,43 +145,70 @@ class MondrianLayout {
   }
 }
 
-/** Pack transaction squares into a Mondrian-style grid layout (Bitfeed algorithm) */
-export function packSquares(items: SquarePackInput[], scaleFactor = 256): PackResult {
-  if (items.length === 0) return { squares: [], gridWidth: 0, gridHeight: 0 };
+/** A square side the packer accepts: a whole number ≥ 1. */
+function cleanSize(size: number): number {
+  return Number.isFinite(size) ? Math.max(1, Math.floor(size)) : 1;
+}
 
-  const txSizes = items.map(item => txToSquareSize(item.vbytes, scaleFactor));
+/** Pack squares of the given sides into a Mondrian grid (Bitfeed algorithm), in input order. */
+export function packSquares(items: readonly SquarePackInput[]): PackResult {
+  if (items.length === 0) return { squares: [], gridWidth: 0, gridHeight: 0, contentWidth: 0 };
+
+  const txSizes = items.map(item => cleanSize(item.size));
   const totalArea = txSizes.reduce((s, sz) => s + sz * sz, 0);
   const gridWidth = Math.ceil(Math.sqrt(totalArea));
 
   const layout = new MondrianLayout(gridWidth);
   const result: PackedSquare[] = [];
+  let maxX = 0;
   let maxY = 0;
 
   for (let i = 0; i < items.length; i++) {
     const pos = layout.place(txSizes[i]);
     result.push({ index: items[i].index, x: pos.x, y: pos.y, size: pos.r });
+    maxX = Math.max(maxX, pos.x + pos.r);
     maxY = Math.max(maxY, pos.y + pos.r);
   }
 
-  return { squares: result, gridWidth, gridHeight: maxY };
+  return { squares: result, gridWidth, gridHeight: maxY, contentWidth: maxX };
 }
 
-/** Pack squares and convert to 3D world-space coordinates centered on origin */
+/** Pack a plain list of square sides; square i is transaction i. */
+export function packSizes(sizes: readonly number[]): PackResult {
+  return packSquares(sizes.map((size, index) => ({ index, size })));
+}
+
+/**
+ * The drawing frame of a packing, the way the canonical renderers fit it
+ * (ordinals-wallet/bitmap-renderer, Magic Eden): the larger of the content's
+ * width and height spans the square, cells stay square, and the content is
+ * centred on the other axis.
+ */
+export function packFrame(result: Pick<PackResult, 'gridHeight' | 'contentWidth'>): { extent: number; offsetX: number; offsetY: number } {
+  const extent = Math.max(result.contentWidth, result.gridHeight, 1);
+  return { extent, offsetX: (extent - result.contentWidth) / 2, offsetY: (extent - result.gridHeight) / 2 };
+}
+
+/**
+ * Pack squares and convert to 3D world-space coordinates centred on the origin.
+ * `blockSize` is the district edge; the packing is fitted by `packFrame`, so a
+ * square of side s is s × blockSize / extent on a side and every parcel lies
+ * inside the district.
+ */
 export function packSquaresToWorldSpace(
-  items: SquarePackInput[],
+  items: readonly SquarePackInput[],
   blockSize: number,
   gap: number,
-  scaleFactor = 256
 ): { index: number; x: number; z: number; width: number; depth: number }[] {
-  const { squares, gridWidth } = packSquares(items, scaleFactor);
-  const dim = Math.max(gridWidth, 1);
-  const cellSize = blockSize / dim;
+  const packed = packSquares(items);
+  const { extent, offsetX, offsetY } = packFrame(packed);
+  const cellSize = blockSize / extent;
   const halfBlock = blockSize / 2;
 
-  return squares.map(sq => ({
+  return packed.squares.map(sq => ({
     index: sq.index,
-    x: sq.x * cellSize - halfBlock + sq.size * cellSize / 2,
-    z: sq.y * cellSize - halfBlock + sq.size * cellSize / 2,
+    x: (sq.x + offsetX) * cellSize - halfBlock + sq.size * cellSize / 2,
+    z: (sq.y + offsetY) * cellSize - halfBlock + sq.size * cellSize / 2,
     width: Math.max(0.001, sq.size * cellSize - gap),
     depth: Math.max(0.001, sq.size * cellSize - gap),
   }));

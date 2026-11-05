@@ -4,7 +4,9 @@
  * The district's metres (lib/world-scale): without `parcel`, the district
  * (`edge_m`, `area_m2`, `parcels`, `mean_lot_m2`, grid, height cap); with
  * `parcel`, that parcel's rectangle `{index, x_m, y_m, w_m, h_m, area_m2}` in
- * metres from the corner where tx 0 sits. Pure chain data: the same for every
+ * metres from the district's north-west corner (the thumbnail's top-left).
+ * Parcels are the canonical Bitmap squares (side from each tx's output value,
+ * lib/bitmap-layout). Pure chain data: the same for every
  * caller and independent of the event flag, so it caches like the summary.
  */
 
@@ -33,12 +35,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ heig
   if (!looked.ok) return NextResponse.json({ error: looked.error }, { status: looked.status, headers: { 'Cache-Control': 'no-store' } });
 
   if (parcelRaw === null) {
-    return NextResponse.json(districtScaleFrom(block, looked.vsize), { headers: { ...rl.headers, 'Cache-Control': CACHE } });
+    return NextResponse.json(districtScaleFrom(block, looked.sats), { headers: { ...rl.headers, 'Cache-Control': CACHE } });
   }
-  const parcel = parcelDimensionsFrom(looked.vsize, Number(parcelRaw));
+  const parcel = parcelDimensionsFrom(looked.sats, Number(parcelRaw));
   if (!parcel) {
     return NextResponse.json(
-      { error: `parcel must be 0..${looked.vsize.length - 1} on this block`, code: 'parcel_out_of_range' },
+      { error: `parcel must be 0..${looked.sats.length - 1} on this block`, code: 'parcel_out_of_range' },
       { status: 404, headers: { 'Cache-Control': 'no-store' } },
     );
   }

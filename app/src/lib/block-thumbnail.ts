@@ -8,7 +8,8 @@
  * of which server the card's renderer requested (CodeQL js/request-forgery).
  */
 
-import { renderBitmapThumbnail, TxInput } from '@/lib/bitmap-renderer';
+import { renderBitmapThumbnail } from '@/lib/bitmap-renderer';
+import { completeSatTotals, estimatedSquareSize, logTxSize, txSatsToSizes } from '@/lib/bitmap-layout';
 import { prisma } from '@/lib/prisma';
 import { getBlockSummary } from '@/lib/block-summary';
 
@@ -42,12 +43,14 @@ function isNegativelyCached(height: number): boolean {
 }
 
 /**
- * Rows written before this instant were rendered from the first 25 transactions
- * plus a height-seeded estimate for the rest of the block. They are refreshed in
- * place on their next request (see getBlockThumbnail). No bulk purge and no
- * migration: a row stays servable until a full live render replaces it.
+ * Rows written before this instant are not the Bitmap picture: until 2026-10-16
+ * they were the first 25 transactions plus a height-seeded estimate, and until
+ * the value-layout fix every row sized its squares by vbytes. They are refreshed
+ * in place on their next request (see getBlockThumbnail). No bulk purge and no
+ * migration: a row stays servable until a full live render replaces it. Set to
+ * the deploy time at ship, so no row the old code wrote after it survives.
  */
-const THUMBNAIL_REAL_ART_SINCE = new Date('2026-10-16T21:35:00Z');
+const THUMBNAIL_REAL_ART_SINCE = new Date('2026-11-05T00:00:00Z');
 
 /**
  * Live re-renders of stale rows in flight on this instance. The Nexus canvas
@@ -60,21 +63,31 @@ const MAX_LIVE_RENDERS = 4;
 let liveRenders = 0;
 
 /**
- * Every transaction of the block, with its real vsize, from the shared block
- * summary fetch (lib/block-summary). A failed or incomplete summary throws: the
- * caller falls back to an estimate and persists nothing.
+ * Every transaction's square side, from its real output total in the shared
+ * block summary fetch (lib/block-summary). A failed or incomplete summary, or
+ * one missing a single output total, throws: the caller falls back to an
+ * estimate and persists nothing.
  */
-async function fetchBlockTxs(height: number): Promise<TxInput[]> {
-  const { vsize } = await getBlockSummary(height);
-  return vsize.map((vbytes) => ({ vbytes }));
+async function fetchBlockSizes(height: number): Promise<number[]> {
+  const { value } = await getBlockSummary(height);
+  const sats = completeSatTotals(value);
+  if (!sats) throw new Error('Block summary tx without an output total');
+  return txSatsToSizes(sats);
 }
+
+/**
+ * Pixel size of the art: the Bitmap community's 576 × 576 (Magic Eden, ordinals-wallet).
+ * The drawing rule rounds the half-cell gap to whole pixels, so a smaller render
+ * of a big block reads heavier than the canonical image; browsers downscale this one.
+ */
+const THUMBNAIL_PX = 576;
 
 /** Full live render, counted against the in-flight cap. */
 async function renderLive(height: number): Promise<{ png: Buffer; txCount: number }> {
   liveRenders++;
   try {
-    const txs = await fetchBlockTxs(height);
-    return { png: renderBitmapThumbnail(txs, 256), txCount: txs.length };
+    const sizes = await fetchBlockSizes(height);
+    return { png: renderBitmapThumbnail(sizes, THUMBNAIL_PX), txCount: sizes.length };
   } finally {
     liveRenders--;
   }
@@ -89,12 +102,14 @@ function longCache(epoch: number): string {
 const SHORT_CACHE = 'public, max-age=60';
 
 /**
- * Deterministic estimated tx set seeded purely by height — no network.
+ * Deterministic estimated square sides seeded purely by height — no network.
  * Used when the live block is unreachable (negative-cached) so the tile still
- * renders a canonical Mondrian skeleton instead of erroring. Estimates only;
- * NOT persisted to the DB cache (which holds real/live-derived thumbnails).
+ * renders a Mondrian skeleton instead of erroring. The coinbase gets the
+ * subsidy's square (it pays at least that); the rest come from the value
+ * distribution. Estimates only; served as `estimated` and NOT persisted to the
+ * DB cache (which holds real/live-derived thumbnails).
  */
-function estimateTxs(height: number): TxInput[] {
+function estimateSizes(height: number): number[] {
   let seed = (height * 7919 + 17) >>> 0;
   const rng = () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
@@ -107,19 +122,10 @@ function estimateTxs(height: number): TxInput[] {
     ? 10 + Math.floor(rng() * 500)
     : 100 + Math.floor(rng() * 3000);
 
-  const txs: TxInput[] = [];
-  for (let i = 0; i < count; i++) {
-    if (i === 0) { txs.push({ vbytes: 200 + Math.floor(rng() * 400) }); continue; }
-    const u = rng();
-    let vb: number;
-    if (u < 0.60) vb = 140 + Math.floor(rng() * 116);
-    else if (u < 0.85) vb = 257 + Math.floor(rng() * 543);
-    else if (u < 0.95) vb = 801 + Math.floor(rng() * 2199);
-    else if (u < 0.99) vb = 3001 + Math.floor(rng() * 12000);
-    else vb = 15001 + Math.floor(rng() * 50000);
-    txs.push({ vbytes: vb });
-  }
-  return txs;
+  const subsidySats = Math.floor(5_000_000_000 / 2 ** Math.floor(height / 210000));
+  const sizes: number[] = [logTxSize(subsidySats)];
+  for (let i = 1; i < count; i++) sizes.push(estimatedSquareSize(rng()));
+  return sizes;
 }
 
 /** The art for a validated, non-negative block height. */
@@ -166,7 +172,7 @@ export async function getBlockThumbnail(height: number): Promise<BlockThumbnail>
   // Recently-failed height: serve a deterministic estimated skeleton without
   // hitting mempool, and let the client retry after the negative window expires.
   if (isNegativelyCached(height)) {
-    return { png: renderBitmapThumbnail(estimateTxs(height), 256), cacheControl: SHORT_CACHE, source: 'estimated' };
+    return { png: renderBitmapThumbnail(estimateSizes(height), THUMBNAIL_PX), cacheControl: SHORT_CACHE, source: 'estimated' };
   }
 
   // Generate. Only a render where every tx came from mempool is persisted.
@@ -187,6 +193,6 @@ export async function getBlockThumbnail(height: number): Promise<BlockThumbnail>
     // Live fetch failed — negative-cache the height and serve an estimated
     // skeleton so the map tile is populated (and we stop hammering mempool).
     negativeCache.set(height, Date.now() + NEGATIVE_TTL_MS);
-    return { png: renderBitmapThumbnail(estimateTxs(height), 256), cacheControl: SHORT_CACHE, source: 'estimated' };
+    return { png: renderBitmapThumbnail(estimateSizes(height), THUMBNAIL_PX), cacheControl: SHORT_CACHE, source: 'estimated' };
   }
 }

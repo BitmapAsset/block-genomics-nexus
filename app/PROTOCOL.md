@@ -171,11 +171,13 @@ Each Bitcoin block maps to an immutable territory in the Nexus metaverse:
 
 ### Parcel Layout (Mondrian Algorithm)
 
-Within each block, transactions are packed into a Mondrian grid:
+Within each block, transactions are packed into a Mondrian grid, the Bitmap
+standard square that bitmap.land, Magic Eden and ordpool draw:
 
 ```
-square_size = max(1, ceil(sqrt(vbytes / scale_factor)))
-scale_factor = 256 (default)
+square_size = max(1, ceil(log10(output_sats)) - 5)
+output_sats = sum of every output of the transaction (coinbase: subsidy + fees)
+grid_width  = ceil(sqrt(sum of square_size^2)), transactions in block order
 ```
 
 The packing algorithm uses greedy slot-filling:

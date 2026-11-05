@@ -13,7 +13,8 @@
  * Each Bitcoin block (Bitmap) is exactly 2.1km × 2.1km in real-world spatial scale.
  * This is a PROTOCOL RULE — immutable and consistent across all experiences (2D, 3D, VR, AR).
  * All objects, buildings, avatars, and artifacts placed on parcels MUST respect this scale.
- * Human avatar ≈ 1.8m tall. Parcels subdivide the 2.1km² block proportionally by vbytes.
+ * Human avatar ≈ 1.8m tall. Parcels are the Bitmap standard squares (side from each
+ * transaction's output value, lib/bitmap-layout), fitted to the 2.1 km square.
  */
 export const BLOCK_SIZE_METERS = 2100; // 2.1km per side
 export const BLOCK_AREA_SQ_METERS = BLOCK_SIZE_METERS * BLOCK_SIZE_METERS; // 4,410,000 m²

@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import CrownShield, { ShieldTier } from '@/components/CrownShield';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
+import BitmapThumbnail from '@/components/BitmapThumbnail';
 import LightningPayModal from '@/components/LightningPayModal';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
 import { LIGHTNING_PAY_ENABLED } from '@/lib/lightning-pay-flag';
@@ -30,26 +31,11 @@ type SortMode = 'newest' | 'cheapest' | 'popular';
 
 const PAGE_SIZE = 20;
 
-/* ── Bitmap Preview (small colored Mondrian-ish div) ── */
+/* ── Bitmap Preview: the block's real bitmap (the canonical picture, lib/bitmap-layout) ── */
 function BitmapPreview({ blockHeight }: { blockHeight: number }) {
-  // Deterministic pseudo-random from blockHeight
-  const seed = blockHeight;
-  const c1 = `hsl(${(seed * 37) % 360}, 80%, 55%)`;
-  const c2 = `hsl(${(seed * 73) % 360}, 70%, 45%)`;
-  const splitX = 30 + (seed % 40); // 30-70%
-  const splitY = 25 + ((seed * 13) % 50); // 25-75%
-
   return (
-    <div
-      className="w-12 h-12 rounded-md border border-orange-500/30 overflow-hidden flex-shrink-0"
-      style={{ background: '#1a1a2e' }}
-    >
-      <div className="w-full h-full relative">
-        <div className="absolute" style={{ top: 0, left: 0, width: `${splitX}%`, height: `${splitY}%`, background: '#f59e0b' }} />
-        <div className="absolute" style={{ top: 0, left: `${splitX}%`, width: `${100 - splitX}%`, height: `${splitY}%`, background: c1 }} />
-        <div className="absolute" style={{ top: `${splitY}%`, left: 0, width: `${splitX}%`, height: `${100 - splitY}%`, background: c2 }} />
-        <div className="absolute" style={{ top: `${splitY}%`, left: `${splitX}%`, width: `${100 - splitX}%`, height: `${100 - splitY}%`, background: '#f97316' }} />
-      </div>
+    <div className="w-12 h-12 rounded-md border border-orange-500/30 overflow-hidden flex-shrink-0">
+      <BitmapThumbnail blockHeight={blockHeight} size={48} />
     </div>
   );
 }

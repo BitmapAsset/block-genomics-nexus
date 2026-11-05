@@ -10,7 +10,8 @@ import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
 import { epochDisplay } from '@/lib/bitmapStandard';
 import { type RealBlockData } from '@/lib/blockchainApi';
 import { useBlockLayoutData, LAYOUT_FADE_MS } from '@/hooks/useBlockLayoutData';
-import { packSquares, packSquaresToWorldSpace } from '@/lib/square-packing';
+import { packSquares, packSquaresToWorldSpace, packFrame } from '@/lib/square-packing';
+import { completeSatTotals, estimatedSquareSize, logTxSize, txSatsToSizes } from '@/lib/bitmap-layout';
 import Helix from '../dna/Helix';
 import CrownShield, { type ShieldTier } from '../CrownShield';
 import { useGlobalWallet } from '@/context/GlobalWalletContext';
@@ -46,7 +47,9 @@ interface ParcelData {
    */
   valueKnown: boolean;
   isCoinbase: boolean;
-  // Treemap layout (proportional to vbytes)
+  /** Square side in Bitmap grid units (lib/bitmap-layout: from the tx's output value). */
+  gridSize: number;
+  // Canonical Bitmap layout (value-sized squares, Mondrian packing)
   x: number;      // world x position
   z: number;      // world z position
   width: number;  // parcel width in world units
@@ -166,12 +169,11 @@ interface TreemapRect {
 }
 
 /**
- * Bitfeed-standard Mondrian square packing layout.
- * Each tx becomes a SQUARE with side = ceil(sqrt(vbytes / 256)).
- * Squares are packed into a grid using the CANONICAL slot-based bin packer in
- * `@/lib/square-packing` (faithful bitfeed port) — the SAME packer used by the
- * top-view map (NexusCanvas) and the server thumbnail route. This guarantees
- * the inside-3D arrangement is identical to the top-view tile and the 2D bitmap.
+ * The canonical Bitmap layout in world space (the picture bitmap.land and
+ * Magic Eden draw). Each tx is a SQUARE whose side `weight` comes from its
+ * output value (`logTxSize`, lib/bitmap-layout), packed by the SAME packer and
+ * framing as the server thumbnail and the top-view map tiles, so the inside-3D
+ * arrangement is identical to the 2D bitmap.
  *
  * Returns world-space rects whose (x, z) are the CENTER of each parcel.
  */
@@ -183,7 +185,7 @@ function mondrianLayout(
   // packSquaresToWorldSpace centers the layout on the origin and returns
   // center-anchored coordinates. Natural tx order is preserved by the packer.
   return packSquaresToWorldSpace(
-    items.map(it => ({ index: it.index, vbytes: it.weight })),
+    items.map(it => ({ index: it.index, size: it.weight })),
     blockSize,
     gap,
   );
@@ -263,7 +265,7 @@ const METERS_PER_UNIT = 2100 / BLOCK_SIZE; // 105 meters per world unit
 function generateParcels(blockHeight: number, realBlock?: RealBlockData | null): ParcelData[] {
   const block = generateBlock(blockHeight);
   const rng = seededRandom(blockHeight * 7919);
-  const rawParcels: { txIndex: number; bytes: number; value: number; valueKnown: boolean; isCoinbase: boolean }[] = [];
+  const rawParcels: { txIndex: number; bytes: number; value: number; valueKnown: boolean; isCoinbase: boolean; outSats: number | null }[] = [];
 
   if (realBlock && realBlock.txs.length > 0) {
     // ═══ REAL BLOCKCHAIN DATA ═══
@@ -302,6 +304,7 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
         // is a floor, not the figure.
         valueKnown: tx.isCoinbase ? !realBlock.estimated : tx.fee !== null,
         isCoinbase: tx.isCoinbase,
+        outSats: tx.outSats,
       });
     }
   } else {
@@ -335,21 +338,33 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
 
       // Declared mock: the geometry is a placeholder, so the ₿ figure is not a
       // figure at all and must not be printed as one.
-      rawParcels.push({ txIndex: i, bytes, value, valueKnown: false, isCoinbase });
+      rawParcels.push({ txIndex: i, bytes, value, valueKnown: false, isCoinbase, outSats: null });
     }
   }
 
   const maxValue = Math.max(...rawParcels.map(p => p.value));
 
-  // Bitfeed-standard Mondrian square packing layout (canonical packer)
-  const treemapItems: TreemapItem[] = rawParcels.map(p => ({ index: p.txIndex, weight: p.bytes }));
+  // Canonical Bitmap squares: side from each tx's output value. Only a block
+  // with every output total is the real picture; otherwise (the labelled
+  // estimate or the mock) known totals keep their size and the rest are drawn
+  // from the value distribution, with the coinbase at least its subsidy.
+  const allSats = completeSatTotals(rawParcels.map(p => p.outSats));
+  const sizeRng = seededRandom(blockHeight * 104729);
+  const subsidySats = Math.floor(5_000_000_000 / Math.pow(2, getEpoch(blockHeight)));
+  const squareSizes = allSats
+    ? txSatsToSizes(allSats)
+    : rawParcels.map(p =>
+        p.outSats !== null ? logTxSize(p.outSats)
+        : p.isCoinbase ? logTxSize(subsidySats)
+        : estimatedSquareSize(sizeRng()));
+  const treemapItems: TreemapItem[] = rawParcels.map((p, i) => ({ index: p.txIndex, weight: squareSizes[i] }));
   const rects = mondrianLayout(treemapItems, BLOCK_SIZE, TREEMAP_GAP);
 
   // Build lookup from txIndex to rect
   const rectMap = new Map<number, TreemapRect>();
   for (const r of rects) rectMap.set(r.index, r);
 
-  const parcels: ParcelData[] = rawParcels.map(raw => {
+  const parcels: ParcelData[] = rawParcels.map((raw, i) => {
     const rect = rectMap.get(raw.txIndex);
     const buildHeight = Math.min(1, raw.value / Math.max(maxValue * 0.3, 0.001));
     const w = rect ? rect.width : 0.5;
@@ -369,6 +384,7 @@ function generateParcels(blockHeight: number, realBlock?: RealBlockData | null):
       value: raw.value,
       valueKnown: raw.valueKnown,
       isCoinbase: raw.isCoinbase,
+      gridSize: squareSizes[i],
       x: rect ? rect.x : 0,  // center x (packSquaresToWorldSpace returns centers)
       z: rect ? rect.z : 0,  // center z (packSquaresToWorldSpace returns centers)
       width: w,
@@ -4626,26 +4642,24 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
     ctx.fillStyle = '#1d1f31';
     ctx.fillRect(0, 0, SIZE, SIZE);
 
-    // ═══ Bitfeed Mondrian Layout (canonical bitmap standard) ═══
-    // Uses the SHARED packer in @/lib/square-packing — identical arrangement to
-    // the top-view map tile and the inside-3D parcels.
-    const { squares, gridWidth, gridHeight: packGridHeight } = packSquares(
-      parcels.map(p => ({ index: p.txIndex, vbytes: p.bytes })),
-    );
-    const packed = squares.map(sq => ({ x: sq.x, y: sq.y, size: sq.size }));
-    const gridHeight = packGridHeight;
+    // ═══ Canonical Bitmap layout (value-sized squares, Mondrian packing) ═══
+    // The parcels' own square sizes through the SHARED packer and framing
+    // (@/lib/square-packing packFrame) — identical arrangement to the top-view
+    // map tile, the server thumbnail and the inside-3D parcels.
+    const result = packSquares(parcels.map(p => ({ index: p.txIndex, size: p.gridSize })));
+    const packed = result.squares.map(sq => ({ x: sq.x, y: sq.y, size: sq.size }));
     if (packed.length === 0) return;
 
-    // Scale to fit canvas — use larger dimension to keep proportions
-    const maxDim = Math.max(gridWidth, gridHeight, 1);
+    // Scale to fit canvas — the larger dimension spans it, cells stay square
+    const { extent: maxDim, offsetX: offX, offsetY: offY } = packFrame(result);
     const pxPerGrid = SIZE / maxDim;
 
-    // Bitfeed padding: 1/6 of cell size (matches unitPadding/gridSize ratio)
-    const unitPadding = Math.max(0.5, pxPerGrid / 6);
+    // Half-unit gap between squares (bitlodo padd = 0.5, a quarter cell each side)
+    const unitPadding = Math.max(0.5, pxPerGrid / 4);
 
     // Center the block
-    const offsetX = (SIZE - gridWidth * pxPerGrid) / 2;
-    const offsetY = (SIZE - gridHeight * pxPerGrid) / 2;
+    const offsetX = offX * pxPerGrid;
+    const offsetY = offY * pxPerGrid;
 
     // Draw grid dots (Bitfeed characteristic background)
     ctx.fillStyle = '#2a2c44';
@@ -4656,7 +4670,7 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
       }
     }
 
-    // Bitfeed orange #fd931e
+    // Bitcoin orange #F7931A
     for (let i = 0; i < packed.length; i++) {
       const sq = packed[i];
       const x = offsetX + sq.x * pxPerGrid + unitPadding;
@@ -4665,7 +4679,7 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
       const h = sq.size * pxPerGrid - unitPadding * 2;
 
       if (w <= 0 || h <= 0) continue;
-      ctx.fillStyle = '#fd931e';
+      ctx.fillStyle = '#F7931A';
       ctx.fillRect(x, y, w, h);
     }
   }, [parcels, blockHeight]);
@@ -5906,7 +5920,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
             )}
           </div>
           <div className="text-[10px] font-mono" style={{ color: '#64748b' }}>
-            {viewMode === 'dna' ? 'GENOME VIEW' : `${parcels.length.toLocaleString()} parcels / txs · Treemap layout · Drag to rotate · Scroll to zoom`}
+            {viewMode === 'dna' ? 'GENOME VIEW' : `${parcels.length.toLocaleString()} parcels / txs · Bitmap layout · Drag to rotate · Scroll to zoom`}
           </div>
         </div>
 
@@ -6111,7 +6125,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                   </button>
                 </div>
               )}
-              <PropRow label="LAYOUT" value="Treemap (proportional)" />
+              <PropRow label="LAYOUT" value="Bitmap standard (value squares)" />
               <PropRow label="DISTRICT" value="2.1 km × 2.1 km" />
               <PropRow label="VISITORS" value={`👁 ${realtimeViewerCount}`} />
               {parcelCustomizations.size > 0 && <PropRow label="CUSTOMIZED" value={`🎨 ${parcelCustomizations.size}`} />}
@@ -6423,7 +6437,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
               </div>
               <div className="mt-1 flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#475569' }} />
-                <span className="text-[9px]" style={{ color: '#94a3b8' }}>Area ∝ vBytes (treemap)</span>
+                <span className="text-[9px]" style={{ color: '#94a3b8' }}>Side = ⌈log10(output sats)⌉ − 5 (Bitmap)</span>
               </div>
               <div className="mt-3 text-[9px]" style={{ color: '#334155' }}>
                 🖱 Drag to rotate · Scroll to zoom · Click parcel to fly
