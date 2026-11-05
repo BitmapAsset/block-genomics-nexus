@@ -84,12 +84,15 @@ const summary = getBlockSummary as jest.Mock;
 const BLOCK = 612888;
 const SEED = '6b'.repeat(32);
 const FUTURE = () => Date.now() + 5 * 60 * 1000;
-const VSIZE = (
-  JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '__fixtures__', 'block-612888-summary.json'), 'utf8')) as { vsize: number[] }
-).vsize;
+const FIXTURE = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '..', '..', '__fixtures__', 'block-612888-summary.json'), 'utf8'),
+) as { vsize: number[]; value: number[] };
+const VSIZE = FIXTURE.vsize;
+const VALUE = FIXTURE.value;
 
 const PRIVATE = { ip: '203.0.113.91', userAgent: 'PRIVATE-UA/7.7' };
-const TOWER = { parcel: 418, asset: 'tower', x_m: 230.49, y_m: 610.47, rot_deg: 0, scale: 1 };
+// Parcel 418 of the canonical layout: one 42 m cell at x 861..903, y 756..798; this is its centre.
+const TOWER = { parcel: 418, asset: 'tower', x_m: 882, y_m: 777, rot_deg: 0, scale: 1 };
 
 function req(body: any, headers: Record<string, string> = {}, url = 'http://test.local/api'): any {
   const all = { 'x-forwarded-for': PRIVATE.ip, 'user-agent': PRIVATE.userAgent, ...headers };
@@ -162,7 +165,7 @@ beforeEach(() => {
   summary.mockImplementation(async (height: number) => {
     if (height === 999) throw new BlockNotFoundError(999);
     if (height === 777) throw new Error('mempool down');
-    return { height, hash: 'h', txCount: VSIZE.length, size: 0, weight: 0, timestamp: 0, vsize: VSIZE, fee: [], value: [] };
+    return { height, hash: 'h', txCount: VSIZE.length, size: 0, weight: 0, timestamp: 0, vsize: VSIZE, fee: [], value: VALUE };
   });
   jest.spyOn(console, 'warn').mockImplementation(() => {});
   jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -209,9 +212,9 @@ describe('flag off (BG_EVENTS_ENABLED unset)', () => {
   it('the scale route works with the flag off', async () => {
     const district: any = await scaleGet(req(null, {}, 'http://test.local/api/v1/blocks/612888/world/scale'), at(BLOCK));
     expect(district.status).toBe(200);
-    expect(district.body).toMatchObject({ parcels: 1114, grid: { cols: 41, rows: 43 } });
+    expect(district.body).toMatchObject({ parcels: 1114, grid: { cols: 47, rows: 50, cell_x_m: 42, cell_y_m: 42 } });
     const parcel: any = await scaleGet(req(null, {}, 'http://test.local/api/v1/blocks/612888/world/scale?parcel=418'), at(BLOCK));
-    expect(parcel.body).toEqual({ block: BLOCK, index: 418, x_m: 204.88, y_m: 586.05, w_m: 51.22, h_m: 48.84, area_m2: 2501.42 });
+    expect(parcel.body).toEqual({ block: BLOCK, index: 418, x_m: 861, y_m: 756, w_m: 42, h_m: 42, area_m2: 1764 });
     const out: any = await scaleGet(req(null, {}, 'http://test.local/api/v1/blocks/612888/world/scale?parcel=1114'), at(BLOCK));
     expect(out.status).toBe(404);
     const bad: any = await scaleGet(req(null, {}, 'http://test.local/api/v1/blocks/612888/world/scale?parcel=-1'), at(BLOCK));
@@ -287,7 +290,7 @@ describe('flag on, bg_vfy_ session (the MCP path)', () => {
   it('theme change, then remove-after-place, all on one valid chain', async () => {
     const token = await sessionToken(owner);
     const placed: any = await placePost(req(TOWER, auth(token)), at(BLOCK));
-    const house: any = await placePost(req({ ...TOWER, asset: 'house', parcel: 0, x_m: 50, y_m: 40 }, auth(token)), at(BLOCK));
+    const house: any = await placePost(req({ ...TOWER, asset: 'house', parcel: 0, x_m: 150, y_m: 100 }, auth(token)), at(BLOCK));
     expect(house.status).toBe(201);
     expect((await themePost(req({ theme: 'voxel' }, auth(token)), at(BLOCK)) as any).status).toBe(201);
     expect((await manifest()).theme).toBe('voxel');
@@ -314,7 +317,7 @@ describe('flag on, bg_vfy_ session (the MCP path)', () => {
 
   it.each([
     [{ ...TOWER, x_m: 210 }, 400, 'outside_parcel'],
-    [{ ...TOWER, parcel: 641, x_m: 1869.5, y_m: 1001.1, scale: 2 }, 400, 'too_tall'],
+    [{ ...TOWER, parcel: 1027, x_m: 1050, y_m: 1827, scale: 2 }, 400, 'too_tall'],
     [{ ...TOWER, asset: 'castle' }, 400, 'unknown_asset'],
     [{ ...TOWER, parcel: 1114 }, 400, 'parcel_out_of_range'],
     [{ ...TOWER, chatText: 'hi' }, 400, 'bad_request'],
@@ -405,7 +408,7 @@ describe('flag on, action-bound wallet signature', () => {
     expect((await placePost(req(body), at(BLOCK)) as any).status).toBe(401); // nonce spent
 
     const t = await signedWorldBody(owner, 'place', TOWER);
-    expect((await placePost(req({ ...t.body, x_m: 231 }), at(BLOCK)) as any).status).toBe(401); // body binding
+    expect((await placePost(req({ ...t.body, x_m: 883 }), at(BLOCK)) as any).status).toBe(401); // body binding
 
     const th = await signedWorldBody(owner, 'theme', { theme: 'voxel' });
     // A theme signature sent to the place route: refused as a field the route does not know.

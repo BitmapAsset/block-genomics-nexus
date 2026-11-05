@@ -6,7 +6,9 @@
  * The route used to fetch the first 25 transactions and fill the rest of the
  * block from a height-seeded PRNG, then persist that estimate for a year. It now
  * renders every transaction from mempool's block summary, persists only a full
- * render, and refreshes rows written before the fix lazily in place.
+ * render, and refreshes rows written before the fix lazily in place. Since the
+ * value-layout fix each square is sized by the tx's output total (`value`), the
+ * Bitmap standard, so a summary missing one total is a failed fetch too.
  *
  * mempool.space is mocked throughout: the summary fixture follows mempool's
  * `TransactionStripped` (txid, fee, vsize, value, rate, flags).
@@ -32,10 +34,10 @@ jest.mock('@/lib/api-rate-limit', () => ({
 }));
 
 // The real renderer rasterises with node-canvas; the tests only need to know
-// how many transactions it was handed.
-const mockRender = jest.fn((txs: Array<{ vbytes: number }>) => Buffer.from(`png:${txs.length}`));
+// which square sizes it was handed.
+const mockRender = jest.fn((sizes: number[]) => Buffer.from(`png:${sizes.length}`));
 jest.mock('@/lib/bitmap-renderer', () => ({
-  renderBitmapThumbnail: (txs: Array<{ vbytes: number }>) => mockRender(txs),
+  renderBitmapThumbnail: (sizes: number[]) => mockRender(sizes),
 }));
 
 jest.mock('next/server', () => {
@@ -62,17 +64,22 @@ import { GET } from '@/app/api/v1/block-thumbnail/[height]/route';
 
 const HASH = '0000000000000000000320283a032748cef8227873ff4872689bf23f1cda83a5';
 
-/** 40 txs with varied vsize, coinbase first, shaped like mempool's summary. */
+/** 40 txs with varied vsize and value, coinbase first, shaped like mempool's summary. */
 const SUMMARY = Array.from({ length: 40 }, (_, i) => ({
   txid: i.toString(16).padStart(64, '0'),
   fee: i === 0 ? 0 : 1000 + i * 37,
   vsize: i === 0 ? 165 : [141, 110, 222, 380, 1250, 99, 5400, 153][i % 8] + i,
-  value: 100000 + i,
+  value: i === 0 ? 625_051_234 : [5_000, 120_000, 3_400_000, 99_000_000, 250_000_000, 0][i % 6] + i,
   rate: i === 0 ? 0 : 3.5 + i,
   flags: 1099511648266,
 }));
 
+/** The Bitmap square sides the summary must turn into (logTxSize of each value). */
+const SIZES = SUMMARY.map((t) => Math.max(1, Math.ceil(Math.log10(Math.max(1, t.value))) - 5));
+
 const PRE_FIX = new Date('2026-10-15T09:00:00Z');
+/** Written by the vbytes renderer after the October fix, before the value-layout cutoff. */
+const VBYTES_ERA = new Date('2026-11-01T12:00:00Z');
 // Fixed and well after THUMBNAIL_REAL_ART_SINCE, which is set to the deploy time
 // at ship and so can sit minutes in the future while CI runs.
 const POST_FIX = new Date('2030-01-01T00:00:00Z');
@@ -124,10 +131,12 @@ describe('cache miss', () => {
     expect(urls).toContain(`https://mempool.space/api/v1/block/${HASH}/summary`);
     expect(urls.some((u) => u.includes('/txs/'))).toBe(false);
 
-    // vbytes = vsize for every tx, in block order.
-    const txs = mockRender.mock.calls[0][0];
-    expect(txs).toHaveLength(SUMMARY.length);
-    expect(txs).toEqual(SUMMARY.map((t) => ({ vbytes: t.vsize })));
+    // One square per tx, sized by its output value, in block order.
+    const sizes = mockRender.mock.calls[0][0];
+    expect(sizes).toHaveLength(SUMMARY.length);
+    expect(sizes).toEqual(SIZES);
+    expect(sizes[0]).toBe(4); // 6.25 BTC + fees
+    expect(new Set(sizes)).toEqual(new Set([1, 2, 3, 4]));
 
     expect(mockCreate).toHaveBeenCalledTimes(1);
     const data = mockCreate.mock.calls[0][0].data;
@@ -159,6 +168,23 @@ describe('cache miss', () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  it('treats a tx without an output total as a failed fetch: estimated, not persisted', async () => {
+    const broken = SUMMARY.map((t, i) => (i === 9 ? { ...t, value: undefined } : t));
+    global.fetch = mempool({ summary: broken }) as any;
+    const res = await call('718839.png');
+    expect(res.headers['X-Thumbnail-Source']).toBe('estimated');
+    expect(res.headers['Cache-Control']).toBe('public, max-age=60');
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it('draws the labelled estimate with value-rule sizes: the coinbase at its subsidy, the rest 1–5', async () => {
+    global.fetch = mempool({ txCount: 0, summary: [] }) as any;
+    await call('100001.png');
+    const sizes = mockRender.mock.calls[0][0];
+    expect(sizes[0]).toBe(5); // 50 BTC subsidy
+    expect(sizes.every((s: number) => s >= 1 && s <= 5)).toBe(true);
+  });
+
   it('treats a tx without a usable vsize as a failed fetch', async () => {
     const broken = SUMMARY.map((t, i) => (i === 7 ? { ...t, vsize: undefined } : t));
     global.fetch = mempool({ summary: broken }) as any;
@@ -167,10 +193,10 @@ describe('cache miss', () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  it('accepts the cache-busted URL /{h}.png?v=2', async () => {
+  it('accepts the cache-busted URL /{h}.png?v=3', async () => {
     const res = await call(
       '840000.png',
-      'http://localhost/api/v1/block-thumbnail/840000.png?v=2',
+      'http://localhost/api/v1/block-thumbnail/840000.png?v=3',
     );
     expect(res.status).toBe(200);
     expect(res.headers['X-Thumbnail-Source']).toBe('live');
@@ -188,6 +214,16 @@ describe('cache hit', () => {
     expect(res.headers['Cache-Control']).toBe('public, max-age=31536000, immutable');
     expect(Buffer.from(res.body).equals(Buffer.from(OLD_BYTES))).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refreshes a vbytes-era row (before the value-layout cutoff) in place with a value render', async () => {
+    mockFindUnique.mockResolvedValue({ imageData: OLD_BYTES, createdAt: VBYTES_ERA });
+
+    const res = await call('612888.png');
+
+    expect(res.headers['X-Thumbnail-Source']).toBe('live');
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockRender.mock.calls[0][0]).toEqual(SIZES);
   });
 
   it('refreshes a pre-fix row in place with a full render', async () => {
@@ -234,13 +270,15 @@ describe('cache hit', () => {
   it('caps in-flight re-renders: past the cap the old bytes are served short-TTL', async () => {
     mockFindUnique.mockResolvedValue({ imageData: OLD_BYTES, createdAt: PRE_FIX });
 
-    // mempool hangs until released, so the first renders stay in flight.
+    // mempool hangs until released, so the first renders stay in flight; the
+    // blockstream fallback (lib/block-txs) is down and answers at once.
     const pending: Array<() => void> = [];
-    const hanging = jest.fn(
-      (url: string) =>
-        new Promise((resolve) => {
-          pending.push(() => resolve({ ok: false, text: async () => '', url }));
-        }),
+    const hanging = jest.fn((url: string) =>
+      url.includes('blockstream.info')
+        ? Promise.resolve({ ok: false, status: 503, text: async () => '', url })
+        : new Promise((resolve) => {
+            pending.push(() => resolve({ ok: false, text: async () => '', url }));
+          }),
     );
     global.fetch = hanging as any;
 

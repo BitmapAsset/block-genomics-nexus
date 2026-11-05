@@ -1,78 +1,64 @@
 /**
  * Tests for src/lib/square-packing.ts
- * Covers: txToSquareSize, Mondrian packing, world space conversion
+ * Covers: the legacy vbytes size rule, Mondrian packing of given square sides,
+ * the drawing frame, world space conversion. The Bitmap size rule itself is
+ * lib/bitmap-layout (bitmap-layout.test.ts); conformance with the canonical
+ * packer is bitmap-layout-conformance.test.ts.
  */
 
-import { txToSquareSize, packSquares, packSquaresToWorldSpace } from '@/lib/square-packing';
+import { legacyVbytesSquareSize, packFrame, packSizes, packSquares, packSquaresToWorldSpace } from '@/lib/square-packing';
 import { MOCK_TRANSACTIONS } from '../fixtures';
 
+/** The fixture's transactions as square sides (sizes 1, 2, 3, 5, 1). */
+const ITEMS = MOCK_TRANSACTIONS.map((t) => ({ index: t.index, size: legacyVbytesSquareSize(t.vbytes) }));
+
 describe('square-packing', () => {
-  describe('txToSquareSize()', () => {
+  describe('legacyVbytesSquareSize() (not the Bitmap standard; no production caller)', () => {
     it('minimum vbytes returns size 1', () => {
-      expect(txToSquareSize(1)).toBe(1);
+      expect(legacyVbytesSquareSize(1)).toBe(1);
     });
 
-    it('256 vbytes = 1x1 square', () => {
-      expect(txToSquareSize(256)).toBe(1);
-    });
-
-    it('1024 vbytes = 2x2 square', () => {
-      expect(txToSquareSize(1024)).toBe(2);
-    });
-
-    it('scales with sqrt', () => {
-      const s1 = txToSquareSize(256);
-      const s4 = txToSquareSize(256 * 4);
-      expect(s4).toBe(s1 * 2);
-    });
-
-    it('custom scale factor', () => {
-      const size = txToSquareSize(100, 100);
-      expect(size).toBe(1);
-    });
-
-    it('large transaction produces larger square', () => {
-      const small = txToSquareSize(250);
-      const large = txToSquareSize(50000);
-      expect(large).toBeGreaterThan(small);
+    it('256 vbytes = 1x1, 1024 vbytes = 2x2', () => {
+      expect(legacyVbytesSquareSize(256)).toBe(1);
+      expect(legacyVbytesSquareSize(1024)).toBe(2);
     });
 
     it('never returns 0', () => {
-      expect(txToSquareSize(0)).toBe(1);
-      expect(txToSquareSize(-1)).toBe(1);
+      expect(legacyVbytesSquareSize(0)).toBe(1);
+      expect(legacyVbytesSquareSize(-1)).toBe(1);
     });
   });
 
   describe('packSquares()', () => {
     it('returns empty for no items', () => {
-      const result = packSquares([]);
-      expect(result.squares).toEqual([]);
-      expect(result.gridWidth).toBe(0);
-      expect(result.gridHeight).toBe(0);
+      expect(packSquares([])).toEqual({ squares: [], gridWidth: 0, gridHeight: 0, contentWidth: 0 });
     });
 
-    it('packs a single transaction', () => {
-      const result = packSquares([{ index: 0, vbytes: 256 }]);
-      expect(result.squares).toHaveLength(1);
-      expect(result.squares[0].index).toBe(0);
-      expect(result.gridWidth).toBeGreaterThan(0);
+    it('packs a single square into a grid its own size', () => {
+      expect(packSquares([{ index: 0, size: 3 }])).toEqual({
+        squares: [{ index: 0, x: 0, y: 0, size: 3 }],
+        gridWidth: 3,
+        gridHeight: 3,
+        contentWidth: 3,
+      });
     });
 
-    it('packs multiple transactions', () => {
-      const result = packSquares(MOCK_TRANSACTIONS);
-      expect(result.squares).toHaveLength(MOCK_TRANSACTIONS.length);
-      expect(result.gridWidth).toBeGreaterThan(0);
-      expect(result.gridHeight).toBeGreaterThan(0);
+    it('keeps each square its given side', () => {
+      const result = packSquares(ITEMS);
+      expect(result.squares.map((s) => s.size)).toEqual(ITEMS.map((i) => i.size));
     });
 
-    it('preserves transaction indices', () => {
-      const result = packSquares(MOCK_TRANSACTIONS);
-      const indices = result.squares.map(s => s.index).sort((a, b) => a - b);
-      expect(indices).toEqual(MOCK_TRANSACTIONS.map(t => t.index));
+    it('grid width is ceil(sqrt(sum of size²))', () => {
+      const area = ITEMS.reduce((s, i) => s + i.size * i.size, 0);
+      expect(packSquares(ITEMS).gridWidth).toBe(Math.ceil(Math.sqrt(area)));
+    });
+
+    it('preserves transaction indices and order', () => {
+      expect(packSquares(ITEMS).squares.map((s) => s.index)).toEqual(ITEMS.map((t) => t.index));
     });
 
     it('no overlapping squares', () => {
-      const result = packSquares(MOCK_TRANSACTIONS);
+      const result = packSquares(ITEMS);
       for (let i = 0; i < result.squares.length; i++) {
         for (let j = i + 1; j < result.squares.length; j++) {
           const a = result.squares[i];
@@ -84,77 +70,81 @@ describe('square-packing', () => {
       }
     });
 
-    it('all squares within grid bounds', () => {
-      const result = packSquares(MOCK_TRANSACTIONS);
+    it('all squares within the content bounds', () => {
+      const result = packSquares(ITEMS);
       for (const sq of result.squares) {
         expect(sq.x).toBeGreaterThanOrEqual(0);
         expect(sq.y).toBeGreaterThanOrEqual(0);
-        expect(sq.x + sq.size).toBeLessThanOrEqual(result.gridWidth);
+        expect(sq.x + sq.size).toBeLessThanOrEqual(result.contentWidth);
         expect(sq.y + sq.size).toBeLessThanOrEqual(result.gridHeight);
       }
+      expect(result.contentWidth).toBeLessThanOrEqual(result.gridWidth);
     });
 
     it('is deterministic', () => {
-      const r1 = packSquares(MOCK_TRANSACTIONS);
-      const r2 = packSquares(MOCK_TRANSACTIONS);
-      expect(r1).toEqual(r2);
+      expect(packSquares(ITEMS)).toEqual(packSquares(ITEMS));
     });
 
-    it('handles many small transactions', () => {
-      const items = Array.from({ length: 100 }, (_, i) => ({ index: i, vbytes: 200 }));
-      const result = packSquares(items);
-      expect(result.squares).toHaveLength(100);
+    it('clamps junk sides to whole squares ≥ 1', () => {
+      const r = packSquares([{ index: 0, size: 0 }, { index: 1, size: Number.NaN }, { index: 2, size: 2.7 }]);
+      expect(r.squares.map((s) => s.size)).toEqual([1, 1, 2]);
     });
 
-    it('handles single huge transaction', () => {
-      const result = packSquares([{ index: 0, vbytes: 1000000 }]);
-      expect(result.squares).toHaveLength(1);
-      expect(result.squares[0].size).toBeGreaterThan(10);
+    it('packSizes numbers the squares by position', () => {
+      expect(packSizes([2, 1])).toEqual(packSquares([{ index: 0, size: 2 }, { index: 1, size: 1 }]));
+    });
+  });
+
+  describe('packFrame()', () => {
+    it('spans the larger side and centres the shorter one', () => {
+      expect(packFrame({ contentWidth: 47, gridHeight: 50 })).toEqual({ extent: 50, offsetX: 1.5, offsetY: 0 });
+      expect(packFrame({ contentWidth: 10, gridHeight: 8 })).toEqual({ extent: 10, offsetX: 0, offsetY: 1 });
+      expect(packFrame({ contentWidth: 0, gridHeight: 0 })).toEqual({ extent: 1, offsetX: 0.5, offsetY: 0.5 });
     });
   });
 
   describe('packSquaresToWorldSpace()', () => {
     it('returns world-space coordinates', () => {
-      const result = packSquaresToWorldSpace(MOCK_TRANSACTIONS, 100, 0.1);
-      expect(result.length).toBe(MOCK_TRANSACTIONS.length);
+      const result = packSquaresToWorldSpace(ITEMS, 100, 0.1);
+      expect(result.length).toBe(ITEMS.length);
       for (const sq of result) {
-        expect(sq).toHaveProperty('x');
-        expect(sq).toHaveProperty('z');
-        expect(sq).toHaveProperty('width');
-        expect(sq).toHaveProperty('depth');
         expect(sq.width).toBeGreaterThan(0);
         expect(sq.depth).toBeGreaterThan(0);
       }
     });
 
-    it('centers on origin', () => {
-      const result = packSquaresToWorldSpace(
-        [{ index: 0, vbytes: 256 }],
-        100,
-        0,
-      );
-      // For a single 1x1 square in a 1-wide grid, center should be at (0, 0)
-      expect(Math.abs(result[0].x)).toBeLessThanOrEqual(50);
-      expect(Math.abs(result[0].z)).toBeLessThanOrEqual(50);
+    it('a single square fills the block, centred on the origin', () => {
+      expect(packSquaresToWorldSpace([{ index: 0, size: 5 }], 100, 0)).toEqual([
+        { index: 0, x: 0, z: 0, width: 100, depth: 100 },
+      ]);
+    });
+
+    it('keeps every parcel square and inside the block', () => {
+      const sizes = Array.from({ length: 300 }, (_, i) => (i * 7) % 5 + 1);
+      const result = packSquaresToWorldSpace(sizes.map((size, index) => ({ index, size })), 20, 0);
+      for (const sq of result) {
+        expect(sq.width).toBeCloseTo(sq.depth, 9);
+        expect(sq.x - sq.width / 2).toBeGreaterThanOrEqual(-10 - 1e-9);
+        expect(sq.x + sq.width / 2).toBeLessThanOrEqual(10 + 1e-9);
+        expect(sq.z - sq.depth / 2).toBeGreaterThanOrEqual(-10 - 1e-9);
+        expect(sq.z + sq.depth / 2).toBeLessThanOrEqual(10 + 1e-9);
+      }
     });
 
     it('gap reduces square dimensions', () => {
-      const noGap = packSquaresToWorldSpace(MOCK_TRANSACTIONS, 100, 0);
-      const withGap = packSquaresToWorldSpace(MOCK_TRANSACTIONS, 100, 1);
-      // With gap, width/depth should be smaller
+      const noGap = packSquaresToWorldSpace(ITEMS, 100, 0);
+      const withGap = packSquaresToWorldSpace(ITEMS, 100, 1);
       for (let i = 0; i < noGap.length; i++) {
         expect(withGap[i].width).toBeLessThanOrEqual(noGap[i].width);
       }
     });
 
     it('returns empty for no items', () => {
-      const result = packSquaresToWorldSpace([], 100, 0.1);
-      expect(result).toEqual([]);
+      expect(packSquaresToWorldSpace([], 100, 0.1)).toEqual([]);
     });
 
     it('minimum dimension is 0.001', () => {
-      const result = packSquaresToWorldSpace(MOCK_TRANSACTIONS, 100, 999);
-      for (const sq of result) {
+      for (const sq of packSquaresToWorldSpace(ITEMS, 100, 999)) {
         expect(sq.width).toBeGreaterThanOrEqual(0.001);
         expect(sq.depth).toBeGreaterThanOrEqual(0.001);
       }

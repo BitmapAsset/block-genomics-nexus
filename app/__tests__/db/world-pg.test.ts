@@ -85,10 +85,11 @@ maybe('bg-world/1 on real Postgres', () => {
   let db: PrismaClient;
   const BLOCK = 612888;
   const OWNER = 'bc1pworldpgowner0000000000000000000000000000000000000000000';
-  const TOWER = { parcel: 418, asset: 'tower', x_m: 230.49, y_m: 610.47, rot_deg: 0, scale: 1 };
-  const VSIZE = (
-    JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '__fixtures__', 'block-612888-summary.json'), 'utf8')) as { vsize: number[] }
-  ).vsize;
+  // Centre of parcel 418 in the canonical layout (one 42 m cell at x 861..903, y 756..798).
+  const TOWER = { parcel: 418, asset: 'tower', x_m: 882, y_m: 777, rot_deg: 0, scale: 1 };
+  const FIXTURE = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', '..', '__fixtures__', 'block-612888-summary.json'), 'utf8'),
+  ) as { vsize: number[]; value: number[] };
 
   const manifest = async () => {
     const res = (await worldGet({ headers: { get: () => null } } as never, { params: Promise.resolve({ height: String(BLOCK) }) })) as unknown as {
@@ -116,7 +117,7 @@ maybe('bg-world/1 on real Postgres', () => {
       const sql = fs.readFileSync(path.join(__dirname, '..', '..', 'prisma', 'migrations', '20261023180000_add_block_event', 'migration.sql'), 'utf8');
       for (const stmt of splitSql(sql)) await db.$executeRawUnsafe(stmt);
     }
-    (getBlockSummary as jest.Mock).mockResolvedValue({ height: BLOCK, vsize: VSIZE });
+    (getBlockSummary as jest.Mock).mockResolvedValue({ height: BLOCK, vsize: FIXTURE.vsize, value: FIXTURE.value });
     process.env.BG_EVENTS_ENABLED = 'true';
     process.env.BG_EVENT_SIGNING_KEY = '7c'.repeat(32);
     __resetBlockEventsState();
@@ -160,7 +161,7 @@ maybe('bg-world/1 on real Postgres', () => {
     expect(m.placements[0]).toMatchObject({ id: placed!.id, ...TOWER, params: { color: '#f7931a', floors: 12, lit: true } });
     expect(m.head).toEqual({ id: placed!.id, seq: 1 });
 
-    const second = await emitWorldEvent({ block: BLOCK, kind: 'world.place', ownerAddress: OWNER, via: 'session', fields: { ...TOWER, parcel: 0, asset: 'house', x_m: 50, y_m: 40 } });
+    const second = await emitWorldEvent({ block: BLOCK, kind: 'world.place', ownerAddress: OWNER, via: 'session', fields: { ...TOWER, parcel: 0, asset: 'house', x_m: 150, y_m: 100 } });
     await emitWorldEvent({ block: BLOCK, kind: 'world.theme', ownerAddress: OWNER, via: 'session', fields: { theme: 'brick' } });
     const removed = await emitWorldEvent({ block: BLOCK, kind: 'world.remove', ownerAddress: OWNER, via: 'session', fields: { placementId: placed!.id } });
     expect(removed).not.toBeNull();

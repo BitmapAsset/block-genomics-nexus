@@ -15,15 +15,15 @@ import { footprintExtent, validatePlacement, validatePlacementShape, validateThe
 jest.mock('@/lib/brain', () => ({ getBrainState: () => null, getContentScanner: () => ({}), buildSoulDocument: () => ({}) }));
 jest.mock('@/lib/prisma', () => ({ __esModule: true, default: {} }));
 
-const VSIZE = (
-  JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '__fixtures__', 'block-612888-summary.json'), 'utf8')) as { vsize: number[] }
-).vsize;
-const rects = parcelRectsFrom(VSIZE);
+const SATS = (
+  JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '__fixtures__', 'block-612888-summary.json'), 'utf8')) as { value: number[] }
+).value;
+const rects = parcelRectsFrom(SATS);
 
-// Parcel 418: x 204.88..256.10, y 586.05..634.88 (one 51.22 × 48.84 m cell). Centre:
-const C418 = { x_m: 230.49, y_m: 610.47 };
-// Parcel 641: 7 × 7 cells, 358.54 × 341.86 m from (1690.24, 830.23).
-const C641 = { x_m: 1869.5, y_m: 1001.1 };
+// Parcel 418: x 861..903, y 756..798 (one 42 m cell of the canonical layout). Centre:
+const C418 = { x_m: 882, y_m: 777 };
+// Parcel 1027: 7 × 7 cells, 294 m square from (903, 1680).
+const C1027 = { x_m: 1050, y_m: 1827 };
 
 const ok = (over: Record<string, unknown> = {}) => ({ parcel: 418, asset: 'tower', ...C418, rot_deg: 0, scale: 1, ...over });
 const check = (input: Record<string, unknown>, liveCount = 0) => validatePlacement(input, { rects, liveCount });
@@ -69,7 +69,7 @@ describe('validatePlacement', () => {
     [{ asset: 'castle' }, 'unknown_asset'],
     [{ x_m: 210 }, 'outside_parcel'],
     [{ y_m: 620 }, 'outside_parcel'],
-    [{ x_m: 1869.5, y_m: 1001.1 }, 'outside_parcel'],
+    [{ x_m: 1050, y_m: 1827 }, 'outside_parcel'],
     [{ asset: 'hall' }, 'outside_parcel'],
     [{ scale: 2 }, 'too_tall'],
     [{ scale: 0.4 }, 'bad_scale'],
@@ -90,18 +90,19 @@ describe('validatePlacement', () => {
     if (!r.ok) expect(r.code).toBe(code);
   });
 
-  it('refuses a footprint that only fits unrotated (house 15 × 12 turned 45° on a 51 × 48 m lot still fits; a bridge does not)', () => {
+  it('refuses a footprint that only fits unrotated (house 15 × 12 turned 45° on a 42 m lot still fits; a tower does not)', () => {
     expect(check(ok({ asset: 'house', rot_deg: 45 })).ok).toBe(true);
-    const bridge = check(ok({ asset: 'bridge', rot_deg: 0 }));
-    expect(bridge.ok).toBe(true); // 50 × 12 fits 51.22 wide
-    const turned = check(ok({ asset: 'bridge', rot_deg: 90 }));
-    expect(turned.ok).toBe(false); // 12 × 50 does not fit 48.84 deep
+    expect(check(ok({ rot_deg: 0 })).ok).toBe(true); // 30 × 30 fits 42 m
+    const turned = check(ok({ rot_deg: 45 }));
+    expect(turned.ok).toBe(false); // 30 × 30 turned 45° spans 42.43 m
     if (!turned.ok) expect(turned.code).toBe('outside_parcel');
+    const bridge = check(ok({ asset: 'bridge', rot_deg: 0 }));
+    expect(bridge.ok).toBe(false); // 50 m long does not fit 42 m
   });
 
   it('enforces the 300 m height cap (tower at scale 2 = 360 m) on a parcel big enough to hold it', () => {
-    expect(check({ ...ok(), parcel: 641, ...C641, scale: 1.6 }).ok).toBe(true); // 288 m
-    const tall = check({ ...ok(), parcel: 641, ...C641, scale: 2 });
+    expect(check({ ...ok(), parcel: 1027, ...C1027, scale: 1.6 }).ok).toBe(true); // 288 m
+    const tall = check({ ...ok(), parcel: 1027, ...C1027, scale: 2 });
     expect(tall.ok).toBe(false);
     if (!tall.ok) expect(tall.code).toBe('too_tall');
   });
