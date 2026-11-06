@@ -57,7 +57,7 @@ describe('Share', () => {
     expect(screen.queryByTestId('share-menu')).toBeNull();
   });
 
-  it('without navigator.share: the menu has Copy link, Post on X and the QR code of the canonical URL', () => {
+  it('without navigator.share: the menu has Copy link, Post on X and the QR code of the canonical URL', async () => {
     setPointer(false);
     render(<ShareMenu height={HEIGHT} />);
     fireEvent.click(screen.getByRole('button', { name: /share/i }));
@@ -68,7 +68,8 @@ describe('Share', () => {
       `https://x.com/intent/post?url=${encodeURIComponent(URL_612888)}&text=${encodeURIComponent(`Block ${HEIGHT} on Block Genomics`)}`,
     );
     expect(x.getAttribute('rel')).toBe('noopener noreferrer');
-    expect(screen.getByTestId('qr').getAttribute('data-value')).toBe(URL_612888);
+    // The QR code loads with the menu.
+    expect((await screen.findByTestId('qr')).getAttribute('data-value')).toBe(URL_612888);
     expect(menu.textContent).toContain(`Point a phone camera here to open ${HEIGHT}. The link card shows the block's artwork.`);
   });
 
