@@ -43,6 +43,7 @@
 
 import { getAddressOutpoints } from '@/lib/onchain/esplora';
 import { CHAIN_USER_AGENT } from '@/lib/onchain/user-agent';
+import { readCappedText } from '@/lib/capped-read';
 
 export const DEFAULT_ORD_BASE_URLS: readonly string[] = ['https://ordinals.com'];
 
@@ -260,39 +261,6 @@ async function throttle(): Promise<void> {
 /** Only the route shape goes in logs: ids and outpoints are noise there, not secrets. */
 function routeOf(path: string): string {
   return path.split('/').slice(0, 3).join('/');
-}
-
-/**
- * Read a text body of at most `maxBytes` bytes. A declared `content-length`
- * above the limit is not read at all; otherwise the stream is read up to one
- * byte past the limit and the rest is cancelled. `null` = over the limit.
- */
-async function readCappedText(res: Response, maxBytes: number): Promise<string | null> {
-  const declared = Number(res.headers?.get?.('content-length'));
-  if (Number.isFinite(declared) && declared > maxBytes) {
-    await res.body?.cancel().catch(() => {});
-    return null;
-  }
-  const reader = res.body && typeof res.body.getReader === 'function' ? res.body.getReader() : null;
-  if (!reader) {
-    const text = await res.text();
-    return new TextEncoder().encode(text).byteLength > maxBytes ? null : text;
-  }
-  // Decoded like res.text(): UTF-8, a leading BOM dropped.
-  const decoder = new TextDecoder();
-  let text = '';
-  let size = 0;
-  while (size <= maxBytes) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size <= maxBytes) text += decoder.decode(value, { stream: true });
-  }
-  if (size > maxBytes) {
-    await reader.cancel().catch(() => {});
-    return null;
-  }
-  return text + decoder.decode();
 }
 
 async function attempt(host: OrdHost, path: string, expect: Expect, timeoutMs: number, maxBytes?: number):

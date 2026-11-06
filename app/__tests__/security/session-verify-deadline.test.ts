@@ -50,6 +50,7 @@ jest.mock('@/lib/verified-sessions', () => ({
 }));
 
 import { POST } from '@/app/api/v1/session/verify/route';
+import { __resetSigninDeedChecksForTest } from '@/lib/signin-deed-checks';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const OWNER = 'bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978';
@@ -83,6 +84,8 @@ function checks(delayMs: (h: number) => number, answer: (h: number) => object) {
 }
 
 beforeEach(() => {
+  // Checks a case left running past its deadline keep their sign-in slots; start each case with none.
+  __resetSigninDeedChecksForTest();
   inFlight = 0;
   maxInFlight = 0;
   started = [];

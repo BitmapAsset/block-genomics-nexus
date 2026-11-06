@@ -4,6 +4,7 @@ import { success, error } from '@/lib/api-helpers';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 import { authenticateSession, sessionTokenFromHeaders } from '@/lib/verified-sessions';
+import { liveInboxHeights } from '@/lib/inbox-owner';
 
 /**
  * Which DM rows a verified session may read in its conversation with `other`.
@@ -12,7 +13,9 @@ import { authenticateSession, sessionTokenFromHeaders } from '@/lib/verified-ses
  * was sent to ("Private DM with block owner"). So a row belongs to the pair when
  * one party sent it to a block the other owns. The reader's own inbox side is
  * further narrowed to blocks the session proved on-chain, so a stale or poisoned
- * `Block.ownerAddress` alone cannot open someone else's inbox.
+ * `Block.ownerAddress` alone cannot open someone else's inbox, and then to the
+ * blocks the reader holds on-chain now (lib/inbox-owner). Only blocks the other
+ * party actually wrote to are checked.
  */
 async function dmConversationFilter(
   me: string,
@@ -24,11 +27,21 @@ async function dmConversationFilter(
     prisma.block.findMany({ where: { ownerAddress: me }, select: { height: true } }),
   ]);
   const proven = new Set(myProvenBlocks);
+  const candidates = myBlocks.map((b) => b.height).filter((h) => proven.has(h));
+  const written =
+    candidates.length === 0
+      ? []
+      : await prisma.chatMessage.findMany({
+          where: { channel: 'dm', senderAddress: other, blockHeight: { in: candidates } },
+          select: { blockHeight: true },
+          distinct: ['blockHeight'],
+        });
+  const held = await liveInboxHeights(me, written.map((m) => m.blockHeight));
   return {
     channel: 'dm',
     OR: [
       { senderAddress: me, blockHeight: { in: otherBlocks.map((b) => b.height) } },
-      { senderAddress: other, blockHeight: { in: myBlocks.map((b) => b.height).filter((h) => proven.has(h)) } },
+      { senderAddress: other, blockHeight: { in: held } },
     ],
   };
 }

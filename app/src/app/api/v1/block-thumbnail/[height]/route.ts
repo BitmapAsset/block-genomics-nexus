@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBlockThumbnail } from '@/lib/block-thumbnail';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
+import { isAboveTip } from '@/lib/block-summary';
 
 function pngResponse(bytes: Uint8Array, cacheControl: string, source: string): NextResponse {
   return new NextResponse(new Uint8Array(bytes), {
@@ -22,11 +24,14 @@ export async function GET(
 
   const { height: heightStr } = await params;
 
-  // Strip .png suffix if present
-  const cleanHeight = heightStr.replace(/\.png$/i, '');
-  const height = parseInt(cleanHeight, 10);
-  if (isNaN(height) || height < 0) {
-    return NextResponse.json({ error: 'Invalid block height' }, { status: 400 });
+  // Strip .png suffix if present; the rest must be a plain height in range.
+  const height = parseBlockHeight(heightStr.replace(/\.png$/i, ''));
+  if (height === null) {
+    return NextResponse.json({ error: INVALID_BLOCK_HEIGHT_MESSAGE }, { status: 400 });
+  }
+  // Not mined yet: no picture. An unreadable tip answers false and renders as before.
+  if (await isAboveTip(height)) {
+    return NextResponse.json({ error: 'Block not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
   }
 
   // Cache, live render or estimate; see lib/block-thumbnail.

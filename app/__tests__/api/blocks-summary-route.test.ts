@@ -48,7 +48,8 @@ const SUMMARY = Array.from({ length: 40 }, (_, i) => ({
 }));
 
 const okText = (t: string) => ({ ok: true, status: 200, text: async () => t });
-const okJson = (j: unknown) => ({ ok: true, status: 200, json: async () => j });
+// text() too: bodies are read through a size cap, which reads text.
+const okJson = (j: unknown) => ({ ok: true, status: 200, json: async () => j, text: async () => JSON.stringify(j) });
 const notFound = () => ({ ok: false, status: 404, text: async () => 'Block not found' });
 
 function mempool({

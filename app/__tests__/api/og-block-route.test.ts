@@ -43,8 +43,20 @@ jest.mock('@/lib/block-thumbnail', () => ({
   getBlockThumbnail: (...a: unknown[]) => mockThumbnail(...a),
 }));
 
+// The card is rate limited per caller; the real limiter runs over an in-memory counter.
+jest.mock('@/lib/prisma', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { memoryRateLimiter } = require('../helpers/rate-limit-memory');
+  const limiter = memoryRateLimiter();
+  const client = { $queryRaw: limiter.$queryRaw, __limiter: limiter };
+  return { __esModule: true, default: client, prisma: client };
+});
+
 import nextConfig from '../../next.config';
+import prisma from '@/lib/prisma';
 import { GET } from '@/app/og/block/[height]/route';
+
+const limiter = (prisma as unknown as { __limiter: { reset(): void } }).__limiter;
 
 const LONG = 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800';
 const SHORT = 'public, max-age=60';
@@ -64,6 +76,7 @@ async function cacheControlFor(height: string): Promise<string> {
 }
 
 beforeEach(() => {
+  limiter.reset();
   mockThumbnail.mockReset();
   mockImageResponse.mockReset();
 });
@@ -100,6 +113,38 @@ describe('GET /og/block/[height] Cache-Control', () => {
   it.each(['estimated', 'stale-estimated'])('caches a card with %s art for one minute', async (source) => {
     mockThumbnail.mockResolvedValue(thumbnail(source));
     expect(await cacheControlFor('123457')).toBe(SHORT);
+  });
+});
+
+describe('GET /og/block/[height] per-caller limit', () => {
+  it('answers the 31st request in a window from one address with 429 no-store', async () => {
+    mockThumbnail.mockResolvedValue(thumbnail('cache'));
+    const call = () =>
+      GET(new Request('http://localhost:3110/og/block/840000', { headers: { 'x-forwarded-for': '203.0.113.9' } }), {
+        params: Promise.resolve({ height: '840000' }),
+      }) as unknown as Promise<{ status?: number; headers: unknown }>;
+    for (let i = 0; i < 30; i++) {
+      const ok = await call();
+      expect(ok.status ?? 200).toBe(200);
+    }
+    const res = (await call()) as unknown as Response;
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    expect(mockImageResponse).toHaveBeenCalledTimes(30);
+  });
+
+  it('another address still gets its card', async () => {
+    mockThumbnail.mockResolvedValue(thumbnail('cache'));
+    for (let i = 0; i < 30; i++) {
+      await GET(new Request('http://localhost:3110/og/block/840000', { headers: { 'x-forwarded-for': '203.0.113.10' } }), {
+        params: Promise.resolve({ height: '840000' }),
+      });
+    }
+    mockImageResponse.mockReset();
+    await GET(new Request('http://localhost:3110/og/block/840000', { headers: { 'x-forwarded-for': '198.51.100.7' } }), {
+      params: Promise.resolve({ height: '840000' }),
+    });
+    expect(mockImageResponse).toHaveBeenCalledTimes(1);
   });
 });
 

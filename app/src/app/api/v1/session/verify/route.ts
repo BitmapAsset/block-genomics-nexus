@@ -34,6 +34,9 @@ import {
 import { rateLimitDurable, clientIpFrom } from '@/lib/rate-limit-db';
 import { logActivity } from '@/lib/activity';
 import { emitDeedVerified, walletProofOf } from '@/lib/block-event-emitters';
+import { isValidBlockHeight, parseBlockHeight } from '@/lib/block-height';
+import { isAboveTip } from '@/lib/block-summary';
+import { claimSigninDeedCheck, releaseSigninDeedCheck } from '@/lib/signin-deed-checks';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -55,7 +58,9 @@ type OwnershipCheck = Awaited<ReturnType<typeof verifyBlockOwnedBy>>;
 /**
  * Check each claimed block, OWNERSHIP_CHECK_CONCURRENCY at a time, until
  * OWNERSHIP_CHECK_DEADLINE_MS. Results come back in claimed order; `null` is a
- * block whose check had not settled (or not started) at the deadline.
+ * block whose check had not settled (or not started) at the deadline, or that
+ * was not checked because every sign-in deed check slot was taken
+ * (lib/signin-deed-checks).
  */
 async function checkBlocksWithinDeadline(walletAddress: string, blocks: number[]): Promise<Array<OwnershipCheck | null>> {
   const results: Array<OwnershipCheck | null> = blocks.map(() => null);
@@ -64,8 +69,15 @@ async function checkBlocksWithinDeadline(walletAddress: string, blocks: number[]
   const workers = Array.from({ length: Math.min(OWNERSHIP_CHECK_CONCURRENCY, blocks.length) }, async () => {
     while (!expired && next < blocks.length) {
       const i = next++;
-      const check = await verifyBlockOwnedBy(walletAddress, blocks[i]);
-      if (!expired) results[i] = check;
+      const slot = await claimSigninDeedCheck(blocks[i]);
+      if (slot === 'full') continue;
+      try {
+        const check = await verifyBlockOwnedBy(walletAddress, blocks[i]);
+        if (!expired) results[i] = check;
+      } finally {
+        // Runs whenever the check returns, also after the deadline.
+        if (slot === 'slot') releaseSigninDeedCheck(blocks[i]);
+      }
     }
   });
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -87,8 +99,8 @@ function parseBlocks(raw: unknown): { blocks: number[]; bad: boolean } {
   if (!Array.isArray(raw)) return { blocks: [], bad: true };
   const blocks: number[] = [];
   for (const item of raw) {
-    const n = typeof item === 'number' ? item : Number.parseInt(String(item), 10);
-    if (!Number.isInteger(n) || n < 0) return { blocks: [], bad: true };
+    const n = typeof item === 'number' ? (isValidBlockHeight(item) ? item : null) : parseBlockHeight(String(item));
+    if (n === null) return { blocks: [], bad: true };
     blocks.push(n);
   }
   return { blocks: [...new Set(blocks)], bad: false };
@@ -121,6 +133,10 @@ export async function POST(req: NextRequest) {
     if (bad) return error('blocks must be an array of non-negative integer block heights', 400);
     if (blocks.length > MAX_BLOCKS_PER_SESSION) {
       return error(`Claim at most ${MAX_BLOCKS_PER_SESSION} blocks per session`, 400);
+    }
+    // An unreadable tip refuses nothing.
+    if (blocks.length > 0 && (await isAboveTip(Math.max(...blocks)))) {
+      return error('blocks must be mined block heights', 400);
     }
 
     // ── 1. Signature proves wallet control ────────────────────────

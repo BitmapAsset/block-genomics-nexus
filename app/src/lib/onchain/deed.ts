@@ -93,14 +93,18 @@ function key(height: number): string {
 /**
  * The fetch the resolver uses: the app's chain User-Agent on every request, and
  * the Basic auth of a configured private ord host (lifted out of its URL by
- * lib/onchain/ord.ts) on requests to that host only.
+ * lib/onchain/ord.ts) on requests to that host only. A request carrying that
+ * Authorization never follows a redirect.
  */
 const chainFetch: typeof fetch = (input, init) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   const headers = new Headers(init?.headers);
   headers.set('User-Agent', CHAIN_USER_AGENT);
   const ord = getOrdHosts()[0];
-  if (ord?.authorization && url.startsWith(`${ord.base}/`)) headers.set('Authorization', ord.authorization);
+  if (ord?.authorization && url.startsWith(`${ord.base}/`)) {
+    headers.set('Authorization', ord.authorization);
+    return fetch(input, { ...init, headers, redirect: 'error' });
+  }
   return fetch(input, { ...init, headers });
 };
 
@@ -264,6 +268,23 @@ export async function canonicalDeedFor(height: number, opts: { budgetMs?: number
     reason: `no deed answer within ${budgetMs} ms; the check continues in the background`,
     source: 'resolver',
   };
+}
+
+/**
+ * The answer this process already has for `height`, without starting a
+ * resolution: an unexpired in-process answer, else the stored canonical
+ * verdict. null when neither exists.
+ */
+export async function peekCanonicalDeed(height: number): Promise<CanonicalDeed | null> {
+  if (!Number.isSafeInteger(height) || height < 0) return null;
+  const hit = memory.get(key(height));
+  if (hit && hit.expiresAt > Date.now()) return { ...hit.deed, source: 'memory' };
+  return readStored(height);
+}
+
+/** True while a resolution for `height` is running in this process. */
+export function isDeedResolving(height: number): boolean {
+  return inFlight.has(key(height));
 }
 
 /**

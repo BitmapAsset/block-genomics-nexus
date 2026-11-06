@@ -6,6 +6,7 @@ import { emitAgentEvent } from '@/lib/agent-events';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 import { authenticateSession, sessionCoversBlock, sessionTokenFromHeaders } from '@/lib/verified-sessions';
+import { isLiveInboxOwner } from '@/lib/inbox-owner';
 
 export async function GET(
   req: NextRequest,
@@ -34,8 +35,9 @@ export async function GET(
     if (after) where.createdAt = { gt: new Date(after) };
 
     // A block's DM channel is its owner's private inbox. The owner (proved by a
-    // verified session that covers this block and matches the recorded owner)
-    // reads all of it; any other verified wallet reads only what it sent.
+    // verified session that covers this block, matches the recorded owner, and
+    // holds the block on-chain now) reads all of it; any other verified wallet
+    // reads only what it sent.
     const isDm = where.channel === 'dm';
     if (isDm) {
       const auth = await authenticateSession(sessionTokenFromHeaders(req.headers));
@@ -44,7 +46,8 @@ export async function GET(
       }
       const me = auth.session.walletAddress;
       const block = await prisma.block.findUnique({ where: { height: h }, select: { ownerAddress: true } });
-      const isInboxOwner = block?.ownerAddress === me && sessionCoversBlock(auth.session, h);
+      const isInboxOwner =
+        block?.ownerAddress === me && sessionCoversBlock(auth.session, h) && (await isLiveInboxOwner(me, h));
       if (!isInboxOwner) where.senderAddress = me;
     }
 

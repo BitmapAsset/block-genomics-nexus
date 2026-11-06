@@ -51,6 +51,18 @@ jest.mock('@/lib/api-rate-limit', () => ({
   PUBLIC_READ_LIMIT: 120,
 }));
 
+// The live holder of each block, as the chain gate would answer. By default the
+// recorded owner still holds it; cases below move a block or take the chain away.
+const mockLiveHolder = new Map<number, string | 'unavailable'>();
+const mockLiveGate = jest.fn(async (wallet: string, height: number) => {
+  const holder = mockLiveHolder.get(height);
+  if (holder === 'unavailable') return { ok: false, status: 503, code: 'onchain_unavailable' };
+  return holder === wallet ? { ok: true, status: 200, walletAddress: wallet } : { ok: false, status: 403, code: 'ownership_lost' };
+});
+jest.mock('@/lib/ownership-gate', () => ({
+  requireLiveBlockOwner: (wallet: string, height: number) => mockLiveGate(wallet, height),
+}));
+
 import fs from 'fs';
 import path from 'path';
 import prisma from '@/lib/prisma';
@@ -100,6 +112,11 @@ async function token(wallet: string, blocks: number[]): Promise<string> {
 beforeEach(async () => {
   db.__reset();
   t = 0;
+  mockLiveGate.mockClear();
+  mockLiveHolder.clear();
+  mockLiveHolder.set(OWNER_BLOCK, OWNER);
+  mockLiveHolder.set(VISITOR_BLOCK, VISITOR);
+  mockLiveHolder.set(THIRD_BLOCK, THIRD);
   await db.block.create({ data: { height: OWNER_BLOCK, ownerAddress: OWNER } });
   await db.block.create({ data: { height: VISITOR_BLOCK, ownerAddress: VISITOR } });
   await db.block.create({ data: { height: THIRD_BLOCK, ownerAddress: THIRD } });
@@ -179,6 +196,74 @@ describe('GET /chat/<h>?channel=dm (the second door)', () => {
     } as never);
     expect(res.status).toBe(200);
     expect(texts(await res.json())).toEqual(['public block chat']);
+  });
+});
+
+describe('the inbox follows the live holder', () => {
+  it('a session that proved the block, from a wallet that no longer holds it, reads only its own rows (history)', async () => {
+    mockLiveHolder.set(OWNER_BLOCK, THIRD);
+    const res = await history(OWNER, VISITOR, await token(OWNER, [OWNER_BLOCK]));
+    expect(res.status).toBe(200);
+    expect(texts(res.body)).toEqual(['owner -> visitor']);
+  });
+
+  it('a session that proved the block, from a wallet that no longer holds it, reads only its own rows (block inbox)', async () => {
+    mockLiveHolder.set(OWNER_BLOCK, THIRD);
+    const res = await blockDms(OWNER_BLOCK, await token(OWNER, [OWNER_BLOCK]));
+    expect(res.status).toBe(200);
+    expect(texts(res.body)).toEqual(['owner note on own block']);
+  });
+
+  it('the chain check unavailable: own rows only, on both routes', async () => {
+    mockLiveHolder.set(OWNER_BLOCK, 'unavailable');
+    const session = await token(OWNER, [OWNER_BLOCK]);
+    expect(texts((await blockDms(OWNER_BLOCK, session)).body)).toEqual(['owner note on own block']);
+    expect(texts((await history(OWNER, VISITOR, session)).body)).toEqual(['owner -> visitor']);
+  });
+
+  it('the live holder with a covering session reads the whole inbox, and is checked on every read', async () => {
+    const session = await token(OWNER, [OWNER_BLOCK]);
+    expect(texts((await blockDms(OWNER_BLOCK, session)).body)).toEqual([
+      'owner note on own block',
+      'third -> owner',
+      'visitor -> owner',
+    ]);
+    await blockDms(OWNER_BLOCK, session);
+    expect(mockLiveGate.mock.calls.filter(([, h]) => h === OWNER_BLOCK)).toHaveLength(2);
+  });
+
+  it('a refused check is asked again on the next read', async () => {
+    mockLiveHolder.set(OWNER_BLOCK, 'unavailable');
+    const session = await token(OWNER, [OWNER_BLOCK]);
+    expect(texts((await blockDms(OWNER_BLOCK, session)).body)).toEqual(['owner note on own block']);
+    mockLiveHolder.set(OWNER_BLOCK, OWNER);
+    expect(texts((await blockDms(OWNER_BLOCK, session)).body)).toHaveLength(3);
+    expect(mockLiveGate).toHaveBeenCalledTimes(2);
+  });
+
+  it('two reads at once share one check', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    mockLiveGate.mockImplementationOnce(async (wallet: string) => {
+      await gate;
+      return { ok: true, status: 200, walletAddress: wallet };
+    });
+    const session = await token(OWNER, [OWNER_BLOCK]);
+    const both = Promise.all([blockDms(OWNER_BLOCK, session), blockDms(OWNER_BLOCK, session)]);
+    for (let i = 0; i < 50; i++) await new Promise((r) => setImmediate(r));
+    release();
+    const [a, b] = await both;
+    expect(texts(a.body)).toHaveLength(3);
+    expect(texts(b.body)).toHaveLength(3);
+    expect(mockLiveGate).toHaveBeenCalledTimes(1);
+  });
+
+  it('history checks only the proven blocks the other party wrote to', async () => {
+    await db.block.create({ data: { height: 650000, ownerAddress: OWNER } });
+    mockLiveHolder.set(650000, OWNER);
+    const res = await history(OWNER, VISITOR, await token(OWNER, [OWNER_BLOCK, 650000]));
+    expect(texts(res.body)).toEqual(['owner -> visitor', 'visitor -> owner']);
+    expect(mockLiveGate.mock.calls.map(([, h]) => h)).toEqual([OWNER_BLOCK]);
   });
 });
 

@@ -41,6 +41,7 @@
 
 import { CHAIN_USER_AGENT } from '@/lib/onchain/user-agent';
 import { ESPLORA_BASES } from '@/lib/onchain/esplora';
+import { tapscriptOf as resolverTapscriptOf } from '@/vendor/bitmap-resolver/parse/envelope';
 
 const REQUEST_TIMEOUT_MS = 6000;
 /** Wall-clock budget for one whole trace on one provider. */
@@ -180,12 +181,13 @@ export function envelopesInTapscript(script: Uint8Array): Uint8Array[][] {
   return envelopes;
 }
 
-/** rust-bitcoin `Witness::tapscript`: second-to-last element, after removing an annex. */
+/**
+ * rust-bitcoin `Witness::tapscript`: second-to-last element, after removing an
+ * annex. The deed resolver's rule, so both parsers read the same item
+ * (__tests__/lib/envelope-parity.test.ts).
+ */
 export function tapscriptOf(witness: Uint8Array[]): Uint8Array | null {
-  const n = witness.length;
-  if (n >= 3 && witness[n - 1][0] === 0x50) return witness[n - 3];
-  if (n >= 2) return witness[n - 2];
-  return null;
+  return resolverTapscriptOf(witness);
 }
 
 export interface EnvelopeFields {
