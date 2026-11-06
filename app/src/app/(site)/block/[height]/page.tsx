@@ -622,8 +622,8 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
 
       <ActivitySection data={data} events={events} status={status} />
 
-      {/* ── Tabs ── */}
-      <div className="mt-10">
+      {/* ── Tabs (the strip bleeds 20 px; 4 px more padding keeps it inside a 16 px phone gutter) ── */}
+      <div className="mt-10 px-1 md:px-0">
         <BlockTabs
           tabs={[
             { id: 'world', label: 'World', count: data.objectCount },

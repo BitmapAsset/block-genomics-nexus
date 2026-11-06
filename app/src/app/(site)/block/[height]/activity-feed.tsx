@@ -50,7 +50,7 @@ export default function ActivityFeed({ events, now }: { events: PublicBlockEvent
             </time>{' '}
             ·{' '}
             {/* Padding without layout: a 44 px tap target on a phone, same row height. */}
-            <a href={e.proof.url} className="-my-[14px] inline-block py-[14px] text-accent-cyan hover:underline" rel="nofollow">
+            <a href={e.proof.url} className="-my-[14px] inline-block min-w-[44px] py-[14px] text-center text-accent-cyan hover:underline" rel="nofollow">
               proof ↗
             </a>
           </span>
