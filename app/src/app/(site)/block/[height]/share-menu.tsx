@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import dynamic from 'next/dynamic';
 import { QrCode, Share } from 'lucide-react';
 import CopyButton from './copy-button';
 import Menu, { MenuGroup, menuRow } from '@/components/ui/menu';
@@ -12,6 +12,12 @@ export const CANONICAL_ORIGIN = 'https://blockgenomics.io';
 export function canonicalBlockUrl(height: number): string {
   return `${CANONICAL_ORIGIN}/block/${height}`;
 }
+
+// The QR code loads with the menu, not with the page.
+const QRCodeSVG = dynamic(() => import('qrcode.react').then((m) => m.QRCodeSVG), {
+  ssr: false,
+  loading: () => <div className="h-[104px] w-[104px]" />,
+});
 
 export const shareButton =
   'inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-line-2 bg-surface-3 px-5 text-[15px] font-medium text-text-1 transition-colors duration-150 hover:bg-white/[0.12] motion-reduce:transition-none';
