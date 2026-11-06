@@ -12,7 +12,7 @@ import Card from '@/components/ui/card';
 import Chip from '@/components/ui/chip';
 import { relativeTime } from './activity-feed';
 import type { DeedStateKey } from './deed-status';
-import { GuardianAction, GuardianHoldPrompt } from './guardian-sheet';
+import { GuardianAction, GuardianHoldPrompt } from './guardian-action';
 
 /**
  * The guardian card on the block page (Living Block bg95, visitor view bg98a).

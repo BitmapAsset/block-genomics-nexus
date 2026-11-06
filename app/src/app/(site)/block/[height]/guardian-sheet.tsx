@@ -1,11 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { Mail, MessageCircle, RotateCcw, Send, Wallet } from 'lucide-react';
+import { RotateCcw, Send } from 'lucide-react';
 import Sheet from '@/components/ui/sheet';
-import { useGlobalWallet } from '@/context/GlobalWalletContext';
-import { openWalletModal } from '@/lib/open-wallet-modal';
 import {
   CHAT_MAX_CHARS,
   sendGuardianMessage,
@@ -14,7 +11,8 @@ import {
 } from '@/lib/guardian-chat';
 
 /**
- * The guardian card's one action and the sheet it opens (bg98a item 3).
+ * The sheet the guardian card's action opens (bg98a item 3). It loads on first
+ * open (guardian-action.tsx), with its dialog and the chat helper.
  *
  * Talk: this session's turns as bubbles (not restored after a reload) and a
  * compose row. Leave a message: one form; when the route forwards it to the
@@ -22,9 +20,6 @@ import {
  * this page yet. The guardian's own words render as text; everything else here
  * is the page's own copy, in plain words and without emoji.
  */
-
-export const actionButton =
-  'inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-line-2 bg-surface-3 px-5 text-[15px] font-medium text-text-1 transition-colors duration-150 hover:bg-white/[0.12] motion-reduce:transition-none';
 
 type Turn = { role: 'visitor' | 'guardian'; text: string };
 type Line = Exclude<GuardianChatResult, { kind: 'answer' }>;
@@ -171,54 +166,3 @@ export function GuardianSheet({
   );
 }
 
-/**
- * The card's action: "Talk to <name>" or "Leave a message for <name>". The
- * sheet mounts on first open, so the server HTML carries only the button.
- */
-export function GuardianAction({ height, name, mode }: { height: number; name: string; mode: GuardianChatMode }) {
-  const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  return (
-    <>
-      <button
-        type="button"
-        data-action={mode}
-        className={actionButton}
-        onClick={() => {
-          setMounted(true);
-          setOpen(true);
-        }}
-      >
-        {mode === 'talk' ? (
-          <MessageCircle size={18} strokeWidth={1.75} aria-hidden="true" />
-        ) : (
-          <Mail size={18} strokeWidth={1.75} aria-hidden="true" />
-        )}
-        {mode === 'talk' ? `Talk to ${name}` : `Leave a message for ${name}`}
-      </button>
-      {mounted && <GuardianSheet height={height} name={name} mode={mode} open={open} onClose={() => setOpen(false)} />}
-    </>
-  );
-}
-
-/**
- * The no-guardian card's one prompt: connect a wallet, then set the guardian
- * up from the world. Same height either way, so connecting shifts nothing.
- */
-export function GuardianHoldPrompt({ height }: { height: number }) {
-  const { isConnected } = useGlobalWallet();
-  const cls = 'inline-flex min-h-[44px] items-center gap-2 text-[14.5px] font-medium text-accent-cyan hover:underline';
-  if (isConnected) {
-    return (
-      <Link href={`/world/${height}`} className={cls} data-testid="guardian-setup">
-        Set it up from the world
-      </Link>
-    );
-  }
-  return (
-    <button type="button" onClick={() => openWalletModal()} className={cls} data-testid="guardian-connect">
-      <Wallet size={16} strokeWidth={1.75} aria-hidden="true" />
-      Hold this block? Connect your wallet
-    </button>
-  );
-}

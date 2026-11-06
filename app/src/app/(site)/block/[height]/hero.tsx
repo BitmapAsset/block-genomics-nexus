@@ -49,7 +49,7 @@ export default function Hero({
         <BlockArt src={bitmapThumbnailUrl(height)} alt={`${height}.bitmap, the block's artwork`}>
           {data.chain && (
             <span
-              className="inline-flex min-h-[26px] items-center gap-1.5 rounded-full border border-line-2 bg-bg-primary/80 px-2.5 text-[12px] text-text-1 tabular-nums backdrop-blur"
+              className="inline-flex min-h-[26px] items-center gap-1.5 rounded-full border border-line-2 bg-bg-primary/90 px-2.5 text-[12px] text-text-1 tabular-nums"
               data-testid="hero-scale-chip"
             >
               <MapIcon size={13} strokeWidth={1.75} aria-hidden="true" />

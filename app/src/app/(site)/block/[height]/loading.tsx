@@ -1,6 +1,7 @@
 /**
  * The block page while it streams: a dark skeleton of the hero box and the
  * three cards in their real sizes, so the page does not jump when it arrives.
+ * Still, like the rest of the page above the fold: nothing animates on load.
  */
 export default function BlockLoading() {
   return (
@@ -11,7 +12,7 @@ export default function BlockLoading() {
           className="mt-4 grid gap-6 md:rounded-[28px] md:border md:border-line-1 md:p-10 min-[1200px]:grid-cols-[minmax(0,1fr)_576px] min-[1200px]:items-center min-[1200px]:gap-10"
           data-testid="block-loading-hero"
         >
-          <div className="-mx-4 aspect-square animate-pulse bg-[#1d1c2e] motion-reduce:animate-none md:mx-auto md:w-full md:max-w-[576px] md:rounded-[28px] min-[1200px]:col-start-2 min-[1200px]:row-start-1" />
+          <div className="-mx-4 aspect-square bg-[#1d1c2e] md:mx-auto md:w-full md:max-w-[576px] md:rounded-[28px] min-[1200px]:col-start-2 min-[1200px]:row-start-1" />
           <div className="min-[1200px]:col-start-1 min-[1200px]:row-start-1">
             <div className="h-4 w-56 rounded-full bg-surface-2" />
             <div className="mt-4 h-[57px] w-64 rounded-[14px] bg-surface-2 md:h-[91px] md:w-96" />
