@@ -941,6 +941,8 @@ function GroundPlane({ parcels, viewMode }: { parcels?: ParcelData[]; viewMode?:
     });
   }, [isStreet]);
 
+  useEffect(() => () => groundMaterial.dispose(), [groundMaterial]);
+
   // Dashed lane markings for street view — instanced
   const laneMarkings = useMemo(() => {
     const bigRoads = surfaces.roads.filter(r => r.w > 0.15 || r.d > 0.15);
