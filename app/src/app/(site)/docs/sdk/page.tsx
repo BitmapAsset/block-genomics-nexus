@@ -4,6 +4,8 @@ import { DocPage, P, RefTable, Section, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { AGENT_INSTALL, NPM_SDK, READ_ONLY, SDK_METHODS } from '../docs-content';
 
+export const dynamic = 'force-static';
+
 export const metadata = docMetadata('sdk');
 
 export default function SdkReferencePage() {

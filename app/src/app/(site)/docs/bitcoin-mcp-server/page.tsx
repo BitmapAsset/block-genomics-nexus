@@ -4,6 +4,8 @@ import { DocPage, P, Section, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { MCP_CONFIG, MCP_CONFIG_RUNTIME, NPM_MCP } from '../docs-content';
 
+export const dynamic = 'force-static';
+
 export const metadata = docMetadata('bitcoin-mcp-server');
 
 export default function BitcoinMcpServerPage() {

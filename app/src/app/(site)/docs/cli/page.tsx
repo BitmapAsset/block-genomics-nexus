@@ -3,6 +3,8 @@ import { DocPage, P, RefTable, Section, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { CLI_COMMANDS, NPM_CLI } from '../docs-content';
 
+export const dynamic = 'force-static';
+
 export const metadata = docMetadata('cli');
 
 export default function CliReferencePage() {

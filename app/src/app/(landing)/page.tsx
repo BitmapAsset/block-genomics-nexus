@@ -4,6 +4,9 @@ import RotatingTagline from "@/components/RotatingTagline";
 import LiveBlockCount from "@/components/LiveBlockCount";
 import LiveStats from "@/components/LiveStats";
 
+// Force static generation — no server-side DB queries needed for landing page
+export const dynamic = 'force-static';
+
 export default async function HomePage() {
   return (
     <div className="relative min-h-screen overflow-hidden">

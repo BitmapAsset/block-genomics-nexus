@@ -4,6 +4,8 @@ import { DocPage, P, Section, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { CURL_OWNER } from '../docs-content';
 
+export const dynamic = 'force-static';
+
 export const metadata = docMetadata('what-is-a-bitmap');
 
 export default function WhatIsABitmapPage() {

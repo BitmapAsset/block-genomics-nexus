@@ -4,6 +4,8 @@ import { DocPage, P, Section, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { HUMAN_FLOW, HUMAN_INSTALL, NPM_CLI } from '../docs-content';
 
+export const dynamic = 'force-static';
+
 export const metadata = docMetadata('quickstart-cli');
 
 export default function QuickstartCliPage() {
