@@ -198,10 +198,10 @@ function GenomeStrip({ genome }: { genome: string }) {
   );
 }
 
-const DEED_TONE_STYLE: Record<DeedTone, React.CSSProperties> = {
-  verified: { background: 'rgba(34,197,94,0.1)', color: '#22c55e' },
-  neutral: { background: 'rgba(100,116,139,0.16)', color: '#cbd5e1' },
-  outage: { background: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
+const DEED_TONE_CLASS: Record<DeedTone, string> = {
+  verified: 'bg-success/10 text-ok-text',
+  neutral: 'bg-surface-2 text-text-2',
+  outage: 'bg-warn-soft text-warn-text',
 };
 
 /**
@@ -219,8 +219,7 @@ function DeedChip({ data, status }: { data: BlockPageData; status: DeedStatus | 
   const tone: DeedTone = status ? status.tone : 'neutral';
   return (
     <span
-      className="inline-block max-w-full rounded-2xl px-3 py-1 text-xs font-medium leading-5"
-      style={DEED_TONE_STYLE[tone]}
+      className={`inline-block max-w-full rounded-2xl px-3 py-1 text-xs font-medium leading-5 ${DEED_TONE_CLASS[tone]}`}
       data-testid="deed-chip"
       data-tone={tone}
       data-state={status ? status.key : data.degraded ? 'degraded' : 'not-on-block-genomics'}
@@ -352,10 +351,7 @@ function MarketPanel({ market }: { market: BlockMarket | null }) {
         <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">
           Market
         </div>
-        <span
-          className="rounded-full px-2.5 py-1 text-[11px] font-medium"
-          style={{ background: 'rgba(234,179,8,0.1)', color: '#eab308' }}
-        >
+        <span className="rounded-full bg-warn-soft px-2.5 py-1 text-[11px] font-medium text-warn-text">
           Listed
         </span>
       </div>
@@ -501,12 +497,9 @@ function ExperiencesPanel({ data }: { data: BlockPageData }) {
                 <span className="text-sm font-medium text-text-primary">{e.name}</span>
                 <span className="text-[11px] uppercase tracking-wider text-text-secondary">{e.experienceType}</span>
                 <span
-                  className="rounded-full px-2 py-0.5 text-[11px]"
-                  style={
-                    e.status === 'live'
-                      ? { background: 'rgba(45,212,191,0.1)', color: '#5eead4' }
-                      : { background: 'rgba(100,116,139,0.16)', color: '#cbd5e1' }
-                  }
+                  className={`rounded-full px-2 py-0.5 text-[11px] ${
+                    e.status === 'live' ? 'bg-accent-cyan/10 text-accent-cyan' : 'bg-surface-2 text-text-2'
+                  }`}
                 >
                   {/* "Published", not "live": nothing on this page claims to be live. */}
                   {e.status === 'live' ? 'published' : e.status}

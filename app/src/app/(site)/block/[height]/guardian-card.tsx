@@ -20,13 +20,13 @@ import { relativeTime } from './activity-feed';
  * visitor count.
  */
 
-const STATE_STYLE: Record<GuardianCardKey, React.CSSProperties> = {
-  'answers-chat': { background: 'rgba(45,212,191,0.1)', color: '#5eead4' },
-  'chat-not-set-up': { background: 'rgba(100,116,139,0.16)', color: '#cbd5e1' },
-  idle: { background: 'rgba(100,116,139,0.16)', color: '#cbd5e1' },
-  resting: { background: 'rgba(100,116,139,0.16)', color: '#cbd5e1' },
-  offline: { background: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
-  'no-heartbeat': { background: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
+const STATE_CLASS: Record<GuardianCardKey, string> = {
+  'answers-chat': 'bg-accent-cyan/10 text-accent-cyan',
+  'chat-not-set-up': 'bg-surface-2 text-text-2',
+  idle: 'bg-surface-2 text-text-2',
+  resting: 'bg-surface-2 text-text-2',
+  offline: 'bg-warn-soft text-warn-text',
+  'no-heartbeat': 'bg-warn-soft text-warn-text',
 };
 
 const pill =
@@ -105,8 +105,7 @@ export default function GuardianCard({
           )}
         </div>
         <span
-          className="rounded-full px-2.5 py-1 text-[11px] font-medium"
-          style={STATE_STYLE[state.key]}
+          className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${STATE_CLASS[state.key]}`}
           data-testid="guardian-state"
           data-state={state.key}
         >
