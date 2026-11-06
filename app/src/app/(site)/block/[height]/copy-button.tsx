@@ -1,13 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { Check, Copy } from "lucide-react";
+
+const pill =
+  "inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line-2 px-5 text-sm font-medium text-text-1 transition-colors hover:bg-surface-3";
 
 export default function CopyButton({
   text,
   label = "Copy",
+  className = pill,
+  iconOnly = false,
 }: {
   text: string;
   label?: string;
+  className?: string;
+  /** A 44 px square button with the label for screen readers only. */
+  iconOnly?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -28,20 +37,21 @@ export default function CopyButton({
 
   return (
     <button
+      type="button"
       onClick={handleCopy}
-      className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-white/15 px-5 text-sm font-medium text-text-primary transition-colors hover:bg-white/5"
+      className={className}
       title={`Copy ${label}`}
+      aria-label={iconOnly ? `Copy ${label}` : undefined}
     >
       {copied ? (
         <>
-          <span className="text-success">✓</span> Copied
+          <Check size={16} strokeWidth={1.75} className="text-ok-text" aria-hidden="true" />
+          {iconOnly ? null : "Copied"}
         </>
       ) : (
         <>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-          Copy {label}
+          <Copy size={16} strokeWidth={1.75} aria-hidden="true" />
+          {iconOnly ? null : `Copy ${label}`}
         </>
       )}
     </button>
