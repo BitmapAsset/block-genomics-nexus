@@ -33,7 +33,19 @@ describe('phone dock', () => {
     expect(screen.getByRole('button', { name: 'Share' })).toBeTruthy();
     expect(container.querySelector('[data-primary]')).toBeNull();
     expect(dock.className).toContain('md:hidden');
-    expect(dock.className).toContain('safe-area-inset-bottom');
+  });
+
+  it('sits above the site tab bar (56 px items + a 1 px top border + the safe area), not at the screen edge', () => {
+    render(<PhoneDock height={HEIGHT} />);
+    const cls = screen.getByTestId('phone-dock').className.split(/\s+/);
+    expect(cls).not.toContain('bottom-0');
+    const offset = cls.find((c) => c.startsWith('bottom-['));
+    expect(offset).toBeDefined();
+    const m = offset!.match(/^bottom-\[calc\((\d+)px\+env\(safe-area-inset-bottom\)\)\]$/);
+    expect(m).not.toBeNull();
+    expect(Number(m![1])).toBeGreaterThanOrEqual(57);
+    // Below the tab bar's z-50, so an open tab bar menu or sheet still wins; the offset keeps them apart.
+    expect(cls).toContain('z-40');
   });
 });
 
