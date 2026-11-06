@@ -2,8 +2,6 @@ import Link from 'next/link';
 import { DocPage, P, Section, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 
-export const dynamic = 'force-static';
-
 export const metadata = docMetadata('ai-agent-identity-bitcoin');
 
 export default function AiAgentIdentityBitcoinPage() {

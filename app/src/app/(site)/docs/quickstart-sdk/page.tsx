@@ -4,8 +4,6 @@ import { DocPage, P, Section, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { AGENT_FLOW, AGENT_INSTALL, NPM_SDK, READ_ONLY, REFERENCE_AGENT } from '../docs-content';
 
-export const dynamic = 'force-static';
-
 export const metadata = docMetadata('quickstart-sdk');
 
 export default function QuickstartSdkPage() {
