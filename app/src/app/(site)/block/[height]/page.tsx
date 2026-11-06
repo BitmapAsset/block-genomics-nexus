@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { NEXUS_PATH, applyBlockParam, parseBlockParam } from '@/lib/blockDeepLink';
+import { parseBlockParam } from '@/lib/blockDeepLink';
 import {
   fetchBlockPageData,
   creatorLabel,
@@ -16,14 +16,16 @@ import { fetchBlockGuardian } from '@/lib/blockGuardian';
 import { isAboveTip } from '@/lib/block-summary';
 import type { BlockMarket } from '@/lib/marketplace';
 import { epochLabelFor } from '@/lib/bitmapStandard';
-import { formatBytes, formatNumber, hexPairToColor } from '@/lib/genome-utils';
+import { formatNumber, hexPairToColor } from '@/lib/genome-utils';
 import CopyButton from './copy-button';
 import BlockTabs from './block-tabs';
 import OwnerBar from './owner-bar';
-import { deedStatus, type DeedStatus } from './deed-status';
+import { deedStatus } from './deed-status';
 import ActivityFeed from './activity-feed';
 import GuardianCard from './guardian-card';
 import Hero from './hero';
+import DeedCard from './deed-card';
+import BuildCard from './build-card';
 import { guardianCardState, guardianDisplayState } from '@/lib/blockGuardian';
 import { listBlockEvents } from '@/lib/block-events';
 import { scaleLineForTxCount } from '@/lib/world-scale';
@@ -37,11 +39,14 @@ import type { PublicBlockEvent } from '@/lib/block-event-core';
  * who holds the deed *right now*, which is a live indexer answer. That also
  * keeps the build free of any database or network dependency.
  *
- * Layout, top to bottom (one column on a phone): the identity line with the
- * deed chip, the block map with its scale line, the guardian card, Activity,
- * then three tabs (World · Experiences · Block facts) and the Deed card. All
- * server-rendered, so a crawler reads the whole page. Nothing here claims to be
- * live: with the event store off the page shows what the record holds.
+ * Layout, top to bottom (one column on a phone): the hero (the artwork, the
+ * block's identity, its deed and guardian chips and the page's one main action,
+ * Enter the block), then three cards (Guardian, Deed, Build; the Deed card
+ * first when the block has no guardian), Activity, and three tabs (World ·
+ * Experiences · Block facts). All server-rendered, so a crawler reads the
+ * whole page. Nothing here claims to be live: with the event store off the page
+ * shows what the record holds. The page stays dark under the light theme
+ * (`.bp-dark`).
  */
 export const dynamic = 'force-dynamic';
 
@@ -60,10 +65,6 @@ const getBlockData = cache(async (height: number): Promise<BlockPageData> => {
  */
 async function isUnmined(height: number): Promise<boolean> {
   return isAboveTip(height);
-}
-
-function nexusHref(height: number): string {
-  return `${NEXUS_PATH}${applyBlockParam('', height)}`;
 }
 
 export async function generateMetadata({
@@ -195,86 +196,6 @@ function GenomeStrip({ genome }: { genome: string }) {
   );
 }
 
-/**
- * The Deed card: the holder's address and the inscription, under the tabs.
- *
- * Three distinct states, kept distinct on purpose: verified against the chain,
- * on record but not verifiable this request, and not registered on Block
- * Genomics. The last one says nothing about who holds the `.bitmap` on Bitcoin:
- * this registry is not the chain. Collapsing "we could not reach the indexer"
- * into "unowned" would be a lie about property.
- */
-function DeedPanel({ data, status }: { data: BlockPageData; status: DeedStatus | null }) {
-  const { ownership } = data;
-  const owner = displayOwner(ownership);
-
-  if (!owner || !status) {
-    return (
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
-        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">
-          Deed
-        </div>
-        <p className="mt-2 text-base text-text-primary">
-          {data.degraded ? 'Ownership unavailable' : 'Not yet on Block Genomics'}
-        </p>
-        <p className="mt-1 text-sm text-text-secondary">
-          {data.degraded
-            ? 'The ownership record could not be reached. This does not mean the block is unowned.'
-            : `Nobody has verified ${data.height}.bitmap on Block Genomics yet. That says nothing about who holds it on Bitcoin.`}
-        </p>
-        {!data.degraded && (
-          <Link
-            href="/my-bitmaps"
-            className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-4 text-sm font-medium text-text-primary hover:bg-white/5"
-          >
-            Hold it? Verify in My Bitmaps
-          </Link>
-        )}
-      </div>
-    );
-  }
-
-  const canonicalId = ownership.deed?.canonicalId ?? null;
-  const storedId = ownership.inscriptionId;
-  // The stored id is labelled "on record" unless the deed rule named the same one.
-  const showStored = storedId !== null && storedId !== canonicalId;
-
-  return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
-      <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">
-        Deed · {status.key === 'verified' || status.key === 'registry-behind' ? 'holder on Bitcoin' : 'last recorded holder'}
-      </div>
-
-      <p className="mt-3 break-all font-mono text-base text-text-primary">{owner}</p>
-
-      <p className="mt-2 text-sm text-text-secondary">{status.detail}</p>
-
-      {(canonicalId || showStored) && (
-        <div className="mt-4 border-t border-white/[0.06] pt-4">
-          {canonicalId && (
-            <>
-              <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">
-                Inscription · the deed
-              </div>
-              <p className="mt-1 break-all font-mono text-xs text-text-secondary">{canonicalId}</p>
-            </>
-          )}
-          {showStored && (
-            <>
-              <div
-                className={`text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary${canonicalId ? ' mt-3' : ''}`}
-              >
-                Inscription · on record
-              </div>
-              <p className="mt-1 break-all font-mono text-xs text-text-secondary">{storedId}</p>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** Sats rendered as BTC once that reads better than a seven-digit integer. */
 function formatSats(sats: number): string {
   const btc = sats / 100_000_000;
@@ -360,11 +281,6 @@ function MarketPanel({ market }: { market: BlockMarket | null }) {
   );
 }
 
-const pillPrimary =
-  'inline-flex min-h-[48px] items-center justify-center rounded-full bg-bitcoin px-6 text-sm font-semibold text-black transition hover:brightness-110';
-const pillSecondary =
-  'inline-flex min-h-[44px] items-center justify-center rounded-full border border-white/15 px-5 text-sm font-medium text-text-primary transition hover:bg-white/5';
-
 // ── Tab panels ──────────────────────────────────────────────────────────
 
 /**
@@ -373,27 +289,14 @@ const pillSecondary =
  */
 function WorldPanel({ data, listBuilds }: { data: BlockPageData; listBuilds: boolean }) {
   const { height } = data;
+  const listsBuilds = listBuilds && data.objects.length > 0;
   return (
     <>
-      <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.07] bg-gradient-to-br from-white/[0.04] to-transparent p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
-        <div className="max-w-xl">
-          <h2 className="text-xl font-semibold tracking-tight text-text-primary">Walk through {height}.bitmap</h2>
-          <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-            Every transaction in this block is a parcel, sized by the value it moved: the same squares as the bitmap above. Fly over it, walk its streets and see
-            what has been built.
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-3">
-          <Link href={`/world/${height}`} className={pillPrimary}>
-            Enter world
-          </Link>
-          <Link href={nexusHref(height)} className={pillSecondary}>
-            See it on the map
-          </Link>
-        </div>
-      </div>
+      {!listsBuilds && data.parcelCount === 0 && (
+        <p className="text-sm text-text-2">Builds and parcels on record for {height}.bitmap are listed here once there are any.</p>
+      )}
 
-      {/* Empty land is said once, in Activity above the tabs. */}
+      {/* Empty land is said once, on the Build card above. */}
       {listBuilds && data.objects.length > 0 && (
         <Section title="Built on this block" count={data.objectCount}>
           <ul className="grid gap-3 sm:grid-cols-2">
@@ -570,8 +473,12 @@ function ActivitySection({
   );
 }
 
-/** The Block facts tab: the block hash, its genome and scale, today's stats and the market. */
-function BlockFactsPanel({ data, mined }: { data: BlockPageData; mined: string | null }) {
+/**
+ * The Block facts tab: the block hash, its genome and full scale line, what is
+ * on record (objects, parcel rows, experiences) and the market. Transactions,
+ * size and the mined date are in the hero.
+ */
+function BlockFactsPanel({ data }: { data: BlockPageData }) {
   // From the transaction count the page already has: no block summary, no wait.
   const scale = data.chain ? scaleLineForTxCount(data.chain.txCount) : null;
   return (
@@ -589,11 +496,8 @@ function BlockFactsPanel({ data, mined }: { data: BlockPageData; mined: string |
       )}
       <Section title="Block">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Stat label="Transactions" value={data.chain ? formatNumber(data.chain.txCount) : '—'} />
-          <Stat label="Size" value={data.chain ? formatBytes(data.chain.size) : '—'} />
-          <Stat label="Mined" value={mined ?? '—'} />
           <Stat label="Objects" value={formatNumber(data.objectCount)} />
-          <Stat label="Parcels" value={formatNumber(data.parcelCount)} />
+          <Stat label="Parcels on record" value={formatNumber(data.parcelCount)} />
           <Stat label="Experiences" value={formatNumber(data.experienceCount)} />
         </div>
         {data.chain ? (
@@ -636,14 +540,20 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
     ? { name: shown.name, ...guardianDisplayState(guardianCardState(shown, now), status?.key ?? null, shown, now) }
     : null;
 
-  const mined = data.chain
-    ? new Date(data.chain.timestamp * 1000).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'UTC',
-      })
-    : null;
+  // Order by markup, not CSS: a shown guardian leads; with none, the deed does.
+  const guardianFirst = guardianView.guardian !== null || guardianView.degraded;
+  const guardianCard = (
+    <GuardianCard
+      key="guardian"
+      height={height}
+      view={guardianView}
+      events={events?.events ?? null}
+      now={events?.readAt ?? now}
+      deedKey={status?.key ?? null}
+    />
+  );
+  const deedCard = <DeedCard key="deed" data={data} status={status} />;
+  const cards = guardianFirst ? [guardianCard, deedCard] : [deedCard, guardianCard];
 
   return (
     <main className="bp-dark bg-bg-primary">
@@ -676,15 +586,10 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
 
       <OwnerBar onChainOwner={data.ownership.onChainOwner} registeredOwner={data.ownership.registeredOwner} />
 
-      {/* ── Guardian, then Activity ── */}
-      <div className="mt-10">
-        <GuardianCard
-          height={height}
-          view={guardianView}
-          events={events?.events ?? null}
-          now={events?.readAt ?? now}
-          deedKey={status?.key ?? null}
-        />
+      {/* ── Guardian, Deed, Build (three columns from 1200 px), then Activity ── */}
+      <div className="mt-6 grid gap-[14px] md:mt-8 md:gap-5 min-[1200px]:grid-cols-3" data-testid="block-cards">
+        {cards}
+        <BuildCard data={data} now={now} />
       </div>
 
       <ActivitySection data={data} events={events} />
@@ -700,14 +605,9 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
           panels={{
             world: <WorldPanel data={data} listBuilds={events !== null} />,
             experiences: <ExperiencesPanel data={data} />,
-            facts: <BlockFactsPanel data={data} mined={mined} />,
+            facts: <BlockFactsPanel data={data} />,
           }}
         />
-      </div>
-
-      {/* ── Deed ── */}
-      <div className="mt-10">
-        <DeedPanel data={data} status={status} />
       </div>
     </div>
     </main>
