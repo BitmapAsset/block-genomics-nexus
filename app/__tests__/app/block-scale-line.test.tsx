@@ -1,5 +1,6 @@
 /**
- * The block page's scale line under the map (lib/world-scale):
+ * The block page's scale line (lib/world-scale), in the Block facts tab since
+ * bg98a (the hero carries the short scale chip on the art):
  * "2.1 km × 2.1 km · N parcels · mean lot ≈ M m", from the block's transaction
  * count, which the page already has (`data.chain.txCount`). The page never
  * fetches the block summary for it, so the line does not wait on, or race, a
@@ -28,7 +29,13 @@ jest.mock('@/lib/blockGuardian', () => ({ fetchBlockGuardian: async () => ({ gua
 jest.mock('@/app/(site)/block/[height]/copy-button', () => () => null);
 jest.mock('@/app/(site)/block/[height]/owner-bar', () => () => null);
 jest.mock('@/app/(site)/block/[height]/deed-recheck', () => () => null);
-jest.mock('@/app/(site)/block/[height]/block-tabs', () => () => null);
+jest.mock('@/app/(site)/block/[height]/block-tabs', () =>
+  function BlockTabs(p: { panels: Record<string, React.ReactNode> }) {
+    return <div>{Object.entries(p.panels).map(([k, v]) => <div key={k}>{v}</div>)}</div>;
+  },
+);
+jest.mock('@/context/GlobalWalletContext', () => ({ useGlobalWallet: () => ({ isConnected: false, walletAddress: null }) }));
+jest.mock('qrcode.react', () => ({ QRCodeSVG: () => null }));
 
 import BlockPage from '@/app/(site)/block/[height]/page';
 import * as worldScale from '@/lib/world-scale';
@@ -79,15 +86,17 @@ it('the 612,888 fixture has one parcel per transaction (1,114)', () => {
   expect(FIXTURE.value).toHaveLength(1114);
 });
 
-it('prints the line from chain.txCount, once, right under the block map', async () => {
+it('prints the line from chain.txCount, once, in Block facts under the genome; the hero has the short chip', async () => {
   const html = await render();
   expect(html.split(LINE)).toHaveLength(2);
   // The <img> itself, not React's preload <link> hoisted to the top.
   const img = html.indexOf(`<img src="/api/v1/block-thumbnail/${HEIGHT}.png?v=3`);
+  const genome = html.indexOf('block genome ');
   const line = html.indexOf(LINE);
   expect(img).toBeGreaterThan(-1);
-  expect(line).toBeGreaterThan(img);
-  expect(html.slice(img, line)).not.toContain('<h1');
+  expect(genome).toBeGreaterThan(img);
+  expect(line).toBeGreaterThan(genome);
+  expect(html).toContain('2.1 km × 2.1 km · 1,114 parcels');
 });
 
 it('never calls getBlockSummary', async () => {
