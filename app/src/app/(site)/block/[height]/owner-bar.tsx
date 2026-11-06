@@ -29,7 +29,7 @@ export default function OwnerBar({
       </p>
       <Link
         href="/my-bitmaps"
-        className="inline-flex min-h-[44px] items-center rounded-full bg-bitcoin px-4 text-sm font-semibold text-black hover:brightness-110"
+        className="inline-flex min-h-[44px] items-center rounded-full border border-line-2 bg-surface-3 px-4 text-sm font-medium text-text-1 hover:bg-white/[0.12]"
       >
         Manage in My Bitmaps
       </Link>

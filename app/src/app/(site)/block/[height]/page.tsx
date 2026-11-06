@@ -28,6 +28,7 @@ import GuardianCard from './guardian-card';
 import Hero from './hero';
 import DeedCard from './deed-card';
 import BuildCard from './build-card';
+import PhoneDock from './phone-dock';
 import { guardianCardState, guardianDisplayState } from '@/lib/blockGuardian';
 import { listBlockEvents } from '@/lib/block-events';
 import { scaleLineForTxCount } from '@/lib/world-scale';
@@ -583,7 +584,8 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
 
   return (
     <main className="bp-dark bg-bg-primary">
-    <div className="mx-auto max-w-[1200px] overflow-x-hidden px-4 pb-10 pt-4 md:px-10 md:pb-16 md:pt-6">
+    {/* Below 768 px the bottom padding holds the phone dock's place, so its arrival shifts nothing. */}
+    <div className="mx-auto max-w-[1200px] overflow-x-hidden px-4 pb-[calc(96px+env(safe-area-inset-bottom))] pt-4 md:px-10 md:pb-16 md:pt-6">
       <Link
         href="/explore"
         className="inline-flex min-h-[44px] items-center gap-1.5 text-sm text-text-2 transition-colors hover:text-accent-cyan"
@@ -635,6 +637,7 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
           }}
         />
       </div>
+      <PhoneDock height={height} />
     </div>
     </main>
   );
