@@ -93,14 +93,18 @@ function key(height: number): string {
 /**
  * The fetch the resolver uses: the app's chain User-Agent on every request, and
  * the Basic auth of a configured private ord host (lifted out of its URL by
- * lib/onchain/ord.ts) on requests to that host only.
+ * lib/onchain/ord.ts) on requests to that host only. A request carrying that
+ * Authorization never follows a redirect.
  */
 const chainFetch: typeof fetch = (input, init) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   const headers = new Headers(init?.headers);
   headers.set('User-Agent', CHAIN_USER_AGENT);
   const ord = getOrdHosts()[0];
-  if (ord?.authorization && url.startsWith(`${ord.base}/`)) headers.set('Authorization', ord.authorization);
+  if (ord?.authorization && url.startsWith(`${ord.base}/`)) {
+    headers.set('Authorization', ord.authorization);
+    return fetch(input, { ...init, headers, redirect: 'error' });
+  }
   return fetch(input, { ...init, headers });
 };
 

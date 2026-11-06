@@ -11,7 +11,12 @@
  * a short page or a tx without weight fails the whole fetch: there is no
  * partial block, because one guessed transaction is a different map. The first
  * failed page also aborts every page still in flight.
+ *
+ * Every request refuses redirects and every body is read under a byte cap
+ * (lib/capped-read): a body over its cap is a failed fetch.
  */
+
+import { readCappedJson, readCappedText } from '@/lib/capped-read';
 
 export interface EsploraBlockTxs {
   hash: string;
@@ -34,6 +39,11 @@ interface EsploraTx {
 }
 
 const PAGE = 25;
+
+// Body caps. A txs page carries 25 whole transactions, witnesses included.
+const HASH_MAX_BYTES = 128;
+const BLOCK_MAX_BYTES = 64 * 1024;
+const PAGE_MAX_BYTES = 16 * 1024 * 1024;
 
 /** Most pages one walk reads (6,000 txs); a bigger block keeps its estimate. */
 export const MAX_WALK_PAGES = 240;
@@ -75,15 +85,26 @@ export async function fetchEsploraBlockTxs(
     return ms;
   };
 
-  const hashRes = await fetch(`${host}/block-height/${height}`, { signal: AbortSignal.timeout(Math.min(8000, left())) });
+  const hashRes = await fetch(`${host}/block-height/${height}`, {
+    signal: AbortSignal.timeout(Math.min(8000, left())),
+    redirect: 'error',
+  });
   if (hashRes.status === 404) throw new EsploraBlockNotFound(`No block at height ${height}`);
   if (!hashRes.ok) throw new Error('Failed to fetch block hash');
-  const hash = (await hashRes.text()).trim();
+  const hash = ((await readCappedText(hashRes, HASH_MAX_BYTES)) ?? '').trim();
   if (!/^[0-9a-f]{64}$/i.test(hash)) throw new Error('Bad block hash');
 
-  const blockRes = await fetch(`${host}/block/${hash}`, { signal: AbortSignal.timeout(Math.min(8000, left())) });
+  const blockRes = await fetch(`${host}/block/${hash}`, {
+    signal: AbortSignal.timeout(Math.min(8000, left())),
+    redirect: 'error',
+  });
   if (!blockRes.ok) throw new Error('Failed to fetch block info');
-  const block = (await blockRes.json()) as { tx_count?: number; size?: number; weight?: number; timestamp?: number };
+  const block = ((await readCappedJson(blockRes, BLOCK_MAX_BYTES, 'Block info')) ?? {}) as {
+    tx_count?: number;
+    size?: number;
+    weight?: number;
+    timestamp?: number;
+  };
   const txCount = block.tx_count;
   if (typeof txCount !== 'number' || !Number.isInteger(txCount) || txCount <= 0) throw new Error('Bad tx_count');
 
@@ -98,9 +119,9 @@ export async function fetchEsploraBlockTxs(
       while (!stopped && next < pages) {
         const p = next++;
         const signal = anySignal([walk.signal, AbortSignal.timeout(Math.min(8000, left()))]);
-        const res = await fetch(`${host}/block/${hash}/txs/${p * PAGE}`, { signal });
+        const res = await fetch(`${host}/block/${hash}/txs/${p * PAGE}`, { signal, redirect: 'error' });
         if (!res.ok) throw new Error(`Failed to fetch txs page ${p}`);
-        const page = (await res.json()) as unknown;
+        const page = await readCappedJson(res, PAGE_MAX_BYTES, `Txs page ${p}`);
         const want = Math.min(PAGE, txCount - p * PAGE);
         if (!Array.isArray(page) || page.length !== want) throw new Error(`Short txs page ${p}`);
         txs[p] = page as EsploraTx[];

@@ -10,10 +10,12 @@
  * to one budget every instance shares (OG_SUMMARY_CALLS_PER_MIN, about 60 cold
  * heights a minute); past it the answer is `null`. A height read once is kept
  * in memory, so a page view of a block this server already knows charges
- * nothing. When the limiter cannot count, the read goes ahead.
+ * nothing. When the limiter cannot count, the read goes ahead. Both calls
+ * refuse redirects and read their body under a byte cap; either is `null`.
  */
 
 import { generateGenome } from '@/lib/genome-utils';
+import { readCappedJson, readCappedText } from '@/lib/capped-read';
 import { rateLimitDurable } from '@/lib/rate-limit-db';
 
 const MEMPOOL_API = 'https://mempool.space/api';
@@ -58,20 +60,27 @@ export async function fetchBlockOgSummary(height: number): Promise<BlockOgSummar
 
     const hashRes = await fetch(`${MEMPOOL_API}/block-height/${height}`, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      redirect: 'error',
       next: { revalidate: REVALIDATE_SECONDS },
     });
     if (!hashRes.ok) return null;
 
-    const hash = (await hashRes.text()).trim();
+    const hash = ((await readCappedText(hashRes, 128)) ?? '').trim();
     if (!/^[0-9a-f]{64}$/i.test(hash)) return null;
 
     const blockRes = await fetch(`${MEMPOOL_API}/block/${hash}`, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      redirect: 'error',
       next: { revalidate: REVALIDATE_SECONDS },
     });
     if (!blockRes.ok) return null;
 
-    const block = await blockRes.json();
+    const block = (await readCappedJson(blockRes, 64 * 1024, 'Block info')) as {
+      timestamp: number;
+      tx_count: number;
+      size: number;
+    } | null;
+    if (!block) return null;
 
     const summary: BlockOgSummary = {
       height,

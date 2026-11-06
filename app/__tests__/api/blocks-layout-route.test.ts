@@ -55,7 +55,8 @@ const SUMMARY = FIXTURE.vsize.map((vsize, i) => ({
 }));
 
 const okText = (t: string) => ({ ok: true, status: 200, text: async () => t });
-const okJson = (j: unknown) => ({ ok: true, status: 200, json: async () => j });
+// text() too: bodies are read through a size cap, which reads text.
+const okJson = (j: unknown) => ({ ok: true, status: 200, json: async () => j, text: async () => JSON.stringify(j) });
 
 function mempool({ summary = SUMMARY as unknown, summaryOk = true, hashStatus = 200 } = {}) {
   return jest.fn(async (url: string) => {

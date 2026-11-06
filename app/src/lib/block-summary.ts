@@ -20,9 +20,13 @@
  * negative-cached); past the walk budget the mempool error stands. When the
  * limiter cannot count, the summary goes ahead and the walk does not: the walk
  * is up to MAX_WALK_PAGES calls, so only a counted slot may start one.
+ *
+ * Every request refuses redirects and every body is read under a byte cap
+ * (lib/capped-read): a body over its cap is a failed fetch.
  */
 
 import { EsploraBlockNotFound, fetchEsploraBlockTxs } from '@/lib/block-txs';
+import { readCappedJson, readCappedText } from '@/lib/capped-read';
 import { rateLimitDurable } from '@/lib/rate-limit-db';
 
 /** Esplora host read page by page when mempool's one-call summary cannot be had. */
@@ -94,6 +98,11 @@ const inflight = new Map<number, Promise<BlockSummary>>();
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
+// Body caps: a hash or a tip height, a block's header info, a whole block summary.
+const SHORT_MAX_BYTES = 128;
+const BLOCK_MAX_BYTES = 64 * 1024;
+const SUMMARY_MAX_BYTES = 8 * 1024 * 1024;
+
 /**
  * mempool's summary, else the paged blockstream walk, each charged to its
  * shared budget first. A height mempool says is unmined is not retried.
@@ -120,28 +129,36 @@ async function fetchSummary(height: number): Promise<BlockSummary> {
 async function fetchMempoolSummary(height: number): Promise<BlockSummary> {
   const hashRes = await fetch(`https://mempool.space/api/block-height/${height}`, {
     signal: AbortSignal.timeout(8000),
+    redirect: 'error',
     next: { revalidate: 86400 },
   });
   if (hashRes.status === 404) throw new BlockNotFoundError(height);
   if (!hashRes.ok) throw new Error('Failed to fetch block hash');
-  const hash = (await hashRes.text()).trim();
+  const hash = ((await readCappedText(hashRes, SHORT_MAX_BYTES)) ?? '').trim();
   if (!/^[0-9a-f]{64}$/i.test(hash)) throw new Error('Bad block hash');
 
   // Both lookups need only the hash, so overlap them.
   const [blockRes, summaryRes] = await Promise.all([
     fetch(`https://mempool.space/api/block/${hash}`, {
       signal: AbortSignal.timeout(8000),
+      redirect: 'error',
     }),
     // A 3–4k-tx summary is ~0.6–0.8 MB; keep it out of the Next data cache.
     fetch(`https://mempool.space/api/v1/block/${hash}/summary`, {
       signal: AbortSignal.timeout(8000),
+      redirect: 'error',
       cache: 'no-store',
     }),
   ]);
   if (!blockRes.ok) throw new Error('Failed to fetch block info');
   if (!summaryRes.ok) throw new Error('Failed to fetch block summary');
-  const block = (await blockRes.json()) as { tx_count?: number; size?: number; weight?: number; timestamp?: number };
-  const summary = (await summaryRes.json()) as unknown;
+  const block = ((await readCappedJson(blockRes, BLOCK_MAX_BYTES, 'Block info')) ?? {}) as {
+    tx_count?: number;
+    size?: number;
+    weight?: number;
+    timestamp?: number;
+  };
+  const summary = await readCappedJson(summaryRes, SUMMARY_MAX_BYTES, 'Block summary');
 
   if (!Array.isArray(summary) || summary.length === 0) throw new Error('Empty block summary');
   if (typeof block.tx_count !== 'number' || summary.length !== block.tx_count) {
@@ -247,10 +264,13 @@ export async function getTipHeight(): Promise<number | null> {
   try {
     const res = await fetch('https://mempool.space/api/blocks/tip/height', {
       signal: AbortSignal.timeout(5000),
+      redirect: 'error',
       cache: 'no-store',
     });
     if (!res.ok) return null;
-    const tip = Number((await res.text()).trim());
+    const text = await readCappedText(res, SHORT_MAX_BYTES);
+    if (text === null) return null;
+    const tip = Number(text.trim());
     if (!Number.isSafeInteger(tip) || tip < 0) return null;
     tipMemo = { height: tip, at: now };
     return tip;
