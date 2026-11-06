@@ -2,7 +2,7 @@ import { cache } from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, CloudOff, Inbox } from 'lucide-react';
 import { parseBlockParam } from '@/lib/blockDeepLink';
 import {
   fetchBlockPageData,
@@ -20,7 +20,9 @@ import { formatNumber, hexPairToColor } from '@/lib/genome-utils';
 import CopyButton from './copy-button';
 import BlockTabs from './block-tabs';
 import OwnerBar from './owner-bar';
-import { deedStatus } from './deed-status';
+import { deedStatus, type DeedStatus } from './deed-status';
+import Callout from '@/components/ui/callout';
+import EmptyState from '@/components/ui/empty';
 import ActivityFeed from './activity-feed';
 import GuardianCard from './guardian-card';
 import Hero from './hero';
@@ -406,25 +408,47 @@ function dayOf(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
+/** "Oct 31", UTC. */
+function shortDay(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
 /**
- * Activity, right under the guardian card: the event feed when the event store
- * has events; else what the record holds ("Built here · N objects · last change
- * <date>" and the build list); else one line for empty land. This is the only
- * place the page says nothing has been built.
+ * Activity, under the cards: the event feed when the event store has events;
+ * else what the record holds ("Built here · N objects · last change <date>"
+ * and the build list); else one empty state. While the deed cannot be checked
+ * on Bitcoin, a calm note says the deed checks are paused (never for a
+ * disputed deed).
  */
 function ActivitySection({
   data,
   events,
+  status,
 }: {
   data: BlockPageData;
   events: { events: PublicBlockEvent[]; readAt: number } | null;
+  status: DeedStatus | null;
 }) {
   const builds = [...data.objects].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const lastVerifiedAt = data.ownership.availability?.lastVerifiedAt ?? null;
   return (
     <section className="mt-10" data-testid="block-activity">
-      <div className="mb-5 flex items-baseline gap-3">
-        <h2 className="text-lg font-semibold tracking-tight text-text-primary">Activity</h2>
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="text-[19px] font-semibold tracking-[-0.012em] text-text-1">Activity</h2>
+        {events && <p className="text-[13px] text-text-3">Newest first · signed events carry a proof</p>}
       </div>
+      {status?.key === 'unreachable' && (
+        <Callout
+          tone="warn"
+          icon={<CloudOff size={16} strokeWidth={1.75} aria-hidden="true" />}
+          title="Deed checks are paused."
+          testId="activity-outage"
+          className="mb-4"
+        >
+          {lastVerifiedAt ? `Last check ${shortDay(lastVerifiedAt)}. ` : ''}
+          What&apos;s below was recorded before or doesn&apos;t need a deed check.
+        </Callout>
+      )}
       {events ? (
         <>
           <ActivityFeed events={events.events} now={events.readAt} />
@@ -433,20 +457,22 @@ function ActivitySection({
           </p>
         </>
       ) : builds.length === 0 ? (
-        <Empty>Nothing has been built here yet. Whoever holds the deed can place the first object from the world.</Empty>
+        <EmptyState icon={<Inbox size={18} strokeWidth={1.75} aria-hidden="true" />} title="Nothing has happened here yet" testId="activity-empty">
+          Builds, guardian answers and changes of hands will show up here. Signed events carry a proof.
+        </EmptyState>
       ) : (
         <>
-          <p className="mb-3 text-sm text-text-secondary" data-testid="built-here">
+          <p className="mb-3 text-[14px] text-text-2" data-testid="built-here">
             Built here · {formatNumber(data.objectCount)} object{data.objectCount === 1 ? '' : 's'} · last change{' '}
             {dayOf(builds[0].createdAt)}
           </p>
-          <ol className="divide-y divide-white/[0.06] rounded-2xl border border-white/[0.07] bg-white/[0.02]">
+          <ol className="divide-y divide-line-1 rounded-[20px] border border-line-1 bg-surface-1">
             {builds.map((o) => (
               <li key={o.id} className="flex flex-wrap items-baseline justify-between gap-2 px-5 py-3">
-                <span className="text-sm text-text-primary">
-                  {o.name || 'Untitled'} <span className="text-text-secondary">· {o.objectType}</span>
+                <span className="text-[14.5px] text-text-1">
+                  {o.name || 'Untitled'} <span className="text-text-2">· {o.objectType}</span>
                 </span>
-                <span className="text-xs text-text-secondary">
+                <span className="text-[12.5px] text-text-3">
                   <CreatorTag creator={o.creator} prefix="by" /> · {dayOf(o.createdAt)}
                 </span>
               </li>
@@ -592,7 +618,7 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
         <BuildCard data={data} now={now} />
       </div>
 
-      <ActivitySection data={data} events={events} />
+      <ActivitySection data={data} events={events} status={status} />
 
       {/* ── Tabs ── */}
       <div className="mt-10">
