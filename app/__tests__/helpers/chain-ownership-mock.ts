@@ -157,6 +157,9 @@ export function canonicalDeedFromFixture(opts: { seededRowIsDeed?: boolean } = {
         return { height: h, verdict: d.verdict, source: d.source };
       })),
     ),
+    // The read-only probes the sign-in cap uses: nothing cached, nothing resolving.
+    peekCanonicalDeed: jest.fn(async () => null),
+    isDeedResolving: jest.fn(() => false),
     __resetDeedCacheForTest: () => undefined,
   };
 }
