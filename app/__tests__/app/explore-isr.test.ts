@@ -1,13 +1,11 @@
 /**
  * QA 2026-10-22 #18 (the /explore half): /explore rendered on every hit with
- * `private, no-store`, so a traffic spike was one database read per view. The
- * page now renders per request (CSP nonce) and its reads sit in a 60 s data
- * cache (explore-recent-cache.test.ts). A failed read in production throws, so
- * the page shows its error state rather than the "couldn't be loaded" state.
+ * `private, no-store`, so a traffic spike was one database read per view. It is
+ * now regenerated at most once a minute and served from the cache in between.
+ * A failed read during a production regeneration throws, which makes ISR keep
+ * the last good page rather than cache the "couldn't be loaded" state.
  */
 
-// Pass-through: the data cache itself is covered in explore-recent-cache.test.ts.
-jest.mock('next/cache', () => ({ unstable_cache: (fn: unknown) => fn }));
 const mockFindMany = jest.fn();
 jest.mock('@/lib/prisma', () => ({
   __esModule: true,
@@ -26,12 +24,12 @@ afterEach(() => {
   env.NEXT_PHASE = saved.NEXT_PHASE;
 });
 
-it('has no route-segment revalidate or dynamic export (the 60 s window is a data cache)', () => {
-  expect((explore as Record<string, unknown>).revalidate).toBeUndefined();
+it('is ISR with a 60 s window, not force-dynamic', () => {
+  expect((explore as Record<string, unknown>).revalidate).toBe(60);
   expect((explore as Record<string, unknown>).dynamic).toBeUndefined();
 });
 
-it('throws on a failed read in production (the page shows its error state)', async () => {
+it('throws on a failed read during a production regeneration (ISR keeps the last good page)', async () => {
   env.NODE_ENV = 'production';
   delete env.NEXT_PHASE;
   mockFindMany.mockRejectedValue(new Error('db down'));

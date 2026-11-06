@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import CodeBlock from '../CodeBlock';
 
+export const dynamic = 'force-static';
+
 export const metadata: Metadata = {
   title: 'Experience Hosting: Host a World on Your Bitcoin Block',
   description:

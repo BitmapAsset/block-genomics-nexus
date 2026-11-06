@@ -6,6 +6,8 @@ import { Badge, ResourceLink, linkStyle } from './DocParts';
 import { DOC_PAGES } from './doc-pages';
 import { NPM_CLI, NPM_SDK, RELEASES, openApiVersion } from './docs-content';
 
+export const dynamic = 'force-static';
+
 export const metadata: Metadata = {
   title: 'Developer Docs — Block Genomics (Nexus Protocol)',
   description:

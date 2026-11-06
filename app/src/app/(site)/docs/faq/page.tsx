@@ -4,6 +4,8 @@ import { DOCS_FAQ, DOCS_FAQ_SCHEMA } from '@/lib/seo-schema';
 import { DocPage, P, Section, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 
+export const dynamic = 'force-static';
+
 export const metadata = docMetadata('faq');
 
 export default function FaqPage() {

@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { ConceptCard, DocPage, P, Section, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 
+export const dynamic = 'force-static';
+
 export const metadata = docMetadata('concepts');
 
 export default function ConceptsPage() {

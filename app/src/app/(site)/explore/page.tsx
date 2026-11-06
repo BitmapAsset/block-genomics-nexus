@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { unstable_cache } from "next/cache";
 import prisma from "@/lib/prisma";
 import BitmapThumbnail from "@/components/BitmapThumbnail";
 import GlobalSearch from "@/components/GlobalSearch";
@@ -15,16 +14,17 @@ export const metadata: Metadata = {
   alternates: { canonical: "/explore" },
 };
 
+// Recent blocks are database state. Regenerated at most once a minute and held
+// by the CDN in between (QA 2026-10-22 #18: it used to render on every hit with
+// `private, no-store`). The build machine has no database, so the build bakes
+// the "unavailable" state, which the first regeneration replaces.
+export const revalidate = 60;
+
 const RECENT_LIMIT = 12;
 
-// Recent blocks are database state. The page renders per request (CSP nonce),
-// so the reads sit in a 60 s data cache (QA 2026-10-22 #18: one database read
-// per view is what a traffic spike must not cost). Fresh entry: no read. Stale
-// entry: the last good list at once, refreshed in the background; a failed
-// refresh keeps that list. Only the reads are cached, so a failure is never
-// stored.
-const readRecent = unstable_cache(
-  async () => {
+/** Blocks with an owner on record, newest first: what people verified lately. */
+async function fetchRecent(): Promise<{ blocks: { height: number; label: string | null }[]; onRecord: number; agents: number } | null> {
+  try {
     const [blocks, onRecord, agents] = await Promise.all([
       prisma.block.findMany({
         where: { ownerAddress: { not: null } },
@@ -36,20 +36,10 @@ const readRecent = unstable_cache(
       countVerifiedAgents(),
     ]);
     return { blocks, onRecord, agents };
-  },
-  ["explore-recent"],
-  { revalidate: 60 },
-);
-
-/** Blocks with an owner on record, newest first: what people verified lately. */
-async function fetchRecent(): Promise<{ blocks: { height: number; label: string | null }[]; onRecord: number; agents: number } | null> {
-  try {
-    return await readRecent();
   } catch (e) {
-    // Reached only with no cached list yet (cold entry) and a failed read. In
-    // production that throws, so the page shows its error state rather than
-    // claiming the records are unavailable. The build (no database) and
-    // `next dev` render the "unavailable" state instead.
+    // In production a failed regeneration throws, so ISR keeps serving the
+    // last good page instead of caching the "unavailable" state for a minute.
+    // The build (no database) and `next dev` render that state instead.
     const regenerating = process.env.NODE_ENV === "production" && process.env.NEXT_PHASE !== "phase-production-build";
     if (regenerating) throw e;
     return null;
