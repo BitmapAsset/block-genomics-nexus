@@ -11,7 +11,7 @@
 import { renderBitmapThumbnail } from '@/lib/bitmap-renderer';
 import { completeSatTotals, estimatedSquareSize, logTxSize, txSatsToSizes } from '@/lib/bitmap-layout';
 import { prisma } from '@/lib/prisma';
-import { getBlockSummary, UpstreamBudgetError } from '@/lib/block-summary';
+import { getBlockSummary, getTipHeight, KNOWN_MINED_HEIGHT, UpstreamBudgetError } from '@/lib/block-summary';
 
 /** How the PNG was produced; the route sends it as `X-Thumbnail-Source`. */
 export type ThumbnailSource = 'cache' | 'live' | 'stale-estimated' | 'estimated';
@@ -30,7 +30,20 @@ function getEpoch(height: number): number {
 // rate-limited / not-yet-mined). Avoids re-running the slow mempool fetches on
 // every request for the same height during the window.
 const NEGATIVE_TTL_MS = 60_000;
+const MAX_NEGATIVE = 1_024;
 const negativeCache = new Map<number, number>(); // height → expiry timestamp
+
+/** Remember a failed height; the oldest entry goes past MAX_NEGATIVE. */
+function markFailed(height: number): void {
+  negativeCache.delete(height);
+  negativeCache.set(height, Date.now() + NEGATIVE_TTL_MS);
+  while (negativeCache.size > MAX_NEGATIVE) negativeCache.delete(negativeCache.keys().next().value as number);
+}
+
+/** Test seam: how many heights the negative cache holds. */
+export function __negativeCacheSizeForTest(): number {
+  return negativeCache.size;
+}
 
 function isNegativelyCached(height: number): boolean {
   const expiry = negativeCache.get(height);
@@ -93,6 +106,20 @@ async function renderLive(height: number): Promise<{ png: Buffer; txCount: numbe
   } finally {
     liveRenders--;
   }
+}
+
+/** Confirmations before a render is stored: a block this deep is not reorganised away. */
+const SETTLED_DEPTH = 6;
+
+/**
+ * True when the block at `height` has SETTLED_DEPTH confirmations. Below the
+ * known-mined height that is certain; above it the tip is asked, and an
+ * unreadable tip counts as not settled (the render is served, not stored).
+ */
+async function isSettled(height: number): Promise<boolean> {
+  if (height <= KNOWN_MINED_HEIGHT - SETTLED_DEPTH) return true;
+  const tip = await getTipHeight();
+  return tip !== null && tip - height >= SETTLED_DEPTH;
 }
 
 function longCache(epoch: number): string {
@@ -158,6 +185,7 @@ export async function getBlockThumbnail(height: number): Promise<BlockThumbnail>
     }
     try {
       const { png, txCount } = await renderLive(height);
+      if (!(await isSettled(height))) return { png, cacheControl: SHORT_CACHE, source: 'live' };
       await prisma.blockThumbnail
         .update({
           where: { blockHeight: height },
@@ -166,7 +194,7 @@ export async function getBlockThumbnail(height: number): Promise<BlockThumbnail>
         .catch(() => {}); // the render is still good to serve
       return { png, cacheControl: longCache(epoch), source: 'live' };
     } catch (e) {
-      if (!(e instanceof UpstreamBudgetError)) negativeCache.set(height, Date.now() + NEGATIVE_TTL_MS);
+      if (!(e instanceof UpstreamBudgetError)) markFailed(height);
       return { png: stale, cacheControl: SHORT_CACHE, source: 'stale-estimated' };
     }
   }
@@ -182,9 +210,10 @@ export async function getBlockThumbnail(height: number): Promise<BlockThumbnail>
     return { png: renderBitmapThumbnail(estimateSizes(height), THUMBNAIL_PX), cacheControl: SHORT_CACHE, source: 'estimated' };
   }
 
-  // Generate. Only a render where every tx came from mempool is persisted.
+  // Generate. Only a full render of a settled block is persisted.
   try {
     const { png, txCount } = await renderLive(height);
+    if (!(await isSettled(height))) return { png, cacheControl: SHORT_CACHE, source: 'live' };
     await prisma.blockThumbnail
       .create({
         data: {
@@ -200,7 +229,7 @@ export async function getBlockThumbnail(height: number): Promise<BlockThumbnail>
     // Live fetch failed — negative-cache the height and serve an estimated
     // skeleton so the map tile is populated (and we stop hammering mempool).
     // A spent shared budget is not a failure: the height is tried again later.
-    if (!(e instanceof UpstreamBudgetError)) negativeCache.set(height, Date.now() + NEGATIVE_TTL_MS);
+    if (!(e instanceof UpstreamBudgetError)) markFailed(height);
     return { png: renderBitmapThumbnail(estimateSizes(height), THUMBNAIL_PX), cacheControl: SHORT_CACHE, source: 'estimated' };
   }
 }

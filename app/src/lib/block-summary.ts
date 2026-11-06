@@ -76,7 +76,13 @@ interface StrippedTx {
 // rate-limited / not yet mined), so a burst of requests for the same height
 // does not re-run three mempool calls each during the window.
 const NEGATIVE_TTL_MS = 60_000;
+const MAX_NEGATIVE = 1_024;
 const negativeCache = new Map<number, { expiry: number; notFound: boolean }>();
+
+/** Test seam: how many heights the negative cache holds. */
+export function __negativeCacheSizeForTest(): number {
+  return negativeCache.size;
+}
 
 // Positive cache, bounded. A 4,000-tx block is ~90 KB here, so 64 entries is a
 // few MB per instance at worst. Insertion order doubles as the eviction order.
@@ -200,7 +206,9 @@ export async function getBlockSummary(height: number, maxAgeMs = Infinity): Prom
       } catch (e) {
         // A spent budget is not a failed height: the next caller may try again.
         if (!(e instanceof UpstreamBudgetError)) {
+          negativeCache.delete(height);
           negativeCache.set(height, { expiry: now + NEGATIVE_TTL_MS, notFound: e instanceof BlockNotFoundError });
+          while (negativeCache.size > MAX_NEGATIVE) negativeCache.delete(negativeCache.keys().next().value as number);
         }
         throw e;
       }
