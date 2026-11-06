@@ -74,7 +74,7 @@ describe('client-sent nonce headers never reach a handler', () => {
     expect(policy).toContain(`'nonce-${nonce}'`);
     expect(policy).not.toContain('test-value');
     expect(res.headers.get('content-security-policy-report-only')).toBe(policy);
-    expect(overridden(res)).not.toContain('content-security-policy');
-    expect(res.headers.get('x-middleware-request-content-security-policy')).toBeNull();
+    expect(overridden(res)).toContain('content-security-policy');
+    expect(res.headers.get('x-middleware-request-content-security-policy')).toBe(policy);
   });
 });

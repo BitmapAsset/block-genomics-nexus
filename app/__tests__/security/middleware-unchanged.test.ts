@@ -78,6 +78,9 @@ describe('middleware: answers that do not move', () => {
   ])('%s %s: the middleware never sets the enforced Content-Security-Policy', (method, p) => {
     const res = middleware(request(method, p, method === 'POST' ? { authorization: 'Bearer bg_sbx_fixture' } : {}));
     expect(res.headers.get('content-security-policy')).toBeNull();
-    expect(res.headers.get('x-middleware-request-content-security-policy')).toBeNull();
+    // pages hand rendering the report-only policy on that request header, never the enforced one
+    expect([null, res.headers.get('content-security-policy-report-only')]).toContain(
+      res.headers.get('x-middleware-request-content-security-policy'),
+    );
   });
 });

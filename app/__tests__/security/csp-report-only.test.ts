@@ -87,11 +87,15 @@ describe('pages: report-only policy with a per-request nonce', () => {
     expect(getScriptNonceFromHeader(handed)).toBe(res.headers.get('x-middleware-request-x-nonce'));
   });
 
-  it('a content-security-policy request header from the client does not reach rendering', () => {
+  it('a content-security-policy request header from the client is replaced by the middleware policy', () => {
     const res = middleware(page('/docs', { headers: { 'content-security-policy': "script-src 'nonce-AAAA'" } }));
+    const policy = res.headers.get('content-security-policy-report-only')!;
     const overridden = (res.headers.get('x-middleware-override-headers') ?? '').split(',');
-    expect(overridden).not.toContain('content-security-policy');
-    expect(res.headers.get('x-middleware-request-content-security-policy')).toBeNull();
+    expect(overridden).toContain('content-security-policy');
+    expect(res.headers.get('x-middleware-request-content-security-policy')).toBe(policy);
+    expect(policy).toContain(`'nonce-${res.headers.get('x-middleware-request-x-nonce')}'`);
+    expect(policy).not.toContain("'nonce-AAAA'");
+    // the response carries no content-security-policy from the middleware
     expect(res.headers.get('content-security-policy')).toBeNull();
   });
 });
