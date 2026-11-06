@@ -10,7 +10,7 @@ export interface BlockTab {
 }
 
 /**
- * World · Guardian · Experiences · Activity.
+ * World · Experiences · Block facts (the guardian card and Activity sit above the tabs).
  *
  * Every panel is server-rendered into the HTML (crawlers and no-JS readers get
  * all of it); this only chooses which one shows. The choice lives in `?tab=`

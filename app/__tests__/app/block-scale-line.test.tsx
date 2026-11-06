@@ -1,7 +1,9 @@
 /**
  * The block page's scale line under the map (lib/world-scale):
- * "2.1 km × 2.1 km · N parcels · mean lot ≈ M m", from the block summary, and
- * left out (never an error) when the summary fails or is slow.
+ * "2.1 km × 2.1 km · N parcels · mean lot ≈ M m", from the block's transaction
+ * count, which the page already has (`data.chain.txCount`). The page never
+ * fetches the block summary for it, so the line does not wait on, or race, a
+ * 0.6-0.8 MB download; with no chain stats there is no line.
  */
 
 import fs from 'fs';
@@ -22,20 +24,30 @@ jest.mock('@/lib/blockPageData', () => ({
   ...jest.requireActual('@/lib/blockPageData'),
   fetchBlockPageData: (...a: unknown[]) => mockFetchBlockPageData(...(a as [])),
 }));
-jest.mock('@/lib/blockGuardian', () => ({ fetchBlockGuardian: async () => ({ guardian: null }) }));
+jest.mock('@/lib/blockGuardian', () => ({ fetchBlockGuardian: async () => ({ guardian: null, handle: null, degraded: false }) }));
 jest.mock('@/app/(site)/block/[height]/copy-button', () => () => null);
 jest.mock('@/app/(site)/block/[height]/owner-bar', () => () => null);
 jest.mock('@/app/(site)/block/[height]/deed-recheck', () => () => null);
 jest.mock('@/app/(site)/block/[height]/block-tabs', () => () => null);
 
 import BlockPage from '@/app/(site)/block/[height]/page';
+import * as worldScale from '@/lib/world-scale';
 
 const HEIGHT = 612888;
 const FIXTURE = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', '..', '__fixtures__', 'block-612888-summary.json'), 'utf8'),
 ) as { vsize: number[]; value: number[] };
 
-const pageData = {
+const chain = (txCount: number) => ({
+  height: HEIGHT,
+  hash: HEIGHT.toString(16).padStart(64, '0'),
+  timestamp: 1_577_836_800,
+  txCount,
+  size: 1_250_000,
+  genome: '0123456789abcdef'.repeat(4),
+});
+
+const pageData = (over: Record<string, unknown> = {}) => ({
   height: HEIGHT,
   claimed: false,
   label: null,
@@ -46,43 +58,64 @@ const pageData = {
   parcelCount: 0,
   experiences: [],
   experienceCount: 0,
-  chain: null,
+  chain: chain(FIXTURE.value.length),
   market: null,
   degraded: false,
-};
+  ...over,
+});
 
 const render = async () => renderToStaticMarkup(await BlockPage({ params: Promise.resolve({ height: String(HEIGHT) }) }));
 const LINE = '2.1 km × 2.1 km · 1,114 parcels · mean lot ≈ 63 m';
 
 beforeEach(() => {
   mockGetBlockSummary.mockReset();
+  // A summary that never arrives: the page must not need it.
+  mockGetBlockSummary.mockReturnValue(new Promise(() => {}));
   mockFetchBlockPageData.mockReset();
-  mockFetchBlockPageData.mockResolvedValue(pageData);
+  mockFetchBlockPageData.mockResolvedValue(pageData());
 });
 
-it('prints the scale line once, right under the block map', async () => {
-  mockGetBlockSummary.mockResolvedValue({ height: HEIGHT, vsize: FIXTURE.vsize, value: FIXTURE.value });
+it('the 612,888 fixture has one parcel per transaction (1,114)', () => {
+  expect(FIXTURE.value).toHaveLength(1114);
+});
+
+it('prints the line from chain.txCount, once, right under the block map', async () => {
   const html = await render();
   expect(html.split(LINE)).toHaveLength(2);
-  const img = html.indexOf(`/api/v1/block-thumbnail/${HEIGHT}.png?v=3`);
+  // The <img> itself, not React's preload <link> hoisted to the top.
+  const img = html.indexOf(`<img src="/api/v1/block-thumbnail/${HEIGHT}.png?v=3`);
   const line = html.indexOf(LINE);
   expect(img).toBeGreaterThan(-1);
   expect(line).toBeGreaterThan(img);
   expect(html.slice(img, line)).not.toContain('<h1');
-  expect(mockGetBlockSummary).toHaveBeenCalledWith(HEIGHT);
 });
 
-it('leaves the line out when the summary fails', async () => {
-  mockGetBlockSummary.mockRejectedValue(new Error('mempool down'));
+it('never calls getBlockSummary', async () => {
+  await render();
+  expect(mockGetBlockSummary).not.toHaveBeenCalled();
+});
+
+it('render time does not depend on the summary', async () => {
+  const t0 = Date.now();
+  const html = await render();
+  expect(Date.now() - t0).toBeLessThan(1000);
+  expect(html).toContain(LINE);
+});
+
+it('chain: null → no line', async () => {
+  mockFetchBlockPageData.mockResolvedValue(pageData({ chain: null }));
   const html = await render();
   expect(html).not.toContain('mean lot');
   expect(html).toContain(`${HEIGHT}.bitmap`);
 });
 
-it('leaves the line out when the summary is slow, without holding the page', async () => {
-  mockGetBlockSummary.mockReturnValue(new Promise(() => {}));
-  const t0 = Date.now();
-  const html = await render();
-  expect(Date.now() - t0).toBeLessThan(5000);
-  expect(html).not.toContain('mean lot');
+it('scaleLineForTxCount matches the summary arithmetic', () => {
+  const f = (worldScale as Record<string, unknown>).scaleLineForTxCount as ((n: number) => string) | undefined;
+  expect(typeof f).toBe('function');
+  if (!f) return;
+  expect(f(1114)).toBe(LINE);
+  expect(f(FIXTURE.value.length)).toBe(worldScale.scaleLine(worldScale.districtScaleFrom(HEIGHT, FIXTURE.value)));
+  expect(f(2850)).toBe('2.1 km × 2.1 km · 2,850 parcels · mean lot ≈ 39 m');
+  expect(f(3050)).toBe('2.1 km × 2.1 km · 3,050 parcels · mean lot ≈ 38 m');
+  expect(f(2170)).toBe('2.1 km × 2.1 km · 2,170 parcels · mean lot ≈ 45 m');
 });

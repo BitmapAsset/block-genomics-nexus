@@ -41,7 +41,29 @@ describe('lookupOwnerForRender()', () => {
     lookupOwnerForRender(INSCRIPTION);
     await settle();
 
-    expect(lookupOwnerForRender(INSCRIPTION)).toEqual({ address: ALICE, pending: false });
+    expect(lookupOwnerForRender(INSCRIPTION)).toMatchObject({ address: ALICE, pending: false });
+  });
+
+  it('dates a cached answer with the time it was cached, not the time it is read', async () => {
+    const t0 = Date.UTC(2026, 10, 6, 12, 0, 0);
+    const now = jest.spyOn(Date, 'now').mockReturnValue(t0);
+    try {
+      lookupOwnerForRender(INSCRIPTION);
+      await settle();
+      now.mockReturnValue(t0 + 4 * 60_000);
+      expect(lookupOwnerForRender(INSCRIPTION)).toEqual({
+        address: ALICE,
+        pending: false,
+        checkedAt: new Date(t0).toISOString(),
+      });
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it('a miss carries no time', () => {
+    expect(lookupOwnerForRender(INSCRIPTION).checkedAt ?? null).toBeNull();
+    expect(lookupOwnerForRender(null).checkedAt ?? null).toBeNull();
   });
 
   it('is not pending when there is no inscription — that is a known absence, not a wait', () => {
@@ -83,7 +105,7 @@ describe('lookupOwnerForRender()', () => {
     lookupOwnerForRender(INSCRIPTION);
     await settle();
 
-    expect(lookupOwnerForRender(INSCRIPTION)).toEqual({ address: null, pending: false });
+    expect(lookupOwnerForRender(INSCRIPTION)).toMatchObject({ address: null, pending: false });
   });
 
   it('never rejects when the underlying lookup throws synchronously', () => {

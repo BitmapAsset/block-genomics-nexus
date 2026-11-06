@@ -111,6 +111,11 @@ export interface PublicOwnerResult {
    * indexer is down.
    */
   pending: boolean;
+  /**
+   * When the answer was cached (ISO), on a cache hit. A display dates the holder
+   * with this, never with a later check of another caller.
+   */
+  checkedAt?: string;
 }
 
 /**
@@ -123,7 +128,7 @@ export function lookupOwnerForRender(inscriptionId: string | null): PublicOwnerR
   if (!inscriptionId) return { address: null, pending: false };
 
   const hit = readFresh(inscriptionId, Date.now());
-  if (hit) return { address: hit.address, pending: false };
+  if (hit) return { address: hit.address, pending: false, checkedAt: new Date(hit.ts).toISOString() };
 
   scheduleWarm(inscriptionId);
   return { address: null, pending: true };

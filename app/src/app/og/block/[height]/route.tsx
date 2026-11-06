@@ -232,7 +232,8 @@ export async function GET(
 
             {/* The deed. Ownership is the headline fact about a block, so it sits
                 with the title rather than down in the stat row. "HELD BY" only
-                when the chain confirmed our record; otherwise it is our record. */}
+                when the canonical deed's cached holder equals our record (the
+                deed rule, as on the page); otherwise it is our record. */}
             <div style={{ display: 'flex', alignItems: 'center', marginTop: 16 }}>
               {facts.owner ? (
                 <>

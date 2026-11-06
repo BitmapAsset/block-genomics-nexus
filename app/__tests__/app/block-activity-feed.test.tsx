@@ -1,8 +1,9 @@
 /**
- * The block page's Activity tab (Living Block L1, gap G5): real `bg-event/1`
- * events with time and proof links when the event store answers; exactly
- * today's build list otherwise (flag off, migration not applied, no events yet,
- * or a read error).
+ * The block page's Activity section (Living Block L1, gap G5): real
+ * `bg-event/1` events with time and proof links when the event store answers;
+ * the dark build list under "Built here" otherwise (flag off, migration not
+ * applied, no events yet, or a read error). Since bg95 the section sits under
+ * the guardian card, above the tabs.
  */
 
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -21,12 +22,12 @@ jest.mock('@/lib/blockPageData', () => ({
 }));
 jest.mock('@/lib/blockGuardian', () => ({ fetchBlockGuardian: async () => ({ guardian: null }) }));
 
-// Client islands. The tab strip renders only the Activity panel, so the test
-// reads exactly what that tab shows.
+// Client islands. The tab strip renders nothing, so the test reads the
+// Activity section (and the rest of the page above the tabs).
 jest.mock('@/app/(site)/block/[height]/copy-button', () => () => null);
 jest.mock('@/app/(site)/block/[height]/owner-bar', () => () => null);
 jest.mock('@/app/(site)/block/[height]/deed-recheck', () => () => null);
-jest.mock('@/app/(site)/block/[height]/block-tabs', () => (p: { panels: Record<string, unknown> }) => p.panels.activity);
+jest.mock('@/app/(site)/block/[height]/block-tabs', () => () => null);
 
 import BlockPage from '@/app/(site)/block/[height]/page';
 import ActivityFeed, { relativeTime } from '@/app/(site)/block/[height]/activity-feed';
@@ -110,7 +111,7 @@ describe('ActivityFeed', () => {
   });
 });
 
-describe('the Activity tab on /block/[height]', () => {
+describe('the Activity section on /block/[height]', () => {
   it('reads the latest 30 events and shows them instead of the build list', async () => {
     mockListBlockEvents.mockResolvedValue({ format: 'bg-event/1', enabled: true, block: HEIGHT, events: [event(1), event(2)], lastSeq: 2, hasMore: false });
     const html = await render();
@@ -124,10 +125,11 @@ describe('the Activity tab on /block/[height]', () => {
   it.each([
     ['flag off / table missing', { format: 'bg-event/1', enabled: false, events: [] }],
     ['no events yet', { format: 'bg-event/1', enabled: true, block: HEIGHT, events: [], lastSeq: 0, hasMore: false }],
-  ])('%s → exactly today’s build list', async (_label, page) => {
+  ])('%s → the dark build list', async (_label, page) => {
     mockListBlockEvents.mockResolvedValue(page);
     const html = await render();
-    expect(html).toContain('>Builds<');
+    expect(html).toContain('>Activity<');
+    expect(html).toContain('Built here · 1 object · last change Oct 1, 2026');
     expect(html).toContain('Old Lantern');
     expect(html).not.toContain('proof ↗');
   });
