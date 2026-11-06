@@ -72,14 +72,18 @@ export function middleware(req: NextRequest) {
 
   // ── Pages: report-only policy with a per-request nonce ──
   // Next puts the nonce it finds in the request's CSP header on its own
-  // <script> tags while it renders (app-render reads `content-security-policy`,
-  // then `content-security-policy-report-only`); `x-nonce` is for app code.
-  // Request headers never reach the browser. A `content-security-policy`
-  // request header from the client is dropped so it cannot win that lookup.
+  // <script> tags while it renders (app-render reads `content-security-policy`
+  // first, then `content-security-policy-report-only`); `x-nonce` is for app
+  // code. Both request CSP headers carry this policy, so whichever one Next
+  // reads, and whatever the host does with request headers left out of the
+  // override, the nonce is this one; a client-sent value is replaced.
+  // Request headers never reach the browser: the response carries only the
+  // report-only header set below and the one enforced CSP from next.config.ts
+  // and vercel.json.
   const nonce = createNonce();
   const policy = buildReportOnlyPolicy(nonce);
   const requestHeaders = new Headers(req.headers);
-  requestHeaders.delete('content-security-policy');
+  requestHeaders.set('content-security-policy', policy);
   requestHeaders.set('content-security-policy-report-only', policy);
   requestHeaders.set('x-nonce', nonce);
   const res = NextResponse.next({ request: { headers: requestHeaders } });
