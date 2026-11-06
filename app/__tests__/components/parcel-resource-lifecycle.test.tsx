@@ -14,7 +14,7 @@ import * as THREE from 'three';
 
 const source = fs.readFileSync(path.join(__dirname, '../../src/components/nexus/ParcelView.tsx'), 'utf8');
 const ast = ts.createSourceFile('ParcelView.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-const names = new Set(['GridLines', 'ParcelTextureOverlay', 'generatePatternTexture', 'EstateShape', 'ViewerMemoryWatchdog']);
+const names = new Set(['GridLines', 'ParcelTextureOverlay', 'generatePatternTexture', 'EstateShape', 'ViewerMemoryWatchdog', 'GroundPlane']);
 const renderer = {info: {memory: {geometries: 10, textures: 2}}};
 const bodies = ast.statements.filter(node =>
   (ts.isFunctionDeclaration(node) && node.name && names.has(node.name.text)) ||
@@ -29,8 +29,9 @@ const useThree = () => ({gl: renderer});
 const Html = 'div';
 const estateOwnerLabel = () => 'Owner';
 ${js}
-return {GridLines, ParcelTextureOverlay, EstateShape, ViewerMemoryWatchdog};
+return {GridLines, ParcelTextureOverlay, EstateShape, ViewerMemoryWatchdog, GroundPlane};
 `)(React, THREE, renderer) as {
+  GroundPlane: (props: {viewMode: string}) => React.ReactElement;
   EstateShape: (props: Record<string, unknown>) => React.ReactElement;
   ViewerMemoryWatchdog: (props: {placementRevision: string}) => null;
   GridLines: () => React.ReactElement;
@@ -38,6 +39,15 @@ return {GridLines, ParcelTextureOverlay, EstateShape, ViewerMemoryWatchdog};
 };
 
 afterEach(() => jest.restoreAllMocks());
+
+it('releases the ground shader when changing street mode and on unmount', () => {
+  const dispose = jest.spyOn(THREE.Material.prototype, 'dispose');
+  const {rerender, unmount} = renderHook(props => components.GroundPlane(props), {initialProps: {viewMode: 'flat'}});
+  rerender({viewMode: 'street'});
+  expect(dispose).toHaveBeenCalledTimes(1);
+  unmount();
+  expect(dispose).toHaveBeenCalledTimes(2);
+});
 
 it('keeps grid GPU geometry stable for 100 parent renders and disposes it on unmount', () => {
   const made: THREE.BufferGeometry[] = [];
