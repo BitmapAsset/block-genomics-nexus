@@ -2,6 +2,7 @@ import { cache } from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { NEXUS_PATH, applyBlockParam, parseBlockParam } from '@/lib/blockDeepLink';
 import {
   fetchBlockPageData,
@@ -14,18 +15,18 @@ import {
 import { fetchBlockGuardian } from '@/lib/blockGuardian';
 import { isAboveTip } from '@/lib/block-summary';
 import type { BlockMarket } from '@/lib/marketplace';
-import { EPOCH_LABELS, getEpochColor, getEpochIndex } from '@/lib/bitmapStandard';
+import { epochLabelFor } from '@/lib/bitmapStandard';
 import { formatBytes, formatNumber, hexPairToColor } from '@/lib/genome-utils';
 import CopyButton from './copy-button';
 import BlockTabs from './block-tabs';
 import OwnerBar from './owner-bar';
-import DeedRecheck from './deed-recheck';
-import { deedStatus, type DeedStatus, type DeedTone } from './deed-status';
+import { deedStatus, type DeedStatus } from './deed-status';
 import ActivityFeed from './activity-feed';
 import GuardianCard from './guardian-card';
+import Hero from './hero';
+import { guardianCardState } from '@/lib/blockGuardian';
 import { listBlockEvents } from '@/lib/block-events';
 import { scaleLineForTxCount } from '@/lib/world-scale';
-import { bitmapThumbnailUrl } from '@/lib/bitmap-layout';
 import type { PublicBlockEvent } from '@/lib/block-event-core';
 
 /**
@@ -65,10 +66,6 @@ function nexusHref(height: number): string {
   return `${NEXUS_PATH}${applyBlockParam('', height)}`;
 }
 
-function epochFor(height: number) {
-  return EPOCH_LABELS[getEpochIndex(height)] ?? EPOCH_LABELS[EPOCH_LABELS.length - 1];
-}
-
 export async function generateMetadata({
   params,
 }: {
@@ -83,7 +80,7 @@ export async function generateMetadata({
 
   const [unmined, data] = await Promise.all([isUnmined(height), getBlockData(height)]);
   if (unmined) notFound();
-  const epoch = epochFor(height);
+  const epoch = epochLabelFor(height);
 
   const title = `Block ${formatNumber(height)} — ${height}.bitmap | Block Genomics`;
   const description = `${describeBlock(data)}. ${epoch.label}, a 2.1km × 2.1km district of sovereign digital land in The Nexus, anchored to Bitcoin block ${formatNumber(height)}.`;
@@ -195,37 +192,6 @@ function GenomeStrip({ genome }: { genome: string }) {
         />
       ))}
     </div>
-  );
-}
-
-const DEED_TONE_CLASS: Record<DeedTone, string> = {
-  verified: 'bg-success/10 text-ok-text',
-  neutral: 'bg-surface-2 text-text-2',
-  outage: 'bg-warn-soft text-warn-text',
-};
-
-/**
- * The deed chip in the identity line: one short phrase from `deedStatus`, or
- * "Not on Block Genomics" for an unclaimed block. Green only when the deed
- * rule's canonical deed answered and matches the record. Wraps rather than
- * truncates on a narrow screen.
- */
-function DeedChip({ data, status }: { data: BlockPageData; status: DeedStatus | null }) {
-  const text = status
-    ? status.badge
-    : data.degraded
-      ? 'Ownership unavailable'
-      : 'Not on Block Genomics';
-  const tone: DeedTone = status ? status.tone : 'neutral';
-  return (
-    <span
-      className={`inline-block max-w-full rounded-2xl px-3 py-1 text-xs font-medium leading-5 ${DEED_TONE_CLASS[tone]}`}
-      data-testid="deed-chip"
-      data-tone={tone}
-      data-state={status ? status.key : data.degraded ? 'degraded' : 'not-on-block-genomics'}
-    >
-      {text}
-    </span>
   );
 }
 
@@ -604,10 +570,23 @@ function ActivitySection({
   );
 }
 
-/** The Block facts tab: today's stats, the block hash and the market. */
+/** The Block facts tab: the block hash, its genome and scale, today's stats and the market. */
 function BlockFactsPanel({ data, mined }: { data: BlockPageData; mined: string | null }) {
+  // From the transaction count the page already has: no block summary, no wait.
+  const scale = data.chain ? scaleLineForTxCount(data.chain.txCount) : null;
   return (
     <>
+      {data.chain && (
+        <div className="mb-8">
+          <GenomeStrip genome={data.chain.genome} />
+          <p className="mt-2 break-all font-mono text-[11px] text-text-2">block genome {data.chain.genome.slice(0, 32)}…</p>
+          {scale && (
+            <p className="mt-2 text-xs text-text-2 tabular-nums" data-testid="block-scale-line">
+              {scale}
+            </p>
+          )}
+        </div>
+      )}
       <Section title="Block">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Stat label="Transactions" value={data.chain ? formatNumber(data.chain.txCount) : '—'} />
@@ -618,7 +597,10 @@ function BlockFactsPanel({ data, mined }: { data: BlockPageData; mined: string |
           <Stat label="Experiences" value={formatNumber(data.experienceCount)} />
         </div>
         {data.chain ? (
-          <p className="mt-3 break-all font-mono text-xs text-text-secondary">{data.chain.hash}</p>
+          <div className="mt-3 flex items-center gap-2">
+            <p className="min-w-0 break-all font-mono text-xs text-text-2" data-testid="block-hash">{data.chain.hash}</p>
+            <CopyButton text={data.chain.hash} label="block hash" iconOnly className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text-2 hover:bg-surface-3 hover:text-text-1" />
+          </div>
         ) : (
           <p className="mt-3 text-sm text-text-secondary">Chain stats couldn&apos;t be loaded right now.</p>
         )}
@@ -647,12 +629,10 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
     latestEvents(height),
   ]);
   const now = Date.now();
-  const epoch = epochFor(height);
-  const epochColor = getEpochColor(height);
-  // From the transaction count the page already has: no block summary, no wait.
-  const scale = data.chain ? scaleLineForTxCount(data.chain.txCount) : null;
   // A deed state only for a block on record; an unclaimed one gets its own chip.
   const status = displayOwner(data.ownership) ? deedStatus(data.ownership, now) : null;
+  const shown = guardianView.guardian;
+  const guardianState = shown ? { name: shown.name, ...guardianCardState(shown, now), tone: 'neutral' as const } : null;
 
   const mined = data.chain
     ? new Date(data.chain.timestamp * 1000).toLocaleDateString('en-US', {
@@ -663,109 +643,36 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
       })
     : null;
 
-  const facts = [
-    mined ? { label: 'Mined', value: mined } : null,
-    data.chain ? { label: 'Transactions', value: formatNumber(data.chain.txCount) } : null,
-    data.chain ? { label: 'Size', value: formatBytes(data.chain.size) } : null,
-  ].filter((f): f is { label: string; value: string } => f !== null);
-
   return (
-    <main className="mx-auto max-w-5xl overflow-x-hidden px-5 py-8 sm:px-8 sm:py-12">
+    <main className="bp-dark bg-bg-primary">
+    <div className="mx-auto max-w-[1200px] overflow-x-hidden px-4 pb-10 pt-4 md:px-10 md:pb-16 md:pt-6">
       <Link
         href="/explore"
-        className="inline-flex min-h-[44px] items-center text-sm text-text-secondary transition-colors hover:text-accent-cyan"
+        className="inline-flex min-h-[44px] items-center gap-1.5 text-sm text-text-2 transition-colors hover:text-accent-cyan"
       >
-        ← Explore
+        <ArrowLeft size={15} strokeWidth={1.75} aria-hidden="true" />
+        Explore
       </Link>
 
       {data.chain === null && (
         <p
-          className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-sm text-text-secondary"
+          className="mt-4 rounded-[14px] border border-line-1 bg-surface-1 px-4 py-3 text-sm text-text-2"
           data-testid="chain-banner"
         >
           Bitcoin data is unreachable right now; block facts are missing on this view.
         </p>
       )}
 
-      {/* ── Hero: identity first, then the map (one column on a phone) ── */}
-      <header className="mt-4 grid gap-8 md:grid-cols-[minmax(0,320px)_1fr] md:items-center">
-        <div className="min-w-0 md:order-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className="rounded-full border px-3 py-1 text-xs font-medium"
-              style={{ borderColor: epochColor, color: epochColor }}
-            >
-              {epoch.label} · {epoch.sub}
-            </span>
-            {data.label && (
-              <span className="rounded-full bg-white/[0.06] px-3 py-1 text-xs text-text-primary">{data.label}</span>
-            )}
-          </div>
-          <p className="mt-5 text-[11px] font-medium uppercase tracking-[0.28em] text-text-secondary">Bitcoin block</p>
-          <h1 className="mt-1 text-6xl font-semibold tracking-[-0.03em] text-text-primary tabular-nums sm:text-7xl">
-            {formatNumber(height)}
-          </h1>
-          <p className="mt-2 font-mono text-xl text-bitcoin">{height}.bitmap</p>
-
-          {facts.length > 0 && (
-            <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-3">
-              {facts.map((f) => (
-                <div key={f.label}>
-                  <dt className="text-xs text-text-secondary">{f.label}</dt>
-                  <dd className="mt-0.5 text-sm font-medium tabular-nums text-text-primary">{f.value}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <DeedChip data={data} status={status} />
-          </div>
-          <DeedRecheck pending={data.ownership.checkPending} />
-
-          {data.chain && (
-            <div className="mt-5">
-              <GenomeStrip genome={data.chain.genome} />
-              <p className="mt-2 break-all font-mono text-[11px] text-text-secondary">
-                block genome {data.chain.genome.slice(0, 32)}…
-              </p>
-            </div>
-          )}
-
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Link href={`/world/${height}`} className={pillPrimary}>
-              Enter world
-            </Link>
-            <CopyButton text={`/block/${height}`} label="link" />
-          </div>
-        </div>
-
-        {/* Bitmap art: server-rendered PNG, cached per height */}
-        <div className="w-full max-w-[320px] md:order-1">
-          {/* eslint-disable-next-line @next/next/no-img-element -- dynamic API PNG, already cached server-side */}
-          <img
-            src={bitmapThumbnailUrl(height)}
-            alt={`${height}.bitmap`}
-            width={256}
-            height={256}
-            className="aspect-square w-full max-w-[320px] rounded-2xl border border-white/[0.08] bg-[#1d1f31]"
-          />
-          {scale && (
-            <p className="mt-2 text-xs text-text-secondary tabular-nums" data-testid="block-scale-line">
-              {scale}
-            </p>
-          )}
-        </div>
-      </header>
-
-      <OwnerBar onChainOwner={data.ownership.onChainOwner} registeredOwner={data.ownership.registeredOwner} />
-
       {data.degraded && (
-        <p className="mt-8 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-sm text-text-secondary">
+        <p className="mt-4 rounded-[14px] border border-line-1 bg-surface-1 px-4 py-3 text-sm text-text-2" data-testid="degraded-banner">
           Some data could not be loaded right now, so builds and ownership may be incomplete on this
           view. The block itself is unaffected.
         </p>
       )}
+
+      <Hero data={data} status={status} guardian={guardianState} guardianDegraded={guardianView.degraded} now={now} />
+
+      <OwnerBar onChainOwner={data.ownership.onChainOwner} registeredOwner={data.ownership.registeredOwner} />
 
       {/* ── Guardian, then Activity ── */}
       <div className="mt-10">
@@ -794,6 +701,7 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
       <div className="mt-10">
         <DeedPanel data={data} status={status} />
       </div>
+    </div>
     </main>
   );
 }
