@@ -14,7 +14,9 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 // The wallet context pulls in the wallet SDKs (ESM); the sheet only needs `isConnected`.
 jest.mock('@/context/GlobalWalletContext', () => ({ useGlobalWallet: () => ({ isConnected: false, walletAddress: null }) }));
 
-import { GuardianAction } from '@/app/(site)/block/[height]/guardian-sheet';
+import fs from 'fs';
+import path from 'path';
+import { GuardianAction } from '@/app/(site)/block/[height]/guardian-action';
 
 const HEIGHT = 720143;
 const NAME = 'Atlas';
@@ -51,12 +53,27 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-function open(mode: 'talk' | 'message') {
+/** Clicks the card's trigger and waits for the sheet, which loads on first open. */
+async function open(mode: 'talk' | 'message') {
   render(<GuardianAction height={HEIGHT} name={NAME} mode={mode} />);
   const trigger = screen.getByRole('button', { name: mode === 'talk' ? `Talk to ${NAME}` : `Leave a message for ${NAME}` });
   expect(trigger.getAttribute('data-action')).toBe(mode);
   fireEvent.click(trigger);
+  await screen.findByRole('textbox');
 }
+
+describe('first load', () => {
+  it('the trigger module loads the sheet, the dialog and the chat helper only when someone opens it', () => {
+    const P = path.join(__dirname, '..', '..', 'src', 'app', '(site)', 'block', '[height]');
+    const src = fs.readFileSync(path.join(P, 'guardian-action.tsx'), 'utf8');
+    // Type-only imports are erased at build time and load nothing.
+    const staticImports = [...src.matchAll(/^import (?!type )[^;]*from '([^']+)';/gm)].map((m) => m[1]);
+    for (const lazy of ['./guardian-sheet', '@/components/ui/sheet', '@/lib/guardian-chat']) expect(staticImports).not.toContain(lazy);
+    expect(src).toMatch(/dynamic\(\s*\(\)\s*=>\s*import\('\.\/guardian-sheet'\)/);
+    const card = fs.readFileSync(path.join(P, 'guardian-card.tsx'), 'utf8');
+    expect(card).not.toMatch(/from '\.\/guardian-sheet'/);
+  });
+});
 
 const box = () => screen.getByRole('textbox') as HTMLTextAreaElement;
 const send = () => screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement;
@@ -76,8 +93,8 @@ function pageOwnText(): string {
 }
 
 describe('the compose box', () => {
-  it('1,000 characters can be sent; 1,001 cannot, with a hint', () => {
-    open('talk');
+  it('1,000 characters can be sent; 1,001 cannot, with a hint', async () => {
+    await open('talk');
     fireEvent.change(box(), { target: { value: 'a'.repeat(1000) } });
     expect(send().disabled).toBe(false);
     expect(document.body.textContent).toContain('1,000 / 1,000');
@@ -88,8 +105,8 @@ describe('the compose box', () => {
     expect(document.body.textContent).toContain('Shorten it by 5 characters');
   });
 
-  it('says to keep private details out', () => {
-    open('message');
+  it('says to keep private details out', async () => {
+    await open('message');
     expect(document.body.textContent).toContain('Keep private details to yourself.');
   });
 });
@@ -97,7 +114,7 @@ describe('the compose box', () => {
 describe('each answer, said by the page', () => {
   it('talk: the answer is a bubble', async () => {
     fetchMock.mockResolvedValue(reply(200, { response: 'The pond is to the north.', source: 'llm', conversationId: 'c1' }));
-    open('talk');
+    await open('talk');
     await say('Where is the pond?');
     expect(await screen.findByText('The pond is to the north.')).toBeTruthy();
     expect(screen.getByText('Where is the pond?')).toBeTruthy();
@@ -106,7 +123,7 @@ describe('each answer, said by the page', () => {
 
   it('talk: a proxy failure is a system line, no bubble', async () => {
     fetchMock.mockResolvedValue(reply(200, { response: '[No response from AI]', source: 'llm', conversationId: 'c1' }));
-    open('talk');
+    await open('talk');
     await say('Hi');
     expect(await screen.findByText(`${NAME} couldn't answer right now.`)).toBeTruthy();
     expect(document.body.textContent).not.toContain('No response from AI');
@@ -115,7 +132,7 @@ describe('each answer, said by the page', () => {
 
   it('message: an escalation shows the sent copy and none of the server string', async () => {
     fetchMock.mockResolvedValue(reply(200, { response: 'Forwarded to the owner \u{1F4E8}', source: 'escalation', conversationId: 'c1' }));
-    open('message');
+    await open('message');
     await say('Please get in touch');
     expect(await screen.findByText(/^Sent/)).toBeTruthy();
     expect(document.body.textContent).toContain(`Sent · Your message went to ${NAME}'s holder. Replies don't show on this page yet.`);
@@ -125,14 +142,14 @@ describe('each answer, said by the page', () => {
 
   it('message: a canned answer is shown as a bubble', async () => {
     fetchMock.mockResolvedValue(reply(200, { response: 'Opening hours are posted at the gate.', source: 'auto-response', conversationId: 'c1' }));
-    open('message');
+    await open('message');
     await say('When are you open?');
     expect(await screen.findByText('Opening hours are posted at the gate.')).toBeTruthy();
   });
 
   it('404: not taking messages', async () => {
     fetchMock.mockResolvedValue(reply(404, { error: 'No active guardian on this block' }));
-    open('talk');
+    await open('talk');
     await say('Hi');
     expect(await screen.findByText(`${NAME} isn't taking messages right now.`)).toBeTruthy();
     expect(pageOwnText()).not.toMatch(EMOJI);
@@ -140,7 +157,7 @@ describe('each answer, said by the page', () => {
 
   it('429 without Retry-After: no clock time', async () => {
     fetchMock.mockResolvedValue(reply(429, { error: 'Rate limited' }));
-    open('talk');
+    await open('talk');
     await say('Hi');
     expect(await screen.findByText(`${NAME} has had a lot of messages this hour. Try again later.`)).toBeTruthy();
     expect(document.body.textContent).not.toContain('You can try again at');
@@ -149,14 +166,14 @@ describe('each answer, said by the page', () => {
 
   it('429 with Retry-After: the clock time', async () => {
     fetchMock.mockResolvedValue(reply(429, { error: 'Rate limited' }, { 'retry-after': '300' }));
-    open('talk');
+    await open('talk');
     await say('Hi');
     expect(await screen.findByText(/You can try again at \d{1,2}:\d{2}/)).toBeTruthy();
   });
 
   it('a server error: one plain line and Try again, which resends', async () => {
     fetchMock.mockResolvedValueOnce(reply(500, { error: 'Chat failed' }));
-    open('talk');
+    await open('talk');
     await say('Hi');
     expect(await screen.findByText('Something went wrong. Try again.')).toBeTruthy();
     expect(pageOwnText()).not.toMatch(EMOJI);
@@ -169,12 +186,12 @@ describe('each answer, said by the page', () => {
   });
 
   it('no answer in 40 s: the error line', async () => {
-    jest.useFakeTimers();
     fetchMock.mockImplementation(
       (_u: string, init: { signal: AbortSignal }) =>
         new Promise((_r, rej) => init.signal.addEventListener('abort', () => rej(new Error('aborted')))),
     );
-    open('talk');
+    await open('talk');
+    jest.useFakeTimers();
     await say('Hi');
     await act(async () => {
       jest.advanceTimersByTime(40_000);
