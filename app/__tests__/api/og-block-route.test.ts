@@ -2,9 +2,10 @@
  * `GET /og/block/[height]` — the 1200×630 share card X and the other unfurlers
  * fetch for `/block/[height]`.
  *
- * A card is only cached long when it carries real bitmap art. A card rendered
- * without art (thumbnail failed or timed out) or with estimated art gets a
- * one-minute cache, so a CDN cannot pin an art-less card for a week. The header
+ * A card is only cached long when it carries real bitmap art and the chain
+ * stats. A card rendered without art (thumbnail failed or timed out), with
+ * estimated art, or without the chain stats (mempool.space unread) gets a
+ * one-minute cache, so a CDN cannot pin an incomplete card for a week. The header
  * is the route's alone: next.config.ts must not carry an /og/ entry, because a
  * config entry overrides a Cache-Control the handler set.
  *
@@ -24,8 +25,17 @@ jest.mock('next/og', () => ({
   },
 }));
 
+const OG_SUMMARY = {
+  height: 840000,
+  hash: '0'.repeat(64),
+  timestamp: 1_713_571_767,
+  txCount: 3050,
+  size: 2_325_617,
+  genome: 'a'.repeat(64),
+};
+const mockOgSummary = jest.fn(async () => OG_SUMMARY as typeof OG_SUMMARY | null);
 jest.mock('@/lib/blockOgData', () => ({
-  fetchBlockOgSummary: async () => null,
+  fetchBlockOgSummary: () => mockOgSummary(),
 }));
 
 jest.mock('@/lib/blockPageData', () => ({
@@ -79,6 +89,7 @@ beforeEach(() => {
   limiter.reset();
   mockThumbnail.mockReset();
   mockImageResponse.mockReset();
+  mockOgSummary.mockReset().mockResolvedValue(OG_SUMMARY);
 });
 
 afterEach(() => {
@@ -113,6 +124,26 @@ describe('GET /og/block/[height] Cache-Control', () => {
   it.each(['estimated', 'stale-estimated'])('caches a card with %s art for one minute', async (source) => {
     mockThumbnail.mockResolvedValue(thumbnail(source));
     expect(await cacheControlFor('123457')).toBe(SHORT);
+  });
+});
+
+describe('GET /og/block/[height] Cache-Control and the chain stats', () => {
+  it.each(['cache', 'live'])('caches a card with real (%s) art but no chain stats for one minute', async (source) => {
+    mockThumbnail.mockResolvedValue(thumbnail(source));
+    mockOgSummary.mockResolvedValue(null);
+    expect(await cacheControlFor('840000')).toBe(SHORT);
+  });
+
+  it('caches a card with real art and the chain stats long', async () => {
+    mockThumbnail.mockResolvedValue(thumbnail('cache'));
+    mockOgSummary.mockResolvedValue(OG_SUMMARY);
+    expect(await cacheControlFor('840000')).toBe(LONG);
+  });
+
+  it('caches a card with the chain stats but no art for one minute', async () => {
+    mockThumbnail.mockRejectedValue(new Error('render failed'));
+    mockOgSummary.mockResolvedValue(OG_SUMMARY);
+    expect(await cacheControlFor('840000')).toBe(SHORT);
   });
 });
 
