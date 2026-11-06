@@ -3,6 +3,28 @@ import prisma from '@/lib/prisma';
 import { verifySignedAction } from '@/lib/signed-action';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
+import { isValidBitcoinAddress } from '@/lib/api-helpers';
+
+/** What GET answers when no row exists yet: the row's shape with its default values. Nothing is stored. */
+function defaultState(blockHeight: number, walletAddress: string) {
+  return {
+    id: null,
+    blockHeight,
+    walletAddress,
+    score: 0,
+    xp: 0,
+    level: 1,
+    coins: 0,
+    collected: null,
+    questProgress: null,
+    achievements: null,
+    inventory: null,
+    totalTimeMs: 0,
+    lastVisit: null,
+    createdAt: null,
+    updatedAt: null,
+  };
+}
 
 export async function GET(req: NextRequest) {
   const rl = await enforceRateLimit(req, { bucket: 'v1-game-state' });
@@ -11,19 +33,15 @@ export async function GET(req: NextRequest) {
   try {
     const blockHeight = parseBlockHeight(req.nextUrl.searchParams.get('blockHeight'));
     const wallet = req.nextUrl.searchParams.get('wallet') || '';
-    if (blockHeight === null || !wallet) return NextResponse.json({ error: 'A valid blockHeight and wallet are required' }, { status: 400 });
+    if (blockHeight === null || !wallet || !isValidBitcoinAddress(wallet)) {
+      return NextResponse.json({ error: 'A valid blockHeight and wallet are required' }, { status: 400 });
+    }
 
-    let state = await prisma.gameState.findUnique({
+    const state = await prisma.gameState.findUnique({
       where: { blockHeight_walletAddress: { blockHeight, walletAddress: wallet } },
     });
 
-    if (!state) {
-      state = await prisma.gameState.create({
-        data: { blockHeight, walletAddress: wallet },
-      });
-    }
-
-    return NextResponse.json({ state });
+    return NextResponse.json({ state: state ?? defaultState(blockHeight, wallet) });
   } catch (err) {
     console.error('[GameState GET]', err);
     return NextResponse.json({ error: 'Failed to fetch game state' }, { status: 500 });
