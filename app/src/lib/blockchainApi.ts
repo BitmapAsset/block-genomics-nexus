@@ -388,6 +388,7 @@ export async function fetchBlockSummary(height: number): Promise<RealBlockData |
     if (!res.ok) return null;
     const body = (await res.json()) as BlockSummaryPayload;
     if (!Array.isArray(body?.vsize) || body.vsize.length === 0 || body.vsize.length !== body.txCount) return null;
+    if (!Array.isArray(body.value) || body.value.length !== body.txCount || body.value.some(value => typeof value !== 'number' || !Number.isFinite(value) || value < 0)) return null;
     const block = summaryToRealBlock(body);
     summaryCache.set(height, block);
     return block;

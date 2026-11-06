@@ -83,6 +83,27 @@ describe('fetchEsploraBlockTxs', () => {
     await expect(fetchEsploraBlockTxs(BS, 612888)).rejects.toThrow('Short txs page 7');
   });
 
+  it('stops other workers taking pages after one page fails', async () => {
+    let release!: () => void;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    const pages: number[] = [];
+    global.fetch = jest.fn(async (url: string) => {
+      if (url.includes('/block-height/')) return okText(HASH);
+      const match = /\/txs\/(\d+)$/.exec(url);
+      if (!match) return okJson({tx_count: 250});
+      const start = Number(match[1]);
+      pages.push(start);
+      if (start === 0) return {ok: false, status: 503};
+      await pending;
+      return okJson(Array.from({length: 25}, () => ({weight: 800, vout: [{value: 1}]})));
+    }) as any;
+    await expect(fetchEsploraBlockTxs(BS, 612888)).rejects.toThrow('Failed to fetch txs page 0');
+    release();
+    // Drain already-in-flight workers; none may claim a fifth page.
+    await new Promise(resolve => setImmediate(resolve));
+    expect(pages).toEqual([0, 25, 50, 75]);
+  });
+
   it('fails on a tx without outputs', async () => {
     const f = jest.fn(async (url: string) => {
       if (url.includes('/block-height/')) return okText(HASH);

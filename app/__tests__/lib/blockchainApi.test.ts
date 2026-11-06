@@ -117,6 +117,18 @@ describe('blockchainApi', () => {
     });
   });
 
+  it('rejects an incomplete summary so the viewer keeps its estimated badge and retries', async () => {
+    const body = {height: 612888, hash: 'summary-hash', txCount: 2, vsize: [264, 200],
+      value: [1250715964, null], fee: [0, 100], timestamp: 1579031654, size: 1000, weight: 4000};
+    mockFetch.mockResolvedValue({ok: true, json: async () => body});
+    expect(await blockchainApi.fetchBlockSummary(612888)).toBeNull();
+    body.value[1] = 100000000;
+    const complete = await blockchainApi.fetchBlockSummary(612888);
+    expect(complete?.estimated).toBe(false);
+    expect(complete?.txs[1].outSats).toBe(100000000);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   describe('isBlockCached / getCachedBlock', () => {
     it('returns false/null for uncached block', () => {
       expect(blockchainApi.isBlockCached(123456)).toBe(false);

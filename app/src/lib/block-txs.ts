@@ -67,15 +67,21 @@ export async function fetchEsploraBlockTxs(
   const pages = Math.ceil(txCount / PAGE);
   const txs: EsploraTx[][] = new Array(pages);
   let next = 0;
+  let stopped = false;
   const worker = async () => {
-    while (next < pages) {
-      const p = next++;
-      const res = await fetch(`${host}/block/${hash}/txs/${p * PAGE}`, { signal: AbortSignal.timeout(Math.min(8000, left())) });
-      if (!res.ok) throw new Error(`Failed to fetch txs page ${p}`);
-      const page = (await res.json()) as unknown;
-      const want = Math.min(PAGE, txCount - p * PAGE);
-      if (!Array.isArray(page) || page.length !== want) throw new Error(`Short txs page ${p}`);
-      txs[p] = page as EsploraTx[];
+    try {
+      while (!stopped && next < pages) {
+        const p = next++;
+        const res = await fetch(`${host}/block/${hash}/txs/${p * PAGE}`, { signal: AbortSignal.timeout(Math.min(8000, left())) });
+        if (!res.ok) throw new Error(`Failed to fetch txs page ${p}`);
+        const page = (await res.json()) as unknown;
+        const want = Math.min(PAGE, txCount - p * PAGE);
+        if (!Array.isArray(page) || page.length !== want) throw new Error(`Short txs page ${p}`);
+        txs[p] = page as EsploraTx[];
+      }
+    } catch (error) {
+      stopped = true; // In-flight requests may finish; no worker claims another page.
+      throw error;
     }
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, pages) }, worker));
