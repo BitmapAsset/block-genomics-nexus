@@ -11,9 +11,19 @@
  * vsize is a failed fetch. Then the same figures are read page by page from
  * blockstream.info (lib/block-txs); when that fails too, callers fall back or
  * fail, and nothing is cached.
+ *
+ * UPSTREAM BUDGET. Every instance shares two per-minute budgets on the durable
+ * limiter (lib/rate-limit-db): MEMPOOL_SUMMARIES_PER_MIN mempool summaries and
+ * BLOCKSTREAM_WALKS_PER_MIN paged walks. Concurrent callers for one height on
+ * an instance share one fetch. Past the summary budget the caller gets an
+ * `UpstreamBudgetError` (served like any unavailable summary, and never
+ * negative-cached); past the walk budget the mempool error stands. When the
+ * limiter cannot count, the summary goes ahead and the walk does not: the walk
+ * is up to MAX_WALK_PAGES calls, so only a counted slot may start one.
  */
 
 import { EsploraBlockNotFound, fetchEsploraBlockTxs } from '@/lib/block-txs';
+import { rateLimitDurable } from '@/lib/rate-limit-db';
 
 /** Esplora host read page by page when mempool's one-call summary cannot be had. */
 const FALLBACK_ESPLORA = 'https://blockstream.info/api';
@@ -41,6 +51,20 @@ export class BlockNotFoundError extends Error {
   }
 }
 
+/** The shared summary budget is spent for this minute: nothing was fetched, nothing failed. */
+export class UpstreamBudgetError extends Error {
+  constructor() {
+    super('Block summary over the upstream budget');
+    this.name = 'UpstreamBudgetError';
+  }
+}
+
+/** mempool block summaries fetched per minute, across every instance. */
+export const MEMPOOL_SUMMARIES_PER_MIN = 60;
+/** Paged blockstream walks started per minute, across every instance. */
+export const BLOCKSTREAM_WALKS_PER_MIN = 6;
+const BUDGET_WINDOW_MS = 60_000;
+
 /** One entry of mempool's summary (TransactionStripped). */
 interface StrippedTx {
   vsize?: number;
@@ -59,14 +83,25 @@ const negativeCache = new Map<number, { expiry: number; notFound: boolean }>();
 const MAX_CACHED = 64;
 const cache = new Map<number, { summary: BlockSummary; at: number }>();
 
+// One fetch per height at a time on this instance; later callers join it.
+const inflight = new Map<number, Promise<BlockSummary>>();
+
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
-/** mempool's summary, else the paged blockstream walk. A height mempool says is unmined is not retried. */
+/**
+ * mempool's summary, else the paged blockstream walk, each charged to its
+ * shared budget first. A height mempool says is unmined is not retried.
+ */
 async function fetchSummary(height: number): Promise<BlockSummary> {
+  const summaries = await rateLimitDurable('upstream:mempool-summary:global', MEMPOOL_SUMMARIES_PER_MIN, BUDGET_WINDOW_MS);
+  if (!summaries.allowed) throw new UpstreamBudgetError();
   try {
     return await fetchMempoolSummary(height);
   } catch (e) {
     if (e instanceof BlockNotFoundError) throw e;
+    // A walk needs a counted slot: `count` is 0 only when the limiter could not count.
+    const walks = await rateLimitDurable('upstream:blockstream-walk:global', BLOCKSTREAM_WALKS_PER_MIN, BUDGET_WINDOW_MS);
+    if (!walks.allowed || walks.count <= 0) throw e;
     try {
       return { height, ...(await fetchEsploraBlockTxs(FALLBACK_ESPLORA, height)) };
     } catch (fallback) {
@@ -134,7 +169,9 @@ async function fetchMempoolSummary(height: number): Promise<BlockSummary> {
  *
  * A deep block never changes, so the default keeps it for the life of the
  * instance; callers near the tip pass a short age so a reorg is picked up.
- * Throws `BlockNotFoundError` for an unmined height and `Error` otherwise.
+ * A caller joins a fetch already running for the height (it is fresh).
+ * Throws `BlockNotFoundError` for an unmined height, `UpstreamBudgetError`
+ * when the shared budget is spent, and `Error` otherwise.
  */
 export async function getBlockSummary(height: number, maxAgeMs = Infinity): Promise<BlockSummary> {
   const now = Date.now();
@@ -150,16 +187,27 @@ export async function getBlockSummary(height: number, maxAgeMs = Infinity): Prom
     negativeCache.delete(height);
   }
 
-  try {
-    const summary = await fetchSummary(height);
-    cache.delete(height);
-    cache.set(height, { summary, at: now });
-    if (cache.size > MAX_CACHED) cache.delete(cache.keys().next().value as number);
-    return summary;
-  } catch (e) {
-    negativeCache.set(height, { expiry: now + NEGATIVE_TTL_MS, notFound: e instanceof BlockNotFoundError });
-    throw e;
+  let pending = inflight.get(height);
+  if (!pending) {
+    // Only the call that fetches writes the caches.
+    pending = (async () => {
+      try {
+        const summary = await fetchSummary(height);
+        cache.delete(height);
+        cache.set(height, { summary, at: now });
+        if (cache.size > MAX_CACHED) cache.delete(cache.keys().next().value as number);
+        return summary;
+      } catch (e) {
+        // A spent budget is not a failed height: the next caller may try again.
+        if (!(e instanceof UpstreamBudgetError)) {
+          negativeCache.set(height, { expiry: now + NEGATIVE_TTL_MS, notFound: e instanceof BlockNotFoundError });
+        }
+        throw e;
+      }
+    })().finally(() => inflight.delete(height));
+    inflight.set(height, pending);
   }
+  return pending;
 }
 
 // The chain tip changes every ~10 minutes; 30 s is fresh enough to decide

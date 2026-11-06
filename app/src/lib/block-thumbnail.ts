@@ -11,7 +11,7 @@
 import { renderBitmapThumbnail } from '@/lib/bitmap-renderer';
 import { completeSatTotals, estimatedSquareSize, logTxSize, txSatsToSizes } from '@/lib/bitmap-layout';
 import { prisma } from '@/lib/prisma';
-import { getBlockSummary } from '@/lib/block-summary';
+import { getBlockSummary, UpstreamBudgetError } from '@/lib/block-summary';
 
 /** How the PNG was produced; the route sends it as `X-Thumbnail-Source`. */
 export type ThumbnailSource = 'cache' | 'live' | 'stale-estimated' | 'estimated';
@@ -54,11 +54,12 @@ function isNegativelyCached(height: number): boolean {
 const THUMBNAIL_REAL_ART_SINCE = new Date('2026-11-05T10:04:00Z');
 
 /**
- * Live re-renders of stale rows in flight on this instance. The Nexus canvas
- * asks for hundreds of tiles at once and every one is a stale row right after
- * deploy; past the cap the old bytes are served short-TTL and retried later,
- * so a page load cannot herd mempool. Cache-miss renders count toward the
- * total but are not gated (there are no old bytes to fall back on).
+ * Live renders in flight on this server (a per-server limit; the summary fetch
+ * behind each one is also charged to the budget all instances share, see
+ * lib/block-summary). The Nexus canvas asks for hundreds of tiles at once and
+ * every one is a stale row right after deploy. Past the cap a stale row's old
+ * bytes, or for a cache miss the estimate, are served short-TTL and the height
+ * is tried again on a later request (it is not negative-cached).
  */
 const MAX_LIVE_RENDERS = 4;
 let liveRenders = 0;
@@ -164,8 +165,8 @@ export async function getBlockThumbnail(height: number): Promise<BlockThumbnail>
         })
         .catch(() => {}); // the render is still good to serve
       return { png, cacheControl: longCache(epoch), source: 'live' };
-    } catch {
-      negativeCache.set(height, Date.now() + NEGATIVE_TTL_MS);
+    } catch (e) {
+      if (!(e instanceof UpstreamBudgetError)) negativeCache.set(height, Date.now() + NEGATIVE_TTL_MS);
       return { png: stale, cacheControl: SHORT_CACHE, source: 'stale-estimated' };
     }
   }
@@ -173,6 +174,11 @@ export async function getBlockThumbnail(height: number): Promise<BlockThumbnail>
   // Recently-failed height: serve a deterministic estimated skeleton without
   // hitting mempool, and let the client retry after the negative window expires.
   if (isNegativelyCached(height)) {
+    return { png: renderBitmapThumbnail(estimateSizes(height), THUMBNAIL_PX), cacheControl: SHORT_CACHE, source: 'estimated' };
+  }
+
+  // Past the cap: the estimate now, a live render on a later request.
+  if (liveRenders >= MAX_LIVE_RENDERS) {
     return { png: renderBitmapThumbnail(estimateSizes(height), THUMBNAIL_PX), cacheControl: SHORT_CACHE, source: 'estimated' };
   }
 
@@ -190,10 +196,11 @@ export async function getBlockThumbnail(height: number): Promise<BlockThumbnail>
       })
       .catch(() => {}); // the render is still good to serve
     return { png, cacheControl: longCache(epoch), source: 'live' };
-  } catch {
+  } catch (e) {
     // Live fetch failed — negative-cache the height and serve an estimated
     // skeleton so the map tile is populated (and we stop hammering mempool).
-    negativeCache.set(height, Date.now() + NEGATIVE_TTL_MS);
+    // A spent shared budget is not a failure: the height is tried again later.
+    if (!(e instanceof UpstreamBudgetError)) negativeCache.set(height, Date.now() + NEGATIVE_TTL_MS);
     return { png: renderBitmapThumbnail(estimateSizes(height), THUMBNAIL_PX), cacheControl: SHORT_CACHE, source: 'estimated' };
   }
 }

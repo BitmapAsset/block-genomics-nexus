@@ -4,11 +4,13 @@
  *
  * Esplora (blockstream.info, mempool.space) serves a block's transactions 25
  * per page at `/block/<hash>/txs/<start>`. A 3,000-tx block is 120 pages, so
- * they are fetched 4 at a time under one overall budget. Every figure comes
+ * they are fetched 4 at a time under one overall budget, and a block of more
+ * than MAX_WALK_PAGES pages is not walked at all. Every figure comes
  * from the chain: vsize = weight / 4 (what mempool's summary reports), the fee,
  * and the sum of every output (what sizes the Bitmap square). A missing page,
  * a short page or a tx without weight fails the whole fetch: there is no
- * partial block, because one guessed transaction is a different map.
+ * partial block, because one guessed transaction is a different map. The first
+ * failed page also aborts every page still in flight.
  */
 
 export interface EsploraBlockTxs {
@@ -32,6 +34,27 @@ interface EsploraTx {
 }
 
 const PAGE = 25;
+
+/** Most pages one walk reads (6,000 txs); a bigger block keeps its estimate. */
+export const MAX_WALK_PAGES = 240;
+
+/**
+ * A signal that aborts when any of `signals` does. `AbortSignal.any` where the
+ * runtime has it, otherwise the same by hand.
+ */
+function anySignal(signals: AbortSignal[]): AbortSignal {
+  const native = (AbortSignal as unknown as { any?: (s: AbortSignal[]) => AbortSignal }).any;
+  if (typeof native === 'function') return native.call(AbortSignal, signals);
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+  }
+  return controller.signal;
+}
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
@@ -65,14 +88,17 @@ export async function fetchEsploraBlockTxs(
   if (typeof txCount !== 'number' || !Number.isInteger(txCount) || txCount <= 0) throw new Error('Bad tx_count');
 
   const pages = Math.ceil(txCount / PAGE);
+  if (pages > MAX_WALK_PAGES) throw new Error('Block too large for the paged fallback');
   const txs: EsploraTx[][] = new Array(pages);
   let next = 0;
   let stopped = false;
+  const walk = new AbortController();
   const worker = async () => {
     try {
       while (!stopped && next < pages) {
         const p = next++;
-        const res = await fetch(`${host}/block/${hash}/txs/${p * PAGE}`, { signal: AbortSignal.timeout(Math.min(8000, left())) });
+        const signal = anySignal([walk.signal, AbortSignal.timeout(Math.min(8000, left()))]);
+        const res = await fetch(`${host}/block/${hash}/txs/${p * PAGE}`, { signal });
         if (!res.ok) throw new Error(`Failed to fetch txs page ${p}`);
         const page = (await res.json()) as unknown;
         const want = Math.min(PAGE, txCount - p * PAGE);
@@ -80,7 +106,9 @@ export async function fetchEsploraBlockTxs(
         txs[p] = page as EsploraTx[];
       }
     } catch (error) {
-      stopped = true; // In-flight requests may finish; no worker claims another page.
+      // No worker claims another page, and the pages still in flight are aborted.
+      stopped = true;
+      walk.abort();
       throw error;
     }
   };

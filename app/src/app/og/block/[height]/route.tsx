@@ -13,6 +13,7 @@ import { getBlockThumbnail } from '@/lib/block-thumbnail';
 import { fetchBlockOgSummary } from '@/lib/blockOgData';
 import { fetchBlockCardFacts, shortenAddress } from '@/lib/blockPageData';
 import { getTipHeight } from '@/lib/block-summary';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { EPOCH_LABELS, getEpochColor, getEpochIndex } from '@/lib/bitmapStandard';
 import { formatBytes, formatNumber, hexPairToColor } from '@/lib/genome-utils';
 
@@ -89,9 +90,12 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ height: string }> },
 ) {
+  const rl = await enforceRateLimit(request, { bucket: 'og-block-height', limit: 30 });
+  if (rl.response) return rl.response;
+
   const { height: raw } = await params;
   const height = parseBlockParam(raw);
 
