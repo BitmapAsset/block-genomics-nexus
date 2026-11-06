@@ -100,7 +100,7 @@ function upstream(opts: UpstreamOpts = {}) {
     if (url === 'https://mempool.space/api/blocks/tip/height') {
       return opts.tip === null || opts.tip === undefined ? res(503) : res(200, String(opts.tip));
     }
-    if (url.startsWith('https://mempool.space')) {
+    if (new URL(url).hostname === 'mempool.space') {
       const byHeight = /block-height\/(\d+)$/.exec(url);
       const byHash = /([0-9a-f]{64})/.exec(url);
       const h = byHeight ? Number(byHeight[1]) : byHash ? heightOfHash(byHash[1]) : -1;
