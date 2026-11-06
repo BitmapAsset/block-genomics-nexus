@@ -32,7 +32,10 @@ jest.mock('@/lib/blockPageData', () => ({
   ...jest.requireActual('@/lib/blockPageData'),
   fetchBlockPageData: (...a: unknown[]) => mockFetchBlockPageData(...(a as [])),
 }));
-jest.mock('@/lib/blockGuardian', () => ({ fetchBlockGuardian: async () => ({ guardian: null }) }));
+jest.mock('@/lib/blockGuardian', () => ({ fetchBlockGuardian: async () => ({ guardian: null, handle: null, degraded: false }) }));
+// The wallet context pulls in the wallet SDKs (ESM); the page's client islands only need the hook.
+jest.mock('@/context/GlobalWalletContext', () => ({ useGlobalWallet: () => ({ isConnected: false, walletAddress: null }) }));
+jest.mock('qrcode.react', () => ({ QRCodeSVG: () => null }));
 
 // Client islands. Activity sits above the tabs, so the tab strip renders nothing.
 jest.mock('@/app/(site)/block/[height]/copy-button', () => () => null);

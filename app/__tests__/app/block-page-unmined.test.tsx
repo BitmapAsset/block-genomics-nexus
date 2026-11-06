@@ -33,6 +33,9 @@ jest.mock('@/app/(site)/block/[height]/copy-button', () => () => null);
 jest.mock('@/app/(site)/block/[height]/block-tabs', () => () => null);
 jest.mock('@/app/(site)/block/[height]/owner-bar', () => () => null);
 jest.mock('@/app/(site)/block/[height]/deed-recheck', () => () => null);
+// The wallet context pulls in the wallet SDKs (ESM); the page's client islands only need the hook.
+jest.mock('@/context/GlobalWalletContext', () => ({ useGlobalWallet: () => ({ isConnected: false, walletAddress: null }) }));
+jest.mock('qrcode.react', () => ({ QRCodeSVG: () => null }));
 
 class NotFound extends Error {}
 jest.mock('next/navigation', () => ({

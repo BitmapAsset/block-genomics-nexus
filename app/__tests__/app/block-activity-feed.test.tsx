@@ -20,7 +20,10 @@ jest.mock('@/lib/blockPageData', () => ({
   ...jest.requireActual('@/lib/blockPageData'),
   fetchBlockPageData: (...a: unknown[]) => mockFetchBlockPageData(...(a as [])),
 }));
-jest.mock('@/lib/blockGuardian', () => ({ fetchBlockGuardian: async () => ({ guardian: null }) }));
+jest.mock('@/lib/blockGuardian', () => ({ fetchBlockGuardian: async () => ({ guardian: null, handle: null, degraded: false }) }));
+// The wallet context pulls in the wallet SDKs (ESM); the page's client islands only need the hook.
+jest.mock('@/context/GlobalWalletContext', () => ({ useGlobalWallet: () => ({ isConnected: false, walletAddress: null }) }));
+jest.mock('qrcode.react', () => ({ QRCodeSVG: () => null }));
 
 // Client islands. The tab strip renders nothing, so the test reads the
 // Activity section (and the rest of the page above the tabs).
@@ -119,7 +122,9 @@ describe('the Activity section on /block/[height]', () => {
     expect(html).toContain('>Activity<');
     expect(html).toContain('Placed object 2');
     expect(html).toContain('proof ↗');
-    expect(html).not.toContain('Old Lantern');
+    // Instead of the build list: the section itself no longer lists the build (the Build card still names it).
+    const section = html.slice(html.indexOf('data-testid="block-activity"'));
+    expect(section.slice(0, section.indexOf('</section>'))).not.toContain('Old Lantern');
   });
 
   it.each([
@@ -138,5 +143,72 @@ describe('the Activity section on /block/[height]', () => {
     mockListBlockEvents.mockRejectedValue(new Error('db down'));
     const html = await render();
     expect(html).toContain('Old Lantern');
+  });
+});
+
+function activityOf(html: string): string {
+  const start = html.indexOf('data-testid="block-activity"');
+  return html.slice(start, html.indexOf('</section>', start));
+}
+
+const OFF = { format: 'bg-event/1', enabled: false, events: [] };
+
+/** A claimed block whose deed rule could not reach Bitcoin (the `unreachable` deed state). */
+const unreachable = {
+  onChainOwner: null,
+  registeredOwner: 'bc1pexampleholder0000000000000000000000008978',
+  inscriptionId: 'storedidfortest0i0',
+  inSync: false,
+  indeterminate: true,
+  checkPending: false,
+  deed: { verdict: 'undetermined', canonicalId: null, checkedAt: null, unreachableSince: null },
+};
+
+describe('the Activity header and states (bg98a)', () => {
+  it('events on: "Newest first · signed events carry a proof"', async () => {
+    mockListBlockEvents.mockResolvedValue({ format: 'bg-event/1', enabled: true, block: HEIGHT, events: [event(1)], lastSeq: 1, hasMore: false });
+    const html = activityOf(await render());
+    expect(html).toContain('Newest first · signed events carry a proof');
+  });
+
+  it('flag off with builds: no proof line in the header', async () => {
+    mockListBlockEvents.mockResolvedValue(OFF);
+    const html = activityOf(await render());
+    expect(html).not.toContain('signed events carry a proof');
+    expect(html).toContain('Old Lantern');
+  });
+
+  it('nothing at all: the empty state, said once', async () => {
+    mockListBlockEvents.mockResolvedValue(OFF);
+    mockFetchBlockPageData.mockResolvedValue({ ...pageData, objects: [], objectCount: 0 });
+    const page = await render();
+    const html = activityOf(page);
+    expect(html).toContain('Nothing has happened here yet');
+    expect(html).toContain('Builds, guardian answers and changes of hands will show up here. Signed events carry a proof.');
+    expect(page.split('Nothing has happened here yet')).toHaveLength(2);
+  });
+
+  it('the outage callout only while the deed cannot be checked, with its date only when known', async () => {
+    mockListBlockEvents.mockResolvedValue(OFF);
+    expect(activityOf(await render())).not.toContain('Deed checks are paused.');
+
+    mockFetchBlockPageData.mockResolvedValue({ ...pageData, ownership: unreachable });
+    let html = activityOf(await render());
+    expect(html).toContain('Deed checks are paused.');
+    expect(html).toContain('What&#x27;s below was recorded before or doesn&#x27;t need a deed check.');
+    expect(html).not.toContain('Last check');
+
+    mockFetchBlockPageData.mockResolvedValue({
+      ...pageData,
+      ownership: { ...unreachable, availability: { chain: 'unavailable', unavailableSince: null, lastVerifiedAt: '2026-10-31T08:00:00.000Z' } },
+    });
+    html = activityOf(await render());
+    expect(html).toContain('Last check Oct 31.');
+
+    mockFetchBlockPageData.mockResolvedValue({
+      ...pageData,
+      ownership: { ...unreachable, deed: { ...unreachable.deed, verdict: 'disputed' } },
+    });
+    expect(activityOf(await render())).not.toContain('Deed checks are paused.');
   });
 });
