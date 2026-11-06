@@ -8,6 +8,16 @@
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
+// The two mempool calls are charged to a shared budget; the real limiter runs
+// over an in-memory counter.
+jest.mock('@/lib/prisma', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { memoryRateLimiter } = require('../helpers/rate-limit-memory');
+  const client = { $queryRaw: memoryRateLimiter().$queryRaw };
+  return { __esModule: true, default: client, prisma: client };
+});
+
+import * as blockOgData from '@/lib/blockOgData';
 import { fetchBlockOgSummary } from '@/lib/blockOgData';
 import { generateGenome } from '@/lib/genome-utils';
 
@@ -19,11 +29,17 @@ function mockBlockOk() {
     .mockResolvedValueOnce({
       ok: true,
       json: async () => ({ timestamp: 1713571767, tx_count: 3050, size: 1633527 }),
+      // Bodies are read through a size cap, which reads text.
+      text: async () => JSON.stringify({ timestamp: 1713571767, tx_count: 3050, size: 1633527 }),
     });
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // A case whose second read is answered from memory leaves queued answers behind.
+  mockFetch.mockReset();
+  // Each case reads from mempool: forget what earlier cases read.
+  (blockOgData as { __resetBlockOgCacheForTest?: () => void }).__resetBlockOgCacheForTest?.();
 });
 
 describe('fetchBlockOgSummary()', () => {

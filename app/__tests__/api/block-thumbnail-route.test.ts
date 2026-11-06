@@ -85,8 +85,9 @@ const VBYTES_ERA = new Date('2026-11-01T12:00:00Z');
 const POST_FIX = new Date('2030-01-01T00:00:00Z');
 const OLD_BYTES = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x01]);
 
-const okText = (t: string) => ({ ok: true, text: async () => t });
-const okJson = (j: unknown) => ({ ok: true, json: async () => j });
+const okText = (t: string) => ({ ok: true, status: 200, text: async () => t });
+// text() too: the summary reads bodies through a size cap, which reads text.
+const okJson = (j: unknown) => ({ ok: true, status: 200, json: async () => j, text: async () => JSON.stringify(j) });
 
 /** mempool answers: hash, block info (tx_count) and summary. */
 function mempool({ txCount = SUMMARY.length, summary = SUMMARY as unknown } = {}) {
@@ -201,6 +202,38 @@ describe('cache miss', () => {
     expect(res.status).toBe(200);
     expect(res.headers['X-Thumbnail-Source']).toBe('live');
     expect(mockFindUnique).toHaveBeenCalledWith({ where: { blockHeight: 840000 } });
+  });
+});
+
+describe('height checks', () => {
+  it('refuses trailing junk with 400', async () => {
+    const res = await call('840000junk');
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: expect.stringContaining('Invalid block height') });
+    expect(mockFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('refuses a height past the ceiling with 400', async () => {
+    const res = await call('99999999999');
+    expect(res.status).toBe(400);
+    expect(mockFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 no-store for a height above the tip', async () => {
+    global.fetch = jest.fn(async (url: string) => {
+      if (url.endsWith('/api/blocks/tip/height')) return okText('980000');
+      throw new Error(`unexpected fetch ${url}`);
+    }) as any;
+    const res = await call('980001');
+    expect(res.status).toBe(404);
+    expect(res.headers['Cache-Control']).toBe('no-store');
+    expect(typeof res.body).toBe('object');
+    expect(mockFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('still serves 840000.png', async () => {
+    const res = await call('840000.png');
+    expect(res.status).toBe(200);
   });
 });
 

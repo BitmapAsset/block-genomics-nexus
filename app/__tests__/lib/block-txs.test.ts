@@ -8,6 +8,15 @@
  * paged walk: weight, fee, sum of vout per tx).
  */
 
+// getBlockSummary charges its upstream reads to a shared budget; the real
+// limiter runs over an in-memory counter so the fallback cases have budget.
+jest.mock('@/lib/prisma', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { memoryRateLimiter } = require('../helpers/rate-limit-memory');
+  const client = { $queryRaw: memoryRateLimiter().$queryRaw };
+  return { __esModule: true, default: client, prisma: client };
+});
+
 import fs from 'fs';
 import path from 'path';
 import { EsploraBlockNotFound, fetchEsploraBlockTxs } from '@/lib/block-txs';
@@ -31,7 +40,8 @@ const HASH = SUMMARY.hash;
 const BS = 'https://blockstream.info/api';
 
 const okText = (t: string) => ({ ok: true, status: 200, text: async () => t });
-const okJson = (j: unknown) => ({ ok: true, status: 200, json: async () => j });
+// text() too: bodies are read through a size cap, which reads text.
+const okJson = (j: unknown) => ({ ok: true, status: 200, json: async () => j, text: async () => JSON.stringify(j) });
 
 /** An Esplora host serving block 612,888; tracks pages in flight. */
 function esplora(host: string, { txs = TXS, shortPage = -1, hashStatus = 200 } = {}) {
