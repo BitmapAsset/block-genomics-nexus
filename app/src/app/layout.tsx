@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { connection } from "next/server";
 import { Analytics } from "@vercel/analytics/next";
 import { GlobalWalletProvider } from "@/context/GlobalWalletContext";
 import { AuthProvider } from "@/context/AuthContext";
@@ -60,11 +61,14 @@ export const metadata: Metadata = {
 
 // The page chrome (header, footer, tab bar) lives in the route groups:
 // (landing)/layout.tsx for "/", components/SiteChrome.tsx for everything else.
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Every page renders per request, so Next can put this request's CSP nonce
+  // (set by middleware) on its scripts; a prerendered page cannot carry it.
+  await connection();
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen flex flex-col bg-bg-primary text-text-primary antialiased">

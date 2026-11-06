@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import Link from 'next/link';
@@ -7,8 +8,6 @@ import remarkGfm from 'remark-gfm';
 import rehypeSlug from 'rehype-slug';
 import GithubSlugger from 'github-slugger';
 import { shareMetadata } from '@/lib/site-card';
-
-export const dynamic = 'force-static';
 
 export const metadata: Metadata = {
   title: 'Nexus Protocol v1.0 — Block Genomics',
@@ -31,9 +30,10 @@ function loadSpec(): string {
 /**
  * `public/openapi.json` is the canonical descriptor and is committed to the repo,
  * so an unreadable or version-less file is a build-integrity failure rather than a
- * condition to paper over. This page is `force-static`, so throwing fails the
- * build -- the previous `?? '1.2.1'` fallback would instead have shipped a badge
- * four minor versions behind the descriptor the API actually serves.
+ * condition to paper over. The page renders per request, so throwing fails the
+ * request (both files are in the build trace) -- the previous `?? '1.2.1'`
+ * fallback would instead have shipped a badge four minor versions behind the
+ * descriptor the API actually serves.
  */
 function loadOpenApiVersion(): string {
   const raw = readFileSync(join(process.cwd(), 'public', 'openapi.json'), 'utf8');
@@ -90,11 +90,35 @@ function loadSpecMeta(md: string): { version: string; status: string } {
   return { version, status };
 }
 
-export default function ProtocolPage() {
+interface RenderedSpec {
+  toc: TocItem[];
+  version: string;
+  status: string;
+  openapiVersion: string;
+  article: ReactNode;
+}
+
+let rendered: RenderedSpec | undefined;
+
+/**
+ * The spec, its TOC, the badges and the markdown tree are build inputs: parse
+ * them once per server instance, not per request. Assigned only after every
+ * step succeeded, so a throw is retried on the next request. React elements
+ * are immutable, so every request renders the same tree.
+ */
+function renderedSpec(): RenderedSpec {
+  if (rendered) return rendered;
   const spec = loadSpec();
   const toc = buildToc(spec);
   const { version, status } = loadSpecMeta(spec);
   const openapiVersion = loadOpenApiVersion();
+  const article = ReactMarkdown({ children: spec, remarkPlugins: [remarkGfm], rehypePlugins: [rehypeSlug] });
+  rendered = { toc, version, status, openapiVersion, article };
+  return rendered;
+}
+
+export default function ProtocolPage() {
+  const { toc, version, status, openapiVersion, article } = renderedSpec();
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
@@ -168,11 +192,7 @@ export default function ProtocolPage() {
         </aside>
 
         {/* Rendered spec */}
-        <article className="doc-prose min-w-0">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSlug]}>
-            {spec}
-          </ReactMarkdown>
-        </article>
+        <article className="doc-prose min-w-0">{article}</article>
       </div>
     </div>
   );
