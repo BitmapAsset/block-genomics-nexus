@@ -24,7 +24,7 @@ import { deedStatus, type DeedStatus } from './deed-status';
 import ActivityFeed from './activity-feed';
 import GuardianCard from './guardian-card';
 import Hero from './hero';
-import { guardianCardState } from '@/lib/blockGuardian';
+import { guardianCardState, guardianDisplayState } from '@/lib/blockGuardian';
 import { listBlockEvents } from '@/lib/block-events';
 import { scaleLineForTxCount } from '@/lib/world-scale';
 import type { PublicBlockEvent } from '@/lib/block-event-core';
@@ -632,7 +632,9 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
   // A deed state only for a block on record; an unclaimed one gets its own chip.
   const status = displayOwner(data.ownership) ? deedStatus(data.ownership, now) : null;
   const shown = guardianView.guardian;
-  const guardianState = shown ? { name: shown.name, ...guardianCardState(shown, now), tone: 'neutral' as const } : null;
+  const guardianState = shown
+    ? { name: shown.name, ...guardianDisplayState(guardianCardState(shown, now), status?.key ?? null, shown, now) }
+    : null;
 
   const mined = data.chain
     ? new Date(data.chain.timestamp * 1000).toLocaleDateString('en-US', {
@@ -676,7 +678,13 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
 
       {/* ── Guardian, then Activity ── */}
       <div className="mt-10">
-        <GuardianCard height={height} view={guardianView} events={events?.events ?? null} now={events?.readAt ?? now} />
+        <GuardianCard
+          height={height}
+          view={guardianView}
+          events={events?.events ?? null}
+          now={events?.readAt ?? now}
+          deedKey={status?.key ?? null}
+        />
       </div>
 
       <ActivitySection data={data} events={events} />
