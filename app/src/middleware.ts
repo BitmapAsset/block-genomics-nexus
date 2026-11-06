@@ -9,13 +9,18 @@
  *    lowercase equivalent (/NEXUS → /nexus, /Verify → /verify).
  * 4. Pages: a report-only content security policy with a fresh nonce per
  *    request (lib/csp.ts). The enforced Content-Security-Policy is not set
- *    here; next.config.ts and vercel.json stay its only source.
+ *    here; next.config.ts and vercel.json stay its only source. A nonce is
+ *    only ever the middleware's: client-sent nonce headers are dropped on
+ *    every non-/api path the middleware runs for.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { isReadMethod, sandboxKeyFromHeaders, sandboxWriteBlockedBody } from '@/lib/sandbox-tier';
 import { corsHeadersFor } from '@/lib/cors';
 import { buildReportOnlyPolicy, createNonce } from '@/lib/csp';
+
+/** Request headers a nonce is read from while rendering; only the middleware sets them. */
+const CLIENT_NONCE_HEADERS = ['x-nonce', 'content-security-policy', 'content-security-policy-report-only'];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -46,6 +51,14 @@ export function middleware(req: NextRequest) {
     pathname.startsWith('/assets/') ||
     pathname.includes('.')
   ) {
+    // No nonce is made here, and a client-sent one is dropped, so nothing
+    // behind this branch reads `x-nonce` (app code) or a CSP request header
+    // (Next's own <script> tags) from the client.
+    if (CLIENT_NONCE_HEADERS.some((h) => req.headers.has(h))) {
+      const requestHeaders = new Headers(req.headers);
+      for (const h of CLIENT_NONCE_HEADERS) requestHeaders.delete(h);
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
     return NextResponse.next();
   }
 
