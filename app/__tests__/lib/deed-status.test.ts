@@ -38,7 +38,8 @@ function deed(verdict: CanonicalDeed['verdict'], over: Partial<CanonicalDeed> = 
   };
 }
 
-const holder = (address: string | null, pending = false) => jest.fn(() => ({ address, pending }));
+const holder = (address: string | null, pending = false, checkedAt?: string) =>
+  jest.fn(() => ({ address, pending, ...(checkedAt ? { checkedAt } : {}) }));
 const avail = (over: Record<string, unknown> = {}) =>
   jest.fn(() => ({ chain: 'unchecked', checkedAt: null, lastVerifiedAt: null, unavailableSince: null, ...over }));
 
@@ -49,7 +50,8 @@ function owned(d: CanonicalDeed, h = holder(null), a = avail(), rec: { ownerAddr
 
 describe('green only on the deed rule', () => {
   it('verified: canonical deed, holder answered, equals the record → green with its age', () => {
-    const s = deedStatus(owned(deed('canonical'), holder(ALICE), avail({ chain: 'ok', checkedAt: new Date(NOW - 7 * 60_000).toISOString() })), NOW);
+    const at = new Date(NOW - 7 * 60_000).toISOString();
+    const s = deedStatus(owned(deed('canonical'), holder(ALICE, false, at), avail({ chain: 'ok', checkedAt: at })), NOW);
     expect(s.tone).toBe('verified');
     expect(s.badge).toBe('Verified on Bitcoin · 7 min ago');
   });
@@ -85,6 +87,19 @@ describe('every other state of PLAN §7', () => {
     expect(s.badge).toBe('Checking…');
     expect(s.tone).toBe('neutral');
     expect(s.detail).not.toMatch(/updates on its own/);
+  });
+
+  it('checking, queued: other checks fill the page’s slots, so this one has not started yet', () => {
+    const queued = {
+      ...resolveOwnership(record, null),
+      checkPending: true,
+      deed: { verdict: 'undetermined', canonicalId: null, checkedAt: null, unreachableSince: null, queued: true },
+    } as BlockOwnership;
+    const s = deedStatus(queued, NOW);
+    expect(s.badge).toBe('Checking…');
+    expect(s.tone).toBe('neutral');
+    expect(s.detail).not.toContain('is running');
+    expect(s.detail).toContain('Last recorded holder');
   });
 
   it('checking: the deed rule ran out of the render budget and keeps resolving', () => {
@@ -138,6 +153,57 @@ describe('every other state of PLAN §7', () => {
       owned(deed('undetermined'), holder(null), avail(), { ownerAddress: ALICE, inscriptionId: null }),
     ].map((o) => deedStatus(o, NOW));
     for (const s of all) expect(`${s.badge} ${s.detail}`).not.toMatch(/\blive\b/i);
+  });
+});
+
+describe('the chip dates the holder it shows', () => {
+  const ago = (sec: number) => new Date(NOW - sec * 1000).toISOString();
+
+  it('a failed live check after a cached success never yields green "just now"', () => {
+    // The holder was cached 3 min ago; a live check 15 s ago failed.
+    const s = deedStatus(
+      owned(
+        deed('canonical'),
+        holder(ALICE, false, ago(180)),
+        avail({ chain: 'unavailable', checkedAt: ago(15), unavailableSince: ago(15), lastVerifiedAt: ago(180) }),
+      ),
+      NOW,
+    );
+    expect(s.tone).not.toBe('verified');
+    expect(s.badge).not.toContain('just now');
+    expect(s.tone).toBe('outage');
+    expect(s.badge).toBe(`Not checked · Bitcoin indexer unreachable since ${ago(15).slice(11, 16)} UTC`);
+  });
+
+  it('a cached holder 4 minutes old reads "4 min ago", not "just now"', () => {
+    // A newer check of any caller (10 s ago) must not lend the chip its age.
+    const s = deedStatus(
+      owned(deed('canonical'), holder(ALICE, false, ago(240)), avail({ chain: 'ok', checkedAt: ago(10), lastVerifiedAt: ago(10) })),
+      NOW,
+    );
+    expect(s.tone).toBe('verified');
+    expect(s.badge).toBe('Verified on Bitcoin · 4 min ago');
+  });
+
+  it('a failure older than the cached holder leaves the chip green, dated by the holder', () => {
+    const s = deedStatus(
+      owned(
+        deed('canonical'),
+        holder(ALICE, false, ago(60)),
+        avail({ chain: 'unavailable', checkedAt: ago(90), unavailableSince: ago(90), lastVerifiedAt: ago(60) }),
+      ),
+      NOW,
+    );
+    expect(s.tone).toBe('verified');
+    expect(s.badge).toBe('Verified on Bitcoin · 1 min ago');
+  });
+
+  it('a cached holder with no time on it is never green while the latest check failed', () => {
+    const s = deedStatus(
+      owned(deed('canonical'), holder(ALICE), avail({ chain: 'unavailable', checkedAt: ago(5), unavailableSince: ago(5) })),
+      NOW,
+    );
+    expect(s.tone).toBe('outage');
   });
 });
 

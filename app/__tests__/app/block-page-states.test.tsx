@@ -53,7 +53,7 @@ jest.mock('@/app/(site)/block/[height]/block-tabs', () =>
 import BlockPage from '@/app/(site)/block/[height]/page';
 import { resolveDeedOwnership } from '@/lib/blockPageData';
 import { OWNER_GUARDIAN_FIELDS } from '@/lib/guardian-view';
-import type { PublicBlockEvent } from '@/lib/block-event-core';
+import { summaryFor, type PublicBlockEvent } from '@/lib/block-event-core';
 
 const HEIGHT = 720143;
 const NOW = Date.UTC(2026, 10, 2, 12, 0, 0);
@@ -166,6 +166,14 @@ function chipOf(html: string): string {
 function deedIsGreen(html: string): boolean {
   const tag = html.match(/<span[^>]*data-testid="deed-chip"[^>]*>/)?.[0] ?? '';
   return html.includes('data-tone="verified"') || tag.includes(GREEN) || /Verified/.test(chipOf(html));
+}
+
+/** The guardian card's markup alone (the Activity feed labels each row's signer separately). */
+function guardianCardOf(html: string): string {
+  const start = html.indexOf('data-testid="guardian-card"');
+  if (start < 0) return '';
+  const rest = html.slice(start);
+  return rest.slice(0, rest.indexOf('</section>'));
 }
 
 function commonChecks(html: string) {
@@ -291,10 +299,15 @@ describe('dark states', () => {
     commonChecks(html);
   });
 
-  it('events on with a guardian event: LAST line with its proof, authority line from guardian.registered', async () => {
+  it('events on with a guardian event: LAST line with its proof, dated registration line from guardian.registered', async () => {
     mockGuardianFindFirst.mockResolvedValue(guardianRow());
     const events = [
-      event(1, { kind: 'guardian.registered', summary: 'Guardian #720143 was registered', actor: { type: 'owner', id: ALICE, handle: null } }),
+      event(1, {
+        kind: 'guardian.registered',
+        summary: summaryFor('guardian.registered', { guardianName: 'Guardian #720143' }),
+        actor: { type: 'owner', id: ALICE, handle: null },
+        ts: '2026-08-01T00:00:02.000Z',
+      }),
       event(2),
       event(3, { kind: 'guardian.status', summary: 'Guardian #720143 is now idle', actor: { type: 'guardian', id: 'g1', handle: null } }),
     ];
@@ -304,8 +317,60 @@ describe('dark states', () => {
     expect(html).toContain('data-testid="guardian-last"');
     expect(last).toContain('Guardian #720143 is now idle');
     expect(last).toContain(`/api/v1/blocks/${HEIGHT}/events/${events[2].id}/proof`);
-    expect(html).toContain('Registered by the deed holder');
+    expect(guardianCardOf(html)).toContain('Registered Aug 1, 2026 by bc1pho…a1ce');
+    expect(guardianCardOf(html)).not.toContain('deed holder');
     commonChecks(html);
+  });
+
+  it('an older guardian’s event and a sale leave no line that reads as today’s holder’s endorsement', async () => {
+    const OLD = 'bc1pearlierholder00000000000000000000000000beef';
+    mockGuardianFindFirst.mockResolvedValue(guardianRow({ createdAt: new Date('2026-10-01T00:00:00Z') }));
+    const events = [
+      event(1, {
+        kind: 'guardian.registered',
+        summary: summaryFor('guardian.registered', { guardianName: 'Old Keeper' }),
+        actor: { type: 'owner', id: OLD, handle: null },
+        ts: '2026-08-01T00:00:02.000Z',
+      }),
+      event(2, {
+        kind: 'deed.moved',
+        summary: summaryFor('deed.moved'),
+        actor: { type: 'system', id: null, handle: null },
+        signer: { scheme: 'ed25519', address: 'sys-1' },
+        ts: '2026-09-15T00:00:00.000Z',
+      }),
+    ];
+    mockListBlockEvents.mockResolvedValue({ format: 'bg-event/1', enabled: true, block: HEIGHT, events, lastSeq: 2, hasMore: false });
+    const html = await render();
+    const card = guardianCardOf(html);
+    expect(card).toContain('Guardian #720143');
+    expect(card).not.toContain('deed holder');
+    expect(card).not.toContain('Registered');
+    expect(html).not.toContain('data-testid="guardian-registered"');
+  });
+
+  it('a sale after the registration: the line stays a dated fact about who registered, never "the deed holder"', async () => {
+    mockGuardianFindFirst.mockResolvedValue(guardianRow());
+    const events = [
+      event(1, {
+        kind: 'guardian.registered',
+        summary: summaryFor('guardian.registered', { guardianName: 'Guardian #720143' }),
+        actor: { type: 'owner', id: ALICE, handle: null },
+        ts: '2026-08-01T00:00:02.000Z',
+      }),
+      event(2, {
+        kind: 'deed.moved',
+        summary: summaryFor('deed.moved'),
+        actor: { type: 'system', id: null, handle: null },
+        signer: { scheme: 'ed25519', address: 'sys-1' },
+        ts: '2026-10-20T00:00:00.000Z',
+      }),
+    ];
+    mockListBlockEvents.mockResolvedValue({ format: 'bg-event/1', enabled: true, block: HEIGHT, events, lastSeq: 2, hasMore: false });
+    const html = await render();
+    expect(html).toContain('data-testid="guardian-registered"');
+    expect(guardianCardOf(html)).toContain('Registered Aug 1, 2026 by bc1pho…a1ce');
+    expect(guardianCardOf(html)).not.toContain('deed holder');
   });
 
   it('0 objects: the empty-land line is said once', async () => {

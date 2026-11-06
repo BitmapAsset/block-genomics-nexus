@@ -19,6 +19,7 @@ const mockProfileFindMany = jest.fn();
 const mockGetInscriptionOwner = jest.fn();
 const mockFetchOgSummary = jest.fn();
 const mockCanonicalDeedFor = jest.fn();
+const mockDeedVerdictFindUnique = jest.fn();
 const mockVerifyBlockOwnership = jest.fn();
 const mockBlockWrite = jest.fn();
 
@@ -47,6 +48,7 @@ jest.mock('@/lib/prisma', () => ({
     },
     user: { findMany: (...a: unknown[]) => mockUserFindMany(...a) },
     blockProfile: { findMany: (...a: unknown[]) => mockProfileFindMany(...a) },
+    deedVerdict: { findUnique: (...a: unknown[]) => mockDeedVerdictFindUnique(...a) },
   },
 }));
 
@@ -57,6 +59,8 @@ jest.mock('@/lib/ownership-sync', () => ({
 
 jest.mock('@/lib/onchain/deed', () => ({
   canonicalDeedFor: (...a: unknown[]) => mockCanonicalDeedFor(...a),
+  DEED_RULE_ID: 'test-rule',
+  CANONICAL_TTL_MS: 6 * 60 * 60 * 1000,
 }));
 
 jest.mock('@/lib/blockOgData', () => ({
@@ -75,7 +79,11 @@ import {
   creatorLabel,
   type BlockPageData,
 } from '@/lib/blockPageData';
+import * as blockPageData from '@/lib/blockPageData';
 import { __resetPublicOwnerLookup } from '@/lib/publicOwnerLookup';
+
+// Absent before the page-check cap; the suites that need it fail rather than crash the file.
+const resetPageDeedState = (blockPageData as Record<string, unknown>).__resetPageDeedChecks as (() => void) | undefined;
 
 const ALICE = 'bc1pseller0000000000000000000000000000000000';
 const BOB = 'bc1pbuyer00000000000000000000000000000000000';
@@ -111,6 +119,8 @@ function deedAnswer(height: number, verdict: string, inscriptionId: string | nul
 beforeEach(() => {
   jest.clearAllMocks();
   __resetPublicOwnerLookup();
+  resetPageDeedState?.();
+  mockDeedVerdictFindUnique.mockResolvedValue(null);
   mockFetchOgSummary.mockResolvedValue(null);
   mockGetInscriptionOwner.mockResolvedValue(null);
   // By default the deed rule names the inscription the fixtures store.
@@ -719,6 +729,8 @@ describe('fetchBlockCardFacts()', () => {
     mockBlockFindUnique.mockResolvedValue({ ownerAddress: ALICE, inscriptionId: INSCRIPTION });
     mockObjectCount.mockResolvedValue(7);
     mockGetInscriptionOwner.mockResolvedValue(ALICE);
+    // The cached deed-rule answer names the stored inscription.
+    mockDeedVerdictFindUnique.mockResolvedValue({ height: BLOCK, inscriptionId: INSCRIPTION, ruleId: 'test-rule' });
 
     await fetchBlockCardFacts(BLOCK);
     await settleWarm();
@@ -737,6 +749,7 @@ describe('fetchBlockCardFacts()', () => {
     mockBlockFindUnique.mockResolvedValue({ ownerAddress: ALICE, inscriptionId: INSCRIPTION });
     mockObjectCount.mockResolvedValue(7);
     mockGetInscriptionOwner.mockResolvedValue(BOB);
+    mockDeedVerdictFindUnique.mockResolvedValue({ height: BLOCK, inscriptionId: INSCRIPTION, ruleId: 'test-rule' });
 
     await fetchBlockCardFacts(BLOCK);
     await settleWarm();
@@ -782,5 +795,167 @@ describe('fetchBlockCardFacts()', () => {
       objectCount: 0,
       claimed: false,
     });
+  });
+});
+
+// ── The share card on the deed rule ─────────────────────────────────────
+
+describe('fetchBlockCardFacts() on the deed rule, from cached answers only', () => {
+  const STORED = 'storedcopyinscription0i0';
+  const CANONICAL = 'canonicaldeedinscription0i0';
+
+  it('a row whose stored inscription id is not the canonical deed renders "LAST RECORDED"', async () => {
+    mockBlockFindUnique.mockResolvedValue({ ownerAddress: ALICE, inscriptionId: STORED });
+    mockObjectCount.mockResolvedValue(1);
+    mockDeedVerdictFindUnique.mockResolvedValue({ height: BLOCK, inscriptionId: CANONICAL, ruleId: 'test-rule' });
+    // The copy's holder matches the record; the deed's holder does not.
+    mockGetInscriptionOwner.mockImplementation(async (id: string) => (id === STORED ? ALICE : BOB));
+
+    await fetchBlockCardFacts(BLOCK);
+    await settleWarm();
+    const facts = await fetchBlockCardFacts(BLOCK);
+
+    // verified: false is what prints "LAST RECORDED" (og/block/[height]/route.tsx).
+    expect(facts).toEqual({ owner: ALICE, verified: false, objectCount: 1, claimed: true });
+    expect(mockGetInscriptionOwner.mock.calls.map((c) => c[0])).not.toContain(STORED);
+  });
+
+  it('no cached deed answer: "LAST RECORDED", even when the stored id’s holder equals the record', async () => {
+    mockBlockFindUnique.mockResolvedValue({ ownerAddress: ALICE, inscriptionId: INSCRIPTION });
+    mockObjectCount.mockResolvedValue(0);
+    mockGetInscriptionOwner.mockResolvedValue(ALICE);
+
+    await fetchBlockCardFacts(BLOCK);
+    await settleWarm();
+
+    expect((await fetchBlockCardFacts(BLOCK)).verified).toBe(false);
+  });
+
+  it('a stored deed answer from another rule is not used', async () => {
+    mockBlockFindUnique.mockResolvedValue({ ownerAddress: ALICE, inscriptionId: INSCRIPTION });
+    mockObjectCount.mockResolvedValue(0);
+    mockDeedVerdictFindUnique.mockResolvedValue({ height: BLOCK, inscriptionId: INSCRIPTION, ruleId: 'an-older-rule' });
+    mockGetInscriptionOwner.mockResolvedValue(ALICE);
+
+    await fetchBlockCardFacts(BLOCK);
+    await settleWarm();
+
+    expect((await fetchBlockCardFacts(BLOCK)).verified).toBe(false);
+  });
+
+  it('the card never starts a deed resolution', async () => {
+    mockBlockFindUnique.mockResolvedValue({ ownerAddress: ALICE, inscriptionId: INSCRIPTION });
+    mockObjectCount.mockResolvedValue(0);
+
+    await fetchBlockCardFacts(BLOCK);
+
+    expect(mockCanonicalDeedFor).not.toHaveBeenCalled();
+  });
+
+  it('a canonical deed the page already learned in this process verifies the card without the table', async () => {
+    emptyBlockFixture({ height: BLOCK, ownerAddress: ALICE, inscriptionId: INSCRIPTION, label: null });
+    mockGetInscriptionOwner.mockResolvedValue(ALICE);
+    mockDeedVerdictFindUnique.mockRejectedValue(new Error('relation "DeedVerdict" does not exist'));
+
+    await fetchAfterWarm(BLOCK);
+    mockBlockFindUnique.mockResolvedValue({ ownerAddress: ALICE, inscriptionId: INSCRIPTION });
+
+    expect((await fetchBlockCardFacts(BLOCK)).verified).toBe(true);
+    expect(mockCanonicalDeedFor).toHaveBeenCalledTimes(2); // the two page renders, none from the card
+  });
+});
+
+// ── Page-started deed checks are capped ─────────────────────────────────
+
+describe('page-started deed checks', () => {
+  const COLD = 900_000;
+  const budgetReason = (ms: number) => `no deed answer within ${ms} ms; the check continues in the background`;
+
+  /** Claimed rows for any height, nothing built. */
+  function claimedAnywhere() {
+    emptyBlockFixture(null);
+    mockBlockFindUnique.mockImplementation(async (q: { where: { height: number } }) => ({
+      height: q.where.height,
+      ownerAddress: ALICE,
+      inscriptionId: `${q.where.height}i0`,
+      label: null,
+    }));
+  }
+
+  /**
+   * The deed rule for a cold height: the render's short wait runs out and the
+   * resolution keeps going. `watchers` collects the resolutions still running.
+   */
+  function coldDeedRule(watchers: Array<() => void> = []) {
+    mockCanonicalDeedFor.mockImplementation((h: number, opts: { budgetMs?: number }) => {
+      const ms = opts?.budgetMs ?? 8000;
+      if (ms <= 300) {
+        return new Promise((resolve) => setTimeout(() => resolve(deedAnswer(h, 'undetermined', null, budgetReason(ms))), 5));
+      }
+      return new Promise((resolve) => {
+        watchers.push(() => resolve(deedAnswer(h, 'undetermined', null, 'ord answered 403')));
+      });
+    });
+  }
+
+  const startedHeights = () => new Set(mockCanonicalDeedFor.mock.calls.map((c) => c[0] as number));
+
+  it('20 concurrent renders of cold claimed heights start at most 8 resolutions', async () => {
+    claimedAnywhere();
+    coldDeedRule();
+
+    const pages = await Promise.all(Array.from({ length: 20 }, (_, i) => fetchBlockPageData(COLD + i)));
+
+    expect(pages).toHaveLength(20);
+    expect(startedHeights().size).toBeGreaterThan(0);
+    expect(startedHeights().size).toBeLessThanOrEqual(8);
+    // Every render still answers, from the states that already exist.
+    for (const p of pages) {
+      expect(p.claimed).toBe(true);
+      expect(p.ownership.inSync).toBe(false);
+      expect(p.ownership.checkPending).toBe(true);
+    }
+  });
+
+  it('past the cap a render answers from the stored deed row and starts nothing', async () => {
+    claimedAnywhere();
+    coldDeedRule();
+    await Promise.all(Array.from({ length: 8 }, (_, i) => fetchBlockPageData(COLD + i)));
+    mockDeedVerdictFindUnique.mockImplementation(async (q: { where: { height: number } }) =>
+      q.where.height === BLOCK ? { height: BLOCK, inscriptionId: INSCRIPTION, ruleId: 'test-rule' } : null,
+    );
+
+    const page = await fetchBlockPageData(BLOCK);
+
+    expect(startedHeights().has(BLOCK)).toBe(false);
+    expect(page.ownership.deed).toMatchObject({ verdict: 'canonical', canonicalId: INSCRIPTION });
+  });
+
+  it('a slot frees when its resolution lands', async () => {
+    claimedAnywhere();
+    const watchers: Array<() => void> = [];
+    coldDeedRule(watchers);
+    await Promise.all(Array.from({ length: 8 }, (_, i) => fetchBlockPageData(COLD + i)));
+
+    await fetchBlockPageData(COLD + 8);
+    expect(startedHeights().has(COLD + 8)).toBe(false);
+
+    for (const done of watchers) done();
+    await settleWarm();
+
+    await fetchBlockPageData(COLD + 9);
+    expect(startedHeights().has(COLD + 9)).toBe(true);
+  });
+
+  it('a render of a height already being checked joins it and takes no new slot', async () => {
+    claimedAnywhere();
+    coldDeedRule();
+    await Promise.all(Array.from({ length: 8 }, (_, i) => fetchBlockPageData(COLD + i)));
+    const before = mockCanonicalDeedFor.mock.calls.length;
+
+    await fetchBlockPageData(COLD + 3);
+
+    expect(mockCanonicalDeedFor.mock.calls.length).toBeGreaterThan(before);
+    expect(startedHeights().size).toBe(8);
   });
 });
