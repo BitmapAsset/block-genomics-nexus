@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { guardianCardState, type BlockGuardianView, type GuardianCardKey } from '@/lib/blockGuardian';
+import { guardianCardState, guardianRegistration, type BlockGuardianView, type GuardianCardKey } from '@/lib/blockGuardian';
+import { shortenAddress } from '@/lib/blockPageData';
 import type { PublicBlockEvent } from '@/lib/block-event-core';
 import { formatNumber } from '@/lib/genome-utils';
 import { relativeTime } from './activity-feed';
@@ -9,9 +10,10 @@ import { relativeTime } from './activity-feed';
  *
  * Says only what the record shows. The state comes from `guardianCardState`
  * (lib/blockGuardian), which names the server's own `guardianLiveState`, so the
- * card and the feed's `guardian.status` rows agree. "Registered by the deed
- * holder" appears only when a `guardian.registered` event is on the record, and
- * the LAST line only when the guardian has an event among the ones the page
+ * card and the feed's `guardian.status` rows agree. "Registered <date> by
+ * <wallet>" is a dated fact from this guardian's own `guardian.registered`
+ * event (`guardianRegistration`), never a claim about today's holder, and the
+ * LAST line appears only when the guardian has an event among the ones the page
  * already read; with the event store off, both are left out.
  *
  * Reads the public summary only (lib/blockGuardian): no owner column, no
@@ -32,6 +34,10 @@ const pill =
 
 function monthYear(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
+function day(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
 export default function GuardianCard({
@@ -79,7 +85,7 @@ export default function GuardianCard({
   const state = guardianCardState(g, now);
   const chatHref = view.handle ? `/agent/${view.handle}?chat=1` : `/world/${height}`;
   const list = events ?? [];
-  const registered = list.some((e) => e.kind === 'guardian.registered');
+  const registered = guardianRegistration(g, list);
   const last = [...list].filter((e) => e.actor.type === 'guardian').sort((a, b) => b.seq - a.seq)[0] ?? null;
 
   return (
@@ -88,7 +94,15 @@ export default function GuardianCard({
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">Guardian</p>
           <h2 className="mt-1 break-words text-xl font-semibold text-text-primary">{g.name}</h2>
-          {registered && <p className="mt-1 text-xs text-text-secondary">Registered by the deed holder</p>}
+          {registered && (
+            <p
+              className="mt-1 text-xs text-text-secondary"
+              data-testid="guardian-registered"
+              title={new Date(registered.at).toUTCString()}
+            >
+              {`Registered ${day(registered.at)}${registered.by ? ` by ${shortenAddress(registered.by)}` : ''}`}
+            </p>
+          )}
         </div>
         <span
           className="rounded-full px-2.5 py-1 text-[11px] font-medium"

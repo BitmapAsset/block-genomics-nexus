@@ -14,6 +14,7 @@
 import prisma from '@/lib/prisma';
 import { toPublicGuardian } from '@/lib/guardian-view';
 import { guardianLiveState, type GuardianLiveState } from '@/lib/block-events';
+import { summaryFor, type PublicBlockEvent } from '@/lib/block-event-core';
 
 export interface BlockGuardianSummary {
   name: string;
@@ -135,4 +136,51 @@ export function guardianCardState(
   return view.llmConfigured
     ? { key: 'answers-chat', label: 'Answers chat', live }
     : { key: 'chat-not-set-up', label: 'Chat not set up', live };
+}
+
+/**
+ * A guardian's `guardian.registered` event is written right after its row is
+ * created (api/v1/guardian), so it lands within this window of `createdAt`.
+ * The slack covers the database clock against the app's.
+ */
+const REGISTERED_AFTER_MS = 10 * 60 * 1000;
+const REGISTERED_SLACK_MS = 60 * 1000;
+
+export interface GuardianRegistration {
+  /** When the registration was recorded (the event's time). */
+  at: string;
+  /** The wallet that registered it, when the event names one. */
+  by: string | null;
+}
+
+/**
+ * The newest `guardian.registered` event for the guardian shown, or null.
+ *
+ * The public summary carries no guardian id, so an event counts as this
+ * guardian's only when it was written within minutes of the guardian's
+ * creation and its summary is the server's template for this guardian's name
+ * (or the template without a name). An earlier guardian's registration, or one
+ * for another wallet's guardian on the block, does not match. The answer is a
+ * dated fact about who registered it, never a claim about today's holder.
+ */
+export function guardianRegistration(
+  guardian: Pick<BlockGuardianSummary, 'name' | 'createdAt'>,
+  events: readonly PublicBlockEvent[],
+): GuardianRegistration | null {
+  const created = Date.parse(guardian.createdAt);
+  if (!Number.isFinite(created)) return null;
+  const summaries = new Set([
+    summaryFor('guardian.registered', { guardianName: guardian.name }),
+    summaryFor('guardian.registered'),
+  ]);
+  const mine = events
+    .filter((e) => {
+      if (e.kind !== 'guardian.registered' || !summaries.has(e.summary)) return false;
+      const t = Date.parse(e.ts);
+      return t >= created - REGISTERED_SLACK_MS && t <= created + REGISTERED_AFTER_MS;
+    })
+    .sort((a, b) => b.seq - a.seq)[0];
+  if (!mine) return null;
+  const wallet = mine.actor.type === 'owner' || mine.actor.type === 'owner-session';
+  return { at: mine.ts, by: wallet ? mine.actor.id : null };
 }
