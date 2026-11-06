@@ -553,6 +553,135 @@ describe('Build card and Block facts', () => {
 
 });
 
+/** Pictographic emoji only: the page's text arrows ("proof ↗") are not emoji. */
+const EMOJI = /\p{Emoji_Presentation}|️/u;
+
+const verified = {
+  onChainOwner: ALICE,
+  registeredOwner: ALICE,
+  inscriptionId: STORED,
+  inSync: true,
+  indeterminate: false,
+  checkPending: false,
+  deed: { verdict: 'canonical', canonicalId: STORED, checkedAt: new Date(NOW - 7 * 60_000).toISOString(), unreachableSince: null },
+};
+const lastVerified = { chain: 'unavailable', unavailableSince: null, lastVerifiedAt: '2026-10-31T08:00:00.000Z' };
+const eventsOn = () =>
+  mockListBlockEvents.mockResolvedValue({ format: 'bg-event/1', enabled: true, block: HEIGHT, events: [event(1), event(2)], lastSeq: 2, hasMore: false });
+
+type StateCase = { name: string; setup: () => void; has: string[]; hasNot?: string[]; green?: boolean };
+
+const STATES: StateCase[] = [
+  { name: 'unclaimed', setup: () => {}, has: ['Not on Block Genomics', 'No guardian yet', 'Nothing built yet', 'Nothing has happened here yet'] },
+  {
+    name: 'claimed + verified',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: verified })),
+    has: ['Deed verified on Bitcoin · 7 min ago', 'First valid inscription'],
+    hasNot: ['Deed checks are paused.'],
+    green: true,
+  },
+  {
+    name: 'claimed + unreachable, no last verified time',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: unreachable })),
+    has: ['Deed not checked', 'We can&#x27;t check the deed on Bitcoin right now.', 'Deed checks are paused.'],
+    hasNot: ['Last check', 'last verified'],
+  },
+  {
+    name: 'claimed + unreachable, with a last verified time',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: { ...unreachable, availability: lastVerified } })),
+    has: ['Deed not checked · last verified', 'Last check Oct 31.'],
+  },
+  {
+    name: 'checking',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: { ...unreachable, checkPending: true } })),
+    has: ['Checking…'],
+    hasNot: ['Deed checks are paused.'],
+  },
+  {
+    name: 'disputed',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: disputed })),
+    has: ['Deed disputed · under review'],
+    hasNot: ['Deed checks are paused.', 'Reload later'],
+  },
+  {
+    name: 'no-deed-found',
+    setup: () =>
+      mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: { ...unreachable, deed: { ...unreachable.deed, verdict: 'none' } } })),
+    has: ['No valid deed found', 'Bitcoin shows no valid deed inscription for this block yet.', 'Last recorded holder'],
+    hasNot: ['Nobody has inscribed'],
+  },
+  {
+    name: 'active hosted guardian with a model',
+    setup: () => mockGuardianFindFirst.mockResolvedValue(guardianRow()),
+    has: ['data-action="talk"', 'Talk to Guardian #720143', 'Guardian Guardian #720143 · Answers chat', 'Keep private details to yourself.'],
+  },
+  {
+    name: 'active guardian without a model',
+    setup: () => mockGuardianFindFirst.mockResolvedValue(guardianRow({ llmApiKey: null })),
+    has: ['data-action="message"', 'Leave a message for Guardian #720143'],
+    hasNot: ['data-action="talk"'],
+  },
+  {
+    name: 'self-hosted active guardian while the deed cannot be checked',
+    setup: () => {
+      mockGuardianFindFirst.mockResolvedValue(guardianRow({ selfHosted: true, lastHeartbeat: new Date(NOW - 30 * 3_600_000) }));
+      mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: unreachable }));
+    },
+    has: ['Not checked · last heartbeat 30 h ago', 'check-ins are paused', 'data-state="not-checked"'],
+  },
+  {
+    name: 'paused guardian',
+    setup: () => mockGuardianFindFirst.mockResolvedValue(guardianRow({ status: 'paused' })),
+    has: ['Guardian #720143 isn&#x27;t taking messages right now.', '>Resting<'],
+    hasNot: ['data-action='],
+  },
+  { name: 'no guardian', setup: () => {}, has: ['No guardian yet', 'Hold this block? Connect your wallet'] },
+  { name: 'events on', setup: eventsOn, has: ['Newest first · signed events carry a proof', 'Placed object 2'] },
+  {
+    name: 'flag off with builds',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ objects: objects(3), objectCount: 3 })),
+    has: ['Built here · 3 objects', '3 things built'],
+    hasNot: ['signed events carry a proof'],
+  },
+  { name: 'flag off, empty', setup: () => {}, has: ['Nothing has happened here yet', 'Nothing built yet'] },
+  {
+    name: 'chain: null',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ chain: null })),
+    has: ['data-testid="chain-banner"', 'Nothing built here yet.'],
+    hasNot: ['data-testid="hero-scale-chip"', 'data-testid="hero-facts"'],
+  },
+  {
+    name: 'data.degraded',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ degraded: true })),
+    has: ['data-testid="degraded-banner"', 'Ownership unavailable'],
+  },
+];
+
+describe('every state (bg98a item 9)', () => {
+  it.each(STATES.map((s) => [s.name, s]))('%s', async (_name, s) => {
+    const key = marker('k');
+    mockGuardianFindFirst.mockImplementation(async () => null);
+    s.setup();
+    const setupImpl = mockGuardianFindFirst.getMockImplementation();
+    // The guardian row always carries a fresh owner-only marker, wherever the case set one up.
+    mockGuardianFindFirst.mockImplementation(async (...a: unknown[]) => {
+      const row = setupImpl ? await setupImpl(...a) : null;
+      return row ? { ...row, llmApiKey: row.llmApiKey === null ? null : key, monitorTokenHash: marker('tok') } : null;
+    });
+    const html = await render();
+    for (const t of s.has) expect([s.name, html.includes(t)]).toEqual([s.name, true]);
+    for (const t of s.hasNot ?? []) expect([s.name, t, html.includes(t)]).toEqual([s.name, t, false]);
+    expect(html.match(/data-primary/g)).toHaveLength(1);
+    expect(deedIsGreen(html)).toBe(s.green === true);
+    expect(html).not.toMatch(/\blive\b/i);
+    expect(html).not.toMatch(EMOJI);
+    expect(html).not.toContain(key);
+    expect(html).not.toContain('monitorTokenHash');
+    expect(html).not.toContain('llmApiKey');
+    expect(html).not.toContain('data-testid="phone-dock"');
+  });
+});
+
 describe('privacy', () => {
   it('no owner-only column, no marker value and no visitor count reaches the HTML', async () => {
     const markers: Record<string, string> = {};
