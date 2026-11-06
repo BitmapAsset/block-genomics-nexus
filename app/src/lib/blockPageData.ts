@@ -38,7 +38,7 @@
 import prisma from '@/lib/prisma';
 import { lookupOwnerForRender } from '@/lib/publicOwnerLookup';
 import { getOwnerAvailability } from '@/lib/onchain/owner-freshness';
-import { canonicalDeedFor, type CanonicalDeed, type DeedVerdict } from '@/lib/onchain/deed';
+import { canonicalDeedFor, CANONICAL_TTL_MS, DEED_RULE_ID, type CanonicalDeed, type DeedVerdict } from '@/lib/onchain/deed';
 import { fetchBlockOgSummary, type BlockOgSummary } from '@/lib/blockOgData';
 import { getBlockMarket, type BlockMarket } from '@/lib/marketplace';
 import { formatBytes, formatNumber } from '@/lib/genome-utils';
@@ -65,6 +65,21 @@ const MARKET_RENDER_BUDGET_MS = 2500;
  * in the background for the next render (see `canonicalDeedFor`).
  */
 export const DEED_RENDER_BUDGET_MS = 300;
+
+/**
+ * Ceiling on deed resolutions page renders start, per process (the same shape
+ * as the 16 background holder warms in `publicOwnerLookup`). A crawler walking
+ * claimed blocks would otherwise queue one resolution per block on the resolver
+ * the sign-in gate also uses. Past the cap a render answers from cached answers
+ * only, and the deed chip says "Checking…" until a later render has a slot.
+ */
+export const MAX_PAGE_DEED_CHECKS = 8;
+
+/**
+ * How long a slot follows a resolution that outlived the render: until it
+ * lands, or this long at the most (the ownership cron's per-block budget).
+ */
+const PAGE_DEED_CHECK_HOLD_MS = 45_000;
 
 /** Identity shown next to a build. Resolved from a handle when we have one. */
 export interface Creator {
@@ -111,7 +126,10 @@ export interface DeedCheck {
   verdict: DeedVerdict;
   /** The deed's inscription id under the deed rule; set only for `canonical`. */
   canonicalId: string | null;
-  /** When this server last observed the canonical deed's holder, if it has. */
+  /**
+   * When the holder shown was observed: the time its render-cache entry was
+   * written, not the newest check of any caller. Null when no holder is shown.
+   */
   checkedAt: string | null;
   /**
    * When this server's holder check for the canonical deed first found Bitcoin
@@ -120,6 +138,11 @@ export interface DeedCheck {
    * outage began (its answer time is only the latest retry).
    */
   unreachableSince: string | null;
+  /**
+   * True when this render started no deed check because the page's checks were
+   * all in use; the answer comes on a later render.
+   */
+  queued?: boolean;
 }
 
 export interface DeedAvailability {
@@ -236,11 +259,17 @@ export function resolveOwnership(
   };
 }
 
-/** True when a deed answer timed out and is still resolving in the background. */
+/** The reason `deedFor` gives when it started no check because every slot was in use. */
+const QUEUED_REASON = 'deed check queued: the page checks in this process are all in use';
+
+/** True when a deed answer timed out and is still resolving in the background, or is queued. */
 function stillResolving(deed: CanonicalDeed): boolean {
   // `canonicalDeedFor` answers `undetermined` with this reason when only the
   // request budget ran out; any other `undetermined` is a failed check.
-  return deed.verdict === 'undetermined' && /^no deed answer within/.test(deed.reason ?? '');
+  return (
+    deed.verdict === 'undetermined' &&
+    (/^no deed answer within/.test(deed.reason ?? '') || deed.reason === QUEUED_REASON)
+  );
 }
 
 /**
@@ -251,13 +280,18 @@ function stillResolving(deed: CanonicalDeed): boolean {
  * is kept for display ("on record") but never decides a match: the ownership
  * API applies the deed rule, and the page must not be greener than it.
  *
+ * The holder comes from the render cache (`holderFor`) and is dated with that
+ * cache entry's time. When this server's newest holder check for the deed
+ * failed after the holder was cached (or the holder carries no time), the
+ * holder is not shown as current: the chip takes the outage state instead.
+ *
  * Pure apart from the two memory reads it is handed (`holderFor`,
  * `availabilityFor`), so every branch can be tested without a network.
  */
 export function resolveDeedOwnership(
   record: { ownerAddress: string | null; inscriptionId: string | null },
   deed: CanonicalDeed,
-  holderFor: (inscriptionId: string) => { address: string | null; pending: boolean },
+  holderFor: (inscriptionId: string) => { address: string | null; pending: boolean; checkedAt?: string },
   availabilityFor: (inscriptionId: string) => {
     chain: DeedAvailability['chain'];
     checkedAt: string | null;
@@ -272,8 +306,14 @@ export function resolveDeedOwnership(
 
   if (deed.verdict === 'canonical' && deed.inscriptionId) {
     const id = deed.inscriptionId;
-    const { address, pending } = holderFor(id);
+    const held = holderFor(id);
     const a = availabilityFor(id);
+    const failedSince =
+      held.address !== null &&
+      a.chain === 'unavailable' &&
+      (!held.checkedAt || !a.checkedAt || Date.parse(a.checkedAt) > Date.parse(held.checkedAt));
+    const address = failedSince ? null : held.address;
+    const pending = held.pending;
     return {
       ...base,
       onChainOwner: address,
@@ -284,13 +324,14 @@ export function resolveDeedOwnership(
       deed: {
         verdict: 'canonical',
         canonicalId: id,
-        checkedAt: a.checkedAt,
+        checkedAt: address !== null ? held.checkedAt ?? null : null,
         unreachableSince: address === null && a.chain === 'unavailable' ? a.unavailableSince : null,
       },
     };
   }
 
   const pending = stillResolving(deed);
+  const queued = deed.verdict === 'undetermined' && deed.reason === QUEUED_REASON;
   return {
     ...base,
     onChainOwner: null,
@@ -302,14 +343,95 @@ export function resolveDeedOwnership(
       canonicalId: null,
       checkedAt: null,
       unreachableSince: null,
+      ...(queued ? { queued: true } : {}),
     },
   };
 }
 
-/** The deed rule for a claimed block; a failure reads as `undetermined`, never a throw. */
-async function deedFor(height: number): Promise<CanonicalDeed> {
+/** Heights whose deed check a page render started and which has not landed yet. */
+const pageDeedChecks = new Set<number>();
+
+/**
+ * Canonical deeds page renders have learned in this process, so a card or a
+ * render past the cap can use them without asking the resolver.
+ */
+const knownDeeds = new Map<number, { deed: CanonicalDeed; expiresAt: number }>();
+
+/** Test seam: forget the page's deed checks and the canonical deeds it learned. */
+export function __resetPageDeedChecks(): void {
+  pageDeedChecks.clear();
+  knownDeeds.clear();
+}
+
+function learn(deed: CanonicalDeed): void {
+  if (deed.verdict !== 'canonical' || !deed.inscriptionId) return;
+  const ttl = typeof CANONICAL_TTL_MS === 'number' ? CANONICAL_TTL_MS : 0;
+  knownDeeds.set(deed.height, { deed, expiresAt: Date.now() + ttl });
+}
+
+/**
+ * The canonical deed for `height` from cached answers only: what page renders
+ * learned in this process, then the stored `DeedVerdict` row. Never starts a
+ * resolution; null when neither has one.
+ */
+async function cachedCanonicalDeed(height: number): Promise<CanonicalDeed | null> {
+  const known = knownDeeds.get(height);
+  if (known && known.expiresAt > Date.now()) return known.deed;
   try {
-    return await canonicalDeedFor(height, { budgetMs: DEED_RENDER_BUDGET_MS });
+    const row = await prisma.deedVerdict.findUnique({
+      where: { height },
+      select: { inscriptionId: true, ruleId: true, resolvedAt: true },
+    });
+    if (!row || !DEED_RULE_ID || row.ruleId !== DEED_RULE_ID || !row.inscriptionId) return null;
+    const resolvedAt = row.resolvedAt instanceof Date ? row.resolvedAt.toISOString() : new Date().toISOString();
+    return { height, inscriptionId: row.inscriptionId, ruleId: row.ruleId, verdict: 'canonical', resolvedAt, source: 'db' };
+  } catch {
+    // Table not migrated yet, or the database blinked: no cached answer.
+    return null;
+  }
+}
+
+/**
+ * Hold a slot until the resolution a render started lands. Asking the deed rule
+ * again joins its open resolution (one per height), so this starts nothing new.
+ */
+function holdSlot(height: number): void {
+  void canonicalDeedFor(height, { budgetMs: PAGE_DEED_CHECK_HOLD_MS })
+    .then(learn, () => undefined)
+    .finally(() => pageDeedChecks.delete(height));
+}
+
+/**
+ * The deed rule for a claimed block; a failure reads as `undetermined`, never a
+ * throw. At most MAX_PAGE_DEED_CHECKS checks started by page renders run at
+ * once; past that a render answers from cached answers or says the check is
+ * queued.
+ */
+async function deedFor(height: number): Promise<CanonicalDeed> {
+  const joining = pageDeedChecks.has(height);
+  if (!joining && pageDeedChecks.size >= MAX_PAGE_DEED_CHECKS) {
+    return (
+      (await cachedCanonicalDeed(height)) ?? {
+        height,
+        inscriptionId: null,
+        ruleId: '',
+        verdict: 'undetermined',
+        resolvedAt: new Date().toISOString(),
+        reason: QUEUED_REASON,
+        source: 'resolver',
+      }
+    );
+  }
+  if (!joining) pageDeedChecks.add(height);
+  let holding = false;
+  try {
+    const deed = await canonicalDeedFor(height, { budgetMs: DEED_RENDER_BUDGET_MS });
+    learn(deed);
+    if (!joining && stillResolving(deed)) {
+      holdSlot(height);
+      holding = true;
+    }
+    return deed;
   } catch (e) {
     return {
       height,
@@ -320,6 +442,8 @@ async function deedFor(height: number): Promise<CanonicalDeed> {
       reason: e instanceof Error ? e.message : 'deed lookup failed',
       source: 'resolver',
     };
+  } finally {
+    if (!joining && !holding) pageDeedChecks.delete(height);
   }
 }
 
@@ -617,7 +741,10 @@ export function describeBlock(data: BlockPageData): string {
 export interface BlockCardFacts {
   /** Owner this app last recorded. Only `verified` lets the card call it the holder. */
   owner: string | null;
-  /** True only when the live holder of the recorded inscription equals `owner`. */
+  /**
+   * True only on the page's rule (`verifiedOnDeedRule`), from cached answers:
+   * the canonical deed's cached holder equals `owner`.
+   */
   verified: boolean;
   objectCount: number;
   claimed: boolean;
@@ -635,17 +762,16 @@ export async function fetchBlockCardFacts(height: number): Promise<BlockCardFact
 
     if (!block) return { owner: null, verified: false, objectCount: 0, claimed: false };
 
-    // Same non-blocking rule as the page: unfurlers hit this in bursts and time
-    // out fast, and the recorded owner is an acceptable card-level answer as
-    // long as the card does not call it the holder.
-    const { address: onChainOwner } = lookupOwnerForRender(block.inscriptionId);
+    // The deed rule, as the page applies it, from cached answers only: a card
+    // never starts a resolution (unfurlers hit this in bursts and time out
+    // fast). With no cached canonical deed the card prints the recorded owner
+    // as "LAST RECORDED", never as the holder.
+    const deed = await cachedCanonicalDeed(height);
+    const verified = deed
+      ? verifiedOnDeedRule(resolveDeedOwnership(block, deed, lookupOwnerForRender, getOwnerAvailability))
+      : false;
 
-    return {
-      owner: block.ownerAddress,
-      verified: onChainOwner !== null && onChainOwner === block.ownerAddress,
-      objectCount,
-      claimed: true,
-    };
+    return { owner: block.ownerAddress, verified, objectCount, claimed: true };
   } catch {
     return { owner: null, verified: false, objectCount: 0, claimed: false };
   }

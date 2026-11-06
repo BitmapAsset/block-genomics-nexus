@@ -87,7 +87,9 @@ export function deedStatus(ownership: BlockOwnership, now: number = Date.now()):
       key: 'checking',
       badge: 'Checking…',
       tone: 'neutral',
-      detail: 'Last recorded holder. A check against Bitcoin is running.',
+      detail: deed?.queued
+        ? 'Last recorded holder. Other blocks are being checked against Bitcoin first; this one follows.'
+        : 'Last recorded holder. A check against Bitcoin is running.',
     };
   }
 
