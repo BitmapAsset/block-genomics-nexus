@@ -7,9 +7,11 @@ import { primaryButton } from '@/components/ui/button';
 import ShareMenu from './share-menu';
 
 /**
- * The phone dock: Enter the block and Share, pinned to the bottom below 768 px
- * with the safe-area inset. Drawn on the client only (nothing in the server
- * HTML); the page reserves its height with CSS, so its arrival shifts nothing.
+ * The phone dock: Enter the block and Share, below 768 px, sitting directly on
+ * top of the site's bottom tab bar (components/pwa/BottomTabBar: 56 px items, a
+ * 1 px top border, then the safe-area inset, which the tab bar already takes).
+ * Drawn on the client only (nothing in the server HTML); the page reserves its
+ * height with CSS, so its arrival shifts nothing.
  * It shows once the hero's own action has scrolled away, so a view never has
  * two orange buttons, and it never carries `data-primary`.
  */
@@ -32,7 +34,7 @@ export default function PhoneDock({ height }: { height: number }) {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-line-2 bg-bg-primary/95 px-4 pb-[calc(12px+env(safe-area-inset-bottom))] pt-3 backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-[calc(57px+env(safe-area-inset-bottom))] z-40 border-t border-line-2 bg-bg-primary/95 px-4 py-3 backdrop-blur md:hidden"
       data-testid="phone-dock"
     >
       <div className="flex items-center gap-3">

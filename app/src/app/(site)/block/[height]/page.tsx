@@ -584,8 +584,11 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
 
   return (
     <main className="bp-dark bg-bg-primary">
-    {/* Below 768 px the bottom padding holds the phone dock's place, so its arrival shifts nothing. */}
-    <div className="mx-auto max-w-[1200px] overflow-x-hidden px-4 pb-[calc(96px+env(safe-area-inset-bottom))] pt-4 md:px-10 md:pb-16 md:pt-6">
+    {/*
+      Below 768 px the bottom padding holds the phone dock's place (79 px) plus the site's tab bar (57 px + the safe
+      area), so the last content clears both bars and the dock's arrival shifts nothing. SiteChrome's own pb-16 adds 64.
+    */}
+    <div className="mx-auto max-w-[1200px] overflow-x-hidden px-4 pb-[calc(144px+env(safe-area-inset-bottom))] pt-4 md:px-10 md:pb-16 md:pt-6">
       <Link
         href="/explore"
         className="inline-flex min-h-[44px] items-center gap-1.5 text-sm text-text-2 transition-colors hover:text-accent-cyan"
