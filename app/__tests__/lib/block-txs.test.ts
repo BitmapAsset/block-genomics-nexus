@@ -141,7 +141,7 @@ describe('getBlockSummary falls back to blockstream.info when mempool is unreach
   it('returns the same block, so the canonical layout is unchanged', async () => {
     const bs = esplora(BS);
     global.fetch = jest.fn(async (url: string) => {
-      if (url.startsWith('https://mempool.space')) throw new Error('connect timeout');
+      if (new URL(url).hostname === 'mempool.space') throw new Error('connect timeout');
       return bs.f(url);
     }) as any;
     const s = await getBlockSummary(612888);
@@ -163,7 +163,7 @@ describe('getBlockSummary falls back to blockstream.info when mempool is unreach
   it('reports not-found when mempool is down and blockstream has no such block', async () => {
     const bs = esplora(BS, { hashStatus: 404 });
     global.fetch = jest.fn(async (url: string) => {
-      if (url.startsWith('https://mempool.space')) throw new Error('connect timeout');
+      if (new URL(url).hostname === 'mempool.space') throw new Error('connect timeout');
       return bs.f(url);
     }) as any;
     await expect(getBlockSummary(990_002)).rejects.toBeInstanceOf(BlockNotFoundError);
@@ -171,7 +171,7 @@ describe('getBlockSummary falls back to blockstream.info when mempool is unreach
 
   it("keeps mempool's error when both hosts fail", async () => {
     global.fetch = jest.fn(async (url: string) => {
-      if (url.startsWith('https://mempool.space')) throw new Error('connect timeout');
+      if (new URL(url).hostname === 'mempool.space') throw new Error('connect timeout');
       return { ok: false, status: 503, text: async () => '' };
     }) as any;
     await expect(getBlockSummary(612_890)).rejects.toThrow('connect timeout');

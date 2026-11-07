@@ -37,7 +37,8 @@ beforeEach(() => {
   esplora = 'up';
   global.fetch = jest.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url.startsWith('https://ord.example') || url.startsWith('https://b.example')) {
+    const host = new URL(url).hostname;
+    if (host === 'ord.example' || host === 'b.example') {
       if (ord === 'blocked') return new Response('<title>Attention Required!</title>', { status: 403 });
       if (url.endsWith('/r/blockheight')) return new Response('972672', { status: 200 });
       if (url.endsWith('/status')) return new Response(STATUS_HTML, { status: 200 });
