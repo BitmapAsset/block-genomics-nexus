@@ -1741,6 +1741,7 @@ function InstancedParcels({
   const count = parcels.length;
   const clock = useThree(s => s.clock);
   const uniforms = useMemo<ParcelUniforms>(() => ({ uBgTime: { value: 0 }, uBgStart: { value: 0 } }), []);
+  // The parent keys this component by parcels.length, so a new count remounts it; rebuilding here is a safety net.
   const geometry = useMemo(() => {
     const g = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
     g.setAttribute('aBgHeight', new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, count) * 2), 2));
@@ -1837,6 +1838,9 @@ function InstancedParcels({
       mesh.setColorAt(i, COLOR_SCRATCH);
       aAttr.setXY(i, baseColors.amp[i], i);
     }
+    // Ranges left by a hover since the last frame would make three upload only those ranges of this full write.
+    mesh.instanceColor?.clearUpdateRanges();
+    aAttr.clearUpdateRanges();
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     aAttr.needsUpdate = true;
     painted.current = { hovered: -1, selected: -1 };
