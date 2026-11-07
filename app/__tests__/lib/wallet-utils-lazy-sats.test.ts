@@ -27,8 +27,8 @@ function setWindow(extra: Record<string, unknown>) {
 }
 
 let utils: Utils;
-beforeAll(() => {
-  utils = require('@/lib/wallet-utils') as Utils;
+beforeAll(async () => {
+  utils = await import('@/lib/wallet-utils');
 });
 
 describe('sats-connect loads on first use', () => {

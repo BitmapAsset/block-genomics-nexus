@@ -15,11 +15,13 @@ import PageTransition from '@/components/PageTransition';
 
 /** Every opacity the wrapper had before a style change since `watch` (old values), plus the current one. */
 function watch(el: HTMLElement) {
-  const observer = new MutationObserver(() => {});
+  const records: MutationRecord[] = [];
+  const observer = new MutationObserver((batch) => { records.push(...batch); });
   observer.observe(el, { attributes: true, attributeFilter: ['style'], attributeOldValue: true });
   return () => {
-    const seen = observer.takeRecords().map((r) => /opacity:\s*([\d.]+)/.exec(r.oldValue || '')?.[1] ?? '');
+    records.push(...observer.takeRecords());
     observer.disconnect();
+    const seen = records.map((r) => /opacity:\s*([\d.]+)/.exec(r.oldValue || '')?.[1] ?? '');
     return [...seen, el.style.opacity];
   };
 }
