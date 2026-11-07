@@ -164,6 +164,17 @@ describe('the deed resolver fetch', () => {
     expect(seen[0].redirect).toBe('error');
   });
 
+  it("to the configured ord host: a caller's redirect: 'follow' (the vendored limiter's mode) becomes 'error'", async () => {
+    const seen: any[] = [];
+    global.fetch = jest.fn(async (_url: string, init?: any) => {
+      seen.push(init);
+      return res(200, '{}');
+    }) as any;
+    await deedResolverOptions().fetch('https://ord.example/r/blockheight', { redirect: 'follow' });
+    expect(new Headers(seen[0].headers).get('Authorization')).toMatch(/^Basic /);
+    expect(seen[0].redirect).toBe('error');
+  });
+
   it('to an Esplora host: no Authorization and the redirect mode is left as given', async () => {
     const seen: any[] = [];
     global.fetch = jest.fn(async (_url: string, init?: any) => {

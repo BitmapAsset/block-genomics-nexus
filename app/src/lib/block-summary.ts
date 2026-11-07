@@ -239,6 +239,11 @@ export async function getBlockSummary(height: number, maxAgeMs = Infinity): Prom
 // whether a block has 6 confirmations.
 const TIP_TTL_MS = 30_000;
 let tipMemo: { height: number; at: number } | null = null;
+// A failed read is remembered too, for less time: while mempool.space is
+// unreachable, callers in this window get null at once instead of each waiting
+// for the 5 s timeout.
+const TIP_FAILURE_TTL_MS = 15_000;
+let tipFailedAt: number | null = null;
 
 /**
  * Every height at or below this was mined before this code shipped (the tip
@@ -261,6 +266,19 @@ export async function isAboveTip(height: number): Promise<boolean> {
 export async function getTipHeight(): Promise<number | null> {
   const now = Date.now();
   if (tipMemo && now - tipMemo.at <= TIP_TTL_MS) return tipMemo.height;
+  if (tipFailedAt !== null && now - tipFailedAt <= TIP_FAILURE_TTL_MS) return null;
+  const tip = await readTipHeight();
+  if (tip === null) {
+    // Counted from when the read gave up, so a timed-out read is remembered 15 s too.
+    tipFailedAt = Date.now();
+  } else {
+    tipMemo = { height: tip, at: now };
+    tipFailedAt = null;
+  }
+  return tip;
+}
+
+async function readTipHeight(): Promise<number | null> {
   try {
     const res = await fetch('https://mempool.space/api/blocks/tip/height', {
       signal: AbortSignal.timeout(5000),
@@ -272,7 +290,6 @@ export async function getTipHeight(): Promise<number | null> {
     if (text === null) return null;
     const tip = Number(text.trim());
     if (!Number.isSafeInteger(tip) || tip < 0) return null;
-    tipMemo = { height: tip, at: now };
     return tip;
   } catch {
     return null;

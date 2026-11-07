@@ -215,7 +215,7 @@ describe('(a)(b) a wallet holding a copy is denied by every entry point', () => 
     holders[COPY] = OTHER;
     const gate = await requireLiveBlockOwner(OTHER, FUTURE);
     expect(gate).toMatchObject({ ok: false, status: 403, code: 'ownership_not_proven' });
-    // Sign-in refuses a height above the tip before any check: a 400, still never a grant.
+    // Sign-in refuses a height over its height ceiling before any check: a 400, still never a grant.
     expect((await sessionVerifyAs(OTHER, [FUTURE])).status).toBe(400);
     expect(mockEmitDeedVerified).not.toHaveBeenCalled();
   });

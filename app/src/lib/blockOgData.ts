@@ -6,9 +6,9 @@
  * degrade to `null` rather than throwing: a share card that renders without
  * stats is far better than a link that previews as nothing.
  *
- * The two mempool calls of a height this server has not read yet are charged
- * to one budget every instance shares (OG_SUMMARY_CALLS_PER_MIN, about 60 cold
- * heights a minute); past it the answer is `null`. A height read once is kept
+ * A height this server has not read yet is charged one count of a budget every
+ * instance shares (OG_SUMMARY_CALLS_PER_MIN, so about 120 cold heights, or 240
+ * mempool.space calls, a minute); past it the answer is `null`. A height read once is kept
  * in memory, so a page view of a block this server already knows charges
  * nothing. When the limiter cannot count, the read goes ahead. Both calls
  * refuse redirects and read their body under a byte cap; either is `null`.
