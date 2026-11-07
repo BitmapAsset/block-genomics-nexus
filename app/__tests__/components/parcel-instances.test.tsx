@@ -66,6 +66,9 @@ const target = (p: Parcel) => Math.max(0.15, p.buildHeight * 4);
 function mount(overrides: Partial<Props> = {}) {
   const env: Env = { count: COUNT, mesh: null, frame: null, state: { clock: { elapsedTime: 0 } } };
   const InstancedParcels = makeHarness(env);
+  // three's InstancedMesh constructor writes an identity matrix per instance: made here, before the counted render.
+  env.mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), COUNT);
+  clearSpies();
   const props: Props = {
     parcels: makeParcels(), viewMode: 'isometric', hoveredIndex: -1, selectedIndex: -1,
     onHover: jest.fn(), onClick: jest.fn(), onDoubleClick: jest.fn(), ...overrides,
