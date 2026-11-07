@@ -31,14 +31,30 @@ jest.mock('next/server', () => {
   return { NextResponse, NextRequest: class {} };
 });
 
+// The real summary read, with each call's height and max age recorded.
+const mockSummaryReads: unknown[][] = [];
+jest.mock('@/lib/block-summary', () => {
+  const actual = jest.requireActual('@/lib/block-summary');
+  return {
+    ...actual,
+    getBlockSummary: (...a: unknown[]) => {
+      mockSummaryReads.push(a);
+      return actual.getBlockSummary(...a);
+    },
+  };
+});
+
 import fs from 'fs';
 import path from 'path';
 import { GET } from '@/app/api/v1/blocks/[height]/layout/route';
+import { __resetTipMemoForTest, KNOWN_MINED_HEIGHT } from '@/lib/block-summary';
 import { MondrianLayout } from '@/lib/vendor/ordpool/mondrian-layout';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const TIP = 900_000;
+// A tip above KNOWN_MINED_HEIGHT, as the real chain's is: every height at or
+// below KNOWN_MINED_HEIGHT - 6 is settled whatever the tip says.
+const TIP = KNOWN_MINED_HEIGHT + 8_000;
 const HASH = '0000000000000000000320283a032748cef8227873ff4872689bf23f1cda83a5';
 
 /** Block 612,888's recorded summary, re-shaped as mempool's TransactionStripped list. */
@@ -58,9 +74,12 @@ const okText = (t: string) => ({ ok: true, status: 200, text: async () => t });
 // text() too: bodies are read through a size cap, which reads text.
 const okJson = (j: unknown) => ({ ok: true, status: 200, json: async () => j, text: async () => JSON.stringify(j) });
 
-function mempool({ summary = SUMMARY as unknown, summaryOk = true, hashStatus = 200 } = {}) {
+function mempool({ summary = SUMMARY as unknown, summaryOk = true, hashStatus = 200, tipUp = true } = {}) {
   return jest.fn(async (url: string) => {
-    if (url.endsWith('/api/blocks/tip/height')) return okText(String(TIP));
+    if (url.endsWith('/api/blocks/tip/height')) {
+      if (!tipUp) throw new Error('tip down');
+      return okText(String(TIP));
+    }
     if (url.includes('/api/block-height/')) {
       if (hashStatus === 404) return { ok: false, status: 404, text: async () => 'Block not found' };
       return okText(HASH);
@@ -82,6 +101,8 @@ const call = (height: string) => GET(req(), { params: Promise.resolve({ height }
 let now = Date.parse('2031-01-01T00:00:00Z');
 
 beforeEach(() => {
+  __resetTipMemoForTest();
+  mockSummaryReads.length = 0;
   mockRateLimit.mockReset().mockResolvedValue({ response: null, headers: {} });
   global.fetch = mempool() as any;
   now += 3_600_000;
@@ -121,6 +142,24 @@ describe('the canonical layout', () => {
     const res = await call(String(TIP - 2));
     expect(res.status).toBe(200);
     expect(res.headers['Cache-Control']).toBe('public, max-age=60');
+  });
+});
+
+describe('while the tip cannot be read', () => {
+  it.each([KNOWN_MINED_HEIGHT - 6, 700_000])('height %i is settled: the long cache, and any cached summary', async (height) => {
+    global.fetch = mempool({ tipUp: false }) as any;
+    const res = await call(String(height));
+    expect(res.status).toBe(200);
+    expect(res.headers['Cache-Control']).toBe('public, max-age=31536000, immutable');
+    expect(mockSummaryReads).toEqual([[height, Infinity]]);
+  });
+
+  it('a height within 6 of KNOWN_MINED_HEIGHT keeps the short cache and a one-minute summary', async () => {
+    global.fetch = mempool({ tipUp: false }) as any;
+    const res = await call(String(KNOWN_MINED_HEIGHT - 3));
+    expect(res.status).toBe(200);
+    expect(res.headers['Cache-Control']).toBe('public, max-age=60');
+    expect(mockSummaryReads).toEqual([[KNOWN_MINED_HEIGHT - 3, 60_000]]);
   });
 });
 

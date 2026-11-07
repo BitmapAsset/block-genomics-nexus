@@ -39,6 +39,8 @@ function serve(handler: Handler) {
   }) as unknown as typeof fetch;
 }
 
+const hostOf = (url: string) => new URL(url).hostname;
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const blockPage = () =>
@@ -108,7 +110,7 @@ describe('ORD_BASE_URLS parsing', () => {
 
 describe('failover', () => {
   it('a 403 block on host 1 is retried once, then host 2 answers', async () => {
-    serve((url) => (url.startsWith('https://a.example') ? blockPage() : json(holderBody)));
+    serve((url) => (hostOf(url) === 'a.example' ? blockPage() : json(holderBody)));
 
     const owner = await getInscriptionOwner(INSCRIPTION);
 
@@ -123,13 +125,13 @@ describe('failover', () => {
     ['503', () => new Response('maintenance', { status: 503 })],
     ['a 200 block page where JSON was asked for', () => new Response('<html>challenge</html>', { status: 200 })],
   ])('fails over on %s', async (_label, bad) => {
-    serve((url) => (url.startsWith('https://a.example') ? bad() : json(holderBody)));
+    serve((url) => (hostOf(url) === 'a.example' ? bad() : json(holderBody)));
     expect((await getInscriptionOwner(INSCRIPTION))?.source).toBe('b.example');
   });
 
   it('fails over on a network error', async () => {
     serve((url) => {
-      if (url.startsWith('https://a.example')) throw new TypeError('fetch failed');
+      if (hostOf(url) === 'a.example') throw new TypeError('fetch failed');
       return json(holderBody);
     });
     expect((await getInscriptionOwner(INSCRIPTION))?.source).toBe('b.example');
@@ -138,7 +140,7 @@ describe('failover', () => {
   it('fails over when host 1 hangs past its budget', async () => {
     __resetOrdClientForTest({ list: 'https://a.example,https://b.example', single: null, throttleMs: 0, backoffMs: 0, hostBudgetMs: 50 });
     serve((url, init) => {
-      if (!url.startsWith('https://a.example')) return json(holderBody);
+      if (hostOf(url) !== 'a.example') return json(holderBody);
       return new Promise<Response>((_resolve, reject) => {
         init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
       });
@@ -180,7 +182,7 @@ describe('host cooldown', () => {
   it('a failed host is skipped for 60 s, then tried again', async () => {
     let now = 1_000_000;
     jest.spyOn(Date, 'now').mockImplementation(() => now);
-    serve((url) => (url.startsWith('https://a.example') ? blockPage() : json(holderBody)));
+    serve((url) => (hostOf(url) === 'a.example' ? blockPage() : json(holderBody)));
 
     await getInscriptionOwner(INSCRIPTION);
     calls = [];
@@ -191,7 +193,7 @@ describe('host cooldown', () => {
     now += HOST_COOLDOWN_MS + 1;
     calls = [];
     await getInscriptionOwner(INSCRIPTION);
-    expect(calls[0].url.startsWith('https://a.example')).toBe(true);
+    expect(hostOf(calls[0].url)).toBe('a.example');
   });
 
   it('with every host cooling down a lookup answers null without a request', async () => {
@@ -205,7 +207,7 @@ describe('host cooldown', () => {
 
 describe('request shape', () => {
   it('sends a descriptive User-Agent on every call', async () => {
-    serve((url) => (url.startsWith('https://a.example') ? blockPage() : json(holderBody)));
+    serve((url) => (hostOf(url) === 'a.example' ? blockPage() : json(holderBody)));
     await getInscriptionOwner(INSCRIPTION);
     expect(calls.length).toBe(3);
     for (const c of calls) {
@@ -226,13 +228,13 @@ describe('request shape', () => {
   });
 
   it('reads deed content through the host list instead of a hard-coded ordinals.com', async () => {
-    serve((url) => (url.startsWith('https://a.example') ? blockPage() : new Response('718840.bitmap', { status: 200 })));
+    serve((url) => (hostOf(url) === 'a.example' ? blockPage() : new Response('718840.bitmap', { status: 200 })));
     expect(await getInscriptionContent(INSCRIPTION)).toBe('718840.bitmap');
     expect(calls.at(-1)?.url).toBe(`https://b.example/content/${INSCRIPTION}`);
   });
 
   it('reads the tip through the host list', async () => {
-    serve((url) => (url.startsWith('https://a.example') ? blockPage() : new Response('972672', { status: 200 })));
+    serve((url) => (hostOf(url) === 'a.example' ? blockPage() : new Response('972672', { status: 200 })));
     expect(await getStatus()).toEqual({ height: 972672 });
   });
 });

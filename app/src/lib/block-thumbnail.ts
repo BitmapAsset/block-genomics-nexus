@@ -11,7 +11,7 @@
 import { renderBitmapThumbnail } from '@/lib/bitmap-renderer';
 import { completeSatTotals, estimatedSquareSize, logTxSize, txSatsToSizes } from '@/lib/bitmap-layout';
 import { prisma } from '@/lib/prisma';
-import { getBlockSummary, getTipHeight, KNOWN_MINED_HEIGHT, UpstreamBudgetError } from '@/lib/block-summary';
+import { getBlockSummary, getTipHeight, isSettledHeight, UpstreamBudgetError } from '@/lib/block-summary';
 
 /** How the PNG was produced; the route sends it as `X-Thumbnail-Source`. */
 export type ThumbnailSource = 'cache' | 'live' | 'stale-estimated' | 'estimated';
@@ -108,18 +108,14 @@ async function renderLive(height: number): Promise<{ png: Buffer; txCount: numbe
   }
 }
 
-/** Confirmations before a render is stored: a block this deep is not reorganised away. */
-const SETTLED_DEPTH = 6;
-
 /**
- * True when the block at `height` has SETTLED_DEPTH confirmations. Below the
- * known-mined height that is certain; above it the tip is asked, and an
- * unreadable tip counts as not settled (the render is served, not stored).
+ * True when the block at `height` has SETTLED_CONFIRMATIONS (lib/block-summary).
+ * Below the known-mined height that is certain and the tip is not asked; above
+ * it an unreadable tip counts as not settled (the render is served, not stored).
  */
 async function isSettled(height: number): Promise<boolean> {
-  if (height <= KNOWN_MINED_HEIGHT - SETTLED_DEPTH) return true;
-  const tip = await getTipHeight();
-  return tip !== null && tip - height >= SETTLED_DEPTH;
+  if (isSettledHeight(height, null)) return true;
+  return isSettledHeight(height, await getTipHeight());
 }
 
 function longCache(epoch: number): string {

@@ -85,7 +85,8 @@ beforeEach(() => {
 
   global.fetch = jest.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
-    const ord = url.startsWith('https://a.example') ? ordA : url.startsWith('https://b.example') ? ordB : null;
+    const host = new URL(url).hostname;
+    const ord = host === 'a.example' ? ordA : host === 'b.example' ? ordB : null;
     if (ord !== null) {
       if (ord === 'down') return blockPage();
       return new Response(JSON.stringify({ address: HOLDER, satpoint: SATPOINT }), { status: 200 });

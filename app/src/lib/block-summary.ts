@@ -88,6 +88,13 @@ export function __negativeCacheSizeForTest(): number {
   return negativeCache.size;
 }
 
+/** Test seam: forget the remembered tip, the remembered failed read and a read in flight. */
+export function __resetTipMemoForTest(): void {
+  tipMemo = null;
+  tipFailedAt = null;
+  tipRead = null;
+}
+
 // Positive cache, bounded. A 4,000-tx block is ~90 KB here, so 64 entries is a
 // few MB per instance at worst. Insertion order doubles as the eviction order.
 const MAX_CACHED = 64;
@@ -244,6 +251,8 @@ let tipMemo: { height: number; at: number } | null = null;
 // for the 5 s timeout.
 const TIP_FAILURE_TTL_MS = 15_000;
 let tipFailedAt: number | null = null;
+// One tip read at a time on this instance; later callers join it.
+let tipRead: Promise<number | null> | null = null;
 
 /**
  * Every height at or below this was mined before this code shipped (the tip
@@ -251,6 +260,20 @@ let tipFailedAt: number | null = null;
  * Block pages skip the tip fetch for these heights and keep their latency.
  */
 export const KNOWN_MINED_HEIGHT = 972_000;
+
+/** Six confirmations: deep enough that the block at this height will not change. */
+export const SETTLED_CONFIRMATIONS = 6;
+
+/**
+ * True when the block at `height` will not change: at or below
+ * KNOWN_MINED_HEIGHT - SETTLED_CONFIRMATIONS that holds without the tip;
+ * above it the tip must show SETTLED_CONFIRMATIONS, and an unknown tip does not.
+ */
+export function isSettledHeight(height: number, tip: number | null): boolean {
+  return (
+    height <= KNOWN_MINED_HEIGHT - SETTLED_CONFIRMATIONS || (tip !== null && tip - height >= SETTLED_CONFIRMATIONS)
+  );
+}
 
 /**
  * True when `height` is above the chain tip, i.e. not mined yet. An unreadable
@@ -267,15 +290,25 @@ export async function getTipHeight(): Promise<number | null> {
   const now = Date.now();
   if (tipMemo && now - tipMemo.at <= TIP_TTL_MS) return tipMemo.height;
   if (tipFailedAt !== null && now - tipFailedAt <= TIP_FAILURE_TTL_MS) return null;
-  const tip = await readTipHeight();
-  if (tip === null) {
-    // Counted from when the read gave up, so a timed-out read is remembered 15 s too.
-    tipFailedAt = Date.now();
-  } else {
-    tipMemo = { height: tip, at: now };
-    tipFailedAt = null;
+  if (!tipRead) {
+    // Only the call that reads writes the memo.
+    const read: Promise<number | null> = readTipHeight()
+      .then((tip) => {
+        if (tip === null) {
+          // Counted from when the read gave up, so a timed-out read is remembered 15 s too.
+          tipFailedAt = Date.now();
+        } else {
+          tipMemo = { height: tip, at: now };
+          tipFailedAt = null;
+        }
+        return tip;
+      })
+      .finally(() => {
+        if (tipRead === read) tipRead = null;
+      });
+    tipRead = read;
   }
-  return tip;
+  return tipRead;
 }
 
 async function readTipHeight(): Promise<number | null> {
