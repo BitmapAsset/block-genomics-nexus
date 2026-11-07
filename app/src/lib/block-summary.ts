@@ -88,6 +88,12 @@ export function __negativeCacheSizeForTest(): number {
   return negativeCache.size;
 }
 
+/** Test seam: forget the remembered tip and the remembered failed read. */
+export function __resetTipMemoForTest(): void {
+  tipMemo = null;
+  tipFailedAt = null;
+}
+
 // Positive cache, bounded. A 4,000-tx block is ~90 KB here, so 64 entries is a
 // few MB per instance at worst. Insertion order doubles as the eviction order.
 const MAX_CACHED = 64;
