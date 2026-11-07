@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { Canvas, useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 // Postprocessing disabled — causes client crashes
@@ -22,6 +22,8 @@ import { signAction, signedActionFetch } from '@/lib/signed-fetch';
 import { prepareDmPayload, UNENCRYPTED_DM_CONFIRM } from '@/lib/dm-payload';
 import { streamPlatform } from '@/lib/stream-embed';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
+import { patchParcelShader, type ParcelUniforms } from './parcel-shader';
+import { deviceCanvasDpr } from './phone-dpr';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import dynamic from 'next/dynamic';
 const GuardianConfigPanel = dynamic(() => import('../GuardianConfigPanel'), { ssr: false });
@@ -1716,6 +1718,15 @@ function DNAHelixView({ blockHeight }: { blockHeight: number }) {
 }
 
 /* ─── Instanced Parcels (treemap layout) ─── */
+/*
+ * Parcels are one InstancedMesh whose instance data is written once per data/view change, never per
+ * frame. The rise-in (exponential approach to the target height, rate 4/s) and the colour breathing
+ * run in the vertex shader from a time uniform (parcel-shader.ts); hover/selection rewrite only the
+ * affected instances. The instance matrix carries the TARGET height so raycasts hit the settled building.
+ */
+const MATRIX_SCRATCH = new THREE.Matrix4();
+const COLOR_SCRATCH = new THREE.Color();
+
 function InstancedParcels({
   parcels, viewMode, hoveredIndex, selectedIndex, onHover, onClick, onDoubleClick, customizations,
 }: {
@@ -1728,17 +1739,43 @@ function InstancedParcels({
 }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const count = parcels.length;
-  const dummy = useMemo(() => new THREE.Object3D(), []);
-  const colors = useMemo(() => {
+  const clock = useThree(s => s.clock);
+  const uniforms = useMemo<ParcelUniforms>(() => ({ uBgTime: { value: 0 }, uBgStart: { value: 0 } }), []);
+  const geometry = useMemo(() => {
+    const g = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+    g.setAttribute('aBgHeight', new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, count) * 2), 2));
+    g.setAttribute('aBgAnim', new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, count) * 2), 2));
+    return g;
+  }, [count]);
+  const material = useMemo(() => {
+    const m = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.2, envMapIntensity: 0.8 });
+    m.onBeforeCompile = patchParcelShader(uniforms, true);
+    m.customProgramCacheKey = () => 'bg-parcels-v1';
+    return m;
+  }, [uniforms]);
+  const depthMaterial = useMemo(() => {
+    const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+    m.onBeforeCompile = patchParcelShader(uniforms, false);
+    m.customProgramCacheKey = () => 'bg-parcels-depth-v1';
+    return m;
+  }, [uniforms]);
+  useEffect(() => () => { geometry.dispose(); }, [geometry]);
+  useEffect(() => () => { material.dispose(); depthMaterial.dispose(); }, [material, depthMaterial]);
+
+  // Base colour (linear) and breathing amplitude per instance; emissive customisations glow 1.3x and breathe 3x.
+  const baseColors = useMemo(() => {
     const arr = new Float32Array(count * 3);
+    const amp = new Float32Array(count);
     for (let i = 0; i < count; i++) {
       const custom = customizations?.get(parcels[i].txIndex);
       const c = custom?.color ? parseColor(custom.color) : parseColor(parcels[i].color);
-      arr[i * 3] = c.r;
-      arr[i * 3 + 1] = c.g;
-      arr[i * 3 + 2] = c.b;
+      const k = custom?.emissive ? 1.3 : 1;
+      arr[i * 3] = c.r * k;
+      arr[i * 3 + 1] = c.g * k;
+      arr[i * 3 + 2] = c.b * k;
+      amp[i] = custom?.emissive ? 0.15 : 0.05;
     }
-    return arr;
+    return { arr, amp };
   }, [parcels, count, customizations]);
 
   const targetHeights = useMemo(() => {
@@ -1753,46 +1790,88 @@ function InstancedParcels({
     );
   }, [parcels, viewMode]);
 
-  const currentHeights = useRef<Float32Array>(new Float32Array(count).fill(0.08));
-  // Resize currentHeights when parcel count changes (e.g. mock → real data)
-  if (currentHeights.current.length !== count) {
-    const old = currentHeights.current;
-    const next = new Float32Array(count).fill(0.08);
-    next.set(old.subarray(0, Math.min(old.length, count)));
-    currentHeights.current = next;
-  }
+  // Rise-in state: heights at the last change (from), targets (to), and the clock time of that change.
+  const rise = useRef<{ from: Float32Array; to: Float32Array; start: number }>({ from: new Float32Array(0), to: new Float32Array(0), start: 0 });
 
-  useFrame((state, delta) => {
-    if (!meshRef.current) return;
-    const t = state.clock.elapsedTime;
-
+  // Matrices + heights: once per data/view change. Starts each building from where its rise currently is.
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const now = clock.elapsedTime;
+    const prev = rise.current;
+    const k = Math.exp(-4 * Math.max(0, now - prev.start));
+    const from = new Float32Array(count);
+    const to = new Float32Array(count);
+    const e = MATRIX_SCRATCH.elements;
+    const hAttr = geometry.getAttribute('aBgHeight') as THREE.InstancedBufferAttribute;
     for (let i = 0; i < count; i++) {
       const p = parcels[i];
-      currentHeights.current[i] += (targetHeights[i] - currentHeights.current[i]) * Math.min(delta * 4, 1);
-      const h = currentHeights.current[i];
-
-      dummy.position.set(p.x, h / 2, p.z);
-      dummy.scale.set(p.width, h, p.depth);
-      dummy.updateMatrix();
-      meshRef.current.setMatrixAt(i, dummy.matrix);
-
-      const col = new THREE.Color();
-      if (i === hoveredIndex) {
-        col.setRGB(1, 1, 1);
-      } else if (i === selectedIndex) {
-        col.set('#00ff88');
-      } else {
-        col.setRGB(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2]);
-        const custom = customizations?.get(parcels[i].txIndex);
-        const breathe = 1 + Math.sin(t * 1.5 + i * 0.1) * (custom?.emissive ? 0.15 : 0.05);
-        col.multiplyScalar(custom?.emissive ? 1.3 : 1);
-        col.multiplyScalar(breathe);
-      }
-      meshRef.current.setColorAt(i, col);
+      const target = targetHeights[i];
+      from[i] = i < prev.to.length ? prev.to[i] + (prev.from[i] - prev.to[i]) * k : 0.08;
+      to[i] = target;
+      e[0] = p.width; e[1] = 0; e[2] = 0; e[3] = 0;
+      e[4] = 0; e[5] = target; e[6] = 0; e[7] = 0;
+      e[8] = 0; e[9] = 0; e[10] = p.depth; e[11] = 0;
+      e[12] = p.x; e[13] = 0; e[14] = p.z; e[15] = 1;
+      mesh.setMatrixAt(i, MATRIX_SCRATCH);
+      hAttr.setXY(i, from[i], target);
     }
+    rise.current = { from, to, start: now };
+    uniforms.uBgStart.value = now;
+    mesh.instanceMatrix.needsUpdate = true;
+    hAttr.needsUpdate = true;
+    mesh.boundingSphere = null;
+    mesh.boundingBox = null;
+  }, [parcels, count, targetHeights, geometry, clock, uniforms]);
 
-    meshRef.current.instanceMatrix.needsUpdate = true;
-    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
+  // Colours + breathing amplitude: full write when the palette changes.
+  const painted = useRef({ hovered: -1, selected: -1 });
+  // A full write is pending until the next frame renders: partial ranges would then skip it.
+  const fullUpload = useRef(false);
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const aAttr = geometry.getAttribute('aBgAnim') as THREE.InstancedBufferAttribute;
+    for (let i = 0; i < count; i++) {
+      COLOR_SCRATCH.setRGB(baseColors.arr[i * 3], baseColors.arr[i * 3 + 1], baseColors.arr[i * 3 + 2], THREE.LinearSRGBColorSpace);
+      mesh.setColorAt(i, COLOR_SCRATCH);
+      aAttr.setXY(i, baseColors.amp[i], i);
+    }
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    aAttr.needsUpdate = true;
+    painted.current = { hovered: -1, selected: -1 };
+    fullUpload.current = true;
+  }, [baseColors, count, geometry]);
+
+  // Hover / selection: rewrite only the instances that changed (partial upload ranges).
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh || !mesh.instanceColor) return;
+    const colorAttr = mesh.instanceColor;
+    const aAttr = geometry.getAttribute('aBgAnim') as THREE.InstancedBufferAttribute;
+    const paint = (i: number) => {
+      if (i < 0 || i >= count) return;
+      if (i === hoveredIndex) { COLOR_SCRATCH.setRGB(1, 1, 1, THREE.LinearSRGBColorSpace); aAttr.setX(i, 0); }
+      else if (i === selectedIndex) { COLOR_SCRATCH.set('#00ff88'); aAttr.setX(i, 0); }
+      else { COLOR_SCRATCH.setRGB(baseColors.arr[i * 3], baseColors.arr[i * 3 + 1], baseColors.arr[i * 3 + 2], THREE.LinearSRGBColorSpace); aAttr.setX(i, baseColors.amp[i]); }
+      mesh.setColorAt(i, COLOR_SCRATCH);
+      if (!fullUpload.current) {
+        colorAttr.addUpdateRange(i * 3, 3);
+        aAttr.addUpdateRange(i * 2, 2);
+      }
+    };
+    const prev = painted.current;
+    const touched = [prev.hovered, prev.selected, hoveredIndex, selectedIndex];
+    for (let j = 0; j < touched.length; j++) if (touched.indexOf(touched[j]) === j) paint(touched[j]);
+    colorAttr.needsUpdate = true;
+    aAttr.needsUpdate = true;
+    painted.current = { hovered: hoveredIndex, selected: selectedIndex };
+  }, [hoveredIndex, selectedIndex, baseColors, count, geometry]);
+
+  // The only per-frame work: one float.
+  useFrame((state) => {
+    uniforms.uBgTime.value = state.clock.elapsedTime;
+    fullUpload.current = false;
   });
 
   const handlePointerMove = useCallback((e: ThreeEvent<PointerEvent>) => {
@@ -1823,16 +1902,14 @@ function InstancedParcels({
     <>
       <instancedMesh
         ref={meshRef}
-        args={[undefined, undefined, count]}
+        args={[geometry, material, count]}
+        customDepthMaterial={depthMaterial}
         castShadow receiveShadow
         onPointerOver={handlePointerMove}
         onPointerOut={() => onHover(null)}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
-      >
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial roughness={0.55} metalness={0.2} envMapIntensity={0.8} />
-      </instancedMesh>
+      />
 
       {parcels[0]?.isCoinbase && (() => {
         const p = parcels[0];
@@ -5838,6 +5915,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         <div style={{ width: '100%', height: '100%', ...layoutStyle }}>
         <Canvas
           shadows
+          dpr={deviceCanvasDpr()}
           camera={{ position: [15, 12, 15], fov: 50, near: 0.01, far: 2000 }}
           gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
           onCreated={({ gl }) => {
