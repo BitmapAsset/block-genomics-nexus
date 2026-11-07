@@ -2,7 +2,8 @@ import { cache } from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { NEXUS_PATH, applyBlockParam, parseBlockParam } from '@/lib/blockDeepLink';
+import { ArrowLeft, CloudOff, Inbox } from 'lucide-react';
+import { parseBlockParam } from '@/lib/blockDeepLink';
 import {
   fetchBlockPageData,
   creatorLabel,
@@ -14,18 +15,23 @@ import {
 import { fetchBlockGuardian } from '@/lib/blockGuardian';
 import { isAboveTip } from '@/lib/block-summary';
 import type { BlockMarket } from '@/lib/marketplace';
-import { EPOCH_LABELS, getEpochColor, getEpochIndex } from '@/lib/bitmapStandard';
-import { formatBytes, formatNumber, hexPairToColor } from '@/lib/genome-utils';
+import { epochLabelFor } from '@/lib/bitmapStandard';
+import { formatNumber, hexPairToColor } from '@/lib/genome-utils';
 import CopyButton from './copy-button';
 import BlockTabs from './block-tabs';
 import OwnerBar from './owner-bar';
-import DeedRecheck from './deed-recheck';
-import { deedStatus, type DeedStatus, type DeedTone } from './deed-status';
+import { deedStatus, type DeedStatus } from './deed-status';
+import Callout from '@/components/ui/callout';
+import EmptyState from '@/components/ui/empty';
 import ActivityFeed from './activity-feed';
 import GuardianCard from './guardian-card';
+import Hero from './hero';
+import DeedCard from './deed-card';
+import BuildCard from './build-card';
+import PhoneDock from './phone-dock';
+import { guardianCardState, guardianDisplayState } from '@/lib/blockGuardian';
 import { listBlockEvents } from '@/lib/block-events';
 import { scaleLineForTxCount } from '@/lib/world-scale';
-import { bitmapThumbnailUrl } from '@/lib/bitmap-layout';
 import type { PublicBlockEvent } from '@/lib/block-event-core';
 
 /**
@@ -36,11 +42,14 @@ import type { PublicBlockEvent } from '@/lib/block-event-core';
  * who holds the deed *right now*, which is a live indexer answer. That also
  * keeps the build free of any database or network dependency.
  *
- * Layout, top to bottom (one column on a phone): the identity line with the
- * deed chip, the block map with its scale line, the guardian card, Activity,
- * then three tabs (World · Experiences · Block facts) and the Deed card. All
- * server-rendered, so a crawler reads the whole page. Nothing here claims to be
- * live: with the event store off the page shows what the record holds.
+ * Layout, top to bottom (one column on a phone): the hero (the artwork, the
+ * block's identity, its deed and guardian chips and the page's one main action,
+ * Enter the block), then three cards (Guardian, Deed, Build; the Deed card
+ * first when the block has no guardian), Activity, and three tabs (World ·
+ * Experiences · Block facts). All server-rendered, so a crawler reads the
+ * whole page. Nothing here claims to be live: with the event store off the page
+ * shows what the record holds. The page stays dark under the light theme
+ * (`.bp-dark`).
  */
 export const dynamic = 'force-dynamic';
 
@@ -61,14 +70,6 @@ async function isUnmined(height: number): Promise<boolean> {
   return isAboveTip(height);
 }
 
-function nexusHref(height: number): string {
-  return `${NEXUS_PATH}${applyBlockParam('', height)}`;
-}
-
-function epochFor(height: number) {
-  return EPOCH_LABELS[getEpochIndex(height)] ?? EPOCH_LABELS[EPOCH_LABELS.length - 1];
-}
-
 export async function generateMetadata({
   params,
 }: {
@@ -83,7 +84,7 @@ export async function generateMetadata({
 
   const [unmined, data] = await Promise.all([isUnmined(height), getBlockData(height)]);
   if (unmined) notFound();
-  const epoch = epochFor(height);
+  const epoch = epochLabelFor(height);
 
   const title = `Block ${formatNumber(height)} — ${height}.bitmap | Block Genomics`;
   const description = `${describeBlock(data)}. ${epoch.label}, a 2.1km × 2.1km district of sovereign digital land in The Nexus, anchored to Bitcoin block ${formatNumber(height)}.`;
@@ -198,118 +199,6 @@ function GenomeStrip({ genome }: { genome: string }) {
   );
 }
 
-const DEED_TONE_STYLE: Record<DeedTone, React.CSSProperties> = {
-  verified: { background: 'rgba(34,197,94,0.1)', color: '#22c55e' },
-  neutral: { background: 'rgba(100,116,139,0.16)', color: '#cbd5e1' },
-  outage: { background: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
-};
-
-/**
- * The deed chip in the identity line: one short phrase from `deedStatus`, or
- * "Not on Block Genomics" for an unclaimed block. Green only when the deed
- * rule's canonical deed answered and matches the record. Wraps rather than
- * truncates on a narrow screen.
- */
-function DeedChip({ data, status }: { data: BlockPageData; status: DeedStatus | null }) {
-  const text = status
-    ? status.badge
-    : data.degraded
-      ? 'Ownership unavailable'
-      : 'Not on Block Genomics';
-  const tone: DeedTone = status ? status.tone : 'neutral';
-  return (
-    <span
-      className="inline-block max-w-full rounded-2xl px-3 py-1 text-xs font-medium leading-5"
-      style={DEED_TONE_STYLE[tone]}
-      data-testid="deed-chip"
-      data-tone={tone}
-      data-state={status ? status.key : data.degraded ? 'degraded' : 'not-on-block-genomics'}
-    >
-      {text}
-    </span>
-  );
-}
-
-/**
- * The Deed card: the holder's address and the inscription, under the tabs.
- *
- * Three distinct states, kept distinct on purpose: verified against the chain,
- * on record but not verifiable this request, and not registered on Block
- * Genomics. The last one says nothing about who holds the `.bitmap` on Bitcoin:
- * this registry is not the chain. Collapsing "we could not reach the indexer"
- * into "unowned" would be a lie about property.
- */
-function DeedPanel({ data, status }: { data: BlockPageData; status: DeedStatus | null }) {
-  const { ownership } = data;
-  const owner = displayOwner(ownership);
-
-  if (!owner || !status) {
-    return (
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
-        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">
-          Deed
-        </div>
-        <p className="mt-2 text-base text-text-primary">
-          {data.degraded ? 'Ownership unavailable' : 'Not yet on Block Genomics'}
-        </p>
-        <p className="mt-1 text-sm text-text-secondary">
-          {data.degraded
-            ? 'The ownership record could not be reached. This does not mean the block is unowned.'
-            : `Nobody has verified ${data.height}.bitmap on Block Genomics yet. That says nothing about who holds it on Bitcoin.`}
-        </p>
-        {!data.degraded && (
-          <Link
-            href="/my-bitmaps"
-            className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-4 text-sm font-medium text-text-primary hover:bg-white/5"
-          >
-            Hold it? Verify in My Bitmaps
-          </Link>
-        )}
-      </div>
-    );
-  }
-
-  const canonicalId = ownership.deed?.canonicalId ?? null;
-  const storedId = ownership.inscriptionId;
-  // The stored id is labelled "on record" unless the deed rule named the same one.
-  const showStored = storedId !== null && storedId !== canonicalId;
-
-  return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
-      <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">
-        Deed · {status.key === 'verified' || status.key === 'registry-behind' ? 'holder on Bitcoin' : 'last recorded holder'}
-      </div>
-
-      <p className="mt-3 break-all font-mono text-base text-text-primary">{owner}</p>
-
-      <p className="mt-2 text-sm text-text-secondary">{status.detail}</p>
-
-      {(canonicalId || showStored) && (
-        <div className="mt-4 border-t border-white/[0.06] pt-4">
-          {canonicalId && (
-            <>
-              <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">
-                Inscription · the deed
-              </div>
-              <p className="mt-1 break-all font-mono text-xs text-text-secondary">{canonicalId}</p>
-            </>
-          )}
-          {showStored && (
-            <>
-              <div
-                className={`text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary${canonicalId ? ' mt-3' : ''}`}
-              >
-                Inscription · on record
-              </div>
-              <p className="mt-1 break-all font-mono text-xs text-text-secondary">{storedId}</p>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** Sats rendered as BTC once that reads better than a seven-digit integer. */
 function formatSats(sats: number): string {
   const btc = sats / 100_000_000;
@@ -352,10 +241,7 @@ function MarketPanel({ market }: { market: BlockMarket | null }) {
         <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">
           Market
         </div>
-        <span
-          className="rounded-full px-2.5 py-1 text-[11px] font-medium"
-          style={{ background: 'rgba(234,179,8,0.1)', color: '#eab308' }}
-        >
+        <span className="rounded-full bg-warn-soft px-2.5 py-1 text-[11px] font-medium text-warn-text">
           Listed
         </span>
       </div>
@@ -398,11 +284,6 @@ function MarketPanel({ market }: { market: BlockMarket | null }) {
   );
 }
 
-const pillPrimary =
-  'inline-flex min-h-[48px] items-center justify-center rounded-full bg-bitcoin px-6 text-sm font-semibold text-black transition hover:brightness-110';
-const pillSecondary =
-  'inline-flex min-h-[44px] items-center justify-center rounded-full border border-white/15 px-5 text-sm font-medium text-text-primary transition hover:bg-white/5';
-
 // ── Tab panels ──────────────────────────────────────────────────────────
 
 /**
@@ -411,27 +292,14 @@ const pillSecondary =
  */
 function WorldPanel({ data, listBuilds }: { data: BlockPageData; listBuilds: boolean }) {
   const { height } = data;
+  const listsBuilds = listBuilds && data.objects.length > 0;
   return (
     <>
-      <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.07] bg-gradient-to-br from-white/[0.04] to-transparent p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
-        <div className="max-w-xl">
-          <h2 className="text-xl font-semibold tracking-tight text-text-primary">Walk through {height}.bitmap</h2>
-          <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-            Every transaction in this block is a parcel, sized by the value it moved: the same squares as the bitmap above. Fly over it, walk its streets and see
-            what has been built.
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-3">
-          <Link href={`/world/${height}`} className={pillPrimary}>
-            Enter world
-          </Link>
-          <Link href={nexusHref(height)} className={pillSecondary}>
-            See it on the map
-          </Link>
-        </div>
-      </div>
+      {!listsBuilds && data.parcelCount === 0 && (
+        <p className="text-sm text-text-2">Builds and parcels on record for {height}.bitmap are listed here once there are any.</p>
+      )}
 
-      {/* Empty land is said once, in Activity above the tabs. */}
+      {/* Empty land is said once, on the Build card above. */}
       {listBuilds && data.objects.length > 0 && (
         <Section title="Built on this block" count={data.objectCount}>
           <ul className="grid gap-3 sm:grid-cols-2">
@@ -501,12 +369,9 @@ function ExperiencesPanel({ data }: { data: BlockPageData }) {
                 <span className="text-sm font-medium text-text-primary">{e.name}</span>
                 <span className="text-[11px] uppercase tracking-wider text-text-secondary">{e.experienceType}</span>
                 <span
-                  className="rounded-full px-2 py-0.5 text-[11px]"
-                  style={
-                    e.status === 'live'
-                      ? { background: 'rgba(45,212,191,0.1)', color: '#5eead4' }
-                      : { background: 'rgba(100,116,139,0.16)', color: '#cbd5e1' }
-                  }
+                  className={`rounded-full px-2 py-0.5 text-[11px] ${
+                    e.status === 'live' ? 'bg-accent-cyan/10 text-accent-cyan' : 'bg-surface-2 text-text-2'
+                  }`}
                 >
                   {/* "Published", not "live": nothing on this page claims to be live. */}
                   {e.status === 'live' ? 'published' : e.status}
@@ -544,25 +409,47 @@ function dayOf(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
+/** "Oct 31", UTC. */
+function shortDay(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
 /**
- * Activity, right under the guardian card: the event feed when the event store
- * has events; else what the record holds ("Built here · N objects · last change
- * <date>" and the build list); else one line for empty land. This is the only
- * place the page says nothing has been built.
+ * Activity, under the cards: the event feed when the event store has events;
+ * else what the record holds ("Built here · N objects · last change <date>"
+ * and the build list); else one empty state. While the deed cannot be checked
+ * on Bitcoin, a calm note says the deed checks are paused (never for a
+ * disputed deed).
  */
 function ActivitySection({
   data,
   events,
+  status,
 }: {
   data: BlockPageData;
   events: { events: PublicBlockEvent[]; readAt: number } | null;
+  status: DeedStatus | null;
 }) {
   const builds = [...data.objects].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const lastVerifiedAt = data.ownership.availability?.lastVerifiedAt ?? null;
   return (
     <section className="mt-10" data-testid="block-activity">
-      <div className="mb-5 flex items-baseline gap-3">
-        <h2 className="text-lg font-semibold tracking-tight text-text-primary">Activity</h2>
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="text-[19px] font-semibold tracking-[-0.012em] text-text-1">Activity</h2>
+        {events && <p className="text-[13px] text-text-3">Newest first · signed events carry a proof</p>}
       </div>
+      {status?.key === 'unreachable' && (
+        <Callout
+          tone="warn"
+          icon={<CloudOff size={16} strokeWidth={1.75} aria-hidden="true" />}
+          title="Deed checks are paused."
+          testId="activity-outage"
+          className="mb-4"
+        >
+          {lastVerifiedAt ? `Last check ${shortDay(lastVerifiedAt)}. ` : ''}
+          What&apos;s below was recorded before or doesn&apos;t need a deed check.
+        </Callout>
+      )}
       {events ? (
         <>
           <ActivityFeed events={events.events} now={events.readAt} />
@@ -571,20 +458,22 @@ function ActivitySection({
           </p>
         </>
       ) : builds.length === 0 ? (
-        <Empty>Nothing has been built here yet. Whoever holds the deed can place the first object from the world.</Empty>
+        <EmptyState icon={<Inbox size={18} strokeWidth={1.75} aria-hidden="true" />} title="Nothing has happened here yet" testId="activity-empty">
+          Builds, guardian answers and changes of hands will show up here. Signed events carry a proof.
+        </EmptyState>
       ) : (
         <>
-          <p className="mb-3 text-sm text-text-secondary" data-testid="built-here">
+          <p className="mb-3 text-[14px] text-text-2" data-testid="built-here">
             Built here · {formatNumber(data.objectCount)} object{data.objectCount === 1 ? '' : 's'} · last change{' '}
             {dayOf(builds[0].createdAt)}
           </p>
-          <ol className="divide-y divide-white/[0.06] rounded-2xl border border-white/[0.07] bg-white/[0.02]">
+          <ol className="divide-y divide-line-1 rounded-[20px] border border-line-1 bg-surface-1">
             {builds.map((o) => (
               <li key={o.id} className="flex flex-wrap items-baseline justify-between gap-2 px-5 py-3">
-                <span className="text-sm text-text-primary">
-                  {o.name || 'Untitled'} <span className="text-text-secondary">· {o.objectType}</span>
+                <span className="text-[14.5px] text-text-1">
+                  {o.name || 'Untitled'} <span className="text-text-2">· {o.objectType}</span>
                 </span>
-                <span className="text-xs text-text-secondary">
+                <span className="text-[12.5px] text-text-3">
                   <CreatorTag creator={o.creator} prefix="by" /> · {dayOf(o.createdAt)}
                 </span>
               </li>
@@ -611,21 +500,38 @@ function ActivitySection({
   );
 }
 
-/** The Block facts tab: today's stats, the block hash and the market. */
-function BlockFactsPanel({ data, mined }: { data: BlockPageData; mined: string | null }) {
+/**
+ * The Block facts tab: the block hash, its genome and full scale line, what is
+ * on record (objects, parcel rows, experiences) and the market. Transactions,
+ * size and the mined date are in the hero.
+ */
+function BlockFactsPanel({ data }: { data: BlockPageData }) {
+  // From the transaction count the page already has: no block summary, no wait.
+  const scale = data.chain ? scaleLineForTxCount(data.chain.txCount) : null;
   return (
     <>
+      {data.chain && (
+        <div className="mb-8">
+          <GenomeStrip genome={data.chain.genome} />
+          <p className="mt-2 break-all font-mono text-[11px] text-text-2">block genome {data.chain.genome.slice(0, 32)}…</p>
+          {scale && (
+            <p className="mt-2 text-xs text-text-2 tabular-nums" data-testid="block-scale-line">
+              {scale}
+            </p>
+          )}
+        </div>
+      )}
       <Section title="Block">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Stat label="Transactions" value={data.chain ? formatNumber(data.chain.txCount) : '—'} />
-          <Stat label="Size" value={data.chain ? formatBytes(data.chain.size) : '—'} />
-          <Stat label="Mined" value={mined ?? '—'} />
           <Stat label="Objects" value={formatNumber(data.objectCount)} />
-          <Stat label="Parcels" value={formatNumber(data.parcelCount)} />
+          <Stat label="Parcels on record" value={formatNumber(data.parcelCount)} />
           <Stat label="Experiences" value={formatNumber(data.experienceCount)} />
         </div>
         {data.chain ? (
-          <p className="mt-3 break-all font-mono text-xs text-text-secondary">{data.chain.hash}</p>
+          <div className="mt-3 flex items-center gap-2">
+            <p className="min-w-0 break-all font-mono text-xs text-text-2" data-testid="block-hash">{data.chain.hash}</p>
+            <CopyButton text={data.chain.hash} label="block hash" iconOnly className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text-2 hover:bg-surface-3 hover:text-text-1" />
+          </div>
         ) : (
           <p className="mt-3 text-sm text-text-secondary">Chain stats couldn&apos;t be loaded right now.</p>
         )}
@@ -654,135 +560,73 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
     latestEvents(height),
   ]);
   const now = Date.now();
-  const epoch = epochFor(height);
-  const epochColor = getEpochColor(height);
-  // From the transaction count the page already has: no block summary, no wait.
-  const scale = data.chain ? scaleLineForTxCount(data.chain.txCount) : null;
   // A deed state only for a block on record; an unclaimed one gets its own chip.
   const status = displayOwner(data.ownership) ? deedStatus(data.ownership, now) : null;
-
-  const mined = data.chain
-    ? new Date(data.chain.timestamp * 1000).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'UTC',
-      })
+  const shown = guardianView.guardian;
+  const guardianState = shown
+    ? { name: shown.name, ...guardianDisplayState(guardianCardState(shown, now), status?.key ?? null, shown, now) }
     : null;
 
-  const facts = [
-    mined ? { label: 'Mined', value: mined } : null,
-    data.chain ? { label: 'Transactions', value: formatNumber(data.chain.txCount) } : null,
-    data.chain ? { label: 'Size', value: formatBytes(data.chain.size) } : null,
-  ].filter((f): f is { label: string; value: string } => f !== null);
+  // Order by markup, not CSS: a shown guardian leads; with none, the deed does.
+  const guardianFirst = guardianView.guardian !== null || guardianView.degraded;
+  const guardianCard = (
+    <GuardianCard
+      key="guardian"
+      height={height}
+      view={guardianView}
+      events={events?.events ?? null}
+      now={events?.readAt ?? now}
+      deedKey={status?.key ?? null}
+    />
+  );
+  const deedCard = <DeedCard key="deed" data={data} status={status} />;
+  const cards = guardianFirst ? [guardianCard, deedCard] : [deedCard, guardianCard];
 
   return (
-    <main className="mx-auto max-w-5xl overflow-x-hidden px-5 py-8 sm:px-8 sm:py-12">
+    <main className="bp-dark bg-bg-primary">
+    {/*
+      Below 768 px the bottom padding holds the phone dock's place (79 px) plus the site's tab bar (57 px + the safe
+      area), so the last content clears both bars and the dock's arrival shifts nothing. SiteChrome's own pb-16 adds 64.
+    */}
+    <div className="mx-auto max-w-[1200px] overflow-x-hidden px-4 pb-[calc(144px+env(safe-area-inset-bottom))] pt-4 md:px-10 md:pb-16 md:pt-6">
       <Link
         href="/explore"
-        className="inline-flex min-h-[44px] items-center text-sm text-text-secondary transition-colors hover:text-accent-cyan"
+        className="inline-flex min-h-[44px] items-center gap-1.5 text-sm text-text-2 transition-colors hover:text-accent-cyan"
       >
-        ← Explore
+        <ArrowLeft size={15} strokeWidth={1.75} aria-hidden="true" />
+        Explore
       </Link>
 
       {data.chain === null && (
         <p
-          className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-sm text-text-secondary"
+          className="mt-4 rounded-[14px] border border-line-1 bg-surface-1 px-4 py-3 text-sm text-text-2"
           data-testid="chain-banner"
         >
           Bitcoin data is unreachable right now; block facts are missing on this view.
         </p>
       )}
 
-      {/* ── Hero: identity first, then the map (one column on a phone) ── */}
-      <header className="mt-4 grid gap-8 md:grid-cols-[minmax(0,320px)_1fr] md:items-center">
-        <div className="min-w-0 md:order-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className="rounded-full border px-3 py-1 text-xs font-medium"
-              style={{ borderColor: epochColor, color: epochColor }}
-            >
-              {epoch.label} · {epoch.sub}
-            </span>
-            {data.label && (
-              <span className="rounded-full bg-white/[0.06] px-3 py-1 text-xs text-text-primary">{data.label}</span>
-            )}
-          </div>
-          <p className="mt-5 text-[11px] font-medium uppercase tracking-[0.28em] text-text-secondary">Bitcoin block</p>
-          <h1 className="mt-1 text-6xl font-semibold tracking-[-0.03em] text-text-primary tabular-nums sm:text-7xl">
-            {formatNumber(height)}
-          </h1>
-          <p className="mt-2 font-mono text-xl text-bitcoin">{height}.bitmap</p>
-
-          {facts.length > 0 && (
-            <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-3">
-              {facts.map((f) => (
-                <div key={f.label}>
-                  <dt className="text-xs text-text-secondary">{f.label}</dt>
-                  <dd className="mt-0.5 text-sm font-medium tabular-nums text-text-primary">{f.value}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <DeedChip data={data} status={status} />
-          </div>
-          <DeedRecheck pending={data.ownership.checkPending} />
-
-          {data.chain && (
-            <div className="mt-5">
-              <GenomeStrip genome={data.chain.genome} />
-              <p className="mt-2 break-all font-mono text-[11px] text-text-secondary">
-                block genome {data.chain.genome.slice(0, 32)}…
-              </p>
-            </div>
-          )}
-
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Link href={`/world/${height}`} className={pillPrimary}>
-              Enter world
-            </Link>
-            <CopyButton text={`/block/${height}`} label="link" />
-          </div>
-        </div>
-
-        {/* Bitmap art: server-rendered PNG, cached per height */}
-        <div className="w-full max-w-[320px] md:order-1">
-          {/* eslint-disable-next-line @next/next/no-img-element -- dynamic API PNG, already cached server-side */}
-          <img
-            src={bitmapThumbnailUrl(height)}
-            alt={`${height}.bitmap`}
-            width={256}
-            height={256}
-            className="aspect-square w-full max-w-[320px] rounded-2xl border border-white/[0.08] bg-[#1d1f31]"
-          />
-          {scale && (
-            <p className="mt-2 text-xs text-text-secondary tabular-nums" data-testid="block-scale-line">
-              {scale}
-            </p>
-          )}
-        </div>
-      </header>
-
-      <OwnerBar onChainOwner={data.ownership.onChainOwner} registeredOwner={data.ownership.registeredOwner} />
-
       {data.degraded && (
-        <p className="mt-8 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-sm text-text-secondary">
+        <p className="mt-4 rounded-[14px] border border-line-1 bg-surface-1 px-4 py-3 text-sm text-text-2" data-testid="degraded-banner">
           Some data could not be loaded right now, so builds and ownership may be incomplete on this
           view. The block itself is unaffected.
         </p>
       )}
 
-      {/* ── Guardian, then Activity ── */}
-      <div className="mt-10">
-        <GuardianCard height={height} view={guardianView} events={events?.events ?? null} now={events?.readAt ?? now} />
+      <Hero data={data} status={status} guardian={guardianState} guardianDegraded={guardianView.degraded} now={now} />
+
+      <OwnerBar onChainOwner={data.ownership.onChainOwner} registeredOwner={data.ownership.registeredOwner} />
+
+      {/* ── Guardian, Deed, Build (three columns from 1200 px), then Activity ── */}
+      <div className="mt-6 grid gap-[14px] md:mt-8 md:gap-5 min-[1200px]:grid-cols-3" data-testid="block-cards">
+        {cards}
+        <BuildCard data={data} now={now} />
       </div>
 
-      <ActivitySection data={data} events={events} />
+      <ActivitySection data={data} events={events} status={status} />
 
-      {/* ── Tabs ── */}
-      <div className="mt-10">
+      {/* ── Tabs (the strip bleeds 20 px; 4 px more padding keeps it inside a 16 px phone gutter) ── */}
+      <div className="mt-10 px-1 md:px-0">
         <BlockTabs
           tabs={[
             { id: 'world', label: 'World', count: data.objectCount },
@@ -792,15 +636,12 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
           panels={{
             world: <WorldPanel data={data} listBuilds={events !== null} />,
             experiences: <ExperiencesPanel data={data} />,
-            facts: <BlockFactsPanel data={data} mined={mined} />,
+            facts: <BlockFactsPanel data={data} />,
           }}
         />
       </div>
-
-      {/* ── Deed ── */}
-      <div className="mt-10">
-        <DeedPanel data={data} status={status} />
-      </div>
+      <PhoneDock height={height} />
+    </div>
     </main>
   );
 }

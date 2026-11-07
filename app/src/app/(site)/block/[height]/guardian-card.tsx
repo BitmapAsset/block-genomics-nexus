@@ -1,36 +1,37 @@
-import Link from 'next/link';
-import { guardianCardState, guardianRegistration, type BlockGuardianView, type GuardianCardKey } from '@/lib/blockGuardian';
+import { ArrowUpRight, Bot } from 'lucide-react';
+import {
+  guardianCardState,
+  guardianDisplayState,
+  guardianRegistration,
+  type BlockGuardianView,
+} from '@/lib/blockGuardian';
 import { shortenAddress } from '@/lib/blockPageData';
 import type { PublicBlockEvent } from '@/lib/block-event-core';
 import { formatNumber } from '@/lib/genome-utils';
+import Card from '@/components/ui/card';
+import Chip from '@/components/ui/chip';
 import { relativeTime } from './activity-feed';
+import type { DeedStateKey } from './deed-status';
+import { GuardianAction, GuardianHoldPrompt } from './guardian-action';
 
 /**
- * The guardian card under the block's hero (Living Block, bg95).
+ * The guardian card on the block page (Living Block bg95, visitor view bg98a).
  *
  * Says only what the record shows. The state comes from `guardianCardState`
  * (lib/blockGuardian), which names the server's own `guardianLiveState`, so the
- * card and the feed's `guardian.status` rows agree. "Registered <date> by
- * <wallet>" is a dated fact from this guardian's own `guardian.registered`
- * event (`guardianRegistration`), never a claim about today's holder, and the
- * LAST line appears only when the guardian has an event among the ones the page
- * already read; with the event store off, both are left out.
+ * card and the feed's `guardian.status` rows agree; `guardianDisplayState`
+ * changes only the self-hosted case while the deed can't be checked. "Registered
+ * <date> by <wallet>" is a dated fact from this guardian's own
+ * `guardian.registered` event, never a claim about today's holder, and the LAST
+ * line appears only when the guardian has an event among the ones the page
+ * already read.
+ *
+ * One action, and only for an active guardian (the chat route answers for active
+ * guardians only): Talk when a model is set up, else Leave a message.
  *
  * Reads the public summary only (lib/blockGuardian): no owner column, no
  * visitor count.
  */
-
-const STATE_STYLE: Record<GuardianCardKey, React.CSSProperties> = {
-  'answers-chat': { background: 'rgba(45,212,191,0.1)', color: '#5eead4' },
-  'chat-not-set-up': { background: 'rgba(100,116,139,0.16)', color: '#cbd5e1' },
-  idle: { background: 'rgba(100,116,139,0.16)', color: '#cbd5e1' },
-  resting: { background: 'rgba(100,116,139,0.16)', color: '#cbd5e1' },
-  offline: { background: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
-  'no-heartbeat': { background: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
-};
-
-const pill =
-  'inline-flex min-h-[44px] items-center justify-center rounded-full border border-white/15 px-5 text-sm font-medium text-text-primary transition hover:bg-white/5';
 
 function monthYear(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -40,125 +41,129 @@ function day(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-t border-line-1 py-2.5 first:border-t-0">
+      <dt className="text-[14px] text-text-2">{label}</dt>
+      <dd className="text-right text-[14px] text-text-1 tabular-nums">{children}</dd>
+    </div>
+  );
+}
+
+const icon = <Bot size={15} strokeWidth={1.75} aria-hidden="true" />;
+
 export default function GuardianCard({
   height,
   view,
   events,
   now,
+  deedKey = null,
 }: {
   height: number;
   view: BlockGuardianView;
   /** The events the page already read (newest last), or null when there are none. */
   events: PublicBlockEvent[] | null;
   now: number;
+  /** The deed state on this page, or null for an unclaimed block. */
+  deedKey?: DeedStateKey | null;
 }) {
   if (view.degraded) {
     return (
-      <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6" data-testid="guardian-card">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">Guardian</p>
-        <p className="mt-2 text-sm text-text-secondary">
+      <Card caption="Guardian" icon={icon} testId="guardian-card">
+        <p className="mt-3 text-[14px] leading-[1.55] text-text-2">
           Guardian details couldn&apos;t be loaded right now. This doesn&apos;t mean the block has none.
         </p>
-      </section>
+      </Card>
     );
   }
 
   if (!view.guardian) {
     return (
-      <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6" data-testid="guardian-card">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">Guardian</p>
-        <h2 className="mt-1 text-lg font-semibold text-text-primary">No guardian yet</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-secondary">
-          A guardian is an AI agent that keeps a block and answers its visitors. Only the wallet that holds {height}.bitmap
-          can set one up.
+      <Card
+        caption="Guardian"
+        icon={icon}
+        testId="guardian-card"
+        chip={
+          <Chip tone="neutral" small>
+            None yet
+          </Chip>
+        }
+      >
+        <h3 className="mt-3 text-[19px] font-semibold tracking-[-0.012em] text-text-1">No guardian yet</h3>
+        <p className="mt-1 text-[14px] text-text-2">This block has no AI agent yet.</p>
+        <p className="mt-3 text-[14px] leading-[1.55] text-text-2">
+          {`A guardian is an AI agent that looks after a block: builds things on it and answers visitors' messages. Only the wallet that holds ${height}.bitmap can set one up.`}
         </p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Link href={`/world/${height}`} className={pill}>
-            Set it up from the world
-          </Link>
+        <div className="mt-auto pt-4">
+          <GuardianHoldPrompt height={height} />
         </div>
-      </section>
+      </Card>
     );
   }
 
   const g = view.guardian;
-  const state = guardianCardState(g, now);
-  const chatHref = view.handle ? `/agent/${view.handle}?chat=1` : `/world/${height}`;
+  const state = guardianDisplayState(guardianCardState(g, now), deedKey, g, now);
   const list = events ?? [];
   const registered = guardianRegistration(g, list);
   const last = [...list].filter((e) => e.actor.type === 'guardian').sort((a, b) => b.seq - a.seq)[0] ?? null;
+  const active = (g.status ?? 'active') === 'active';
 
   return (
-    <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6" data-testid="guardian-card">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">Guardian</p>
-          <h2 className="mt-1 break-words text-xl font-semibold text-text-primary">{g.name}</h2>
-          {registered && (
-            <p
-              className="mt-1 text-xs text-text-secondary"
-              data-testid="guardian-registered"
-              title={new Date(registered.at).toUTCString()}
-            >
-              {`Registered ${day(registered.at)}${registered.by ? ` by ${shortenAddress(registered.by)}` : ''}`}
-            </p>
-          )}
-        </div>
-        <span
-          className="rounded-full px-2.5 py-1 text-[11px] font-medium"
-          style={STATE_STYLE[state.key]}
-          data-testid="guardian-state"
-          data-state={state.key}
-        >
+    <Card
+      caption="Guardian"
+      icon={icon}
+      testId="guardian-card"
+      chip={
+        <Chip tone={state.tone} chip="guardian-card" state={state.key} testId="guardian-state" small>
           {state.label}
-        </span>
-      </div>
+        </Chip>
+      }
+    >
+      <h3 className="mt-3 break-words text-[19px] font-semibold tracking-[-0.012em] text-text-1">{g.name}</h3>
+      {registered && (
+        <p className="mt-1 text-[12.5px] text-text-3" data-testid="guardian-registered" title={new Date(registered.at).toUTCString()}>
+          {`Registered ${day(registered.at)}${registered.by ? ` by ${shortenAddress(registered.by)}` : ''}`}
+        </p>
+      )}
 
-      <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
-        <div>
-          <dt className="text-xs text-text-secondary">Runs on</dt>
-          <dd className="mt-0.5 text-text-primary">{g.selfHosted ? "The holder's own server" : 'Block Genomics'}</dd>
-        </div>
-        {g.selfHosted && (
-          <div>
-            <dt className="text-xs text-text-secondary">Last heartbeat</dt>
-            <dd className="mt-0.5 text-text-primary">{g.lastHeartbeat ? relativeTime(g.lastHeartbeat, now) : 'none yet'}</dd>
-          </div>
-        )}
-        <div>
-          <dt className="text-xs text-text-secondary">Messages</dt>
-          <dd className="mt-0.5 tabular-nums text-text-primary">{formatNumber(g.totalMessages)}</dd>
-        </div>
-        {g.createdAt && (
-          <div>
-            <dt className="text-xs text-text-secondary">Since</dt>
-            <dd className="mt-0.5 text-text-primary">{monthYear(g.createdAt)}</dd>
-          </div>
-        )}
+      {state.note && <p className="mt-3 text-[14px] leading-[1.55] text-warn-text" data-testid="guardian-note">{state.note}</p>}
+
+      <dl className="mt-3">
+        <Row label="Runs on">{g.selfHosted ? "The holder's own server" : 'Block Genomics, for the holder'}</Row>
+        {g.selfHosted && <Row label="Last heartbeat">{g.lastHeartbeat ? relativeTime(g.lastHeartbeat, now) : 'none yet'}</Row>}
+        <Row label="Messages">{formatNumber(g.totalMessages)}</Row>
+        {g.lastChatAt && <Row label="Last chat">{relativeTime(g.lastChatAt, now)}</Row>}
+        {g.createdAt && <Row label="Since">{monthYear(g.createdAt)}</Row>}
       </dl>
 
       {last && (
-        <p className="mt-4 text-sm text-text-primary" data-testid="guardian-last">
-          <span className="mr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">Last</span>
+        <p className="mt-3 text-[14px] text-text-1" data-testid="guardian-last">
+          <span className="mr-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-2">Last</span>
           {last.summary}{' '}
-          <span className="text-xs text-text-secondary">
+          <span className="text-[12.5px] text-text-3">
             ·{' '}
             <time dateTime={last.ts} title={new Date(last.ts).toUTCString()}>
               {relativeTime(last.ts, now)}
             </time>{' '}
             ·{' '}
-            <a href={last.proof.url} rel="nofollow" className="inline-flex min-h-[44px] items-center hover:text-accent-cyan">
-              proof ↗
+            <a href={last.proof.url} rel="nofollow" className="inline-flex min-h-[44px] items-center gap-0.5 text-accent-cyan hover:underline">
+              proof
+              <ArrowUpRight size={13} strokeWidth={1.75} aria-hidden="true" />
             </a>
           </span>
         </p>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-3">
-        <Link href={chatHref} className={pill}>
-          Talk to {g.name}
-        </Link>
+      <div className="mt-auto pt-4">
+        {active ? (
+          <>
+            <GuardianAction height={height} name={g.name} mode={g.llmConfigured ? 'talk' : 'message'} />
+            <p className="mt-2 text-[12.5px] text-text-3">Keep private details to yourself.</p>
+          </>
+        ) : (
+          <p className="text-[14px] text-text-2" data-testid="guardian-not-taking">{`${g.name} isn't taking messages right now.`}</p>
+        )}
       </div>
-    </section>
+    </Card>
   );
 }

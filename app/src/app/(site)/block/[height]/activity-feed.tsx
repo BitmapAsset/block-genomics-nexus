@@ -38,19 +38,19 @@ export function relativeTime(iso: string, now: number): string {
 export default function ActivityFeed({ events, now }: { events: PublicBlockEvent[]; now: number }) {
   const newestFirst = [...events].sort((a, b) => b.seq - a.seq);
   return (
-    <ol className="divide-y divide-white/[0.06] rounded-2xl border border-white/[0.07] bg-white/[0.02]">
+    <ol className="divide-y divide-line-1 rounded-[20px] border border-line-1 bg-surface-1">
       {newestFirst.map((e) => (
         <li key={e.id} className="flex flex-wrap items-baseline justify-between gap-2 px-5 py-3" data-event-kind={e.kind}>
-          <span className="text-sm text-text-primary">
-            {e.summary} <span className="text-text-secondary">· {actorLabel(e)}</span>
+          <span className="text-[14.5px] text-text-1">
+            {e.summary} <span className="text-text-2">· {actorLabel(e)}</span>
           </span>
-          <span className="text-xs text-text-secondary">
+          <span className="text-[12.5px] text-text-3">
             <time dateTime={e.ts} title={new Date(e.ts).toUTCString()}>
               {relativeTime(e.ts, now)}
             </time>{' '}
             ·{' '}
             {/* Padding without layout: a 44 px tap target on a phone, same row height. */}
-            <a href={e.proof.url} className="-my-[14px] inline-block py-[14px] hover:text-accent-cyan" rel="nofollow">
+            <a href={e.proof.url} className="-my-[14px] inline-block min-w-[44px] py-[14px] text-center text-accent-cyan hover:underline" rel="nofollow">
               proof ↗
             </a>
           </span>

@@ -9,12 +9,19 @@
  *
  * `totalVisitors` is not read: nothing ever increments it (see
  * lib/guardian-view and the api-invents-nothing contract).
+ *
+ * Which guardian: the newest `active` one (the chat route only answers for an
+ * active guardian), else the newest of any status. The row's id is read only
+ * to find its newest conversation's `updatedAt` ("Last chat"); it never
+ * leaves this file, and the conversation's messages are never read.
  */
 
 import prisma from '@/lib/prisma';
 import { toPublicGuardian } from '@/lib/guardian-view';
 import { guardianLiveState, type GuardianLiveState } from '@/lib/block-events';
 import { summaryFor, type PublicBlockEvent } from '@/lib/block-event-core';
+import type { ChipTone } from '@/components/ui/chip';
+import type { DeedStateKey } from '@/app/(site)/block/[height]/deed-status';
 
 export interface BlockGuardianSummary {
   name: string;
@@ -26,6 +33,8 @@ export interface BlockGuardianSummary {
   createdAt: string;
   /** True when a hosted guardian has an LLM provider, model and key set. */
   llmConfigured: boolean;
+  /** When its newest conversation last changed (ISO), or null. Not "last answer": forwards and errors are stored as turns too. */
+  lastChatAt: string | null;
 }
 
 /** The keys a guardian summary carries, and nothing else. */
@@ -37,6 +46,7 @@ export const BLOCK_GUARDIAN_KEYS = [
   'totalMessages',
   'createdAt',
   'llmConfigured',
+  'lastChatAt',
 ] as const;
 
 export interface BlockGuardianView {
@@ -49,24 +59,52 @@ export interface BlockGuardianView {
 
 const iso = (v: unknown): string | null => (v instanceof Date ? v.toISOString() : typeof v === 'string' ? v : null);
 
+const GUARDIAN_SELECT = {
+  id: true,
+  name: true,
+  status: true,
+  selfHosted: true,
+  lastHeartbeat: true,
+  totalMessages: true,
+  createdAt: true,
+  llmApiKey: true,
+  llmProvider: true,
+  llmModel: true,
+} as const;
+
+async function shownGuardian(height: number) {
+  const active = await prisma.guardianAgent.findFirst({
+    where: { blockHeight: height, status: 'active' },
+    orderBy: { createdAt: 'desc' },
+    select: GUARDIAN_SELECT,
+  });
+  if (active) return active;
+  return prisma.guardianAgent.findFirst({
+    where: { blockHeight: height },
+    orderBy: { createdAt: 'desc' },
+    select: GUARDIAN_SELECT,
+  });
+}
+
+/** The newest conversation's `updatedAt`, or null; a failed read is null too, so the card still renders. */
+async function lastChatAt(guardianId: unknown): Promise<string | null> {
+  if (typeof guardianId !== 'string' || !guardianId) return null;
+  try {
+    const c = await prisma.guardianConversation.findFirst({
+      where: { guardianId },
+      orderBy: { updatedAt: 'desc' },
+      select: { updatedAt: true },
+    });
+    return iso(c?.updatedAt);
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchBlockGuardian(height: number): Promise<BlockGuardianView> {
   try {
     const [row, profile] = await Promise.all([
-      prisma.guardianAgent.findFirst({
-        where: { blockHeight: height },
-        orderBy: { createdAt: 'asc' },
-        select: {
-          name: true,
-          status: true,
-          selfHosted: true,
-          lastHeartbeat: true,
-          totalMessages: true,
-          createdAt: true,
-          llmApiKey: true,
-          llmProvider: true,
-          llmModel: true,
-        },
-      }),
+      shownGuardian(height),
       prisma.blockProfile.findFirst({
         where: { blockHeight: height },
         orderBy: { createdAt: 'asc' },
@@ -76,6 +114,7 @@ export async function fetchBlockGuardian(height: number): Promise<BlockGuardianV
 
     let guardian: BlockGuardianSummary | null = null;
     if (row) {
+      const chatAt = await lastChatAt((row as { id?: unknown }).id);
       const pub = toPublicGuardian(row as Record<string, unknown>);
       guardian = {
         name: String(pub.name ?? ''),
@@ -85,6 +124,7 @@ export async function fetchBlockGuardian(height: number): Promise<BlockGuardianV
         totalMessages: typeof pub.totalMessages === 'number' ? pub.totalMessages : 0,
         createdAt: iso(pub.createdAt) ?? '',
         llmConfigured: pub.llmConfigured === true,
+        lastChatAt: chatAt,
       };
     }
 
@@ -95,7 +135,15 @@ export async function fetchBlockGuardian(height: number): Promise<BlockGuardianV
 }
 
 /** What the guardian card says about the guardian right now. */
-export type GuardianCardKey = 'answers-chat' | 'chat-not-set-up' | 'idle' | 'resting' | 'offline' | 'no-heartbeat';
+export type GuardianCardKey =
+  | 'answers-chat'
+  | 'chat-not-set-up'
+  | 'idle'
+  | 'resting'
+  | 'offline'
+  | 'no-heartbeat'
+  /** Only from `guardianDisplayState`: a self-hosted guardian while the deed can't be checked. */
+  | 'not-checked';
 
 export interface GuardianCardState {
   key: GuardianCardKey;
@@ -136,6 +184,59 @@ export function guardianCardState(
   return view.llmConfigured
     ? { key: 'answers-chat', label: 'Answers chat', live }
     : { key: 'chat-not-set-up', label: 'Chat not set up', live };
+}
+
+/** "just now", "N min ago", "N h ago", "N days ago". */
+function ago(isoTime: string, now: number): string {
+  const mins = Math.max(0, Math.floor((now - Date.parse(isoTime)) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 48) return `${hours} h ago`;
+  return `${Math.floor(hours / 24)} days ago`;
+}
+
+/**
+ * Chip tones by card state (bg98a gate-2 rule): ok only for states that rest
+ * on fresh data (a hosted guardian that answers chat, a self-hosted one whose
+ * beat is inside its own rule); everything resting, offline or unset is neutral;
+ * `not-checked` is amber.
+ */
+const CARD_TONE: Record<GuardianCardKey, ChipTone> = {
+  'answers-chat': 'ok',
+  idle: 'ok',
+  'chat-not-set-up': 'neutral',
+  resting: 'neutral',
+  offline: 'neutral',
+  'no-heartbeat': 'neutral',
+  'not-checked': 'warn',
+};
+
+/**
+ * The state the block page shows, on top of `guardianCardState`. One case
+ * differs: while the deed cannot be checked on Bitcoin, the heartbeat route
+ * refuses a self-hosted guardian's beats (api/v1/guardian/heartbeat), so its
+ * silence is not its fault. Then the chip reads amber "Not checked" with the
+ * last heartbeat, plus a line saying why. A guardian at rest stays at rest.
+ * It never makes anything green that `guardianCardState` would not; a disputed
+ * deed changes nothing here.
+ */
+export function guardianDisplayState(
+  cardState: GuardianCardState,
+  deedKey: DeedStateKey | null,
+  view: Pick<BlockGuardianSummary, 'selfHosted' | 'lastHeartbeat' | 'name'>,
+  now: number = Date.now(),
+): GuardianCardState & { tone: ChipTone; note?: string } {
+  if (deedKey === 'unreachable' && view.selfHosted && cardState.key !== 'resting') {
+    return {
+      key: 'not-checked',
+      label: `Not checked · ${view.lastHeartbeat ? `last heartbeat ${ago(view.lastHeartbeat, now)}` : 'no heartbeat yet'}`,
+      live: cardState.live,
+      tone: 'warn',
+      note: `We can't check the deed on Bitcoin right now, so ${view.name}'s check-ins are paused.`,
+    };
+  }
+  return { ...cardState, tone: CARD_TONE[cardState.key] };
 }
 
 /**

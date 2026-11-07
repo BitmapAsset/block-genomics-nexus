@@ -7,19 +7,29 @@
  * The guardian goes through the real `fetchBlockGuardian` over a mocked row
  * that carries every owner-only column, so the privacy test also covers the
  * select-and-project path.
+ *
+ * bg98a: the hero, the Guardian / Deed / Build cards and Block facts. Every
+ * assertion the new page supersedes is replaced by the same fact in its new
+ * place (the hero deed chip, the Deed card, the Build card, the sheet trigger).
  */
 
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const mockGuardianFindFirst = jest.fn();
 const mockProfileFindFirst = jest.fn();
+const mockConversationFindFirst = jest.fn();
 jest.mock('@/lib/prisma', () => ({
   __esModule: true,
   default: {
     guardianAgent: { findFirst: (...a: unknown[]) => mockGuardianFindFirst(...a) },
     blockProfile: { findFirst: (...a: unknown[]) => mockProfileFindFirst(...a) },
+    guardianConversation: { findFirst: (...a: unknown[]) => mockConversationFindFirst(...a) },
   },
 }));
+
+// Client islands that read the wallet: the hook alone, so they render their visitor markup.
+jest.mock('@/context/GlobalWalletContext', () => ({ useGlobalWallet: () => ({ isConnected: false, walletAddress: null }) }));
+jest.mock('qrcode.react', () => ({ QRCodeSVG: () => null }));
 
 const mockListBlockEvents = jest.fn();
 jest.mock('@/lib/block-events', () => ({
@@ -59,8 +69,7 @@ const HEIGHT = 720143;
 const NOW = Date.UTC(2026, 10, 2, 12, 0, 0);
 const ALICE = 'bc1pholderrecorded000000000000000000000000a1ce';
 const STORED = 'storedinscriptionforthistest0i0';
-const GREEN = '#22c55e';
-const EMPTY_LAND = /Nothing has been built here yet|No builds recorded/g;
+const EMPTY_LAND = /Nothing built yet|Nothing built here yet/g;
 
 const chain = {
   height: HEIGHT,
@@ -153,20 +162,26 @@ function event(seq: number, over: Partial<PublicBlockEvent> = {}): PublicBlockEv
 
 const render = async () => renderToStaticMarkup(await BlockPage({ params: Promise.resolve({ height: String(HEIGHT) }) }));
 
+/** The hero's deed chip text (the first `data-chip="deed"`). */
 function chipOf(html: string): string {
-  const m = html.match(/data-testid="deed-chip"[^>]*>([^<]*)</);
+  const m = html.match(/data-chip="deed"[^>]*>(?:<span[^>]*><\/span>)?<span[^>]*>([^<]*)<\/span>/);
   return m ? m[1] : '';
 }
 
-/**
- * True when the deed reads as verified anywhere on the page: the chip's tone,
- * or the verified green on the chip. (The epoch chip may be green by era; that
- * is not a claim about the deed.)
- */
+/** True when any deed chip on the page (hero or Deed card) has the ok tone. */
 function deedIsGreen(html: string): boolean {
-  const tag = html.match(/<span[^>]*data-testid="deed-chip"[^>]*>/)?.[0] ?? '';
-  return html.includes('data-tone="verified"') || tag.includes(GREEN) || /Verified/.test(chipOf(html));
+  return [...html.matchAll(/<span[^>]*data-chip="deed"[^>]*>/g)].some((m) => m[0].includes('data-tone="ok"'));
 }
+
+/** One card's markup alone, by its test id. */
+function cardOf(html: string, id: string): string {
+  const start = html.indexOf(`data-testid="${id}"`);
+  if (start < 0) return '';
+  const rest = html.slice(start);
+  return rest.slice(0, rest.indexOf('</section>'));
+}
+
+const ORD = (id: string) => `https://ordinals.com/inscription/${id}`;
 
 /** The guardian card's markup alone (the Activity feed labels each row's signer separately). */
 function guardianCardOf(html: string): string {
@@ -180,12 +195,14 @@ function commonChecks(html: string) {
   expect(html).not.toMatch(/\blive\b/i);
   expect((html.match(EMPTY_LAND) ?? []).length).toBeLessThanOrEqual(1);
   expect(html).not.toContain('Visitors');
+  expect(html.match(/data-primary/g)).toHaveLength(1);
 }
 
 beforeEach(() => {
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
   mockGuardianFindFirst.mockReset().mockResolvedValue(null);
   mockProfileFindFirst.mockReset().mockResolvedValue(null);
+  mockConversationFindFirst.mockReset().mockResolvedValue(null);
   mockListBlockEvents.mockReset().mockResolvedValue({ format: 'bg-event/1', enabled: false, events: [] });
   mockGetBlockSummary.mockReset().mockReturnValue(new Promise(() => {}));
   mockFetchBlockPageData.mockReset().mockResolvedValue(pageData());
@@ -208,10 +225,12 @@ describe('dark states', () => {
   it('claimed + indexer unreachable: amber chip with the time, last recorded holder, stored id on record', async () => {
     mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: unreachable }));
     const html = await render();
-    expect(chipOf(html)).toBe('Not checked · Bitcoin indexer unreachable since 11:40 UTC');
+    expect(chipOf(html)).toBe('Deed not checked');
+    expect(cardOf(html, 'deed-card')).toContain('Not checked · Bitcoin indexer unreachable since 11:40 UTC');
     expect(html).toContain(ALICE);
-    expect(html).toContain('Inscription · on record');
-    expect(html).toContain(STORED);
+    expect(cardOf(html, 'deed-card')).toContain('Inscription on record');
+    expect(html).toContain(`href="${ORD(STORED)}"`);
+    expect(cardOf(html, 'deed-card')).toContain('(may be out of date)');
     expect(deedIsGreen(html)).toBe(false);
     commonChecks(html);
   });
@@ -225,8 +244,11 @@ describe('dark states', () => {
     );
     mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership }));
     const html = await render();
-    expect(chipOf(html)).toBe('Not checked · Bitcoin indexer unreachable');
-    expect(html).toContain('could not be checked right now');
+    expect(chipOf(html)).toBe('Deed not checked');
+    // The card says the facts once: the status title and the callout, not the long detail.
+    expect(cardOf(html, 'deed-card')).toContain('>Not checked · Bitcoin indexer unreachable<');
+    expect(cardOf(html, 'deed-card')).toContain('data-testid="deed-outage"');
+    expect(html).not.toContain('could not be checked right now');
     expect(deedIsGreen(html)).toBe(false);
     commonChecks(html);
   });
@@ -237,7 +259,7 @@ describe('dark states', () => {
     );
     const html = await render();
     expect(deedIsGreen(html)).toBe(false);
-    expect(chipOf(html)).not.toMatch(/Verified/);
+    expect(chipOf(html)).not.toMatch(/verified/i);
   });
 
   it('verified on the deed rule: the only green state, with its age', async () => {
@@ -256,9 +278,13 @@ describe('dark states', () => {
       }),
     );
     const html = await render();
-    expect(chipOf(html)).toBe('Verified on Bitcoin · 7 min ago');
+    expect(chipOf(html)).toBe('Deed verified on Bitcoin · 7 min ago');
     expect(deedIsGreen(html)).toBe(true);
-    expect(html).not.toContain('Inscription · on record');
+    expect(html).not.toContain('Inscription on record');
+    expect(cardOf(html, 'deed-card')).toContain('First valid inscription');
+    expect(html).toContain(`href="${ORD(STORED)}"`);
+    expect(html).not.toContain('(may be out of date)');
+    expect(html).not.toContain('data-testid="deed-outage"');
     commonChecks(html);
   });
 
@@ -280,8 +306,8 @@ describe('dark states', () => {
     expect(html).toContain('data-state="answers-chat"');
     expect(html).toContain('>Answers chat<');
     expect(html).not.toContain('Last heartbeat');
-    expect(html).toContain('Talk to Guardian #720143');
-    expect(html).toContain('href="/agent/keeper720143?chat=1"');
+    expect(html).toMatch(/<button[^>]*data-action="talk"[^>]*>.*Talk to Guardian #720143<\/button>/);
+    expect(html).not.toContain('?chat=1');
     expect(html).toContain('Built here · 61 objects · last change');
     expect(html).toContain('Showing 24 of 61');
     expect(html).not.toContain('Registered by the deed holder');
@@ -387,7 +413,7 @@ describe('dark states', () => {
     commonChecks(html);
   });
 
-  it('identity line comes before the map, the guardian card and Activity before the tabs and the Deed card', async () => {
+  it('the hero art, then Guardian, Deed and Build, then Activity, then Block facts', async () => {
     mockGuardianFindFirst.mockResolvedValue(guardianRow());
     mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: unreachable, objects: objects(3), objectCount: 3 }));
     const html = await render();
@@ -397,16 +423,262 @@ describe('dark states', () => {
       return i;
     };
     const order = [
+      at(`<img src="/api/v1/block-thumbnail/${HEIGHT}.png`),
       at('<h1'),
       at('data-testid="deed-chip"'),
-      at(`<img src="/api/v1/block-thumbnail/${HEIGHT}.png`),
-      at('data-testid="block-scale-line"'),
       at('data-testid="guardian-card"'),
+      at('data-testid="deed-card"'),
+      at('data-testid="build-card"'),
       at('data-testid="block-activity"'),
-      at('Walk through'),
-      at('Inscription · on record'),
+      at('data-testid="block-scale-line"'),
     ];
     expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('no guardian: the Deed card leads, then Guardian, then Build', async () => {
+    mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: unreachable }));
+    const html = await render();
+    const order = ['data-testid="deed-card"', 'data-testid="guardian-card"', 'data-testid="build-card"'].map((s) => html.indexOf(s));
+    expect(order.every((i) => i > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(cardOf(html, 'guardian-card')).toContain('Hold this block? Connect your wallet');
+  });
+
+  it('a degraded guardian lookup keeps the Guardian card first', async () => {
+    mockGuardianFindFirst.mockRejectedValue(new Error('ECONNREFUSED'));
+    const html = await render();
+    expect(html.indexOf('data-testid="guardian-card"')).toBeLessThan(html.indexOf('data-testid="deed-card"'));
+    expect(html).toContain('Guardian details couldn&#x27;t be loaded right now');
+    expect(html).not.toContain('No guardian yet');
+  });
+});
+
+const disputed = {
+  ...unreachable,
+  deed: { verdict: 'disputed', canonicalId: null, checkedAt: null, unreachableSince: null },
+};
+
+describe('Deed card', () => {
+  it('the outage callout only for unreachable: a disputed deed has none and no "Reload later"', async () => {
+    mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: disputed }));
+    const html = await render();
+    expect(chipOf(html)).toBe('Deed disputed · under review');
+    expect(html).not.toContain('data-testid="deed-outage"');
+    expect(html).not.toContain('Reload later');
+    expect(cardOf(html, 'deed-card')).toContain('Bitcoin sources do not agree');
+    expect(cardOf(html, 'deed-card')).not.toContain('(may be out of date)');
+  });
+
+  it('the outage date only with a last verified time', async () => {
+    mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: unreachable }));
+    const without = cardOf(await render(), 'deed-card');
+    expect(without).toContain('Reload later to check again.');
+    expect(without).not.toContain('Last check');
+    mockFetchBlockPageData.mockResolvedValue(
+      pageData({
+        claimed: true,
+        ownership: { ...unreachable, availability: { chain: 'unavailable', unavailableSince: null, lastVerifiedAt: '2026-10-31T08:00:00.000Z' } },
+      }),
+    );
+    const withDate = await render();
+    expect(cardOf(withDate, 'deed-card')).toContain('Last check Oct 31.');
+    expect(chipOf(withDate)).toMatch(/^Deed not checked · last verified \d+ days ago$/);
+  });
+
+  it('the inscription link: first valid, on record, or none', async () => {
+    mockFetchBlockPageData.mockResolvedValue(
+      pageData({ claimed: true, ownership: { ...unreachable, inscriptionId: null, deed: { ...unreachable.deed, verdict: 'canonical', canonicalId: 'canonfortest0i0' } } }),
+    );
+    let card = cardOf(await render(), 'deed-card');
+    expect(card).toContain(`href="${ORD('canonfortest0i0')}"`);
+    expect(card).toContain('First valid inscription');
+    expect(card).toContain('rel="noopener noreferrer nofollow"');
+
+    mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: { ...unreachable, inscriptionId: null, deed: { ...unreachable.deed } } }));
+    card = cardOf(await render(), 'deed-card');
+    expect(card).not.toContain('data-testid="deed-inscription"');
+  });
+
+  it('unclaimed: bg95 text, and no "Verify in My Bitmaps" link', async () => {
+    const card = cardOf(await render(), 'deed-card');
+    expect(card).toContain('Not yet on Block Genomics');
+    expect(card).toContain('Nobody has verified');
+    expect(card).not.toContain('My Bitmaps');
+  });
+
+  it('chain: null: no size or parcel rows', async () => {
+    mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: unreachable, chain: null }));
+    const card = cardOf(await render(), 'deed-card');
+    expect(card).toContain('Held by');
+    expect(card).not.toContain('>Size<');
+    expect(card).not.toContain('>Parcels<');
+  });
+});
+
+describe('Build card and Block facts', () => {
+  it('empty: the ground from the block\'s own transaction count, both actions secondary', async () => {
+    const html = await render();
+    const card = cardOf(html, 'build-card');
+    expect(card).toContain('Nothing built yet');
+    expect(card).toContain("The ground is laid out from the block&#x27;s own 2,500 transactions: one parcel each, bigger transactions, bigger parcels.");
+    expect(card).toContain('2,500 parcels');
+    expect(card).toContain('2.1 km × 2.1 km');
+    expect(card).toContain(`href="/world/${HEIGHT}"`);
+    expect(card).not.toContain('data-primary');
+    expect(card).toContain('See it on the map');
+  });
+
+  it('chain: null: "Nothing built here yet." with no count and no ground line', async () => {
+    mockFetchBlockPageData.mockResolvedValue(pageData({ chain: null }));
+    const card = cardOf(await render(), 'build-card');
+    expect(card).toContain('Nothing built here yet.');
+    expect(card).not.toContain('Ground');
+  });
+
+  it('with builds: the count and the newest change', async () => {
+    mockFetchBlockPageData.mockResolvedValue(pageData({ objects: objects(5), objectCount: 5 }));
+    const card = cardOf(await render(), 'build-card');
+    expect(card).toContain('5 things built');
+    expect(card).toContain('Lantern 4');
+  });
+
+  it('Block facts: the hash, the genome and "Parcels on record"; no Transactions, Size or Mined', async () => {
+    const html = await render();
+    const facts = html.slice(html.indexOf('block genome '));
+    expect(facts).toContain(chain.hash);
+    expect(facts).toContain('Parcels on record');
+    for (const label of ['>Transactions<', '>Size<', '>Mined<']) expect(facts).not.toContain(label);
+    expect(html).not.toContain('Walk through');
+  });
+
+});
+
+/** Pictographic emoji only: the page's text arrows ("proof ↗") are not emoji. */
+const EMOJI = /\p{Emoji_Presentation}|️/u;
+
+const verified = {
+  onChainOwner: ALICE,
+  registeredOwner: ALICE,
+  inscriptionId: STORED,
+  inSync: true,
+  indeterminate: false,
+  checkPending: false,
+  deed: { verdict: 'canonical', canonicalId: STORED, checkedAt: new Date(NOW - 7 * 60_000).toISOString(), unreachableSince: null },
+};
+const lastVerified = { chain: 'unavailable', unavailableSince: null, lastVerifiedAt: '2026-10-31T08:00:00.000Z' };
+const eventsOn = () =>
+  mockListBlockEvents.mockResolvedValue({ format: 'bg-event/1', enabled: true, block: HEIGHT, events: [event(1), event(2)], lastSeq: 2, hasMore: false });
+
+type StateCase = { name: string; setup: () => void; has: string[]; hasNot?: string[]; green?: boolean };
+
+const STATES: StateCase[] = [
+  { name: 'unclaimed', setup: () => {}, has: ['Not on Block Genomics', 'No guardian yet', 'Nothing built yet', 'Nothing has happened here yet'] },
+  {
+    name: 'claimed + verified',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: verified })),
+    has: ['Deed verified on Bitcoin · 7 min ago', 'First valid inscription'],
+    hasNot: ['Deed checks are paused.'],
+    green: true,
+  },
+  {
+    name: 'claimed + unreachable, no last verified time',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: unreachable })),
+    has: ['Deed not checked', 'We can&#x27;t check the deed on Bitcoin right now.', 'Deed checks are paused.'],
+    hasNot: ['Last check', 'last verified'],
+  },
+  {
+    name: 'claimed + unreachable, with a last verified time',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: { ...unreachable, availability: lastVerified } })),
+    has: ['Deed not checked · last verified', 'Last check Oct 31.'],
+  },
+  {
+    name: 'checking',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: { ...unreachable, checkPending: true } })),
+    has: ['Checking…'],
+    hasNot: ['Deed checks are paused.'],
+  },
+  {
+    name: 'disputed',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: disputed })),
+    has: ['Deed disputed · under review'],
+    hasNot: ['Deed checks are paused.', 'Reload later'],
+  },
+  {
+    name: 'no-deed-found',
+    setup: () =>
+      mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: { ...unreachable, deed: { ...unreachable.deed, verdict: 'none' } } })),
+    has: ['No valid deed found', 'Bitcoin shows no valid deed inscription for this block yet.', 'Last recorded holder'],
+    hasNot: ['Nobody has inscribed'],
+  },
+  {
+    name: 'active hosted guardian with a model',
+    setup: () => mockGuardianFindFirst.mockResolvedValue(guardianRow()),
+    has: ['data-action="talk"', 'Talk to Guardian #720143', 'Guardian Guardian #720143 · Answers chat', 'Keep private details to yourself.'],
+  },
+  {
+    name: 'active guardian without a model',
+    setup: () => mockGuardianFindFirst.mockResolvedValue(guardianRow({ llmApiKey: null })),
+    has: ['data-action="message"', 'Leave a message for Guardian #720143'],
+    hasNot: ['data-action="talk"'],
+  },
+  {
+    name: 'self-hosted active guardian while the deed cannot be checked',
+    setup: () => {
+      mockGuardianFindFirst.mockResolvedValue(guardianRow({ selfHosted: true, lastHeartbeat: new Date(NOW - 30 * 3_600_000) }));
+      mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: unreachable }));
+    },
+    has: ['Not checked · last heartbeat 30 h ago', 'check-ins are paused', 'data-state="not-checked"'],
+  },
+  {
+    name: 'paused guardian',
+    setup: () => mockGuardianFindFirst.mockResolvedValue(guardianRow({ status: 'paused' })),
+    has: ['Guardian #720143 isn&#x27;t taking messages right now.', '>Resting<'],
+    hasNot: ['data-action='],
+  },
+  { name: 'no guardian', setup: () => {}, has: ['No guardian yet', 'Hold this block? Connect your wallet'] },
+  { name: 'events on', setup: eventsOn, has: ['Newest first · signed events carry a proof', 'Placed object 2'] },
+  {
+    name: 'flag off with builds',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ objects: objects(3), objectCount: 3 })),
+    has: ['Built here · 3 objects', '3 things built'],
+    hasNot: ['signed events carry a proof'],
+  },
+  { name: 'flag off, empty', setup: () => {}, has: ['Nothing has happened here yet', 'Nothing built yet'] },
+  {
+    name: 'chain: null',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ chain: null })),
+    has: ['data-testid="chain-banner"', 'Nothing built here yet.'],
+    hasNot: ['data-testid="hero-scale-chip"', 'data-testid="hero-facts"'],
+  },
+  {
+    name: 'data.degraded',
+    setup: () => mockFetchBlockPageData.mockResolvedValue(pageData({ degraded: true })),
+    has: ['data-testid="degraded-banner"', 'Ownership unavailable'],
+  },
+];
+
+describe('every state (bg98a item 9)', () => {
+  it.each(STATES.map((s) => [s.name, s]))('%s', async (_name, s) => {
+    const key = marker('k');
+    mockGuardianFindFirst.mockImplementation(async () => null);
+    s.setup();
+    const setupImpl = mockGuardianFindFirst.getMockImplementation();
+    // The guardian row always carries a fresh owner-only marker, wherever the case set one up.
+    mockGuardianFindFirst.mockImplementation(async (...a: unknown[]) => {
+      const row = setupImpl ? await setupImpl(...a) : null;
+      return row ? { ...row, llmApiKey: row.llmApiKey === null ? null : key, monitorTokenHash: marker('tok') } : null;
+    });
+    const html = await render();
+    for (const t of s.has) expect([s.name, html.includes(t)]).toEqual([s.name, true]);
+    for (const t of s.hasNot ?? []) expect([s.name, t, html.includes(t)]).toEqual([s.name, t, false]);
+    expect(html.match(/data-primary/g)).toHaveLength(1);
+    expect(deedIsGreen(html)).toBe(s.green === true);
+    expect(html).not.toMatch(/\blive\b/i);
+    expect(html).not.toMatch(EMOJI);
+    expect(html).not.toContain(key);
+    expect(html).not.toContain('monitorTokenHash');
+    expect(html).not.toContain('llmApiKey');
+    expect(html).not.toContain('data-testid="phone-dock"');
   });
 });
 
