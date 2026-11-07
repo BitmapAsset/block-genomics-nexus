@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
-import { BlockNotFoundError, getBlockSummary, getTipHeight } from '@/lib/block-summary';
+import { BlockNotFoundError, getBlockSummary, getTipHeight, isSettledHeight } from '@/lib/block-summary';
 
-/** Six confirmations: deep enough that the block at this height will not change. */
-const SETTLED_CONFIRMATIONS = 6;
 const NEAR_TIP_MAX_AGE_MS = 60_000;
 
 /**
@@ -29,8 +27,8 @@ export async function GET(
   if (tip !== null && height > tip) {
     return NextResponse.json({ error: 'Block not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
   }
-  // Unknown tip counts as near the tip: a short cache is always safe.
-  const settled = tip !== null && tip - height >= SETTLED_CONFIRMATIONS;
+  // An old height is settled without the tip; above it an unknown tip counts as near the tip.
+  const settled = isSettledHeight(height, tip);
 
   try {
     const summary = await getBlockSummary(height, settled ? Infinity : NEAR_TIP_MAX_AGE_MS);
