@@ -22,21 +22,29 @@ import {
   saveSession,
   clearSession,
 } from "@/lib/wallet-utils";
-import {
-  deriveEncryptionKeypair,
-  exportPublicKey,
-  encryptMessage,
-  decryptMessage,
-  wipeKeypair,
-  getDerivationMessage,
-  isValidPublicKey,
-  type EncryptionKeypair,
-  type EncryptedMessage,
-  type DecryptedMessage,
+import type {
+  EncryptionKeypair,
+  EncryptedMessage,
+  DecryptedMessage,
 } from "@/lib/e2e-crypto";
-import { registerEncryptionKey } from "@/lib/e2e-register";
 
 export type { WalletType };
+
+// The encryption code (e2e-crypto with its curve and hash libraries, and
+// e2e-register) loads on first use, so it is not part of every page's first load.
+type E2ECrypto = typeof import("@/lib/e2e-crypto");
+const loadE2ECrypto = (): Promise<E2ECrypto> => import("@/lib/e2e-crypto");
+const loadE2ERegister = () => import("@/lib/e2e-register");
+
+/**
+ * Wipe the derived keypair now, synchronously. A keypair exists only after
+ * e2e-crypto has loaded (e2eSetup sets the module ref first), so an empty module
+ * ref means there is nothing to wipe.
+ */
+function wipeKeysNow(mod: { current: E2ECrypto | null }, keypair: { current: EncryptionKeypair | null }) {
+  if (keypair.current && mod.current) mod.current.wipeKeypair(keypair.current);
+  keypair.current = null;
+}
 
 export interface UserProfile {
   handle: string;
@@ -269,7 +277,7 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
   const connect = useCallback(async (type: WalletType) => {
     // Clear any stale state from previous wallet connection
     setState(prev => ({ ...prev, isConnecting: true, error: null, profile: null }));
-    if (keypairRef.current) { wipeKeypair(keypairRef.current); keypairRef.current = null; }
+    wipeKeysNow(e2eModRef, keypairRef);
     setE2eReady(false);
     pubKeyCacheRef.current.clear();
     try {
@@ -295,7 +303,7 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
   const disconnect = useCallback(() => {
     clearSession();
     // Wipe E2E keys from memory
-    if (keypairRef.current) { wipeKeypair(keypairRef.current); keypairRef.current = null; }
+    wipeKeysNow(e2eModRef, keypairRef);
     setE2eReady(false);
     pubKeyCacheRef.current.clear();
     setState(prev => ({
@@ -352,22 +360,26 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
   const [e2eReady, setE2eReady] = useState(false);
   const [e2eError, setE2eError] = useState<string | null>(null);
   const keypairRef = useRef<EncryptionKeypair | null>(null);
+  const e2eModRef = useRef<E2ECrypto | null>(null);
   const pubKeyCacheRef = useRef<Map<string, string>>(new Map());
 
   const e2eSetup = useCallback(async (): Promise<boolean> => {
     if (!state.walletType || !state.walletAddress) return false;
     try {
-      const sig = await signWithWallet(state.walletType, getDerivationMessage(), state.walletAddress || undefined);
+      const e2e = await loadE2ECrypto();
+      e2eModRef.current = e2e;
+      const sig = await signWithWallet(state.walletType, e2e.getDerivationMessage(), state.walletAddress || undefined);
       if (!sig) return false;
-      const kp = deriveEncryptionKeypair(sig);
+      const kp = e2e.deriveEncryptionKeypair(sig);
       keypairRef.current = kp;
-      const pubHex = exportPublicKey(kp);
+      const pubHex = e2e.exportPublicKey(kp);
       // Register on the server with a bound, one-time signature. The local
       // keypair still decrypts what was sent to it; a failed registration is
       // reported, not hidden: others cannot encrypt to this wallet until it
       // succeeds.
       const walletType = state.walletType;
       const walletAddress = state.walletAddress;
+      const { registerEncryptionKey } = await loadE2ERegister();
       const reg = await registerEncryptionKey({
         walletAddress,
         encryptionPubKey: pubHex,
@@ -395,7 +407,9 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
       if (!res.ok) return null;
       const json = await res.json();
       const pk = json.data?.encryptionPubKey;
-      if (!pk || !isValidPublicKey(pk)) return null;
+      if (!pk) return null;
+      const { isValidPublicKey } = await loadE2ECrypto();
+      if (!isValidPublicKey(pk)) return null;
       pubKeyCacheRef.current.set(id.toLowerCase(), pk);
       return pk;
     } catch { return null; }
@@ -405,13 +419,22 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
     if (!keypairRef.current) return null;
     const rpk = await fetchRecipientPubKey(recipientId);
     if (!rpk) return null;
-    try { return await encryptMessage(text, keypairRef.current, rpk); }
+    try {
+      const { encryptMessage } = await loadE2ECrypto();
+      // The keypair may have been wiped while the recipient key was fetched.
+      if (!keypairRef.current) return null;
+      return await encryptMessage(text, keypairRef.current, rpk);
+    }
     catch { return null; }
   }, [fetchRecipientPubKey]);
 
   const e2eDecrypt = useCallback(async (msg: EncryptedMessage): Promise<DecryptedMessage | null> => {
     if (!keypairRef.current) return null;
-    try { return await decryptMessage(msg, keypairRef.current); }
+    try {
+      const { decryptMessage } = await loadE2ECrypto();
+      if (!keypairRef.current) return null;
+      return await decryptMessage(msg, keypairRef.current);
+    }
     catch { return null; }
   }, []);
 

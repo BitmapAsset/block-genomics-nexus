@@ -1,17 +1,32 @@
 /**
  * Shared wallet detection, connection, and signing utilities.
  * Extracted from verify page so both GlobalWalletContext and verify page can use them.
- * Uses official sats-connect package for Xverse wallet interactions.
+ * Uses the official sats-connect package for Magic Eden, loaded on first use so
+ * it is not part of every page's first load.
  */
 
-import {
-  AddressPurpose,
-  BitcoinNetworkType,
-  MessageSigningProtocols,
-  getAddress as satsGetAddress,
-  signMessage as satsSignMessage,
-  type BitcoinProvider as SatsBitcoinProvider,
-} from 'sats-connect';
+import type { BitcoinProvider as SatsBitcoinProvider } from 'sats-connect';
+
+/**
+ * The sats-connect constants this file needs, as the strings sats-connect 4.2.1
+ * publishes (@sats-connect/core 0.10.0: AddressPurpose, BitcoinNetworkType,
+ * MessageSigningProtocols), so they cost no library import.
+ */
+const ADDRESS_PURPOSE_ORDINALS: string = 'ordinals';
+const ADDRESS_PURPOSE_PAYMENT: string = 'payment';
+const NETWORK_MAINNET: string = 'Mainnet';
+const SIGNING_PROTOCOL_BIP322: string = 'BIP322';
+
+let walletLibrary: Promise<typeof import('sats-connect')> | null = null;
+
+/** Load sats-connect (once). Called by the Magic Eden paths and when the connect modal opens. */
+export function preloadWalletLibrary(): Promise<typeof import('sats-connect')> {
+  if (!walletLibrary) {
+    walletLibrary = import('sats-connect');
+    walletLibrary.catch(() => { walletLibrary = null; });
+  }
+  return walletLibrary;
+}
 
 export type WalletType = 'unisat' | 'xverse' | 'leather' | 'magiceden' | 'okx';
 
@@ -68,8 +83,8 @@ function isXverseInAppBrowser(): boolean {
  */
 function extractXverseAddress(addrs: WalletAddress[]): string | null {
   if (!Array.isArray(addrs) || addrs.length === 0) return null;
-  const ordinals = addrs.find((a) => a.purpose === 'ordinals' || a.purpose === AddressPurpose.Ordinals);
-  const payment = addrs.find((a) => a.purpose === 'payment' || a.purpose === AddressPurpose.Payment);
+  const ordinals = addrs.find((a) => a.purpose === ADDRESS_PURPOSE_ORDINALS);
+  const payment = addrs.find((a) => a.purpose === ADDRESS_PURPOSE_PAYMENT);
   return ordinals?.address || payment?.address || addrs[0]?.address || null;
 }
 
@@ -91,7 +106,7 @@ export async function connectXverse(): Promise<string> {
     console.log('[Xverse] Using direct BitcoinProvider.request');
     try {
       const response = await provider.request('getAddresses', {
-        purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
+        purposes: [ADDRESS_PURPOSE_ORDINALS, ADDRESS_PURPOSE_PAYMENT],
         message: 'Block Genomics needs your Bitcoin address for verification.',
       }) as ProviderResponse;
       const addr = extractXverseAddress(addressesFromResponse(response));
@@ -134,7 +149,7 @@ export async function refreshXverseAddress(): Promise<string | null> {
   if (!provider?.request) return null;
   try {
     const response = await provider.request('getAddresses', {
-      purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
+      purposes: [ADDRESS_PURPOSE_ORDINALS, ADDRESS_PURPOSE_PAYMENT],
     }) as ProviderResponse;
     return extractXverseAddress(addressesFromResponse(response));
   } catch {
@@ -181,13 +196,14 @@ async function getMagicEdenProvider(): Promise<SatsBitcoinProvider | undefined> 
  */
 export async function connectMagicEden(): Promise<string> {
   if (!window.magicEden?.bitcoin?.isMagicEden) throw new Error('Magic Eden Wallet not installed');
+  const { getAddress: satsGetAddress } = await preloadWalletLibrary();
   const addresses = await new Promise<WalletAddress[]>((resolve, reject) => {
     satsGetAddress({
       getProvider: getMagicEdenProvider,
       payload: {
-        purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
+        purposes: [ADDRESS_PURPOSE_ORDINALS, ADDRESS_PURPOSE_PAYMENT] as Parameters<typeof satsGetAddress>[0]['payload']['purposes'],
         message: 'Block Genomics needs your Bitcoin address for verification.',
-        network: { type: BitcoinNetworkType.Mainnet },
+        network: { type: NETWORK_MAINNET as Parameters<typeof satsGetAddress>[0]['payload']['network']['type'] },
       },
       onFinish: (response) => resolve(response.addresses),
       onCancel: () => reject(new Error('Magic Eden connection cancelled')),
@@ -227,7 +243,7 @@ export async function signWithWallet(walletType: WalletType, message: string, ad
         const resp = await provider.request('signMessage', {
           address,
           message,
-          protocol: MessageSigningProtocols.BIP322,
+          protocol: SIGNING_PROTOCOL_BIP322,
         }) as ProviderResponse;
         if (resp?.status === 'error') {
           throw new Error(resp?.error?.message || 'Xverse signing failed');
@@ -269,14 +285,16 @@ export async function signWithWallet(walletType: WalletType, message: string, ad
   if (walletType === 'magiceden') {
     if (!address) throw new Error('Magic Eden signing requires an address — reconnect your wallet');
     if (!window.magicEden?.bitcoin?.isMagicEden) throw new Error('Magic Eden Wallet not available');
+    const { signMessage: satsSignMessage } = await preloadWalletLibrary();
+    type SignPayload = Parameters<typeof satsSignMessage>[0]['payload'];
     return await new Promise<string>((resolve, reject) => {
       satsSignMessage({
         getProvider: getMagicEdenProvider,
         payload: {
-          network: { type: BitcoinNetworkType.Mainnet },
+          network: { type: NETWORK_MAINNET as SignPayload['network']['type'] },
           address,
           message,
-          protocol: MessageSigningProtocols.BIP322,
+          protocol: SIGNING_PROTOCOL_BIP322 as SignPayload['protocol'],
         },
         onFinish: (signature) => (signature ? resolve(signature) : reject(new Error('Magic Eden returned no signature'))),
         onCancel: () => reject(new Error('Magic Eden signing cancelled')),
