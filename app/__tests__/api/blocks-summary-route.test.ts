@@ -31,11 +31,27 @@ jest.mock('next/server', () => {
   return { NextResponse, NextRequest: class {} };
 });
 
+// The real summary read, with each call's height and max age recorded.
+const mockSummaryReads: unknown[][] = [];
+jest.mock('@/lib/block-summary', () => {
+  const actual = jest.requireActual('@/lib/block-summary');
+  return {
+    ...actual,
+    getBlockSummary: (...a: unknown[]) => {
+      mockSummaryReads.push(a);
+      return actual.getBlockSummary(...a);
+    },
+  };
+});
+
 import { GET } from '@/app/api/v1/blocks/[height]/summary/route';
+import { __resetTipMemoForTest, KNOWN_MINED_HEIGHT } from '@/lib/block-summary';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const TIP = 900_000;
+// A tip above KNOWN_MINED_HEIGHT, as the real chain's is: every height at or
+// below KNOWN_MINED_HEIGHT - 6 is settled whatever the tip says.
+const TIP = KNOWN_MINED_HEIGHT + 8_000;
 const HASH = '0000000000000000000320283a032748cef8227873ff4872689bf23f1cda83a5';
 
 const SUMMARY = Array.from({ length: 40 }, (_, i) => ({
@@ -86,6 +102,8 @@ let fetchMock: jest.Mock;
 let now = Date.parse('2030-01-01T00:00:00Z');
 
 beforeEach(() => {
+  __resetTipMemoForTest();
+  mockSummaryReads.length = 0;
   mockRateLimit.mockReset().mockResolvedValue({ response: null, headers: {} });
   fetchMock = mempool();
   global.fetch = fetchMock as any;
@@ -139,11 +157,35 @@ describe('Cache-Control', () => {
     expect(res.headers['Cache-Control']).toBe('public, max-age=60');
   });
 
-  it('is max-age=60 when the tip is unknown', async () => {
+  it('is max-age=60 when the tip is unknown and the height is within 6 of KNOWN_MINED_HEIGHT', async () => {
     global.fetch = mempool({ tip: null }) as any;
-    const res = await call('500000');
+    const res = await call(String(KNOWN_MINED_HEIGHT - 3));
     expect(res.status).toBe(200);
     expect(res.headers['Cache-Control']).toBe('public, max-age=60');
+    expect(mockSummaryReads).toEqual([[KNOWN_MINED_HEIGHT - 3, 60_000]]);
+  });
+
+  it.each([KNOWN_MINED_HEIGHT - 6, 500_000])(
+    'is immutable for height %i while the tip is unknown, and reads any cached summary',
+    async (height) => {
+      global.fetch = mempool({ tip: null }) as any;
+      const res = await call(String(height));
+      expect(res.status).toBe(200);
+      expect(res.headers['Cache-Control']).toBe('public, max-age=31536000, immutable');
+      expect(mockSummaryReads).toEqual([[height, Infinity]]);
+    },
+  );
+
+  it('serves a settled height from a summary cached over a minute ago while the tip is unknown', async () => {
+    const height = KNOWN_MINED_HEIGHT - 10;
+    expect((await call(String(height))).status).toBe(200);
+    const tipDown = mempool({ tip: null });
+    global.fetch = tipDown as any;
+    now += 120_000;
+    const res = await call(String(height));
+    expect(res.status).toBe(200);
+    expect(res.headers['Cache-Control']).toBe('public, max-age=31536000, immutable');
+    expect(summaryCalls(tipDown)).toBe(0);
   });
 });
 

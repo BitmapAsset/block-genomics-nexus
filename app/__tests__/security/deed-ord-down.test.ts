@@ -91,7 +91,8 @@ beforeEach(() => {
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
     calls.push(`${init?.method ?? 'GET'} ${url}`);
-    if (url.startsWith('https://ordinals.com')) {
+    const host = new URL(url).hostname;
+    if (host === 'ordinals.com') {
       if (ordMode === 'timeout') {
         const e = new Error('The operation was aborted due to timeout');
         e.name = 'TimeoutError';
@@ -100,7 +101,7 @@ beforeEach(() => {
       return new Response('<title>Just a moment...</title>', { status: 403 });
     }
     if (url.endsWith('/blocks/tip/height')) return new Response('972000', { status: 200 });
-    if (url.startsWith('https://index.test')) {
+    if (host === 'index.test') {
       if (url.endsWith('/v1/bitmap/block_height')) return new Response('972000', { status: 200 });
       return new Response(JSON.stringify({ error: null, result: { inscription_id: 'cc'.repeat(32) + 'i0', bitmap_number: url.split('=').pop() } }), { status: 200 });
     }
