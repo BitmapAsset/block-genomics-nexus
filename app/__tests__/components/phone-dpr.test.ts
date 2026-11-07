@@ -40,6 +40,26 @@ describe('canvas pixel ratio', () => {
     expect(deviceCanvasDpr()).toEqual([1, 2]);
   });
 
+  it('a call without a window caches nothing: a later browser call still reads the phone hints', () => {
+    const g = globalThis as Record<string, unknown>;
+    const nav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    try {
+      jest.isolateModules(() => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const fresh = require('@/components/nexus/phone-dpr') as typeof import('@/components/nexus/phone-dpr');
+        expect(typeof window).toBe('undefined');
+        expect(fresh.deviceCanvasDpr()).toEqual([1, 2]);
+        Object.defineProperty(globalThis, 'navigator', { value: { userAgent: IPHONE_UA, maxTouchPoints: 5 }, configurable: true });
+        g.window = { innerWidth: 390 };
+        expect(fresh.deviceCanvasDpr()).toEqual([1, 1.5]);
+      });
+    } finally {
+      delete g.window;
+      if (nav) Object.defineProperty(globalThis, 'navigator', nav);
+      else delete g.navigator;
+    }
+  });
+
   it('in a browser it reads the hints once and keeps the answer', () => {
     const g = globalThis as Record<string, unknown>;
     const nav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');

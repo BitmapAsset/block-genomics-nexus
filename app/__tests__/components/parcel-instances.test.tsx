@@ -211,6 +211,27 @@ describe('InstancedParcels instance writes', () => {
     expect(addUpdateRange).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['a new customisation map', (p: Props): Props => ({ ...p, customizations: new Map([[0, { color: '#3366ff' }]]) })],
+    ['a same-length parcel list', (p: Props): Props => ({ ...p, parcels: makeParcels().map(x => ({ ...x, color: '#22aa44' })) })],
+  ])('a palette change after a hover, before the next frame, uploads the full palette (%s)', (_label, change) => {
+    const { hook, props, env, mesh } = mount();
+    env.frame?.(env.state, 1 / 60);
+    const hovered = { ...props, hoveredIndex: 2 };
+    hook.rerender(hovered);
+    const colorAttr = mesh.instanceColor as THREE.InstancedBufferAttribute;
+    const aAttr = meshElement(hook.result.current).args[0].getAttribute('aBgAnim') as THREE.InstancedBufferAttribute;
+    expect(colorAttr.updateRanges.length).toBeGreaterThan(0);
+    expect(aAttr.updateRanges.length).toBeGreaterThan(0);
+    const colorVersion = colorAttr.version;
+    const animVersion = aAttr.version;
+    hook.rerender(change(hovered));
+    expect(colorAttr.updateRanges).toEqual([]);
+    expect(aAttr.updateRanges).toEqual([]);
+    expect(colorAttr.version).toBeGreaterThan(colorVersion);
+    expect(aAttr.version).toBeGreaterThan(animVersion);
+  });
+
   it('passes hover, leave, click and double-click straight to the parent with the instance id', () => {
     const { hook, props } = mount();
     const el = meshElement(hook.result.current) as MeshProps & { onClick: (e: unknown) => void; onDoubleClick: (e: unknown) => void };
