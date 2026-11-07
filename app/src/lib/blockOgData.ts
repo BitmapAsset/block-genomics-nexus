@@ -22,7 +22,7 @@ const MEMPOOL_API = 'https://mempool.space/api';
 const FETCH_TIMEOUT_MS = 6000;
 const REVALIDATE_SECONDS = 86400;
 
-/** mempool calls per minute for share-card stats, across every instance (two per height). */
+/** Cold heights per minute for share-card stats, across every instance (two mempool.space calls each). */
 export const OG_SUMMARY_CALLS_PER_MIN = 120;
 
 // Heights this server has read, kept as long as the fetch cache keeps them.
