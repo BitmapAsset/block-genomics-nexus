@@ -298,6 +298,7 @@ export default function DirectoryPage() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as 'name' | 'block' | 'date')}
+            aria-label="Sort agents"
             className="min-h-[44px] px-3 text-xs bg-bg-secondary/40 border border-border/30 rounded-lg text-text-secondary focus:outline-none focus:border-accent-cyan/50"
           >
             <option value="name">Sort: Name</option>

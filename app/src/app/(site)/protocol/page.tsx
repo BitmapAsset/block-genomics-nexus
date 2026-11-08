@@ -114,7 +114,7 @@ export default function ProtocolPage() {
           >
             OpenAPI {openapiVersion}
           </span>
-          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{status}</span>
+          <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{status}</span>
         </div>
         <h1
           className="text-4xl sm:text-5xl font-black tracking-tight mb-4"
@@ -148,7 +148,7 @@ export default function ProtocolPage() {
         {/* TOC sidebar */}
         <aside className="hidden lg:block">
           <nav className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
-            <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-muted)' }}>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-secondary)' }}>
               On this page
             </p>
             <ul className="space-y-1.5 text-sm">
@@ -157,7 +157,7 @@ export default function ProtocolPage() {
                   <a
                     href={`#${item.id}`}
                     className="block transition-colors hover:text-white"
-                    style={{ color: item.depth === 3 ? 'var(--color-text-muted)' : 'var(--color-text-secondary)' }}
+                    style={{ color: 'var(--color-text-secondary)' }}
                   >
                     {item.text}
                   </a>
@@ -169,7 +169,12 @@ export default function ProtocolPage() {
 
         {/* Rendered spec */}
         <article className="doc-prose min-w-0">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSlug]}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeSlug]}
+            // Code blocks scroll sideways on narrow screens; tabIndex lets a keyboard reach and scroll them.
+            components={{ pre: ({ children, className }) => <pre tabIndex={0} className={className}>{children}</pre> }}
+          >
             {spec}
           </ReactMarkdown>
         </article>

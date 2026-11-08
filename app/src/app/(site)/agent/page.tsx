@@ -402,7 +402,7 @@ export default function AgentHubPage() {
               </button>
             ))}
             {availableWallets.length === 0 && (
-              <p className="text-gray-500 text-sm">No Bitcoin wallets detected. Install Unisat, Xverse, or Leather.</p>
+              <p className="text-gray-400 text-sm">No Bitcoin wallets detected. Install Unisat, Xverse, or Leather.</p>
             )}
           </div>
         </div>
