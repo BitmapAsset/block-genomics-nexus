@@ -50,6 +50,27 @@ describe('sats-connect loads on first use', () => {
   });
 });
 
+describe('the constants are tied to the sats-connect types', () => {
+  // tsc checks each `satisfies`: a library upgrade that changes one of these
+  // values fails the type check instead of sending an old string.
+  const src = readFileSync(path.join(__dirname, '../../src/lib/wallet-utils.ts'), 'utf8');
+  const typeImport = /^import\s+type\s+\{([^}]*)\}\s+from\s+['"]sats-connect['"]/m.exec(src)?.[1] ?? '';
+
+  it.each(['AddressPurpose', 'BitcoinNetworkType', 'MessageSigningProtocols'])('imports %s from sats-connect as a type only', (name) => {
+    expect(typeImport).toMatch(new RegExp(`\\b${name}\\b`));
+  });
+
+  it.each([
+    ['ADDRESS_PURPOSE_ORDINALS', 'ordinals', 'AddressPurpose.Ordinals'],
+    ['ADDRESS_PURPOSE_PAYMENT', 'payment', 'AddressPurpose.Payment'],
+    ['NETWORK_MAINNET', 'Mainnet', 'BitcoinNetworkType.Mainnet'],
+    ['SIGNING_PROTOCOL_BIP322', 'BIP322', 'MessageSigningProtocols.BIP322'],
+  ])('%s is %s and satisfies `${%s}`', (name, value, member) => {
+    const re = new RegExp(`const ${name}(: string)? = '${value}' satisfies \`\\$\\{${member.replace('.', '\\.')}\\}\`;`);
+    expect(src).toMatch(re);
+  });
+});
+
 describe('the constants keep sats-connect values', () => {
   afterEach(() => { delete (global as unknown as { window?: unknown }).window; });
 

@@ -132,6 +132,34 @@ describe('keypair wipe stays synchronous', () => {
     await act(async () => { enc = await result.current.e2eEncrypt('hi', 'bc1qsomeone'); });
     expect(enc).toEqual(expect.objectContaining({ ciphertext: 'c' }));
   });
+
+  it('a disconnect while e2eEncrypt waits for the module makes it return null', async () => {
+    const { result } = await connectedWithKeys();
+    const e2e = jest.requireMock('@/lib/e2e-crypto') as { encryptMessage: jest.Mock };
+    e2e.encryptMessage.mockClear();
+    let enc: unknown = 'x';
+    await act(async () => {
+      const p = result.current.e2eEncrypt('hi', 'bc1qsomeoneelse');
+      result.current.disconnect();
+      enc = await p;
+    });
+    expect(enc).toBeNull();
+    expect(e2e.encryptMessage).not.toHaveBeenCalled();
+  });
+
+  it('a disconnect while e2eDecrypt waits for the module makes it return null', async () => {
+    const { result } = await connectedWithKeys();
+    const e2e = jest.requireMock('@/lib/e2e-crypto') as { decryptMessage: jest.Mock };
+    e2e.decryptMessage.mockClear();
+    let dec: unknown = 'x';
+    await act(async () => {
+      const p = result.current.e2eDecrypt({ ciphertext: 'c', nonce: 'n', senderPubKey: 'p' } as never);
+      result.current.disconnect();
+      dec = await p;
+    });
+    expect(dec).toBeNull();
+    expect(e2e.decryptMessage).not.toHaveBeenCalled();
+  });
 });
 
 describe('static imports of the wallet provider', () => {
