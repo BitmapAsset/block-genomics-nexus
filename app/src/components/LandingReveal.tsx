@@ -32,7 +32,7 @@ const LandingReveal: React.FC<LandingRevealProps> = ({ children }) => {
         }}
       >
         <div className="text-center">
-          <div className="inline-flex items-center gap-2 text-sm text-text-muted animate-pulse">
+          <div className="inline-flex items-center gap-2 text-sm text-text-secondary animate-pulse">
             <span className="h-2 w-2 rounded-full bg-accent-cyan animate-ping" />
             Verifying identity…
           </div>
