@@ -144,7 +144,7 @@ const UI = path.join(APP, 'src', 'components', 'ui');
 
 /** The page's own files: the new ones and the restyled ones. */
 const FILES = [
-  ...['page.tsx', 'guardian-card.tsx', 'activity-feed.tsx', 'hero.tsx', 'block-art.tsx', 'deed-card.tsx', 'build-card.tsx', 'guardian-sheet.tsx', 'share-menu.tsx', 'phone-dock.tsx'].map(
+  ...['page.tsx', 'guardian-card.tsx', 'activity-feed.tsx', 'hero.tsx', 'block-art.tsx', 'deed-card.tsx', 'build-card.tsx', 'guardian-sheet.tsx', 'guardian-action.tsx', 'share-menu.tsx', 'phone-dock.tsx'].map(
     (f) => path.join(P, f),
   ),
   ...['chip.tsx', 'card.tsx', 'callout.tsx', 'empty.tsx', 'sheet.tsx', 'menu.tsx'].map((f) => path.join(UI, f)),
@@ -161,6 +161,7 @@ const EXEMPT = ['backgroundColor: bar.color'];
 describe('no colour literal in a style prop or a style map', () => {
   it('finds the page files', () => {
     expect(FILES.length).toBeGreaterThanOrEqual(3);
+    expect(FILES.map((f) => path.basename(f))).toContain('guardian-action.tsx');
   });
 
   it.each(FILES.map((f) => [path.relative(APP, f), f]))('%s', (_rel, file) => {

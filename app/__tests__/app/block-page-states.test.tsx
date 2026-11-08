@@ -226,7 +226,9 @@ describe('dark states', () => {
     mockFetchBlockPageData.mockResolvedValue(pageData({ claimed: true, ownership: unreachable }));
     const html = await render();
     expect(chipOf(html)).toBe('Deed not checked');
-    expect(cardOf(html, 'deed-card')).toContain('Not checked · Bitcoin indexer unreachable since 11:40 UTC');
+    // The chip says "Not checked"; the line under it gives the reason without saying it again.
+    expect(cardOf(html, 'deed-card')).toContain('>Bitcoin indexer unreachable since 11:40 UTC<');
+    expect(cardOf(html, 'deed-card').match(/Not checked/g)).toHaveLength(1);
     expect(html).toContain(ALICE);
     expect(cardOf(html, 'deed-card')).toContain('Inscription on record');
     expect(html).toContain(`href="${ORD(STORED)}"`);
@@ -246,7 +248,8 @@ describe('dark states', () => {
     const html = await render();
     expect(chipOf(html)).toBe('Deed not checked');
     // The card says the facts once: the status title and the callout, not the long detail.
-    expect(cardOf(html, 'deed-card')).toContain('>Not checked · Bitcoin indexer unreachable<');
+    expect(cardOf(html, 'deed-card')).toContain('>Bitcoin indexer unreachable<');
+    expect(cardOf(html, 'deed-card').match(/Not checked/g)).toHaveLength(1);
     expect(cardOf(html, 'deed-card')).toContain('data-testid="deed-outage"');
     expect(html).not.toContain('could not be checked right now');
     expect(deedIsGreen(html)).toBe(false);
@@ -526,6 +529,17 @@ describe('Build card and Block facts', () => {
     expect(card).toContain(`href="/world/${HEIGHT}"`);
     expect(card).not.toContain('data-primary');
     expect(card).toContain('See it on the map');
+  });
+
+  it('the card\'s link to the world reads "Walk the block", so the page\'s one "Enter the block" is the main action', async () => {
+    const html = await render();
+    const card = cardOf(html, 'build-card');
+    const link = card.match(/<a[^>]*data-testid="build-enter"[^>]*>[\s\S]*?<\/a>/);
+    expect(link).not.toBeNull();
+    expect(link![0]).toContain(`href="/world/${HEIGHT}"`);
+    expect(link![0]).toContain('Walk the block');
+    expect(card).not.toContain('Enter the block');
+    expect(html.match(/data-primary/g)).toHaveLength(1);
   });
 
   it('chain: null: "Nothing built here yet." with no count and no ground line', async () => {
