@@ -345,7 +345,7 @@ export default function ExperienceHostingPage() {
 
 function Section({ id, eyebrow, title, children }: { id: string; eyebrow?: string; title: string; children: React.ReactNode }) {
   return (
-    <section id={id} style={{ scrollMarginTop: '6rem' }} className="mb-16">
+    <section id={id} style={{ scrollMarginTop: 'calc(6rem - 65px)' }} className="mb-16">
       {eyebrow && (
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-accent-purple)' }}>
           {eyebrow}
