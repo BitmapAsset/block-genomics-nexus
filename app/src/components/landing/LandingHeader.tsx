@@ -186,15 +186,12 @@ export default function LandingHeader() {
 
   return (
     <header
-      className="sticky top-0 z-50 border-b backdrop-blur-xl transition-all duration-500"
+      className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-all duration-500 ${inNexus ? '' : 'border-border bg-bg-primary/80'}`}
       style={inNexus ? {
         background: 'rgba(2,2,8,0.92)',
         borderColor: 'rgba(0,255,204,0.15)',
         boxShadow: '0 1px 30px rgba(0,255,204,0.08), inset 0 -1px 0 rgba(0,255,204,0.1)',
-      } : {
-        background: 'rgba(var(--bg-primary), 0.8)',
-        borderColor: 'var(--border)',
-      }}
+      } : undefined}
     >
       {/* Nexus neon scanline */}
       {inNexus && (
