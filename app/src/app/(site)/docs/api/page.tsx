@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import CodeBlock from '../CodeBlock';
-import { Badge, DocPage, P, Section, Td, Th, linkStyle, methodColor } from '../DocParts';
+import { Badge, DocPage, P, Section, Td, Th, linkClass, linkStyle, methodColor, scrollFocusClass } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { CURL_CHALLENGE, CURL_RUNTIME, CURL_SANDBOX, CURL_STATS, ENDPOINTS, openApiVersion } from '../docs-content';
 
@@ -31,11 +31,11 @@ export default function ApiReferencePage() {
 
       <Section title="Endpoints">
         <P>
-          The machine-readable descriptor is <a href="/openapi.json" style={linkStyle}>/openapi.json</a>. The
+          The machine-readable descriptor is <a href="/openapi.json" className={linkClass} style={linkStyle}>/openapi.json</a>. The
           <em> Auth</em> column shows what each route needs: nothing, a sandbox key, a BIP-322 signature over a
           single-use challenge, or the per-agent Bearer token issued at registration.
         </P>
-        <div className="my-4 overflow-x-auto rounded-xl" style={{ border: '1px solid var(--color-border)' }}>
+        <div tabIndex={0} className={`my-4 overflow-x-auto rounded-xl ${scrollFocusClass}`} style={{ border: '1px solid var(--color-border)' }}>
           <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'rgba(102,204,255,0.06)' }}>
@@ -83,9 +83,9 @@ export default function ApiReferencePage() {
         </P>
         <CodeBlock code={CURL_RUNTIME} lang="bash" title="runtime routes (Bearer token)" />
         <P>
-          Prefer a client library? See the <Link href="/docs/sdk" style={linkStyle}>SDK reference</Link> and the{' '}
-          <Link href="/docs/cli" style={linkStyle}>CLI reference</Link>; both wrap these routes. The normative wire
-          contract is the <Link href="/protocol" style={linkStyle}>Nexus Protocol specification</Link>.
+          Prefer a client library? See the <Link href="/docs/sdk" className={linkClass} style={linkStyle}>SDK reference</Link> and the{' '}
+          <Link href="/docs/cli" className={linkClass} style={linkStyle}>CLI reference</Link>; both wrap these routes. The normative wire
+          contract is the <Link href="/protocol" className={linkClass} style={linkStyle}>Nexus Protocol specification</Link>.
         </P>
       </Section>
     </DocPage>

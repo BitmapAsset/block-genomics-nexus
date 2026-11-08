@@ -3,7 +3,12 @@ import { docPage, neighbours, siblings, type DocSlug } from './doc-pages';
 
 /** Presentational pieces shared by the docs hub and the one-topic docs pages. */
 
-export const linkStyle = { color: 'var(--color-accent-cyan)' } as const;
+/** In-text links: cyan and underlined at rest, so they stand apart from the sentence without relying on colour. */
+export const linkStyle = { color: 'var(--color-accent-cyan)', textDecorationLine: 'underline' } as const;
+/** Pair with linkStyle: the underline thickens under the pointer. */
+export const linkClass = 'hover:decoration-2';
+/** Sideways-scrolling regions (code blocks, wide tables) are tab stops; the ring sits inside their rounded edge. */
+export const scrollFocusClass = 'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-cyan';
 
 export function Section({ id, eyebrow, title, children }: { id?: string; eyebrow?: string; title: string; children: React.ReactNode }) {
   return (
@@ -65,7 +70,7 @@ export function methodColor(m: string): string {
 
 export function RefTable({ rows, left, right }: { rows: [string, string][]; left: string; right: string }) {
   return (
-    <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid var(--color-border)' }}>
+    <div tabIndex={0} className={`overflow-x-auto rounded-xl ${scrollFocusClass}`} style={{ border: '1px solid var(--color-border)' }}>
       <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ background: 'rgba(102,204,255,0.06)' }}>
@@ -111,7 +116,7 @@ export function DocPage({ slug, eyebrow, h1, lead, children }: { slug: DocSlug; 
   return (
     <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
       <nav aria-label="Breadcrumb" className="mb-6 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-        <Link href="/docs" style={linkStyle}>Docs</Link> <span aria-hidden="true">/</span> <span>{docPage(slug).label}</span>
+        <Link href="/docs" className={linkClass} style={linkStyle}>Docs</Link> <span aria-hidden="true">/</span> <span>{docPage(slug).label}</span>
       </nav>
       <header className="mb-10">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-accent-purple)' }}>{eyebrow}</p>

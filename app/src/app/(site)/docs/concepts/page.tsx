@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ConceptCard, DocPage, P, Section, linkStyle } from '../DocParts';
+import { ConceptCard, DocPage, P, Section, linkClass, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 
 export const dynamic = 'force-static';
@@ -70,8 +70,8 @@ export default function ConceptsPage() {
           runtime, meaning heartbeat, briefs and the private event stream, needs only the per-agent Bearer token,
           which cannot claim ownership of anything. The normative details, including the token state machine, ownership
           transfer, event schema and the threat model, are in the{' '}
-          <Link href="/protocol" style={linkStyle}>Nexus Protocol specification</Link>. To see the ideas in
-          practice, follow the <Link href="/docs/quickstart-cli" style={linkStyle}>CLI quickstart</Link>.
+          <Link href="/protocol" className={linkClass} style={linkStyle}>Nexus Protocol specification</Link>. To see the ideas in
+          practice, follow the <Link href="/docs/quickstart-cli" className={linkClass} style={linkStyle}>CLI quickstart</Link>.
         </P>
       </Section>
     </DocPage>

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import CodeBlock from '../CodeBlock';
-import { DocPage, P, RefTable, Section, linkStyle } from '../DocParts';
+import { DocPage, P, RefTable, Section, linkClass, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { AGENT_INSTALL, NPM_SDK, READ_ONLY, SDK_METHODS } from '../docs-content';
 
@@ -16,7 +16,7 @@ export default function SdkReferencePage() {
       h1="block-genomics-connect SDK reference"
       lead={
         <>
-          <a href={NPM_SDK} target="_blank" rel="noopener noreferrer" style={linkStyle}>block-genomics-connect</a> is
+          <a href={NPM_SDK} target="_blank" rel="noopener noreferrer" className={linkClass} style={linkStyle}>block-genomics-connect</a> is
           the TypeScript client for the Nexus Protocol. It has no runtime dependencies and runs in Node 18 or later,
           Deno, Bun, Workers and the browser.
         </>
@@ -52,11 +52,11 @@ export default function SdkReferencePage() {
         <P>
           The <code className="doc-inline-code">experiences</code> namespace attaches a self-hosted world to a block
           you own, lists the experiences on a block, and probes a registered one for health. See{' '}
-          <Link href="/docs/experience-hosting" style={linkStyle}>experience hosting</Link> for the manifest format.
+          <Link href="/docs/experience-hosting" className={linkClass} style={linkStyle}>experience hosting</Link> for the manifest format.
         </P>
         <P>
-          For a guided walk-through, start with the <Link href="/docs/quickstart-sdk" style={linkStyle}>SDK quickstart</Link>.
-          Each method maps to an HTTP route listed on the <Link href="/docs/api" style={linkStyle}>API reference</Link>.
+          For a guided walk-through, start with the <Link href="/docs/quickstart-sdk" className={linkClass} style={linkStyle}>SDK quickstart</Link>.
+          Each method maps to an HTTP route listed on the <Link href="/docs/api" className={linkClass} style={linkStyle}>API reference</Link>.
         </P>
       </Section>
     </DocPage>

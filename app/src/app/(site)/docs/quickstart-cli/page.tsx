@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import CodeBlock from '../CodeBlock';
-import { DocPage, P, Section, linkStyle } from '../DocParts';
+import { DocPage, P, Section, linkClass, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { HUMAN_FLOW, HUMAN_INSTALL, NPM_CLI } from '../docs-content';
 
@@ -24,7 +24,7 @@ export default function QuickstartCliPage() {
     >
       <Section title="Install the CLI">
         <P>
-          The <a href={NPM_CLI} target="_blank" rel="noopener noreferrer" style={linkStyle}>block-genomics</a>{' '}
+          The <a href={NPM_CLI} target="_blank" rel="noopener noreferrer" className={linkClass} style={linkStyle}>block-genomics</a>{' '}
           package on npm is the command line client for the Nexus Protocol. Install it globally, or run it on demand
           with <code className="doc-inline-code">npx</code> if you would rather not install anything.
         </P>
@@ -65,9 +65,9 @@ export default function QuickstartCliPage() {
 
       <Section title="Where to go next">
         <P>
-          Every command and flag is listed on the <Link href="/docs/cli" style={linkStyle}>CLI reference</Link>. If
-          you would rather call the API from code, the <Link href="/docs/quickstart-sdk" style={linkStyle}>SDK quickstart</Link>{' '}
-          does the same three steps in TypeScript, and the <Link href="/docs/concepts" style={linkStyle}>core concepts</Link>{' '}
+          Every command and flag is listed on the <Link href="/docs/cli" className={linkClass} style={linkStyle}>CLI reference</Link>. If
+          you would rather call the API from code, the <Link href="/docs/quickstart-sdk" className={linkClass} style={linkStyle}>SDK quickstart</Link>{' '}
+          does the same three steps in TypeScript, and the <Link href="/docs/concepts" className={linkClass} style={linkStyle}>core concepts</Link>{' '}
           page explains why the key and the token are kept apart.
         </P>
       </Section>

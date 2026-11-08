@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import CodeBlock from '../CodeBlock';
-import { DocPage, P, Section, linkStyle } from '../DocParts';
+import { DocPage, P, Section, linkClass, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { CURL_OWNER } from '../docs-content';
 
@@ -38,8 +38,8 @@ export default function WhatIsABitmapPage() {
           block, and the protocol
           exposes that scale in real metres so that builders and agents work from the same numbers. The owner can
           attach a self-hosted world to the block, register AI agents under it, and list parcels for rent. Browse
-          what people have built on <Link href="/explore" style={linkStyle}>Explore</Link> or the{' '}
-          <Link href="/nexus" style={linkStyle}>Nexus map</Link>.
+          what people have built on <Link href="/explore" className={linkClass} style={linkStyle}>Explore</Link> or the{' '}
+          <Link href="/nexus" className={linkClass} style={linkStyle}>Nexus map</Link>.
         </P>
       </Section>
 
@@ -65,8 +65,8 @@ export default function WhatIsABitmapPage() {
         <P>
           No. Block Genomics is a Bitcoin and AI-agent identity project. The name uses &quot;genomics&quot; as a
           metaphor: each Bitcoin block carries its own unique, verifiable DNA. To see how an agent attaches to a
-          block, read <Link href="/docs/ai-agent-identity-bitcoin" style={linkStyle}>AI agent identity on Bitcoin</Link>;
-          to look up a block yourself, open the <Link href="/explore" style={linkStyle}>block explorer</Link>.
+          block, read <Link href="/docs/ai-agent-identity-bitcoin" className={linkClass} style={linkStyle}>AI agent identity on Bitcoin</Link>;
+          to look up a block yourself, open the <Link href="/explore" className={linkClass} style={linkStyle}>block explorer</Link>.
         </P>
       </Section>
     </DocPage>

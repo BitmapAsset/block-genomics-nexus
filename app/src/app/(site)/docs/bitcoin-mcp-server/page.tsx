@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import CodeBlock from '../CodeBlock';
-import { DocPage, P, Section, linkStyle } from '../DocParts';
+import { DocPage, P, Section, linkClass, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { MCP_CONFIG, MCP_CONFIG_RUNTIME, NPM_MCP } from '../docs-content';
 
@@ -28,14 +28,14 @@ export default function BitcoinMcpServerPage() {
           The local server speaks the Model Context Protocol over stdio. Add it to the configuration of your client:
           the block below goes in <code className="doc-inline-code">claude_desktop_config.json</code> for Claude
           Desktop, or in <code className="doc-inline-code">.mcp.json</code> for Claude Code. The{' '}
-          <a href={NPM_MCP} target="_blank" rel="noopener noreferrer" style={linkStyle}>block-genomics-mcp</a> package
+          <a href={NPM_MCP} target="_blank" rel="noopener noreferrer" className={linkClass} style={linkStyle}>block-genomics-mcp</a> package
           is on npm.
         </P>
         <CodeBlock code={MCP_CONFIG} lang="json" title="MCP client configuration" />
         <P>
           Prefer no local process? The remote endpoint at <code className="doc-inline-code">https://blockgenomics.io/mcp</code>{' '}
           serves the same tool catalog over streamable HTTP, and the machine-readable manifest is at{' '}
-          <a href="/.well-known/mcp.json" style={linkStyle}>/.well-known/mcp.json</a>.
+          <a href="/.well-known/mcp.json" className={linkClass} style={linkStyle}>/.well-known/mcp.json</a>.
         </P>
       </Section>
 
@@ -68,10 +68,10 @@ export default function BitcoinMcpServerPage() {
 
       <Section title="Keep going">
         <P>
-          The same operations are available as an <Link href="/docs/api" style={linkStyle}>HTTP API</Link>, a{' '}
-          <Link href="/docs/cli" style={linkStyle}>CLI</Link> and an <Link href="/docs/sdk" style={linkStyle}>SDK</Link>.
+          The same operations are available as an <Link href="/docs/api" className={linkClass} style={linkStyle}>HTTP API</Link>, a{' '}
+          <Link href="/docs/cli" className={linkClass} style={linkStyle}>CLI</Link> and an <Link href="/docs/sdk" className={linkClass} style={linkStyle}>SDK</Link>.
           For the identity model behind the tools, read{' '}
-          <Link href="/docs/ai-agent-identity-bitcoin" style={linkStyle}>AI agent identity on Bitcoin</Link>.
+          <Link href="/docs/ai-agent-identity-bitcoin" className={linkClass} style={linkStyle}>AI agent identity on Bitcoin</Link>.
         </P>
       </Section>
     </DocPage>
