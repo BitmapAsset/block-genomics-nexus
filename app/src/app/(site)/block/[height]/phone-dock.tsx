@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Navigation } from 'lucide-react';
 import { primaryButton } from '@/components/ui/button';
 import ShareMenu from './share-menu';
-import { dockObserverOptions, heroCoveredOrAway, measureTabBar } from './dock-visibility';
+import { dockObserverOptions, heroCoveredOrAway, measureHeader, measureTabBar } from './dock-visibility';
 
 /**
  * The phone dock: Enter the block and Share, below 768 px, sitting directly on
@@ -13,10 +13,12 @@ import { dockObserverOptions, heroCoveredOrAway, measureTabBar } from './dock-vi
  * 1 px top border, then the safe-area inset, which the tab bar already takes).
  * Drawn on the client only (nothing in the server HTML); the page reserves its
  * height with CSS, so its arrival shifts nothing.
- * It shows while the hero's own action is not fully visible above the tab bar
- * (covered by it on the first screen, or scrolled away), so a view never has
- * two orange buttons and the first screen always has one; it never carries
- * `data-primary`.
+ * It shows while the hero's own action is not seen: under the tab bar on the
+ * first screen, fully behind the sticky header, or scrolled away. So a view
+ * never has two orange buttons and the first screen always has one; it never
+ * carries `data-primary`. The header and the tab bar are measured again after a
+ * resize or a rotation (once per frame at most), and the observer is rebuilt
+ * when either height changed.
  */
 export default function PhoneDock({ height }: { height: number }) {
   const [mounted, setMounted] = useState(false);
@@ -26,12 +28,38 @@ export default function PhoneDock({ height }: { height: number }) {
     setMounted(true);
     const hero = document.querySelector('[data-primary]');
     if (!hero || typeof IntersectionObserver !== 'function') return;
-    const tabBar = measureTabBar(document);
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) setHeroInView(!heroCoveredOrAway(e.boundingClientRect, window.innerHeight, tabBar));
-    }, dockObserverOptions(tabBar));
-    io.observe(hero);
-    return () => io.disconnect();
+    let io: IntersectionObserver | null = null;
+    let measured = { header: -1, tabBar: -1 };
+    let frame = 0;
+
+    const watch = () => {
+      const header = measureHeader(document);
+      const tabBar = measureTabBar(document);
+      if (io && header === measured.header && tabBar === measured.tabBar) return;
+      io?.disconnect();
+      measured = { header, tabBar };
+      io = new IntersectionObserver((entries) => {
+        for (const e of entries) setHeroInView(!heroCoveredOrAway(e.boundingClientRect, window.innerHeight, tabBar, header));
+      }, dockObserverOptions(tabBar, header));
+      io.observe(hero);
+    };
+    const remeasure = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        watch();
+      });
+    };
+
+    watch();
+    window.addEventListener('resize', remeasure);
+    window.addEventListener('orientationchange', remeasure);
+    return () => {
+      window.removeEventListener('resize', remeasure);
+      window.removeEventListener('orientationchange', remeasure);
+      if (frame) window.cancelAnimationFrame(frame);
+      io?.disconnect();
+    };
   }, []);
 
   if (!mounted || heroInView) return null;

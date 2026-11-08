@@ -20,9 +20,16 @@ let sheetLoad: Promise<unknown> | null = null;
 /**
  * Starts the sheet's import when someone points at or focuses the button, once,
  * so the sheet is usually ready by the tap. Same chunk as the dynamic import.
+ * A load that fails is forgotten, so the next hover or focus tries again (the
+ * tap loads the sheet on its own either way).
  */
 export function preloadGuardianSheet(): Promise<unknown> {
-  if (!sheetLoad) sheetLoad = import('./guardian-sheet').catch(() => null);
+  if (!sheetLoad) {
+    sheetLoad = import('./guardian-sheet').catch(() => {
+      sheetLoad = null;
+      return null;
+    });
+  }
   return sheetLoad;
 }
 
