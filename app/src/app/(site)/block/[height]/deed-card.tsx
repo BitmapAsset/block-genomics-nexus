@@ -16,7 +16,8 @@ import { parcelsText } from './hero-chips';
  * one says nothing about who holds the `.bitmap` on Bitcoin: this registry is
  * not the chain. The outage callout appears only when Bitcoin cannot be
  * checked (`unreachable`), never for a disputed deed, and its date only when
- * this server has a last verified time.
+ * this server has a last verified time. In the outage the chip already says
+ * "Not checked", so the line under it gives only the reason.
  */
 
 /** "Oct 31", UTC: rendered on the server, one zone for every reader. */
@@ -100,7 +101,7 @@ export default function DeedCard({ data, status }: { data: BlockPageData; status
 
       {outage ? (
         <>
-          <p className="mt-3 text-[14px] text-text-2" data-testid="deed-status-line">{status.badge}</p>
+          <p className="mt-3 text-[14px] text-text-2" data-testid="deed-status-line">{status.badge.replace(/^Not checked · /, '')}</p>
           <Callout
             tone="warn"
             icon={<CloudOff size={16} strokeWidth={1.75} aria-hidden="true" />}

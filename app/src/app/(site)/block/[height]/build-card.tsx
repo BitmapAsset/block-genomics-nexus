@@ -15,7 +15,7 @@ export function nexusHref(height: number): string {
 
 /**
  * The Build card: what stands on the block and its newest change, or the
- * ground as mined (one parcel per transaction). Enter the block here is the
+ * ground as mined (one parcel per transaction). Walk the block here is the
  * secondary style: the hero holds the page's one main action.
  */
 export default function BuildCard({ data, now }: { data: BlockPageData; now: number }) {
@@ -75,7 +75,7 @@ export default function BuildCard({ data, now }: { data: BlockPageData; now: num
       <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 pt-4">
         <Link href={`/world/${height}`} className={secondaryButton} data-testid="build-enter">
           <Navigation size={17} strokeWidth={1.75} aria-hidden="true" />
-          Enter the block
+          Walk the block
         </Link>
         <Link href={nexusHref(height)} className="inline-flex min-h-[44px] items-center gap-1.5 text-[14px] text-accent-cyan hover:underline" data-testid="build-map">
           <MapIcon size={15} strokeWidth={1.75} aria-hidden="true" />

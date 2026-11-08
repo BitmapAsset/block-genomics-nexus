@@ -15,6 +15,17 @@ import type { GuardianChatMode } from '@/lib/guardian-chat';
  */
 const GuardianSheet = dynamic(() => import('./guardian-sheet').then((m) => m.GuardianSheet), { ssr: false });
 
+let sheetLoad: Promise<unknown> | null = null;
+
+/**
+ * Starts the sheet's import when someone points at or focuses the button, once,
+ * so the sheet is usually ready by the tap. Same chunk as the dynamic import.
+ */
+export function preloadGuardianSheet(): Promise<unknown> {
+  if (!sheetLoad) sheetLoad = import('./guardian-sheet').catch(() => null);
+  return sheetLoad;
+}
+
 export const actionButton =
   'inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-line-2 bg-surface-3 px-5 text-[15px] font-medium text-text-1 transition-colors duration-150 hover:bg-white/[0.12] motion-reduce:transition-none';
 
@@ -31,6 +42,8 @@ export function GuardianAction({ height, name, mode }: { height: number; name: s
         type="button"
         data-action={mode}
         className={actionButton}
+        onPointerEnter={preloadGuardianSheet}
+        onFocus={preloadGuardianSheet}
         onClick={() => {
           setMounted(true);
           setOpen(true);
