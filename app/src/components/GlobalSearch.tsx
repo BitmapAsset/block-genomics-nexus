@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { parseBlockQuery, searchResultHref, searchTerm } from "@/lib/site-nav";
@@ -65,6 +65,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
   const [showRecent, setShowRecent] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelId = useId();
   const debounceRef = useRef<NodeJS.Timeout>(null);
   // Only the newest search may fill the dropdown (REVIEW bg57 P2-3).
   const [latest] = useState(latestRequest);
@@ -79,6 +80,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
   const allResults: SearchResult[] = results
     ? [...results.blocks, ...results.agents, ...results.users]
     : [];
+  const showDropdown = isOpen && (results || loading || showRecent);
 
   // Detect if query looks like a genome hash (64 char hex)
   const isGenomeHash = /^[a-f0-9]{64}$/i.test(query.trim());
@@ -181,7 +183,10 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown") {
+    if (e.key === "ArrowDown" && !showDropdown) {
+      e.preventDefault();
+      openPanel();
+    } else if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedIdx((i) => Math.min(i + 1, allResults.length - 1));
     } else if (e.key === "ArrowUp") {
@@ -207,12 +212,23 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
     saveRecent([]);
   };
 
-  const handleFocus = () => {
+  // The panel opens when asked (a click or tap in the box, ArrowDown, Cmd/Ctrl+K, or results from typing), not when
+  // Tab merely passes through the box.
+  const openPanel = () => {
     if (results) {
       setIsOpen(true);
     } else if (!query) {
       setShowRecent(true);
       setIsOpen(true);
+    }
+  };
+
+  // Keyboard focus moving on to the rest of the page closes the panel, as a click outside does.
+  const handleBlur = (e: React.FocusEvent) => {
+    const next = e.relatedTarget as Node | null;
+    if (next && !containerRef.current?.contains(next)) {
+      setIsOpen(false);
+      setShowRecent(false);
     }
   };
 
@@ -222,10 +238,8 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
     3: "#a855f7",
   };
 
-  const showDropdown = isOpen && (results || loading || showRecent);
-
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative" onBlur={handleBlur}>
       {/* Search Input */}
       <div className="relative flex items-center">
         <svg
@@ -241,10 +255,13 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={handleFocus}
+          onClick={openPanel}
           onKeyDown={handleKeyDown}
           placeholder="Block or @handle"
           aria-label="Search blocks and handles"
+          role="combobox"
+          aria-expanded={Boolean(showDropdown)}
+          aria-controls={panelId}
           className={`${size === "page" ? "w-full min-h-[56px] text-base" : "w-full lg:w-[180px] xl:w-[240px] min-h-[44px] text-sm"} pl-9 pr-12 rounded-full border border-border bg-bg-secondary/60 text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-[#00ffcc]/50 focus:ring-1 focus:ring-[#00ffcc]/20 transition-all`}
         />
         {/* Shortcut hint */}
@@ -268,6 +285,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
       <AnimatePresence>
         {showDropdown && (
           <motion.div
+            id={panelId}
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
@@ -275,7 +293,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
             className="absolute top-full mt-2 left-0 right-0 min-w-[320px] max-h-[480px] overflow-y-auto rounded-xl border border-border bg-bg-primary/95 backdrop-blur-xl shadow-2xl z-[100]"
           >
             {loading && (
-              <div className="px-4 py-3 text-sm text-text-muted animate-pulse flex items-center gap-2">
+              <div className="px-4 py-3 text-sm text-text-secondary animate-pulse flex items-center gap-2">
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -287,7 +305,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
             {/* Genome Hash Detection */}
             {isGenomeHash && !loading && (
               <div className="px-4 py-3 border-b border-border/50">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Genome Hash Detected</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-text-secondary mb-2">Genome Hash Detected</div>
                 <button
                   onClick={() => navigate(`/explore?genome=${query.trim()}`)}
                   className="w-full flex items-center gap-3 px-3 py-2 text-left rounded-lg hover:bg-bg-tertiary/60 transition-colors"
@@ -295,7 +313,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
                   <span className="text-lg">🧬</span>
                   <div>
                     <div className="text-sm font-semibold text-text-primary">Search by Genome</div>
-                    <div className="text-xs text-text-muted font-mono truncate max-w-[200px]">{query.trim().slice(0, 16)}...</div>
+                    <div className="text-xs text-text-secondary font-mono truncate max-w-[200px]">{query.trim().slice(0, 16)}...</div>
                   </div>
                 </button>
               </div>
@@ -308,8 +326,8 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
                 {recentSearches.length > 0 && (
                   <div>
                     <div className="flex items-center justify-between px-4 pt-3 pb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted">Recent</span>
-                      <button onClick={clearRecent} className="text-[10px] text-text-muted hover:text-text-secondary transition-colors cursor-pointer">Clear</button>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">Recent</span>
+                      <button onClick={clearRecent} className="text-[10px] text-text-secondary hover:text-text-primary transition-colors cursor-pointer">Clear</button>
                     </div>
                     {recentSearches.map((term) => (
                       <button
@@ -326,7 +344,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
 
                 {/* Trending */}
                 <div>
-                  <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-muted">
+                  <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary">
                     Notable Blocks
                   </div>
                   {TRENDING_BLOCKS.map((block) => (
@@ -340,7 +358,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
                         <div className="text-sm font-semibold text-text-primary">
                           Block #{block.height.toLocaleString()}
                         </div>
-                        <div className="text-xs text-text-muted">{block.label}</div>
+                        <div className="text-xs text-text-secondary">{block.label}</div>
                       </div>
                     </button>
                   ))}
@@ -350,13 +368,13 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
 
             {/* No results */}
             {!loading && allResults.length === 0 && term.length > 0 && !isGenomeHash && (
-              <div className="px-4 py-3 text-sm text-text-muted">No results for &ldquo;{query}&rdquo;</div>
+              <div className="px-4 py-3 text-sm text-text-secondary">No results for &ldquo;{query}&rdquo;</div>
             )}
 
             {/* Blocks */}
             {results && results.blocks.length > 0 && (
               <div>
-                <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-muted">
+                <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary">
                   Blocks
                 </div>
                 {results.blocks.map((r, i) => {
@@ -373,7 +391,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
                           Block #{r.height?.toLocaleString()}
                         </div>
                         {r.label && (
-                          <div className="text-xs text-text-muted">{r.label}</div>
+                          <div className="text-xs text-text-secondary">{r.label}</div>
                         )}
                       </div>
                     </button>
@@ -385,7 +403,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
             {/* Agents */}
             {results && results.agents.length > 0 && (
               <div>
-                <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-muted">
+                <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary">
                   Agents
                 </div>
                 {results.agents.map((r, i) => {
@@ -409,7 +427,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-text-muted">@{r.handle}</div>
+                        <div className="text-xs text-text-secondary">@{r.handle}</div>
                       </div>
                     </button>
                   );
@@ -420,7 +438,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
             {/* Users */}
             {results && results.users.length > 0 && (
               <div>
-                <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-muted">
+                <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary">
                   Users
                 </div>
                 {results.users.map((r, i) => {
@@ -444,7 +462,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-text-muted">@{r.handle}</div>
+                        <div className="text-xs text-text-secondary">@{r.handle}</div>
                       </div>
                     </button>
                   );
@@ -454,7 +472,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
 
             {/* Search hint footer */}
             {(results || showRecent) && (
-              <div className="px-4 py-2 border-t border-border/50 flex items-center justify-between text-[10px] text-text-muted/60">
+              <div className="px-4 py-2 border-t border-border/50 flex items-center justify-between text-[10px] text-text-secondary">
                 <span>
                   <kbd className="px-1 py-0.5 rounded border border-border bg-bg-tertiary/50 font-mono">↑↓</kbd> navigate{" "}
                   <kbd className="px-1 py-0.5 rounded border border-border bg-bg-tertiary/50 font-mono">↵</kbd> select{" "}
