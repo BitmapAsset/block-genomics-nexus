@@ -42,7 +42,7 @@ function StatCard({ label, value, icon }: { label: string; value: string; icon: 
     <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
       <div className="text-lg mb-1">{icon}</div>
       <div className="text-xl font-bold" style={{ color: '#e2e8f0' }}>{value}</div>
-      <div className="text-[11px]" style={{ color: '#64748b' }}>{label}</div>
+      <div className="text-[11px]" style={{ color: '#94a3b8' }}>{label}</div>
     </div>
   );
 }
@@ -120,7 +120,7 @@ function EditableField({
         />
       )}
       <div className="flex items-center justify-between mt-1">
-        <span className="text-[10px]" style={{ color: draft.length >= maxLength ? '#f87171' : '#64748b' }}>{draft.length}/{maxLength}</span>
+        <span className="text-[10px]" style={{ color: draft.length >= maxLength ? '#f87171' : '#94a3b8' }}>{draft.length}/{maxLength}</span>
         {multiline && (
           <div className="flex gap-2">
             <button onClick={cancel} className="text-[10px] px-2 py-0.5 rounded cursor-pointer" style={{ color: '#94a3b8' }}>Cancel</button>
@@ -399,7 +399,7 @@ export default function AgentProfilePage() {
       <div className="min-h-screen bg-bg-primary flex items-center justify-center">
         <div className="text-center">
           <div className="h-8 w-8 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm" style={{ color: '#64748b' }}>Loading profile…</p>
+          <p className="text-sm" style={{ color: '#94a3b8' }}>Loading profile…</p>
         </div>
       </div>
     );
@@ -459,7 +459,7 @@ export default function AgentProfilePage() {
         <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at top right, rgba(0,255,204,0.03) 0%, transparent 60%)' }} />
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-10 relative">
           {/* Back link */}
-          <Link href="/directory" className="inline-flex items-center gap-1.5 text-xs mb-6 transition-colors hover:text-white" style={{ color: '#64748b' }}>
+          <Link href="/directory" className="inline-flex items-center gap-1.5 text-xs mb-6 transition-colors hover:text-white" style={{ color: '#94a3b8' }}>
             ← Back to Directory
           </Link>
 
@@ -503,7 +503,7 @@ export default function AgentProfilePage() {
                   </span>
                 )}
               </div>
-              <p className="text-sm font-mono mb-2" style={{ color: '#64748b' }}>@{agent.handle}</p>
+              <p className="text-sm font-mono mb-2" style={{ color: '#94a3b8' }}>@{agent.handle}</p>
 
               {/* Bio - editable for owners of real profiles */}
               <div className="mb-4">
@@ -556,19 +556,19 @@ export default function AgentProfilePage() {
           <h2 className="text-sm font-bold mb-4" style={{ color: '#cbd5e1' }}>📍 Location</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>Block</div>
+              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#94a3b8' }}>Block</div>
               <Link href={`/nexus?block=${agent.blockHeight}`} className="text-sm font-mono font-bold hover:underline" style={{ color: '#f7931a' }}>
                 #{agent.blockHeight.toLocaleString()}
               </Link>
             </div>
             {agent.parcelIndex !== null && (
               <div>
-                <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>Parcel</div>
+                <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#94a3b8' }}>Parcel</div>
                 <span className="text-sm font-mono font-bold" style={{ color: '#22d3ee' }}>#{agent.parcelIndex}</span>
               </div>
             )}
             <div>
-              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>Verified Since</div>
+              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#94a3b8' }}>Verified Since</div>
               <span className="text-sm font-mono" style={{ color: '#94a3b8' }}>{agent.verifiedAt}</span>
             </div>
           </div>
@@ -750,7 +750,7 @@ export default function AgentProfilePage() {
             </div>
             {/* Footer */}
             <div className="px-5 py-2 text-center">
-              <p className="text-[10px]" style={{ color: '#64748b' }}>Unique genome derived from on-chain verification • Drag to rotate</p>
+              <p className="text-[10px]" style={{ color: '#94a3b8' }}>Unique genome derived from on-chain verification • Drag to rotate</p>
             </div>
           </div>
         </div>

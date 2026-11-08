@@ -198,7 +198,7 @@ export default function BrainPage() {
               <div className="text-2xl mb-2">{c.icon}</div>
               <div className={`text-3xl font-bold ${mono} ${cyan}`}>{c.value}</div>
               <div className={`text-xs mt-1 ${dim}`}>{c.label}</div>
-              {c.sub && <div className={`text-[10px] mt-1 ${dim} opacity-60`}>{c.sub}</div>}
+              {c.sub && <div className={`text-[10px] mt-1 ${dim}`}>{c.sub}</div>}
             </div>
           ))}
         </section>
