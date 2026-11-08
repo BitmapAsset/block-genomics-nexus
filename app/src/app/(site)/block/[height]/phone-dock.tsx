@@ -39,7 +39,9 @@ export default function PhoneDock({ height }: { height: number }) {
       io?.disconnect();
       measured = { header, tabBar };
       io = new IntersectionObserver((entries) => {
-        for (const e of entries) setHeroInView(!heroCoveredOrAway(e.boundingClientRect, window.innerHeight, tabBar, header));
+        for (const e of entries) {
+          setHeroInView(!heroCoveredOrAway(e.boundingClientRect, window.innerHeight, tabBar, header, e.isIntersecting));
+        }
       }, dockObserverOptions(tabBar, header));
       io.observe(hero);
     };

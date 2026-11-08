@@ -20,11 +20,20 @@ const SLACK_PX = 1;
 /**
  * True when the hero's action is not seen: scrolled away past the top, fully
  * behind the sticky header, or (even partly) under the tab bar or below the screen.
+ * `intersecting` is the observer's own edge: when it reports the button touching
+ * the area below the header, the header side counts it as seen, so a callback
+ * landing within the slack below the header line brings the dock down.
  */
-export function heroCoveredOrAway(rect: VerticalBox, viewportHeight: number, tabBarHeight: number, headerHeight = 0): boolean {
+export function heroCoveredOrAway(
+  rect: VerticalBox,
+  viewportHeight: number,
+  tabBarHeight: number,
+  headerHeight = 0,
+  intersecting?: boolean,
+): boolean {
   return (
     rect.top < -SLACK_PX ||
-    (headerHeight > 0 && rect.bottom <= headerHeight + SLACK_PX) ||
+    (headerHeight > 0 && intersecting !== true && rect.bottom <= headerHeight + SLACK_PX) ||
     rect.bottom > viewportHeight - tabBarHeight + SLACK_PX
   );
 }
@@ -55,13 +64,16 @@ export function measureTabBar(doc: Document): number {
 /**
  * The height of the page's sticky or fixed top header (64 px and a 1 px border
  * on this site), or 0 when there is none. Headings inside cards use `header`
- * too; they sit in the flow and are skipped.
+ * too; they sit in the flow and are skipped. The phone menu opens inside the
+ * header and covers the page rather than pinning more of it, so its height is
+ * left out: open or closed, the header measures the same.
  */
 export function measureHeader(doc: Document): number {
   for (const el of doc.querySelectorAll('header')) {
     const style = getComputedStyle(el);
     if ((style.position === 'sticky' || style.position === 'fixed') && style.top === '0px') {
-      return el.getBoundingClientRect().height;
+      const menu = el.querySelector('[data-mobile-menu]')?.getBoundingClientRect().height ?? 0;
+      return el.getBoundingClientRect().height - menu;
     }
   }
   return 0;
