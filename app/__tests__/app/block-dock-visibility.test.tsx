@@ -9,8 +9,10 @@
  * fully behind the header, under the tab bar, or scrolled away, the dock shows
  * Enter the block and Share instead. The observer watches the viewport minus
  * the header at the top and the tab bar at the bottom, at thresholds 0 and 1,
- * and is rebuilt when a resize or a rotation changes either height. The real
- * check runs in the browser shots.
+ * and is rebuilt when a resize or a rotation changes either height. On the
+ * header side the observer's own edge decides: an entry it reports as touching
+ * the area is seen. The header is measured without its open phone menu. The
+ * real check runs in the browser walks.
  */
 
 import { act, render, screen } from '@testing-library/react';
@@ -85,6 +87,27 @@ describe('heroCoveredOrAway with the sticky header', () => {
   });
 });
 
+describe("heroCoveredOrAway with the observer's own edge", () => {
+  it('within 1 px below the header line and touching the area: seen', () => {
+    expect(heroCoveredOrAway({ top: 13.5, bottom: 65.5 }, VIEWPORT, TAB_BAR, HEADER, true)).toBe(false);
+    expect(heroCoveredOrAway({ top: 14, bottom: 66 }, VIEWPORT, TAB_BAR, HEADER, true)).toBe(false);
+  });
+
+  it('fully behind the header and not touching the area: covered', () => {
+    expect(heroCoveredOrAway({ top: 5, bottom: 57 }, VIEWPORT, TAB_BAR, HEADER, false)).toBe(true);
+    expect(heroCoveredOrAway({ top: 13.5, bottom: 65.5 }, VIEWPORT, TAB_BAR, HEADER, false)).toBe(true);
+  });
+
+  it('no edge given: the rule by the box alone', () => {
+    expect(heroCoveredOrAway({ top: 13.5, bottom: 65.5 }, VIEWPORT, TAB_BAR, HEADER)).toBe(true);
+  });
+
+  it('touching the area does not change the tab bar side or the top of the screen', () => {
+    expect(heroCoveredOrAway({ top: 740, bottom: 794 }, VIEWPORT, TAB_BAR, HEADER, true)).toBe(true);
+    expect(heroCoveredOrAway({ top: -10, bottom: 44 }, VIEWPORT, TAB_BAR, HEADER, true)).toBe(true);
+  });
+});
+
 describe('dockObserverOptions', () => {
   it('the viewport minus the header at the top and the tab bar at the bottom, at both edges of the button', () => {
     expect(dockObserverOptions(TAB_BAR, HEADER)).toEqual({ rootMargin: '-65px 0px -57px 0px', threshold: [0, 1] });
@@ -137,6 +160,15 @@ describe('measureHeader', () => {
   it('no header: 0', () => {
     expect(measureHeader(document)).toBe(0);
   });
+
+  it('the open phone menu inside the header does not count: the closed height', () => {
+    const el = header('sticky', HEADER + 610);
+    const menu = document.createElement('nav');
+    menu.setAttribute('data-mobile-menu', '');
+    menu.getBoundingClientRect = () => ({ height: 610, top: HEADER, bottom: HEADER + 610 }) as DOMRect;
+    el.appendChild(menu);
+    expect(measureHeader(document)).toBe(HEADER);
+  });
 });
 
 describe('the dock follows the hero action', () => {
@@ -146,6 +178,7 @@ describe('the dock follows the hero action', () => {
   let frames: FrameRequestCallback[] = [];
   let barHeight = TAB_BAR;
   let headerHeight = HEADER;
+  const MENU = 610;
   const original = (window as { IntersectionObserver?: unknown }).IntersectionObserver;
   const originalInner = window.innerHeight;
   const originalRaf = window.requestAnimationFrame;
@@ -199,7 +232,11 @@ describe('the dock follows the hero action', () => {
       const head = document.createElement('header');
       head.style.position = 'sticky';
       head.style.top = '0px';
-      head.getBoundingClientRect = () => ({ height: headerHeight, top: 0, bottom: headerHeight }) as DOMRect;
+      // An open phone menu sits inside the sticky header and adds to its box.
+      head.getBoundingClientRect = () => {
+        const h = headerHeight + (head.querySelector('[data-mobile-menu]') ? MENU : 0);
+        return { height: h, top: 0, bottom: h } as DOMRect;
+      };
       document.body.appendChild(head);
     }
     const hero = document.createElement('a');
@@ -217,7 +254,19 @@ describe('the dock follows the hero action', () => {
     document.body.appendChild(bar);
   }
 
-  const at = (top: number, bottom: number): Entry => ({ boundingClientRect: { top, bottom }, isIntersecting: bottom > 0 && top < VIEWPORT, intersectionRatio: 0.5 });
+  function openMenu() {
+    const menu = document.createElement('nav');
+    menu.setAttribute('data-mobile-menu', '');
+    menu.getBoundingClientRect = () => ({ height: MENU, top: headerHeight, bottom: headerHeight + MENU }) as DOMRect;
+    document.querySelector('header')?.appendChild(menu);
+  }
+
+  // As the real observer reports it: touching the area between the header and the tab bar.
+  const at = (top: number, bottom: number): Entry => ({
+    boundingClientRect: { top, bottom },
+    isIntersecting: bottom >= headerHeight && top <= VIEWPORT - barHeight,
+    intersectionRatio: 0.5,
+  });
 
   it('observes with the measured header and tab bar heights and thresholds 0 and 1', () => {
     barHeight = 91;
@@ -248,6 +297,47 @@ describe('the dock follows the hero action', () => {
     expect(screen.queryByTestId('phone-dock')).not.toBeNull();
     act(() => latest().cb([{ ...at(15, 67), intersectionRatio: 0.02 }]));
     expect(screen.queryByTestId('phone-dock')).toBeNull();
+  });
+
+  it('an entry within 1 px below the header line that the observer reports as touching: seen, the dock is down', () => {
+    page();
+    render(<PhoneDock height={HEIGHT} />);
+    expect(screen.queryByTestId('phone-dock')).not.toBeNull();
+    const entry = { ...at(13.5, 65.5), intersectionRatio: 0.01 };
+    expect(entry.isIntersecting).toBe(true);
+    act(() => latest().cb([entry]));
+    expect(screen.queryByTestId('phone-dock')).toBeNull();
+  });
+
+  it('scrolling back up past the header line: the dock goes down at the crossing callback', () => {
+    page();
+    render(<PhoneDock height={HEIGHT} />);
+    const behind = { ...at(5, 57), intersectionRatio: 0 };
+    expect(behind.isIntersecting).toBe(false);
+    act(() => latest().cb([behind]));
+    expect(screen.queryByTestId('phone-dock')).not.toBeNull();
+    // The next callback: the button starts touching the area, landing 0.8 px below the line.
+    const crossing = { ...at(13.8, 65.8), intersectionRatio: 0 };
+    expect(crossing.isIntersecting).toBe(true);
+    act(() => latest().cb([crossing]));
+    expect(screen.queryByTestId('phone-dock')).toBeNull();
+    // The whole button below the header: still down.
+    act(() => latest().cb([{ ...at(65, 117), intersectionRatio: 1 }]));
+    expect(screen.queryByTestId('phone-dock')).toBeNull();
+  });
+
+  it('a resize while the phone menu is open: the observer keeps its margins', () => {
+    page();
+    render(<PhoneDock height={HEIGHT} />);
+    expect(latest().options).toEqual({ rootMargin: '-65px 0px -57px 0px', threshold: [0, 1] });
+    openMenu();
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+    flushFrames();
+    expect(observers).toHaveLength(1);
+    expect(observers[0].disconnected).toBe(false);
+    expect(latest().options).toEqual({ rootMargin: '-65px 0px -57px 0px', threshold: [0, 1] });
   });
 
   it('a resize that changes the tab bar: a new observer with the new margins, the old one disconnected', () => {
