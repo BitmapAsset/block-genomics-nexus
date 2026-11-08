@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Navigation } from 'lucide-react';
 import { primaryButton } from '@/components/ui/button';
 import ShareMenu from './share-menu';
+import { dockObserverOptions, heroCoveredOrAway, measureTabBar } from './dock-visibility';
 
 /**
  * The phone dock: Enter the block and Share, below 768 px, sitting directly on
@@ -12,8 +13,10 @@ import ShareMenu from './share-menu';
  * 1 px top border, then the safe-area inset, which the tab bar already takes).
  * Drawn on the client only (nothing in the server HTML); the page reserves its
  * height with CSS, so its arrival shifts nothing.
- * It shows once the hero's own action has scrolled away, so a view never has
- * two orange buttons, and it never carries `data-primary`.
+ * It shows while the hero's own action is not fully visible above the tab bar
+ * (covered by it on the first screen, or scrolled away), so a view never has
+ * two orange buttons and the first screen always has one; it never carries
+ * `data-primary`.
  */
 export default function PhoneDock({ height }: { height: number }) {
   const [mounted, setMounted] = useState(false);
@@ -23,9 +26,10 @@ export default function PhoneDock({ height }: { height: number }) {
     setMounted(true);
     const hero = document.querySelector('[data-primary]');
     if (!hero || typeof IntersectionObserver !== 'function') return;
+    const tabBar = measureTabBar(document);
     const io = new IntersectionObserver((entries) => {
-      for (const e of entries) setHeroInView(e.isIntersecting);
-    });
+      for (const e of entries) setHeroInView(!heroCoveredOrAway(e.boundingClientRect, window.innerHeight, tabBar));
+    }, dockObserverOptions(tabBar));
     io.observe(hero);
     return () => io.disconnect();
   }, []);

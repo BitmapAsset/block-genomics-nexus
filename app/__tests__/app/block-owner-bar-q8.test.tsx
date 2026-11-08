@@ -32,12 +32,13 @@ import BlockPage from '@/app/(site)/block/[height]/page';
 
 const HEIGHT = 612888;
 
-// The hero's action is in view (as at the top of the page), so the phone dock stays away.
+// The hero's action is fully in view (as at the top of the page), so the phone dock stays away.
+type Entry = { isIntersecting: boolean; intersectionRatio: number; boundingClientRect: { top: number; bottom: number }; target: Element };
 beforeAll(() => {
   (window as unknown as { IntersectionObserver: unknown }).IntersectionObserver = class {
-    constructor(private cb: (e: Array<{ isIntersecting: boolean; target: Element }>) => void) {}
+    constructor(private cb: (e: Entry[]) => void) {}
     observe(el: Element) {
-      this.cb([{ isIntersecting: true, target: el }]);
+      this.cb([{ isIntersecting: true, intersectionRatio: 1, boundingClientRect: { top: 400, bottom: 454 }, target: el }]);
     }
     unobserve() {}
     disconnect() {}
