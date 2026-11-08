@@ -77,7 +77,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
               {palette.map((color, i) => (
                 <div key={i} className="text-center">
                   <div className="w-8 h-8 rounded-lg mb-1" style={{ backgroundColor: color, boxShadow: `0 0 12px ${color}44` }} />
-                  <div className="text-[9px] font-mono text-text-muted">{i.toString(16).toUpperCase()}</div>
+                  <div className="text-[9px] font-mono text-text-secondary">{i.toString(16).toUpperCase()}</div>
                 </div>
               ))}
             </div>

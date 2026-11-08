@@ -141,7 +141,7 @@ export default function ConnectPage() {
                   ? "bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/40"
                   : step === s.key
                   ? "bg-accent-cyan/30 text-white border border-accent-cyan glow-cyan"
-                  : "bg-bg-tertiary/50 text-text-muted border border-border"
+                  : "bg-bg-tertiary/50 text-text-secondary border border-border"
               }`}
             >
               {step > s.key ? "✓" : s.key}
@@ -161,7 +161,7 @@ export default function ConnectPage() {
           </div>
           <button
             onClick={clearError}
-            className="text-text-muted hover:text-text-primary text-sm"
+            className="text-text-secondary hover:text-text-primary text-sm"
           >
             ✕
           </button>
@@ -188,7 +188,7 @@ export default function ConnectPage() {
                 </span>
                 <div>
                   <p className="font-medium text-text-primary">{walletLabel(wallet)}</p>
-                  <p className="text-xs text-text-muted">Bitcoin wallet</p>
+                  <p className="text-xs text-text-secondary">Bitcoin wallet</p>
                 </div>
               </button>
             ))}
@@ -200,7 +200,7 @@ export default function ConnectPage() {
                 href="https://unisat.io"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent-cyan underline"
+                className="text-accent-cyan underline hover:decoration-2"
               >
                 Unisat
               </a>{" "}
@@ -209,7 +209,7 @@ export default function ConnectPage() {
                 href="https://www.xverse.app"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent-purple underline"
+                className="text-accent-purple underline hover:decoration-2"
               >
                 Xverse
               </a>{" "}
@@ -218,7 +218,7 @@ export default function ConnectPage() {
                 href="https://leather.io"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-amber-300 underline"
+                className="text-amber-300 underline hover:decoration-2"
               >
                 Leather
               </a>
@@ -238,14 +238,14 @@ export default function ConnectPage() {
           </div>
 
           {loadingBlocks && (
-            <p className="text-xs text-text-muted mb-4 animate-pulse">
+            <p className="text-xs text-text-secondary mb-4 animate-pulse">
               Scanning wallet for bitmaps…
             </p>
           )}
 
           {bitmapBlocks.length > 0 && (
             <div className="mb-6">
-              <p className="text-xs text-text-muted mb-2">Detected Bitmaps</p>
+              <p className="text-xs text-text-secondary mb-2">Detected Bitmaps</p>
               <div className="flex flex-wrap gap-2">
                 {bitmapBlocks.map((block) => (
                   <button
@@ -277,7 +277,7 @@ export default function ConnectPage() {
                 setSelectedBlock(null);
               }}
               placeholder="e.g. 840000"
-              className="w-full rounded-lg border border-border bg-bg-secondary px-4 py-3 text-sm font-mono text-text-primary placeholder:text-text-muted focus:border-accent-cyan/50 focus:outline-none focus:ring-1 focus:ring-accent-cyan/25 transition-colors"
+              className="w-full rounded-lg border border-border bg-bg-secondary px-4 py-3 text-sm font-mono text-text-primary placeholder:text-text-secondary focus:border-accent-cyan/50 focus:outline-none focus:ring-1 focus:ring-accent-cyan/25 transition-colors"
             />
           </div>
 
@@ -309,7 +309,7 @@ export default function ConnectPage() {
             </p>
           </div>
           <div className="bg-bg-primary/60 rounded-lg border border-border p-4 mb-6">
-            <p className="text-xs text-text-muted mb-2">Challenge Message</p>
+            <p className="text-xs text-text-secondary mb-2">Challenge Message</p>
             <pre className="text-xs text-text-primary whitespace-pre-wrap break-all font-mono">
               {challengeMessage}
             </pre>
@@ -381,7 +381,7 @@ export default function ConnectPage() {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder={handle}
-              className="w-full rounded-lg border border-border bg-bg-secondary px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-cyan/50 focus:outline-none focus:ring-1 focus:ring-accent-cyan/25 transition-colors"
+              className="w-full rounded-lg border border-border bg-bg-secondary px-4 py-3 text-sm text-text-primary placeholder:text-text-secondary focus:border-accent-cyan/50 focus:outline-none focus:ring-1 focus:ring-accent-cyan/25 transition-colors"
             />
           </div>
           <div className="mt-6 flex items-center justify-center gap-3">

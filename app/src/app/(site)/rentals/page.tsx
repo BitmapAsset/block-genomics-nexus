@@ -83,7 +83,7 @@ function ListingCard({ listing, onPay }: { listing: Listing; onPay: (listing: Li
 
       {/* Welcome message */}
       {listing.welcomeMessage && (
-        <p className="text-[11px] text-gray-500 italic mb-3 line-clamp-2">
+        <p className="text-[11px] text-gray-400 italic mb-3 line-clamp-2">
           &quot;{listing.welcomeMessage}&quot;
         </p>
       )}
@@ -219,7 +219,7 @@ function GateModal({ gate, listing, onClose }: { gate: GateResult; listing: List
               {content.btnText}
             </button>
           ) : null}
-          <button onClick={onClose} className="mt-3 text-xs text-gray-500 hover:text-gray-300 cursor-pointer">Dismiss</button>
+          <button onClick={onClose} className="mt-3 text-xs text-gray-400 hover:text-gray-300 cursor-pointer">Dismiss</button>
         </div>
       </div>
     </div>
@@ -321,7 +321,7 @@ export default function RentalsPage() {
             <div className="flex items-center justify-center gap-6 mt-6 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold text-orange-400">{total}</span>
-                <span className="text-gray-500">Active Listings</span>
+                <span className="text-gray-400">Active Listings</span>
               </div>
             </div>
           </div>
@@ -341,7 +341,7 @@ export default function RentalsPage() {
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search by block # or owner..."
                 aria-label="Search listings by block number or owner"
-                className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-orange-500/50 transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-gray-400 focus:outline-none focus:border-orange-500/50 transition-all"
               />
             </div>
 
@@ -353,7 +353,7 @@ export default function RentalsPage() {
                 onChange={e => setMinPrice(e.target.value)}
                 placeholder="Min sats"
                 aria-label="Minimum price in sats"
-                className="w-24 px-2 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-xs font-mono placeholder-gray-600 focus:outline-none focus:border-orange-500/50"
+                className="w-24 px-2 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-xs font-mono placeholder-gray-400 focus:outline-none focus:border-orange-500/50"
               />
               <span className="text-gray-600 text-xs" aria-hidden="true">–</span>
               <input
@@ -362,7 +362,7 @@ export default function RentalsPage() {
                 onChange={e => setMaxPrice(e.target.value)}
                 placeholder="Max sats"
                 aria-label="Maximum price in sats"
-                className="w-24 px-2 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-xs font-mono placeholder-gray-600 focus:outline-none focus:border-orange-500/50"
+                className="w-24 px-2 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-xs font-mono placeholder-gray-400 focus:outline-none focus:border-orange-500/50"
               />
             </div>
 
@@ -393,7 +393,7 @@ export default function RentalsPage() {
               <option value="popular">Most Popular</option>
             </select>
 
-            <span className="text-xs text-gray-600 ml-auto hidden sm:inline">
+            <span className="text-xs text-gray-400 ml-auto hidden sm:inline">
               {filtered.length} listing{filtered.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -413,7 +413,7 @@ export default function RentalsPage() {
         {loading ? (
           <div className="text-center py-20">
             <div className="mx-auto w-6 h-6 border-2 border-orange-500/30 border-t-orange-400 rounded-full animate-spin mb-3" />
-            <p className="text-gray-500 text-sm">Loading listings...</p>
+            <p className="text-gray-400 text-sm">Loading listings...</p>
           </div>
         ) : filtered.length > 0 ? (
           <>
@@ -452,7 +452,7 @@ export default function RentalsPage() {
           <div className="text-center py-20">
             <div className="text-5xl mb-4">🏷️</div>
             <h3 className="text-lg font-semibold text-gray-300 mb-2">No listings yet</h3>
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="text-sm text-gray-400 mb-6">
               Block owners can list their blocks from the Nexus map.
             </p>
             <Link
