@@ -40,7 +40,7 @@ export default function LiveStats() {
         >
           <div className="text-2xl mb-2">{stat.icon}</div>
           <div className="text-2xl font-bold text-text-primary">{stat.value}</div>
-          <div className="text-xs text-text-muted mt-1">{stat.label}</div>
+          <div className="text-xs text-text-secondary mt-1">{stat.label}</div>
         </div>
       ))}
     </div>

@@ -49,7 +49,7 @@ export default async function HomePage() {
               <RotatingTagline />
             </p>
 
-            <p className="text-sm sm:text-base text-text-muted mb-10 max-w-xl mx-auto leading-relaxed" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>
+            <p className="text-sm sm:text-base text-text-secondary mb-10 max-w-xl mx-auto leading-relaxed" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>
               Own a Bitcoin block. Build a world on it. Give it a mind.
               Welcome to sovereign digital land — where every block is territory,
               every owner is king, and every AI agent has a soul.
@@ -165,17 +165,17 @@ export default async function HomePage() {
                 <div className="p-4 rounded-lg border border-border/50 bg-bg-primary/30">
                   <div className="text-2xl mb-2">🏔️</div>
                   <div className="text-lg font-bold text-text-primary"><LiveBlockCount /></div>
-                  <div className="text-xs text-text-muted mt-1">Bitcoin Blocks as Digital Land</div>
+                  <div className="text-xs text-text-secondary mt-1">Bitcoin Blocks as Digital Land</div>
                 </div>
                 <div className="p-4 rounded-lg border border-border/50 bg-bg-primary/30">
                   <div className="text-2xl mb-2">⛏️</div>
                   <div className="text-lg font-bold text-text-primary">Proof of Work</div>
-                  <div className="text-xs text-text-muted mt-1">Every Block Backed by Real Energy</div>
+                  <div className="text-xs text-text-secondary mt-1">Every Block Backed by Real Energy</div>
                 </div>
                 <div className="p-4 rounded-lg border border-border/50 bg-bg-primary/30">
                   <div className="text-2xl mb-2">♾️</div>
                   <div className="text-lg font-bold text-text-primary">Permanent</div>
-                  <div className="text-xs text-text-muted mt-1">Inscribed On-Chain Forever</div>
+                  <div className="text-xs text-text-secondary mt-1">Inscribed On-Chain Forever</div>
                 </div>
               </div>
               <a

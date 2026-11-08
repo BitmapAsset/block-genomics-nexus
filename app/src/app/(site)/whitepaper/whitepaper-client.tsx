@@ -55,7 +55,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
               if (para.startsWith("Example Genome:")) {
                 return (
                   <div key={i} className="glass-panel p-6 rounded-xl">
-                    <div className="text-xs font-bold uppercase tracking-widest text-text-muted mb-3">Example Genome</div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-3">Example Genome</div>
                     <p className="font-mono text-base leading-relaxed tracking-wider text-center break-all">
                       {HASH.split("").map((c, j) => (
                         <span key={j} style={{ color: palette[parseInt(c, 16)] }}>{c}</span>
@@ -95,11 +95,11 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
                   <div className="flex items-center gap-3 mb-3">
                     <span className="text-2xl">{t.icon}</span>
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-text-muted">{t.tier}</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-text-secondary">{t.tier}</div>
                       <div className="text-lg font-bold">{t.label}</div>
                     </div>
                   </div>
-                  <div className="text-sm text-text-muted">Supply: <span className="text-text-primary font-semibold">{t.supply}</span></div>
+                  <div className="text-sm text-text-secondary">Supply: <span className="text-text-primary font-semibold">{t.supply}</span></div>
                 </div>
               ))}
             </div>
@@ -119,7 +119,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
                 <div key={c.title} className="glass-panel p-5 rounded-xl">
                   <div className="text-lg mb-2">{c.icon}</div>
                   <div className="text-sm font-semibold text-text-primary mb-1">{c.title}</div>
-                  <p className="text-xs text-text-muted">{c.desc}</p>
+                  <p className="text-xs text-text-secondary">{c.desc}</p>
                 </div>
               ))}
             </div>
@@ -137,7 +137,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
                 <div key={c.title} className="glass-panel p-5 rounded-xl">
                   <div className="text-lg mb-2">{c.icon}</div>
                   <div className="text-sm font-semibold text-text-primary mb-1">{c.title}</div>
-                  <p className="text-xs text-text-muted">{c.desc}</p>
+                  <p className="text-xs text-text-secondary">{c.desc}</p>
                 </div>
               ))}
             </div>
@@ -171,7 +171,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
                   <div className="flex items-center gap-3 mb-3">
                     <span className="text-2xl">{t.icon}</span>
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-text-muted">{t.tier} — {t.role}</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-text-secondary">{t.tier} — {t.role}</div>
                       <div className="text-lg font-bold">{t.label}</div>
                     </div>
                   </div>
@@ -181,7 +181,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
                   {t.cannot.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border">
                       <div className="text-xs font-bold uppercase tracking-widest text-red-400 mb-1">Restricted</div>
-                      <ul className="list-disc list-inside space-y-1 text-sm text-text-muted">
+                      <ul className="list-disc list-inside space-y-1 text-sm text-text-secondary">
                         {t.cannot.map((c, i) => <li key={i}>{c}</li>)}
                       </ul>
                     </div>
@@ -213,7 +213,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
                 <div key={c.title} className="glass-panel p-5 rounded-xl">
                   <div className="text-lg mb-2">{c.icon}</div>
                   <div className="text-sm font-semibold text-text-primary mb-1">{c.title}</div>
-                  <p className="text-xs text-text-muted">{c.desc}</p>
+                  <p className="text-xs text-text-secondary">{c.desc}</p>
                 </div>
               ))}
             </div>
@@ -229,11 +229,11 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
                 <div key={c.title} className="glass-panel p-5 rounded-xl">
                   <div className="text-lg mb-2">{c.icon}</div>
                   <div className="text-sm font-semibold text-text-primary mb-1">{c.title}</div>
-                  <p className="text-xs text-text-muted">{c.desc}</p>
+                  <p className="text-xs text-text-secondary">{c.desc}</p>
                 </div>
               ))}
             </div>
-            <p className="text-sm text-text-muted mt-4">WebRTC peer-to-peer with optional SFU relay for 50+ viewers. Block owners with linked VPS can self-host their SFU. All streams E2E encrypted with optional wallet-verified access.</p>
+            <p className="text-sm text-text-secondary mt-4">WebRTC peer-to-peer with optional SFU relay for 50+ viewers. Block owners with linked VPS can self-host their SFU. All streams E2E encrypted with optional wallet-verified access.</p>
           </>
         ) : s.id === "nexus_brain" ? (
           <>
@@ -254,7 +254,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
                     <span className="text-lg shrink-0">{r.icon}</span>
                     <div>
                       <span className="text-sm font-semibold text-text-primary">{r.rule}</span>
-                      <span className="text-sm text-text-muted"> — {r.detail}</span>
+                      <span className="text-sm text-text-secondary"> — {r.detail}</span>
                     </div>
                   </div>
                 ))}
@@ -277,7 +277,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
                   <span className="flex items-center justify-center w-8 h-8 rounded-full bg-accent-purple/10 border border-accent-purple/20 text-accent-purple font-bold text-sm shrink-0">{s.step}</span>
                   <div>
                     <div className="text-sm font-semibold text-text-primary">{s.title}</div>
-                    <p className="text-xs text-text-muted">{s.desc}</p>
+                    <p className="text-xs text-text-secondary">{s.desc}</p>
                   </div>
                 </div>
               ))}
@@ -292,11 +292,11 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
               ].map((f) => (
                 <div key={f.label} className={`glass-panel p-5 rounded-xl border ${f.color} text-center`}>
                   <div className="text-2xl font-bold text-text-primary">{f.pct}</div>
-                  <div className="text-xs text-text-muted mt-1">{f.label}</div>
+                  <div className="text-xs text-text-secondary mt-1">{f.label}</div>
                 </div>
               ))}
             </div>
-            <p className="text-sm text-text-muted mt-3">Symbiotic: funded by the world it protects. Low funds = slower scans. Never stops.</p>
+            <p className="text-sm text-text-secondary mt-3">Symbiotic: funded by the world it protects. Low funds = slower scans. Never stops.</p>
 
             <h3 className="text-lg font-bold text-text-primary mt-8 mb-4">Identity &amp; Transparency</h3>
             <div className="glass-panel p-6 rounded-xl">
@@ -311,7 +311,7 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
                 ].map((i) => (
                   <div key={i.label}>
                     <div className="text-xl mb-1">{i.icon}</div>
-                    <div className="text-xs text-text-muted">{i.label}</div>
+                    <div className="text-xs text-text-secondary">{i.label}</div>
                   </div>
                 ))}
               </div>
@@ -325,11 +325,11 @@ function ModernSection({ s }: { s: typeof sections[0] }) {
             {s.content.split("\n\n").slice(0, 2).map((para, i) => <p key={i}>{para}</p>)}
             <div className="glass-panel glow-purple p-6 rounded-xl text-center mt-4">
               <p className="text-lg font-semibold text-gradient-cyan-purple mb-2">Bitcoin gave us sound money. Block Genomics gives us sound identity.</p>
-              <p className="text-sm text-text-muted">The protocol is live. The code is open. The future is being built.</p>
+              <p className="text-sm text-text-secondary">The protocol is live. The code is open. The future is being built.</p>
             </div>
             <div className="flex flex-wrap justify-center gap-4 mt-8">
               <Link href="/explore" className="inline-flex items-center gap-2 rounded-lg bg-accent-cyan/15 border border-accent-cyan/40 px-6 py-3 text-sm font-medium text-accent-cyan hover:bg-accent-cyan/25 transition-all">🔍 Explore Agents</Link>
-              <Link href="/my-bitmaps" className="inline-flex items-center gap-2 rounded-lg bg-accent-purple/15 border border-accent-purple/40 px-6 py-3 text-sm font-medium text-accent-purple hover:bg-accent-purple/25 transition-all">⚡ Verify Identity</Link>
+              <Link href="/my-bitmaps" className="inline-flex items-center gap-2 rounded-lg bg-accent-purple/15 border border-accent-purple/40 px-6 py-3 text-sm font-medium text-purple-400 hover:bg-accent-purple/25 transition-all">⚡ Verify Identity</Link>
             </div>
           </>
         ) : (
@@ -357,18 +357,18 @@ function ModernView() {
           Digital DNA for agents and humans — scarce, sovereign, and verifiable.
         </p>
         <GenomeBar />
-        <p className="text-sm text-text-muted">By Gravity &amp; Pepe · Human + AI Agent · Block Genomics</p>
-        <p className="text-xs text-text-muted/60 mt-1">Open Source · BSL (Business Source License)</p>
+        <p className="text-sm text-text-secondary">By Gravity &amp; Pepe · Human + AI Agent · Block Genomics</p>
+        <p className="text-xs text-text-secondary mt-1">Open Source · BSL (Business Source License)</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-12">
         {/* TOC */}
         <aside className="hidden lg:block">
           <div className="sticky top-24">
-            <div className="text-xs font-bold uppercase tracking-widest text-text-muted mb-4">Contents</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">Contents</div>
             <nav className="space-y-1">
               {sections.map((s) => (
-                <a key={s.id} href={`#${s.id}`} className="block text-sm text-text-muted hover:text-accent-cyan py-1.5 px-3 rounded-lg hover:bg-accent-cyan/5 transition-colors">{s.title}</a>
+                <a key={s.id} href={`#${s.id}`} className="block text-sm text-text-secondary hover:text-accent-cyan py-1.5 px-3 rounded-lg hover:bg-accent-cyan/5 transition-colors">{s.title}</a>
               ))}
             </nav>
           </div>
@@ -1045,14 +1045,14 @@ export default function WhitePaperClient() {
       <div className="no-print sticky top-16 z-40 border-b border-border bg-bg-primary/90 backdrop-blur-xl">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-widest text-text-muted">View:</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-text-secondary">View:</span>
             <div className="flex rounded-lg border border-border overflow-hidden">
               <button
                 onClick={() => setMode("modern")}
                 className={`px-4 py-1.5 text-xs font-semibold transition-all ${
                   mode === "modern"
                     ? "bg-accent-cyan/15 text-accent-cyan"
-                    : "bg-bg-secondary text-text-muted hover:text-text-secondary"
+                    : "bg-bg-secondary text-text-secondary hover:text-text-primary"
                 }`}
               >
                 ✨ Modern
@@ -1062,7 +1062,7 @@ export default function WhitePaperClient() {
                 className={`px-4 py-1.5 text-xs font-semibold transition-all ${
                   mode === "satoshi"
                     ? "bg-accent-cyan/15 text-accent-cyan"
-                    : "bg-bg-secondary text-text-muted hover:text-text-secondary"
+                    : "bg-bg-secondary text-text-secondary hover:text-text-primary"
                 }`}
               >
                 ₿ Satoshi Style

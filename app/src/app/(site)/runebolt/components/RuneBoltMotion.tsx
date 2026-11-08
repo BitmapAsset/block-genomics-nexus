@@ -32,7 +32,7 @@ export default function RuneBoltMotion({ onConnect }: { onConnect: () => void })
           <div key={stat.label} className="card text-center">
             <stat.icon className="w-6 h-6 text-[#F7931A] mx-auto mb-2" />
             <div className="text-2xl font-bold mb-1">{stat.value}</div>
-            <div className="text-sm text-gray-500">{stat.label}</div>
+            <div className="text-sm text-gray-400">{stat.label}</div>
           </div>
         ))}
       </motion.div>

@@ -194,13 +194,13 @@ export default function ConnectPage() {
             ))}
           </div>
           {availableWallets.length === 0 && (
-            <div className="mt-6 text-sm text-text-muted">
+            <div className="mt-6 text-sm text-text-secondary">
               Install a wallet to continue: {" "}
               <a
                 href="https://unisat.io"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent-cyan hover:underline"
+                className="text-accent-cyan underline"
               >
                 Unisat
               </a>{" "}
@@ -209,7 +209,7 @@ export default function ConnectPage() {
                 href="https://www.xverse.app"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent-purple hover:underline"
+                className="text-accent-purple underline"
               >
                 Xverse
               </a>{" "}
@@ -218,7 +218,7 @@ export default function ConnectPage() {
                 href="https://leather.io"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-amber-300 hover:underline"
+                className="text-amber-300 underline"
               >
                 Leather
               </a>

@@ -71,7 +71,7 @@ export default function LandingBottomTabBar() {
                   ? tab.glow
                     ? "text-accent-cyan"
                     : "text-bitcoin"
-                  : "text-text-muted"
+                  : "text-text-secondary"
               }`}
             >
               {/* Active indicator dot */}

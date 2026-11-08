@@ -92,9 +92,9 @@ function ListingCard({ listing, onPay }: { listing: Listing; onPay: (listing: Li
       <div className="flex items-baseline gap-3 mb-3">
         <div>
           <span className="text-lg font-bold text-orange-400 font-mono">{monthly.toLocaleString()}</span>
-          <span className="text-xs text-gray-500 ml-1">sats/mo</span>
+          <span className="text-xs text-gray-400 ml-1">sats/mo</span>
         </div>
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-gray-400">
           <span className="font-mono">{yearly.toLocaleString()}</span> sats/yr
           {savePct > 0 && (
             <span className="ml-1.5 text-[10px] font-semibold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded-full">
@@ -373,7 +373,7 @@ export default function RentalsPage() {
                   key={d}
                   onClick={() => setDuration(d)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                    duration === d ? 'bg-orange-500/20 text-orange-400' : 'text-gray-500 hover:text-gray-300'
+                    duration === d ? 'bg-orange-500/20 text-orange-400' : 'text-gray-400 hover:text-gray-300'
                   }`}
                 >
                   {d === 'monthly' ? 'Monthly' : 'Yearly'}
@@ -385,6 +385,7 @@ export default function RentalsPage() {
             <select
               value={sortBy}
               onChange={e => setSortBy(e.target.value as SortMode)}
+              aria-label="Sort listings"
               className="px-3 py-2 text-xs bg-white/5 border border-white/10 rounded-lg text-gray-400 focus:outline-none focus:border-orange-500/50"
             >
               <option value="newest">Newest</option>
