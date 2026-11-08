@@ -366,7 +366,9 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
   const e2eSetup = useCallback(async (): Promise<boolean> => {
     if (!state.walletType || !state.walletAddress) return false;
     try {
-      const e2e = await loadE2ECrypto();
+      // Both modules load before the signature prompt, so nothing is loaded
+      // between deriving the keypair and registering it.
+      const [e2e, { registerEncryptionKey }] = await Promise.all([loadE2ECrypto(), loadE2ERegister()]);
       e2eModRef.current = e2e;
       const sig = await signWithWallet(state.walletType, e2e.getDerivationMessage(), state.walletAddress || undefined);
       if (!sig) return false;
@@ -379,7 +381,6 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
       // succeeds.
       const walletType = state.walletType;
       const walletAddress = state.walletAddress;
-      const { registerEncryptionKey } = await loadE2ERegister();
       const reg = await registerEncryptionKey({
         walletAddress,
         encryptionPubKey: pubHex,
@@ -393,6 +394,9 @@ export function GlobalWalletProvider({ children }: { children: ReactNode }) {
       setE2eError(null);
       return true;
     } catch (err) {
+      // A setup that did not finish keeps no keypair.
+      wipeKeysNow(e2eModRef, keypairRef);
+      setE2eReady(false);
       setE2eError(err instanceof Error ? err.message : 'Encryption setup failed');
       return false;
     }

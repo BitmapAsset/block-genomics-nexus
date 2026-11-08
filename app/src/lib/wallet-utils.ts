@@ -5,17 +5,18 @@
  * it is not part of every page's first load.
  */
 
-import type { BitcoinProvider as SatsBitcoinProvider } from 'sats-connect';
+import type { AddressPurpose, BitcoinNetworkType, BitcoinProvider as SatsBitcoinProvider, MessageSigningProtocols } from 'sats-connect';
 
 /**
  * The sats-connect constants this file needs, as the strings sats-connect 4.2.1
  * publishes (@sats-connect/core 0.10.0: AddressPurpose, BitcoinNetworkType,
- * MessageSigningProtocols), so they cost no library import.
+ * MessageSigningProtocols), so they cost no library import. Each `satisfies`
+ * ties a string to the library's own value: if an upgrade changes one, tsc fails.
  */
-const ADDRESS_PURPOSE_ORDINALS: string = 'ordinals';
-const ADDRESS_PURPOSE_PAYMENT: string = 'payment';
-const NETWORK_MAINNET: string = 'Mainnet';
-const SIGNING_PROTOCOL_BIP322: string = 'BIP322';
+const ADDRESS_PURPOSE_ORDINALS: string = 'ordinals' satisfies `${AddressPurpose.Ordinals}`;
+const ADDRESS_PURPOSE_PAYMENT: string = 'payment' satisfies `${AddressPurpose.Payment}`;
+const NETWORK_MAINNET: string = 'Mainnet' satisfies `${BitcoinNetworkType.Mainnet}`;
+const SIGNING_PROTOCOL_BIP322: string = 'BIP322' satisfies `${MessageSigningProtocols.BIP322}`;
 
 let walletLibrary: Promise<typeof import('sats-connect')> | null = null;
 
