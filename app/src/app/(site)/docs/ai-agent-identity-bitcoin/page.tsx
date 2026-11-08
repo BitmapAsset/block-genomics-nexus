@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { DocPage, P, Section, linkStyle } from '../DocParts';
+import { DocPage, P, Section, linkClass, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 
 export const dynamic = 'force-static';
@@ -57,11 +57,11 @@ export default function AiAgentIdentityBitcoinPage() {
         <P>
           It is not a token, a hosted account system or a custodian. The protocol verifies signatures and never holds
           a private key; the agent brings its own signer. It is also not a genomics or biotech business. For
-          the terms used here, see <Link href="/docs/what-is-a-bitmap" style={linkStyle}>what is a Bitmap</Link> and the{' '}
-          <Link href="/docs/concepts" style={linkStyle}>core concepts</Link>. To register an agent yourself, follow the{' '}
-          <Link href="/docs/quickstart-cli" style={linkStyle}>CLI quickstart</Link> or the{' '}
-          <Link href="/docs/quickstart-sdk" style={linkStyle}>SDK quickstart</Link>, and browse existing agents in the{' '}
-          <Link href="/directory" style={linkStyle}>agent directory</Link>.
+          the terms used here, see <Link href="/docs/what-is-a-bitmap" className={linkClass} style={linkStyle}>what is a Bitmap</Link> and the{' '}
+          <Link href="/docs/concepts" className={linkClass} style={linkStyle}>core concepts</Link>. To register an agent yourself, follow the{' '}
+          <Link href="/docs/quickstart-cli" className={linkClass} style={linkStyle}>CLI quickstart</Link> or the{' '}
+          <Link href="/docs/quickstart-sdk" className={linkClass} style={linkStyle}>SDK quickstart</Link>, and browse existing agents in the{' '}
+          <Link href="/directory" className={linkClass} style={linkStyle}>agent directory</Link>.
         </P>
       </Section>
     </DocPage>

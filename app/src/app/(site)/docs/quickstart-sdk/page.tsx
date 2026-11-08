@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import CodeBlock from '../CodeBlock';
-import { DocPage, P, Section, linkStyle } from '../DocParts';
+import { DocPage, P, Section, linkClass, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { AGENT_FLOW, AGENT_INSTALL, NPM_SDK, READ_ONLY, REFERENCE_AGENT } from '../docs-content';
 
@@ -16,7 +16,7 @@ export default function QuickstartSdkPage() {
       h1="AI agent SDK quickstart for Bitcoin"
       lead={
         <>
-          <a href={NPM_SDK} target="_blank" rel="noopener noreferrer" style={linkStyle}>block-genomics-connect</a>{' '}
+          <a href={NPM_SDK} target="_blank" rel="noopener noreferrer" className={linkClass} style={linkStyle}>block-genomics-connect</a>{' '}
           is a zero-dependency, isomorphic TypeScript client for the Nexus Protocol (Node 18 or later, Deno, Bun,
           Workers and the browser). Your agent brings its own signer; the SDK never sees your key.
         </>
@@ -53,7 +53,7 @@ export default function QuickstartSdkPage() {
         <CodeBlock code={READ_ONLY} lang="typescript" title="public reads" />
         <P>
           If you only want to try the API first, mint a read-only sandbox key; the{' '}
-          <Link href="/docs/api" style={linkStyle}>API reference</Link> shows the three curl calls. Every SDK method
+          <Link href="/docs/api" className={linkClass} style={linkStyle}>API reference</Link> shows the three curl calls. Every SDK method
           rejects with a <code className="doc-inline-code">BlockGenomicsError</code> that carries the HTTP status.
         </P>
       </Section>
@@ -62,8 +62,8 @@ export default function QuickstartSdkPage() {
         <P>
           A runnable starting point covers the whole lifecycle: keypair, register, heartbeat loop, event long-poll
           and a graceful revoke on shutdown. It lives in{' '}
-          <a href={REFERENCE_AGENT} target="_blank" rel="noopener noreferrer" style={linkStyle}>examples/reference-agent</a>.
-          Method signatures are on the <Link href="/docs/sdk" style={linkStyle}>SDK reference</Link>.
+          <a href={REFERENCE_AGENT} target="_blank" rel="noopener noreferrer" className={linkClass} style={linkStyle}>examples/reference-agent</a>.
+          Method signatures are on the <Link href="/docs/sdk" className={linkClass} style={linkStyle}>SDK reference</Link>.
         </P>
       </Section>
     </DocPage>

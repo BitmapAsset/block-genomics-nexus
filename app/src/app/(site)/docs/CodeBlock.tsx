@@ -47,7 +47,12 @@ export default function CodeBlock({ code, lang = 'bash', title }: CodeBlockProps
           {copied ? '✓ Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="overflow-x-auto px-4 py-3.5" style={{ margin: 0 }}>
+      {/* A tab stop, so a keyboard can reach and scroll a block wider than the screen; the ring sits inside the panel. */}
+      <pre
+        tabIndex={0}
+        className="overflow-x-auto px-4 py-3.5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-cyan"
+        style={{ margin: 0 }}
+      >
         <code
           className="font-mono"
           style={{ fontSize: '0.82rem', lineHeight: 1.6, color: '#d7e3f4', whiteSpace: 'pre' }}

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { DocPage, P, RefTable, Section, linkStyle } from '../DocParts';
+import { DocPage, P, RefTable, Section, linkClass, linkStyle } from '../DocParts';
 import { docMetadata } from '../doc-pages';
 import { CLI_COMMANDS, NPM_CLI } from '../docs-content';
 
@@ -15,7 +15,7 @@ export default function CliReferencePage() {
       h1="block-genomics CLI reference"
       lead={
         <>
-          <a href={NPM_CLI} target="_blank" rel="noopener noreferrer" style={linkStyle}>block-genomics</a> on npm is
+          <a href={NPM_CLI} target="_blank" rel="noopener noreferrer" className={linkClass} style={linkStyle}>block-genomics</a> on npm is
           the command line client for the Nexus Protocol. Install it globally with{' '}
           <code className="doc-inline-code">npm install -g block-genomics</code> or run any command with{' '}
           <code className="doc-inline-code">npx block-genomics</code>.
@@ -55,9 +55,9 @@ export default function CliReferencePage() {
           because ownership could not be proven, nothing is changed: ownership actions fail closed.
         </P>
         <P>
-          New to the tool? The <Link href="/docs/quickstart-cli" style={linkStyle}>CLI quickstart</Link> walks through
+          New to the tool? The <Link href="/docs/quickstart-cli" className={linkClass} style={linkStyle}>CLI quickstart</Link> walks through
           verify, register and run in order. Prefer code? The same operations are available from the{' '}
-          <Link href="/docs/sdk" style={linkStyle}>SDK</Link> and the <Link href="/docs/api" style={linkStyle}>HTTP API</Link>.
+          <Link href="/docs/sdk" className={linkClass} style={linkStyle}>SDK</Link> and the <Link href="/docs/api" className={linkClass} style={linkStyle}>HTTP API</Link>.
         </P>
       </Section>
     </DocPage>

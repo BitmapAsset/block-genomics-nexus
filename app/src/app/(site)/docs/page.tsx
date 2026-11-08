@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { shareMetadata } from '@/lib/site-card';
 import { DOCS_FAQ } from '@/lib/seo-schema';
-import { Badge, ResourceLink, linkStyle } from './DocParts';
+import { Badge, ResourceLink, linkClass, linkStyle } from './DocParts';
 import { DOC_PAGES } from './doc-pages';
 import { NPM_CLI, NPM_SDK, RELEASES, openApiVersion } from './docs-content';
 
@@ -141,7 +141,7 @@ export default function DocsPage() {
             {s.title}
           </h2>
           <p className="mb-3 max-w-3xl leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>{s.body}</p>
-          <Link href={`/docs/${s.slug}`} className="text-sm font-semibold" style={linkStyle}>
+          <Link href={`/docs/${s.slug}`} className={`text-sm font-semibold ${linkClass}`} style={linkStyle}>
             Read more: {s.title} →
           </Link>
         </section>
@@ -170,7 +170,7 @@ export default function DocsPage() {
           ))}
         </div>
         <p className="mt-4">
-          <Link href="/docs/faq" className="text-sm font-semibold" style={linkStyle}>All {DOCS_FAQ.length} questions →</Link>
+          <Link href="/docs/faq" className={`text-sm font-semibold ${linkClass}`} style={linkStyle}>All {DOCS_FAQ.length} questions →</Link>
         </p>
       </section>
 

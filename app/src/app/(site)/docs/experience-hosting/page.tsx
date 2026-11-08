@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import CodeBlock from '../CodeBlock';
+import { linkClass, linkStyle, scrollFocusClass } from '../DocParts';
 
 export const dynamic = 'force-static';
 
@@ -239,7 +240,7 @@ export default function ExperienceHostingPage() {
       {/* CLI */}
       <Section id="cli" eyebrow="Quickstart" title="2 — Register it (CLI)">
         <p className="mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-          The <a href="https://www.npmjs.com/package/block-genomics" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent-cyan)' }}>block-genomics</a>{' '}
+          The <a href="https://www.npmjs.com/package/block-genomics" target="_blank" rel="noopener noreferrer" className={linkClass} style={linkStyle}>block-genomics</a>{' '}
           CLI reads your manifest, fetches a single-use challenge, and signs it with your wallet. It never holds your key.
         </p>
         <CodeBlock code={CLI_FLOW} lang="bash" title="register → discover → probe → remove" />
@@ -256,7 +257,7 @@ export default function ExperienceHostingPage() {
 
       {/* API */}
       <Section id="api" eyebrow="Reference" title="API">
-        <div className="my-4 overflow-x-auto rounded-xl" style={{ border: '1px solid var(--color-border)' }}>
+        <div tabIndex={0} className={`my-4 overflow-x-auto rounded-xl ${scrollFocusClass}`} style={{ border: '1px solid var(--color-border)' }}>
           <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'rgba(102,204,255,0.06)' }}>
@@ -268,16 +269,16 @@ export default function ExperienceHostingPage() {
                 <tr key={e.method + e.path} style={{ borderTop: '1px solid var(--color-border)' }}>
                   <Td><span className="font-mono text-xs" style={{ color: methodColor(e.method) }}>{e.method}</span></Td>
                   <Td><code className="doc-inline-code">{e.path}</code></Td>
-                  <Td><span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{e.auth}</span></Td>
+                  <Td><span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{e.auth}</span></Td>
                   <Td><span style={{ color: 'var(--color-text-secondary)' }}>{e.note}</span></Td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           The normative manifest schema, probe semantics, and constitution inheritance live in the{' '}
-          <Link href="/protocol" style={{ color: 'var(--color-accent-cyan)' }}>Nexus Protocol specification</Link>.
+          <Link href="/protocol" className={linkClass} style={linkStyle}>Nexus Protocol specification</Link>.
         </p>
       </Section>
 
@@ -316,7 +317,7 @@ export default function ExperienceHostingPage() {
           host lives in <code className="doc-inline-code">examples/experience-host/</code>.
         </p>
         <CodeBlock code={WELL_KNOWN} lang="json" title=".well-known/nexus-experience.json" />
-        <p className="mt-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+        <p className="mt-4 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           Signing is optional for back-compat: records registered through the older bare-challenge flow stay
           valid and report <code className="doc-inline-code">signed: false</code>. A signature that is present but
           does not verify is always a hard failure, never a silent downgrade.
