@@ -23,7 +23,11 @@ import { prepareDmPayload, UNENCRYPTED_DM_CONFIRM } from '@/lib/dm-payload';
 import { streamPlatform } from '@/lib/stream-embed';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { patchParcelShader, type ParcelUniforms } from './parcel-shader';
-import { deviceCanvasDpr } from './phone-dpr';
+import { deviceCanvasDpr, isPhoneClass, readPhoneHints } from './phone-dpr';
+import WorldHud from './hud/WorldHud';
+import { metresOf, unitsPerSecondFromKmh } from './hud/scale';
+import { createTelemetry, figureEightLength, groundMetresPerPx, jump, resetMotion, resetWalk, stepMotion, type WorldTelemetry } from './hud/telemetry';
+import { controllerIgnoresKey } from './hud/keys';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import dynamic from 'next/dynamic';
 const GuardianConfigPanel = dynamic(() => import('../GuardianConfigPanel'), { ssr: false });
@@ -134,9 +138,11 @@ interface Props {
   onBack: () => void;
   /** Start with the side panel collapsed (the fullscreen /world view). The ◀ tab reopens it. */
   initialPanelHidden?: boolean;
+  /** The view the world opens in: the fullscreen /world view opens in Fly; the Nexus map keeps the grid. */
+  initialViewMode?: ViewMode;
 }
 
-type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street' | 'standard' | 'flyover';
+export type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street' | 'standard' | 'flyover';
 type RightTab = 'properties' | 'chat' | 'gaming';
 type PanelSize = 'compact' | 'quarter' | 'third' | 'half' | 'hidden';
 const PANEL_WIDTHS: Record<PanelSize, string> = { compact: 'w-80', quarter: 'w-96', third: 'w-[33vw]', half: 'w-[50vw]', hidden: 'w-0' };
@@ -1585,19 +1591,23 @@ function DirectionIndicators({ parcels, viewMode }: { parcels: ParcelData[]; vie
 /* ─── Mini-map HUD ─── */
 function MiniMap({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: string }) {
   const { camera } = useThree();
-  const [pos, setPos] = useState({ x: 0, z: 0 });
+  const dotRef = useRef<SVGCircleElement>(null);
+  const frameN = useRef(0);
   const isStreet = viewMode === 'street';
-
-  useFrame(() => {
-    if (!isStreet) return;
-    setPos({ x: camera.position.x, z: camera.position.z });
-  });
-
-  if (!isStreet || !parcels || parcels.length === 0) return null;
-
   const mapSize = 140;
   const half = BLOCK_SIZE / 2;
   const scale = mapSize / BLOCK_SIZE;
+
+  // The player dot follows the camera through its ref, every 3rd frame: no React state per frame.
+  useFrame(() => {
+    if (!isStreet || !dotRef.current) return;
+    frameN.current = (frameN.current + 1) % 3;
+    if (frameN.current !== 0) return;
+    dotRef.current.setAttribute('cx', String((camera.position.x + half) * scale));
+    dotRef.current.setAttribute('cy', String((camera.position.z + half) * scale));
+  });
+
+  if (!isStreet || !parcels || parcels.length === 0) return null;
 
   return (
     <Html fullscreen style={{ pointerEvents: 'none' }}>
@@ -1628,8 +1638,9 @@ function MiniMap({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: strin
           ))}
           {/* Player dot */}
           <circle
-            cx={(pos.x + half) * scale}
-            cy={(pos.z + half) * scale}
+            ref={dotRef}
+            cx={(camera.position.x + half) * scale}
+            cy={(camera.position.z + half) * scale}
             r={3}
             fill="#00ffc8"
             stroke="#fff"
@@ -2282,7 +2293,7 @@ function EstateMiniMap({ allParcels, ownedIndices, selectedParcels, onToggleParc
       {/* Hover tooltip */}
       {hoveredParcel && (
         <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-[10px] font-mono pointer-events-none" style={{ background: 'rgba(0,0,0,0.8)', border: `1px solid ${selectedColor}44`, color: '#e2e8f0' }}>
-          Parcel #{hoveredParcel.txIndex} · {hoveredParcel.width.toFixed(0)}×{hoveredParcel.depth.toFixed(0)}m · {hoveredParcel.areaSqMeters.toFixed(0)}m²
+          Parcel #{hoveredParcel.txIndex} · {metresOf(hoveredParcel.width)}×{metresOf(hoveredParcel.depth)}m · {hoveredParcel.areaSqMeters.toFixed(0)}m²
         </div>
       )}
       {/* Zoom level indicator */}
@@ -2763,7 +2774,7 @@ function FlyToCamera({ flyTarget, onComplete }: { flyTarget: FlyTarget | null; o
    First-Person Street Walker
    Real-world speeds anchored to protocol spatial dimensions:
    BLOCK_SIZE=20 world units = 2100m → 1 world unit = 105m
-   Walking: 1.4 m/s | Running: 3.5 m/s | Eye height: 1.7m
+   Walking: 3 m/s | Running: 8 m/s | Eye height: 1.7m
    ═══════════════════════════════════════════ */
 const WALK_SPEED = 3.0 / METERS_PER_UNIT;  // ~3 m/s brisk walk (was 1.4 — too slow)
 const RUN_SPEED = 8.0 / METERS_PER_UNIT;  // ~8 m/s fast run (was 3.5)
@@ -2777,12 +2788,27 @@ const FLY_MOUSE_SENSITIVITY = 0.003;
 const FLY_MIN_HEIGHT = 20 / METERS_PER_UNIT;
 const FLY_MAX_HEIGHT = 300 / METERS_PER_UNIT;
 const AUTO_TOUR_SPEED = 20 / METERS_PER_UNIT;   // 72 km/h
+// Space / Ctrl climb and the velocity build-up keep the original rates; only the horizontal cruise follows the setting.
+const CLIMB_SPEED = FLY_SPEED;
+const CLIMB_BOOST_SPEED = FLY_BOOST_SPEED;
+/** The settings' defaults: the tour 72 km/h, free flight 100 km/h (Shift doubles it, at most 200 km/h). */
+const DEFAULT_TOUR_KMH = Math.round(AUTO_TOUR_SPEED * METERS_PER_UNIT * 3.6);
+const DEFAULT_CRUISE_KMH = Math.round(FLY_SPEED * METERS_PER_UNIT * 3.6);
+const MAX_FLY_KMH = 200;
 const MOUSE_SENSITIVITY = 0.004;
 const BLOCK_HALF = BLOCK_SIZE / 2;
+// The tour's figure-8 radius, and its real length (the tour advances by it, so the set speed is the mean ground speed).
+const TOUR_RADIUS = BLOCK_SIZE * 0.6;
+const TOUR_LOOP_UNITS = figureEightLength(TOUR_RADIUS, 512);
 
-function StreetWalker({ active, parcels, teleportTo }: { active: boolean; parcels: ParcelData[]; teleportTo: ParcelData | null }) {
+function StreetWalker({ active, parcels, teleportTo, runLocked, telemetry }: {
+  active: boolean; parcels: ParcelData[]; teleportTo: ParcelData | null; runLocked: boolean; telemetry: WorldTelemetry;
+}) {
   const { camera, gl } = useThree();
   const keys = useRef<Set<string>>(new Set());
+  const runLockedRef = useRef(runLocked);
+  const pressOnCanvas = useRef(false);
+  useEffect(() => { runLockedRef.current = runLocked; }, [runLocked]);
   const yaw = useRef(0);
   const pitch = useRef(0);
   const rightDown = useRef(false);
@@ -2840,8 +2866,10 @@ function StreetWalker({ active, parcels, teleportTo }: { active: boolean; parcel
       yaw.current = Math.PI * 0.25;
       pitch.current = 0;
       initialized.current = true;
+      resetWalk(telemetry);
+      jump(telemetry, sx, sz);
     }
-  }, [active, camera, findSpawnPos]);
+  }, [active, camera, findSpawnPos, telemetry]);
 
   // Teleport warp to clicked parcel
   const lastTeleportId = useRef<number>(-1);
@@ -2862,6 +2890,8 @@ function StreetWalker({ active, parcels, teleportTo }: { active: boolean; parcel
     if (!active) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
+      // A key typed into a field, or Space / Enter on a focused control, belongs to the page.
+      if (controllerIgnoresKey(e)) return;
       keys.current.add(e.code);
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
         e.preventDefault();
@@ -2876,13 +2906,17 @@ function StreetWalker({ active, parcels, teleportTo }: { active: boolean; parcel
       if (e.button === 0 || e.button === 2) {
         mouseStartX = e.clientX;
         mouseStartY = e.clientY;
+        pressOnCanvas.current = true;
         rightDown.current = false; // don't activate until drag threshold met
       }
     };
     const onMouseUp = () => {
+      pressOnCanvas.current = false;
       rightDown.current = false;
     };
     const onMouseMove = (e: MouseEvent) => {
+      // Only a press that started on the canvas turns the camera (not a drag on a HUD control).
+      if (!pressOnCanvas.current) return;
       if (e.buttons === 0) { rightDown.current = false; return; }
       // Activate mouselook after drag threshold
       if (!rightDown.current) {
@@ -2917,6 +2951,7 @@ function StreetWalker({ active, parcels, teleportTo }: { active: boolean; parcel
       el.removeEventListener('contextmenu', onContextMenu);
       keys.current.clear();
       rightDown.current = false;
+      pressOnCanvas.current = false;
     };
   }, [active, gl]);
 
@@ -2940,6 +2975,8 @@ function StreetWalker({ active, parcels, teleportTo }: { active: boolean; parcel
         warping.current = false;
         camera.position.y = EYE_HEIGHT;
       }
+      // A warp moves the position only: no walked distance, no speed.
+      jump(telemetry, camera.position.x, camera.position.z);
       // Apply look during warp
       const lookDir = new THREE.Vector3(
         -Math.sin(yaw.current) * Math.cos(pitch.current),
@@ -2951,7 +2988,7 @@ function StreetWalker({ active, parcels, teleportTo }: { active: boolean; parcel
     }
 
     const k = keys.current;
-    const running = k.has('ShiftLeft') || k.has('ShiftRight');
+    const running = runLockedRef.current || k.has('ShiftLeft') || k.has('ShiftRight');
     const speed = (running ? RUN_SPEED : WALK_SPEED) * delta;
 
     // Movement direction relative to camera yaw
@@ -2990,6 +3027,9 @@ function StreetWalker({ active, parcels, teleportTo }: { active: boolean; parcel
     // Lock Y to eye height
     camera.position.y = EYE_HEIGHT;
 
+    // What the walker did this frame, after collisions and the bounds clamp, over the real delta.
+    stepMotion(telemetry, { xUnits: camera.position.x, yUnits: camera.position.y, zUnits: camera.position.z, dt: delta, count: true });
+
     // Apply look rotation from yaw/pitch
     const lookDir = new THREE.Vector3(
       -Math.sin(yaw.current) * Math.cos(pitch.current),
@@ -3006,10 +3046,20 @@ function StreetWalker({ active, parcels, teleportTo }: { active: boolean; parcel
 // FlyoverController — Drone/Helicopter Camera
 // ═══════════════════════════════════════════
 
-function FlyoverController({ active, parcels, autoTour, onExitAutoTour }: {
+function FlyoverController({ active, parcels, autoTour, onExitAutoTour, tourKmh, cruiseKmh, telemetry }: {
   active: boolean; parcels: ParcelData[]; autoTour: boolean; onExitAutoTour: () => void;
+  tourKmh: number; cruiseKmh: number; telemetry: WorldTelemetry;
 }) {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
+  // The settings reach the frame through refs, so changing one never re-binds the listeners (held keys survive).
+  const tourKmhRef = useRef(tourKmh);
+  const cruiseKmhRef = useRef(cruiseKmh);
+  const autoTourRef = useRef(autoTour);
+  useEffect(() => { tourKmhRef.current = tourKmh; }, [tourKmh]);
+  useEffect(() => { cruiseKmhRef.current = cruiseKmh; }, [cruiseKmh]);
+  useEffect(() => { autoTourRef.current = autoTour; }, [autoTour]);
+  const frameN = useRef(0);
+  const lookDir = useRef(new THREE.Vector3());
   const velocity = useRef(new THREE.Vector3());
   const yaw = useRef(0);
   const pitch = useRef(-Math.PI / 4); // -45° default
@@ -3040,13 +3090,16 @@ function FlyoverController({ active, parcels, autoTour, onExitAutoTour }: {
     if (!active) { initialized.current = false; return; }
 
     const onKeyDown = (e: KeyboardEvent) => {
+      // A key typed into a field, or Space / Enter on a focused control, belongs to the page.
+      if (controllerIgnoresKey(e)) return;
       keys.current.add(e.code);
       // Any WASD exits auto tour
-      if (autoTour && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
+      if (autoTourRef.current && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
         onExitAutoTour();
       }
     };
     const onKeyUp = (e: KeyboardEvent) => keys.current.delete(e.code);
+    // Look-drag starts on the canvas only: dragging a HUD control (the speed thumb) never turns the camera.
     const onMouseDown = (e: MouseEvent) => { if (e.button === 0) dragging.current = true; };
     const onMouseUp = () => { dragging.current = false; };
     const onMouseMove = (e: MouseEvent) => {
@@ -3056,21 +3109,23 @@ function FlyoverController({ active, parcels, autoTour, onExitAutoTour }: {
         pitch.current - e.movementY * FLY_MOUSE_SENSITIVITY));
     };
 
+    const el = gl.domElement;
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('mousedown', onMouseDown);
+    el.addEventListener('mousedown', onMouseDown);
     window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('mousemove', onMouseMove);
 
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('mousedown', onMouseDown);
+      el.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('mouseup', onMouseUp);
       window.removeEventListener('mousemove', onMouseMove);
       keys.current.clear();
+      dragging.current = false;
     };
-  }, [active, autoTour, onExitAutoTour]);
+  }, [active, onExitAutoTour, gl]);
 
   useFrame((_, delta) => {
     if (!active) return;
@@ -3084,15 +3139,18 @@ function FlyoverController({ active, parcels, autoTour, onExitAutoTour }: {
       velocity.current.set(0, 0, 0);
       tourProgress.current = 0;
       initialized.current = true;
+      resetMotion(telemetry);
+      jump(telemetry, camera.position.x, camera.position.z);
     }
 
     if (autoTour) {
-      // Auto tour: follow precomputed path
-      tourProgress.current += (AUTO_TOUR_SPEED * dt) / (BLOCK_SIZE * 0.6 * Math.PI * 2) * tourPath.length;
-      if (tourProgress.current >= tourPath.length) tourProgress.current -= tourPath.length;
+      // Auto tour: follow precomputed path, advancing by the loop's real length so the set speed is the mean.
+      const segments = tourPath.length - 1;
+      tourProgress.current += (unitsPerSecondFromKmh(tourKmhRef.current) * dt) / TOUR_LOOP_UNITS * segments;
+      if (tourProgress.current >= segments) tourProgress.current -= segments;
 
-      const idx = Math.floor(tourProgress.current) % tourPath.length;
-      const nextIdx = (idx + 1) % tourPath.length;
+      const idx = Math.floor(tourProgress.current) % segments;
+      const nextIdx = idx + 1;
       const frac = tourProgress.current - Math.floor(tourProgress.current);
       const target = tourPath[idx].clone().lerp(tourPath[nextIdx], frac);
 
@@ -3108,12 +3166,25 @@ function FlyoverController({ active, parcels, autoTour, onExitAutoTour }: {
       const cross = new THREE.Vector3(0, 1, 0).cross(dir);
       camera.rotateZ(-cross.length() * 0.08);
 
-      speed.current = AUTO_TOUR_SPEED * METERS_PER_UNIT;
+      speed.current = unitsPerSecondFromKmh(tourKmhRef.current) * METERS_PER_UNIT;
+
+      // The ruler's ground scale at the screen centre, every 6th frame.
+      frameN.current = (frameN.current + 1) % 6;
+      if (frameN.current === 0) {
+        camera.getWorldDirection(lookDir.current);
+        telemetry.groundMetresPerPx = groundMetresPerPx(
+          camera.position.y, lookDir.current.y, (camera as THREE.PerspectiveCamera).fov, gl.domElement.clientHeight);
+      }
     } else {
       // Free fly mode
+      telemetry.groundMetresPerPx = null;
       const k = keys.current;
       const boost = k.has('ShiftLeft') || k.has('ShiftRight');
-      const moveSpeed = boost ? FLY_BOOST_SPEED : FLY_SPEED;
+      const climbSpeed = boost ? CLIMB_BOOST_SPEED : CLIMB_SPEED;
+      const cruiseKmh = cruiseKmhRef.current;
+      const maxV = unitsPerSecondFromKmh(boost ? Math.min(2 * cruiseKmh, MAX_FLY_KMH) : cruiseKmh);
+      // The build-up keeps the original rate; above it (a setting past ~133 km/h) it grows so the setting is reached.
+      const moveSpeed = Math.max(climbSpeed, maxV);
 
       // Movement input
       const input = new THREE.Vector3();
@@ -3123,9 +3194,9 @@ function FlyoverController({ active, parcels, autoTour, onExitAutoTour }: {
       if (k.has('KeyD') || k.has('ArrowRight')) input.x += 1;
 
       // Height
-      if (k.has('Space')) targetHeight.current = Math.min(targetHeight.current + dt * moveSpeed, FLY_MAX_HEIGHT);
+      if (k.has('Space')) targetHeight.current = Math.min(targetHeight.current + dt * climbSpeed, FLY_MAX_HEIGHT);
       if (k.has('ControlLeft') || k.has('ControlRight') || k.has('KeyC'))
-        targetHeight.current = Math.max(targetHeight.current - dt * moveSpeed, FLY_MIN_HEIGHT);
+        targetHeight.current = Math.max(targetHeight.current - dt * climbSpeed, FLY_MIN_HEIGHT);
 
       // Rotate input by yaw
       if (input.length() > 0) {
@@ -3140,8 +3211,7 @@ function FlyoverController({ active, parcels, autoTour, onExitAutoTour }: {
       // Dampening
       velocity.current.multiplyScalar(Math.pow(0.05, dt));
 
-      // Clamp velocity
-      const maxV = boost ? FLY_BOOST_SPEED : FLY_SPEED;
+      // Clamp velocity to the speed you set
       if (velocity.current.length() > maxV) velocity.current.setLength(maxV);
 
       // Apply
@@ -3163,6 +3233,9 @@ function FlyoverController({ active, parcels, autoTour, onExitAutoTour }: {
 
       speed.current = lateralSpeed * METERS_PER_UNIT;
     }
+
+    // What the camera did this frame, over the real delta (the readout is measured, not the setting).
+    stepMotion(telemetry, { xUnits: camera.position.x, yUnits: camera.position.y, zUnits: camera.position.z, dt: delta, count: false });
   });
 
   return null;
@@ -4922,7 +4995,7 @@ function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; p
    Main Component
    ═══════════════════════════════════════════ */
 
-export default function ParcelView({ blockHeight, onBack, initialPanelHidden = false }: Props) {
+export default function ParcelView({ blockHeight, onBack, initialPanelHidden = false, initialViewMode = 'flat' }: Props) {
   const { walletAddress, isConnected, profile, signMessage: walletSignMessage, e2eReady, e2eError, e2eSetup, e2eEncrypt, e2eDecrypt } = useGlobalWallet();
   const isVerified = !!(isConnected && walletAddress && profile);
   const isWalletConnected = !!(isConnected && walletAddress);
@@ -4946,8 +5019,27 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     }
     fn();
   };
-  const [viewMode, setViewMode] = useState<ViewMode>('flat');
-  const [autoTour, setAutoTour] = useState(true);
+  // Client-only component (dynamic, ssr: false at both mounts), so reading matchMedia / navigator here cannot mismatch.
+  const [reducedMotion] = useState(() => typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true);
+  const [phone] = useState(() => typeof window !== 'undefined' && isPhoneClass(readPhoneHints()));
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
+  const [autoTour, setAutoTour] = useState(!reducedMotion);
+  const [tourStarted, setTourStarted] = useState(!reducedMotion);
+  const [tourKmh, setTourKmh] = useState(DEFAULT_TOUR_KMH);
+  const [cruiseKmh, setCruiseKmh] = useState(DEFAULT_CRUISE_KMH);
+  const [runLocked, setRunLocked] = useState(false);
+  // One telemetry object for the life of the view: the controllers write it per frame, the HUD reads it on its tick.
+  const [telemetry] = useState<WorldTelemetry>(createTelemetry);
+  const exitAutoTour = useCallback(() => setAutoTour(false), []);
+  const setSpeed = useCallback((kind: 'tour' | 'cruise', kmh: number) => {
+    (kind === 'tour' ? setTourKmh : setCruiseKmh)(kmh);
+  }, []);
+  // The tour has run once: true from the start unless reduced motion holds it, then from the first Start.
+  const toggleAutoTour = useCallback((on: boolean) => {
+    setAutoTour(on);
+    if (on) setTourStarted(true);
+  }, []);
   const [streetTeleport, setStreetTeleport] = useState<ParcelData | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>('properties');
   const [panelSize, setPanelSize] = useState<PanelSize>(initialPanelHidden ? 'hidden' : 'quarter');
@@ -5725,17 +5817,8 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     } catch { /* optimistic message stays */ }
   };
 
-  const viewModes: { mode: ViewMode; icon: string; label: string }[] = [
-    { mode: 'flat', icon: '▦', label: 'Grid View' },
-    { mode: 'isometric', icon: '◇', label: 'Isometric' },
-    { mode: 'heights', icon: '▥', label: 'Heights' },
-    { mode: 'dna', icon: '🧬', label: 'Genome' },
-    { mode: 'street', icon: '🚶', label: 'Street View' },
-    { mode: 'flyover', icon: '🦅', label: 'Flyover' },
-  ];
-
   // Dimension display helpers
-  const fmtDim = (worldUnits: number) => Math.round(worldUnits * METERS_PER_UNIT);
+  const fmtDim = (worldUnits: number) => metresOf(worldUnits);
 
   return (
     <div ref={containerRef} className="relative w-full h-full flex" style={{ background: '#0a0a0f' }}>
@@ -5811,96 +5894,23 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
       {showDelegationListing && <DelegationListingModal onClose={() => setShowDelegationListing(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? -1} owner={displayParcelOwner ?? blockOwner} />}
       {showGetAccess && <GetAccessModal onClose={() => setShowGetAccess(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? -1} owner={displayParcelOwner ?? blockOwner} />}
 
-      {/* Left sidebar — view toggles */}
-      <div className="absolute top-16 left-3 z-30 flex flex-col gap-3">
-        {viewModes.map(({ mode, icon, label }) => (
-          <button
-            key={mode}
-            onClick={() => setViewMode(mode)}
-            className="w-[60px] h-[60px] rounded-xl flex items-center justify-center text-2xl transition-all group relative active:scale-95"
-            style={{
-              background: viewMode === mode ? 'rgba(247,147,26,0.2)' : 'rgba(255,255,255,0.04)',
-              border: viewMode === mode ? '1.5px solid #f7931a' : '1.5px solid rgba(255,255,255,0.1)',
-              color: viewMode === mode ? '#f7931a' : '#64748b',
-              boxShadow: viewMode === mode ? '0 0 20px rgba(247,147,26,0.3), inset 0 0 15px rgba(247,147,26,0.1)' : '0 0 8px rgba(0,0,0,0.3)',
-            }}
-            title={label}
-          >
-            {icon}
-            <span className="absolute left-[68px] px-3 py-1.5 rounded-lg text-[11px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-              style={{ background: 'rgba(10,10,15,0.95)', border: '1px solid rgba(247,147,26,0.25)', color: '#e2e8f0', boxShadow: '0 0 12px rgba(247,147,26,0.15)' }}>
-              {label}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Street View controls HUD */}
-      {viewMode === 'street' && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-5 py-3 rounded-2xl"
-          style={{ background: 'rgba(10,10,15,0.85)', border: '1px solid rgba(247,147,26,0.2)', backdropFilter: 'blur(12px)' }}>
-          <span className="text-[11px] font-mono text-slate-400">
-            <span className="text-amber-400">WASD</span> / <span className="text-amber-400">↑↓←→</span> Walk
-          </span>
-          <span className="text-slate-600">|</span>
-          <span className="text-[11px] font-mono text-slate-400">
-            <span className="text-amber-400">Shift</span> Run
-          </span>
-          <span className="text-slate-600">|</span>
-          <span className="text-[11px] font-mono text-slate-400">
-            <span className="text-amber-400">Click + Drag</span> Look
-          </span>
-        </div>
-      )}
-
-      {/* Flyover HUD */}
-      {viewMode === 'flyover' && (
-        <>
-          {/* Top-left: altitude & speed */}
-          <div className="absolute top-4 left-4 z-40 flex flex-col gap-2 px-4 py-3 rounded-xl"
-            style={{ background: 'rgba(10,10,15,0.85)', border: '1px solid rgba(247,147,26,0.2)', backdropFilter: 'blur(12px)', fontFamily: 'monospace' }}>
-            <span className="text-[13px] text-amber-400">ALT: {Math.round(FLY_HEIGHT * METERS_PER_UNIT)}m</span>
-            <span className="text-[13px] text-slate-400">SPD: <span className="text-amber-300">{autoTour ? '72' : '—'} km/h</span></span>
-          </div>
-          {/* Top-right: auto tour toggle */}
-          <div className="absolute top-4 right-4 z-40">
-            <button
-              onClick={() => setAutoTour(!autoTour)}
-              className="px-4 py-2 rounded-lg text-[12px] font-mono transition-all"
-              style={{
-                background: autoTour ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)',
-                border: autoTour ? '1.5px solid rgba(34,197,94,0.5)' : '1.5px solid rgba(255,255,255,0.1)',
-                color: autoTour ? '#22c55e' : '#64748b',
-              }}
-            >
-              🎬 Auto Tour {autoTour ? 'ON' : 'OFF'}
-            </button>
-          </div>
-          {/* Bottom: controls */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-5 py-3 rounded-2xl"
-            style={{ background: 'rgba(10,10,15,0.85)', border: '1px solid rgba(247,147,26,0.2)', backdropFilter: 'blur(12px)' }}>
-            <span className="text-[11px] font-mono text-slate-400">
-              <span className="text-amber-400">WASD</span> Move
-            </span>
-            <span className="text-slate-600">·</span>
-            <span className="text-[11px] font-mono text-slate-400">
-              <span className="text-amber-400">Space</span> ↑
-            </span>
-            <span className="text-slate-600">·</span>
-            <span className="text-[11px] font-mono text-slate-400">
-              <span className="text-amber-400">Ctrl</span> ↓
-            </span>
-            <span className="text-slate-600">·</span>
-            <span className="text-[11px] font-mono text-slate-400">
-              <span className="text-amber-400">Shift</span> Boost
-            </span>
-            <span className="text-slate-600">·</span>
-            <span className="text-[11px] font-mono text-slate-400">
-              <span className="text-amber-400">Mouse</span> Look
-            </span>
-          </div>
-        </>
-      )}
+      {/* The world HUD: Fly / Walk / Analyze, measured readouts, the speed you set, the block's scale */}
+      <WorldHud
+        viewMode={viewMode}
+        onViewMode={setViewMode}
+        autoTour={autoTour}
+        onAutoTour={toggleAutoTour}
+        tourKmh={tourKmh}
+        cruiseKmh={cruiseKmh}
+        onSpeed={setSpeed}
+        runLocked={runLocked}
+        onRunLocked={setRunLocked}
+        telemetry={telemetry}
+        parcels={dataSource === 'real' && realBlock ? realBlock.txCount : null}
+        phone={phone}
+        reducedMotion={reducedMotion}
+        tourStarted={tourStarted}
+      />
 
       {/* Standard Bitmap View (2D Bitfeed-style canvas rendering) */}
       {viewMode === 'standard' && (
@@ -5964,8 +5974,9 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
             />
           )}
           <CameraManager viewMode={viewMode} />
-          <StreetWalker active={viewMode === 'street'} parcels={parcels} teleportTo={streetTeleport} />
-          <FlyoverController active={viewMode === 'flyover'} parcels={parcels} autoTour={autoTour} onExitAutoTour={() => setAutoTour(false)} />
+          <StreetWalker active={viewMode === 'street'} parcels={parcels} teleportTo={streetTeleport} runLocked={runLocked} telemetry={telemetry} />
+          <FlyoverController active={viewMode === 'flyover'} parcels={parcels} autoTour={autoTour} onExitAutoTour={exitAutoTour}
+            tourKmh={tourKmh} cruiseKmh={cruiseKmh} telemetry={telemetry} />
           <FlyToCamera flyTarget={flyTarget} onComplete={handleFlyComplete} />
 
           {/* Performance mode: disable heavy effects for large blocks (>1000 txs) */}
