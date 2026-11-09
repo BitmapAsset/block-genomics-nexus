@@ -303,7 +303,8 @@ export default function WorldHud(props: WorldHudProps) {
       </div>
 
       <div
-        className={`absolute left-3 flex max-w-[calc(100vw-24px)] flex-wrap items-center gap-2 ${phone ? 'bottom-[calc(76px+env(safe-area-inset-bottom))]' : 'bottom-[calc(16px+env(safe-area-inset-bottom))]'}`}
+        // On phones the ruler stacks above the chip (column-reverse), so the chip never moves when the ruler appears.
+        className={`absolute left-3 flex max-w-[calc(100vw-24px)] gap-2 ${phone ? 'bottom-[calc(76px+env(safe-area-inset-bottom))] flex-col-reverse items-start' : 'bottom-[calc(16px+env(safe-area-inset-bottom))] flex-wrap items-center'}`}
       >
         <span data-testid="world-scale-chip" className={`${panelClass} rounded-full px-3 py-1.5 text-[12px] text-text-2`}>
           {worldScaleChip(parcels)}
