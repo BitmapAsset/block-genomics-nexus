@@ -161,6 +161,14 @@ export default function WorldHud(props: WorldHudProps) {
     analyzeRef.current?.focus();
   };
 
+  const ruler = (
+    <div ref={rulerRef} data-testid="world-ruler" hidden className={`${panelClass} flex items-center gap-2 rounded-full px-3 py-1.5`}>
+      {/* The label first, at a fixed width, so a new bar width never moves it (no layout shift). */}
+      <span ref={rulerLabelRef} className="min-w-[48px] text-right text-[12px] tabular-nums text-text-2" />
+      <span ref={rulerBarRef} data-ruler-bar aria-hidden="true" className="block h-[6px] border-x-2 border-b-2 border-text-2" />
+    </div>
+  );
+
   const tourLabel = reducedMotion && !tourStarted && !autoTour
     ? 'Start the tour'
     : phone
@@ -178,7 +186,8 @@ export default function WorldHud(props: WorldHudProps) {
         if (next && !rootRef.current?.contains(next)) hadFocus.current = false;
       }}
     >
-      <div className="pointer-events-auto absolute left-3 top-16 flex w-[220px] max-w-[calc(100vw-24px)] flex-col gap-2">
+      {/* On phones the column starts below the title's wrapped caption line, with at least 8 px between them. */}
+      <div className={`pointer-events-auto absolute left-3 ${phone ? 'top-[92px]' : 'top-16'} flex w-[220px] max-w-[calc(100vw-24px)] flex-col gap-2`}>
         <div role="group" aria-label="View" className="flex flex-col gap-2">
           <button
             ref={flyRef}
@@ -215,13 +224,14 @@ export default function WorldHud(props: WorldHudProps) {
               <span className="truncate">{analyzeRow ? `Analyze · ${analyzeRow.label}` : 'Analyze'}</span>
               <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" className="ml-auto" />
             </button>
+            {/* The rows open over the HUD, out of the column's flow, so the readouts below never move. */}
             {menuOpen && (
               <div
                 id={menuId}
                 role="group"
                 aria-label="Analyze"
                 data-testid="world-analyze-menu"
-                className="mt-2 w-full rounded-[16px] border border-line-2 bg-bg-secondary p-1.5"
+                className="absolute left-0 top-full z-10 mt-2 w-full rounded-[16px] border border-line-2 bg-bg-secondary p-1.5"
               >
                 {ANALYZE_ROWS.map((row) => (
                   <button
@@ -309,13 +319,10 @@ export default function WorldHud(props: WorldHudProps) {
         <span data-testid="world-scale-chip" className={`${panelClass} rounded-full px-3 py-1.5 text-[12px] text-text-2`}>
           {worldScaleChip(parcels)}
         </span>
-        {isFly && autoTour && (
-          <div ref={rulerRef} data-testid="world-ruler" hidden className={`${panelClass} flex items-center gap-2 rounded-full px-3 py-1.5`}>
-            {/* The label first, at a fixed width, so a new bar width never moves it (no layout shift). */}
-            <span ref={rulerLabelRef} className="min-w-[48px] text-right text-[12px] tabular-nums text-text-2" />
-            <span ref={rulerBarRef} data-ruler-bar aria-hidden="true" className="block h-[6px] border-x-2 border-b-2 border-text-2" />
-          </div>
-        )}
+        {isFly && autoTour && (phone ? (
+          // On phones the ruler's row is reserved while the tour is on, so the row never grows when the ruler appears.
+          <div data-testid="world-ruler-slot" className="h-[32px]">{ruler}</div>
+        ) : ruler)}
       </div>
 
       {!phone && ((isFly && !autoTour) || isWalk) && (
