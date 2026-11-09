@@ -28,6 +28,7 @@ import WorldHud from './hud/WorldHud';
 import { metresOf, unitsPerSecondFromKmh } from './hud/scale';
 import { createTelemetry, figureEightLength, groundMetresPerPx, jump, resetMotion, resetWalk, stepMotion, type WorldTelemetry } from './hud/telemetry';
 import { controllerIgnoresKey } from './hud/keys';
+import { isLookDrag } from './hud/clicks';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import dynamic from 'next/dynamic';
 const GuardianConfigPanel = dynamic(() => import('../GuardianConfigPanel'), { ssr: false });
@@ -1589,6 +1590,14 @@ function DirectionIndicators({ parcels, viewMode }: { parcels: ParcelData[]; vie
 }
 
 /* ─── Mini-map HUD ─── */
+// drei's non-transform Html follows its anchor's projected point and hides itself while the anchor is behind the
+// camera. The mini-map is a screen overlay: its box sits at the canvas centre, so the fullscreen box covers the canvas
+// exactly, and it never hides.
+function pinToCanvas(_el: THREE.Object3D, _camera: THREE.Camera, size: { width: number; height: number }): [number, number] {
+  return [size.width / 2, size.height / 2];
+}
+const keepShown = () => {};
+
 function MiniMap({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: string }) {
   const { camera } = useThree();
   const dotRef = useRef<SVGCircleElement>(null);
@@ -1610,9 +1619,9 @@ function MiniMap({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: strin
   if (!isStreet || !parcels || parcels.length === 0) return null;
 
   return (
-    <Html fullscreen style={{ pointerEvents: 'none' }}>
+    <Html fullscreen calculatePosition={pinToCanvas} onOcclude={keepShown} style={{ pointerEvents: 'none' }}>
       <div style={{
-        position: 'fixed',
+        position: 'absolute',
         bottom: '80px',
         right: '16px',
         width: `${mapSize}px`,
@@ -1744,7 +1753,7 @@ function InstancedParcels({
   parcels: ParcelData[]; viewMode: ViewMode;
   hoveredIndex: number; selectedIndex: number;
   onHover: (p: ParcelData | null) => void;
-  onClick: (p: ParcelData) => void;
+  onClick: (p: ParcelData, dragPx?: number) => void;
   onDoubleClick: (p: ParcelData) => void;
   customizations?: Map<number, ParcelCustomization>;
 }) {
@@ -1901,7 +1910,7 @@ function InstancedParcels({
     e.stopPropagation();
     const id = e.instanceId;
     if (id !== undefined && id < parcels.length) {
-      onClick(parcels[id]);
+      onClick(parcels[id], e.delta);
     }
   }, [parcels, onClick]);
 
@@ -5711,7 +5720,9 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     };
   }, []);
 
-  const handleParcelClick = useCallback((p: ParcelData) => {
+  const handleParcelClick = useCallback((p: ParcelData, dragPx?: number) => {
+    // A look-drag in Walk or Fly that ends on a parcel is not a click on it: no warp, no selection.
+    if (isLookDrag(viewMode, dragPx)) return;
     setSelectedParcel(p);
     setParcelNavIndex(p.txIndex);
     if (viewMode === 'street' || viewMode === 'flyover') {

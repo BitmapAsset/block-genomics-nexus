@@ -310,19 +310,14 @@ export default function WorldHud(props: WorldHudProps) {
             )}
           </div>
         )}
-      </div>
 
-      <div
-        // On phones the ruler stacks above the chip (column-reverse), so the chip never moves when the ruler appears.
-        className={`absolute left-3 flex max-w-[calc(100vw-24px)] gap-2 ${phone ? 'bottom-[calc(76px+env(safe-area-inset-bottom))] flex-col-reverse items-start' : 'bottom-[calc(16px+env(safe-area-inset-bottom))] flex-wrap items-center'}`}
-      >
-        <span data-testid="world-scale-chip" className={`${panelClass} rounded-full px-3 py-1.5 text-[12px] text-text-2`}>
+        {/* The chip and the ruler live in the HUD's own column, clear of the hover card and the reaction bar at
+            bottom-left. While the tour is on, the ruler's row is reserved from the first frame, so nothing moves
+            when it appears. */}
+        <span data-testid="world-scale-chip" className={`${panelClass} self-start rounded-full px-3 py-1.5 text-[12px] text-text-2`}>
           {worldScaleChip(parcels)}
         </span>
-        {isFly && autoTour && (phone ? (
-          // On phones the ruler's row is reserved while the tour is on, so the row never grows when the ruler appears.
-          <div data-testid="world-ruler-slot" className="h-[32px]">{ruler}</div>
-        ) : ruler)}
+        {isFly && autoTour && <div data-testid="world-ruler-slot" className="h-[32px] self-start">{ruler}</div>}
       </div>
 
       {!phone && ((isFly && !autoTour) || isWalk) && (
