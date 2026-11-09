@@ -310,8 +310,9 @@ export default function WorldHud(props: WorldHudProps) {
         </span>
         {isFly && autoTour && (
           <div ref={rulerRef} data-testid="world-ruler" hidden className={`${panelClass} flex items-center gap-2 rounded-full px-3 py-1.5`}>
-            <span ref={rulerBarRef} aria-hidden="true" className="block h-[6px] border-x-2 border-b-2 border-text-2" />
-            <span ref={rulerLabelRef} className="text-[12px] text-text-2" />
+            {/* The label first, at a fixed width, so a new bar width never moves it (no layout shift). */}
+            <span ref={rulerLabelRef} className="min-w-[48px] text-right text-[12px] tabular-nums text-text-2" />
+            <span ref={rulerBarRef} data-ruler-bar aria-hidden="true" className="block h-[6px] border-x-2 border-b-2 border-text-2" />
           </div>
         )}
       </div>

@@ -206,7 +206,7 @@ describe('scale', () => {
     p.telemetry.groundMetresPerPx = 1;
     act(() => { jest.advanceTimersByTime(100); });
     expect(ruler.hidden).toBe(false);
-    expect((ruler.firstElementChild as HTMLElement).style.width).toBe('100px');
+    expect((ruler.querySelector('[data-ruler-bar]') as HTMLElement).style.width).toBe('100px');
     expect(ruler.textContent).toBe('100 m');
   });
 });
