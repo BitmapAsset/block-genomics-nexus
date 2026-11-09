@@ -39,7 +39,6 @@ jest.mock('qrcode.react', () => ({ QRCodeSVG: () => null }));
 
 // Client islands. Activity sits above the tabs, so the tab strip renders nothing.
 jest.mock('@/app/(site)/block/[height]/copy-button', () => () => null);
-jest.mock('@/app/(site)/block/[height]/owner-bar', () => () => null);
 jest.mock('@/app/(site)/block/[height]/deed-recheck', () => () => null);
 jest.mock('@/app/(site)/block/[height]/block-tabs', () => () => null);
 

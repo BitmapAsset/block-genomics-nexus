@@ -19,7 +19,6 @@ import { epochLabelFor } from '@/lib/bitmapStandard';
 import { formatNumber, hexPairToColor } from '@/lib/genome-utils';
 import CopyButton from './copy-button';
 import BlockTabs from './block-tabs';
-import OwnerBar from './owner-bar';
 import { deedStatus, type DeedStatus } from './deed-status';
 import Callout from '@/components/ui/callout';
 import EmptyState from '@/components/ui/empty';
@@ -29,6 +28,7 @@ import Hero from './hero';
 import DeedCard from './deed-card';
 import BuildCard from './build-card';
 import PhoneDock from './phone-dock';
+import HolderSwitch from './holder-switch';
 import { guardianCardState, guardianDisplayState } from '@/lib/blockGuardian';
 import { listBlockEvents } from '@/lib/block-events';
 import { scaleLineForTxCount } from '@/lib/world-scale';
@@ -47,8 +47,11 @@ import type { PublicBlockEvent } from '@/lib/block-event-core';
  * Enter the block), then three cards (Guardian, Deed, Build; the Deed card
  * first when the block has no guardian), Activity, and three tabs (World ·
  * Experiences · Block facts). All server-rendered, so a crawler reads the
- * whole page. Nothing here claims to be live: with the event store off the page
- * shows what the record holds. The page stays dark under the light theme
+ * whole page. On a claimed block each card also carries the connected holder's
+ * variant (bg98a2), which HolderSwitch shows once the wallet matches the
+ * holder; the hero and the phone dock are the same for everyone. Nothing here
+ * claims to be live: with the event store off the page shows what the record
+ * holds. The page stays dark under the light theme
  * (`.bp-dark`).
  */
 export const dynamic = 'force-dynamic';
@@ -569,17 +572,38 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
 
   // Order by markup, not CSS: a shown guardian leads; with none, the deed does.
   const guardianFirst = guardianView.guardian !== null || guardianView.degraded;
-  const guardianCard = (
-    <GuardianCard
-      key="guardian"
-      height={height}
-      view={guardianView}
-      events={events?.events ?? null}
-      now={events?.readAt ?? now}
-      deedKey={status?.key ?? null}
-    />
+  const guardianProps = {
+    height,
+    view: guardianView,
+    events: events?.events ?? null,
+    now: events?.readAt ?? now,
+    deedKey: status?.key ?? null,
+  };
+  // A holder variant only for a block with a holder; the client gets the two fields the holder rule reads.
+  const claimed = displayOwner(data.ownership) !== null;
+  const owner = { onChainOwner: data.ownership.onChainOwner, registeredOwner: data.ownership.registeredOwner };
+  const guardianCard =
+    claimed && !guardianView.degraded ? (
+      <HolderSwitch key="guardian" slot="guardian" owner={owner} holder={<GuardianCard {...guardianProps} holder />}>
+        <GuardianCard {...guardianProps} />
+      </HolderSwitch>
+    ) : (
+      <GuardianCard key="guardian" {...guardianProps} />
+    );
+  const deedCard = claimed ? (
+    <HolderSwitch key="deed" slot="deed" owner={owner} holder={<DeedCard data={data} status={status} now={now} holder />}>
+      <DeedCard data={data} status={status} now={now} />
+    </HolderSwitch>
+  ) : (
+    <DeedCard key="deed" data={data} status={status} now={now} />
   );
-  const deedCard = <DeedCard key="deed" data={data} status={status} />;
+  const buildCard = claimed ? (
+    <HolderSwitch slot="build" owner={owner} holder={<BuildCard data={data} now={now} holder />}>
+      <BuildCard data={data} now={now} />
+    </HolderSwitch>
+  ) : (
+    <BuildCard data={data} now={now} />
+  );
   const cards = guardianFirst ? [guardianCard, deedCard] : [deedCard, guardianCard];
 
   return (
@@ -615,12 +639,10 @@ export default async function BlockPage({ params }: { params: Promise<{ height: 
 
       <Hero data={data} status={status} guardian={guardianState} guardianDegraded={guardianView.degraded} now={now} />
 
-      <OwnerBar onChainOwner={data.ownership.onChainOwner} registeredOwner={data.ownership.registeredOwner} />
-
       {/* ── Guardian, Deed, Build (three columns from 1200 px), then Activity ── */}
       <div className="mt-6 grid gap-[14px] md:mt-8 md:gap-5 min-[1200px]:grid-cols-3" data-testid="block-cards">
         {cards}
-        <BuildCard data={data} now={now} />
+        {buildCard}
       </div>
 
       <ActivitySection data={data} events={events} status={status} />

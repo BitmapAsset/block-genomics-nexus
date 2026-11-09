@@ -52,7 +52,6 @@ jest.mock('@/lib/blockPageData', () => ({
 
 // Client islands: the tab strip renders every panel, so "said once" counts the tabs too.
 jest.mock('@/app/(site)/block/[height]/copy-button', () => () => null);
-jest.mock('@/app/(site)/block/[height]/owner-bar', () => () => null);
 jest.mock('@/app/(site)/block/[height]/deed-recheck', () => () => null);
 jest.mock('@/app/(site)/block/[height]/block-tabs', () =>
   function BlockTabs(p: { panels: Record<string, React.ReactNode> }) {
