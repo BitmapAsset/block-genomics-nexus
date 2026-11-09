@@ -128,7 +128,7 @@ export default function LivePage() {
                   color: tab === t.key ? '#ff6b6b' : '#94a3b8',
                 }}
               >
-                {t.label} <span className="ml-1 text-xs opacity-60">{t.count}</span>
+                {t.label} <span className="ml-1 text-xs">{t.count}</span>
               </button>
             ))}
           </div>
