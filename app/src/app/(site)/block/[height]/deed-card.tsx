@@ -7,6 +7,7 @@ import Callout from '@/components/ui/callout';
 import CopyButton from './copy-button';
 import type { DeedStatus } from './deed-status';
 import { parcelsText } from './hero-chips';
+import { holderDeedLine } from './holder-view';
 
 /**
  * The Deed card: who holds the deed, how sure the page is, and the inscription.
@@ -18,6 +19,11 @@ import { parcelsText } from './hero-chips';
  * checked (`unreachable`), never for a disputed deed, and its date only when
  * this server has a last verified time. In the outage the chip already says
  * "Not checked", so the line under it gives only the reason.
+ *
+ * `holder` (bg98a2) is the connected holder's variant of a claimed block:
+ * "Your deed", "Your address", the holder status line of `holderDeedLine`
+ * where it has one, and where transfers are prepared. The chip, the caption
+ * above the address and the inscription link keep the visitor rules.
  */
 
 /** "Oct 31", UTC: rendered on the server, one zone for every reader. */
@@ -37,7 +43,19 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 const icon = <ShieldCheck size={15} strokeWidth={1.75} aria-hidden="true" />;
 const linkCls = 'inline-flex min-h-[44px] items-center gap-1 text-[14px] text-accent-cyan hover:underline';
 
-export default function DeedCard({ data, status }: { data: BlockPageData; status: DeedStatus | null }) {
+export default function DeedCard({
+  data,
+  status,
+  holder = false,
+  now = Date.now(),
+}: {
+  data: BlockPageData;
+  status: DeedStatus | null;
+  /** The connected holder's variant (claimed blocks only). */
+  holder?: boolean;
+  /** The page's clock, for the age on the holder line. */
+  now?: number;
+}) {
   const { ownership, height } = data;
   const owner = displayOwner(ownership);
 
@@ -56,6 +74,7 @@ export default function DeedCard({ data, status }: { data: BlockPageData; status
   }
 
   const outage = status.key === 'unreachable';
+  const holderLine = holder ? holderDeedLine(ownership, status, now) : null;
   const lastVerifiedAt = ownership.availability?.lastVerifiedAt ?? null;
   const verifiedGreen = status.key === 'verified' && ownership.inSync === true;
   const chip = verifiedGreen ? (
@@ -77,14 +96,16 @@ export default function DeedCard({ data, status }: { data: BlockPageData; status
       : null;
 
   return (
-    <Card caption="Deed" icon={icon} chip={chip} testId="deed-card">
-      <p className="mt-3 font-mono text-[16px] text-text-1">{height}.bitmap</p>
+    <Card caption={holder ? 'Your deed' : 'Deed'} icon={icon} chip={chip} testId="deed-card">
+      <p tabIndex={-1} data-swap-focus className="mt-3 font-mono text-[16px] text-text-1">
+        {height}.bitmap
+      </p>
       <p className="mt-2 text-[12.5px] font-medium uppercase tracking-[0.12em] text-text-3">
         {status.key === 'verified' || status.key === 'registry-behind' ? 'Holder on Bitcoin' : 'Last recorded holder'}
       </p>
 
       <dl className="mt-1">
-        <Row label="Held by">
+        <Row label={holder ? 'Your address' : 'Held by'}>
           <span className="truncate font-mono" title={owner} data-testid="deed-holder">
             {shortenAddress(owner)}
           </span>
@@ -101,7 +122,7 @@ export default function DeedCard({ data, status }: { data: BlockPageData; status
 
       {outage ? (
         <>
-          <p className="mt-3 text-[14px] text-text-2" data-testid="deed-status-line">{status.badge.replace(/^Not checked · /, '')}</p>
+          <p className="mt-3 text-[14px] text-text-2" data-testid="deed-status-line">{holderLine ?? status.badge.replace(/^Not checked · /, '')}</p>
           <Callout
             tone="warn"
             icon={<CloudOff size={16} strokeWidth={1.75} aria-hidden="true" />}
@@ -114,7 +135,13 @@ export default function DeedCard({ data, status }: { data: BlockPageData; status
           </Callout>
         </>
       ) : (
-        <p className="mt-3 text-[14px] leading-[1.55] text-text-2" data-testid="deed-status-line">{status.detail}</p>
+        <p className="mt-3 text-[14px] leading-[1.55] text-text-2" data-testid="deed-status-line">{holderLine ?? status.detail}</p>
+      )}
+
+      {holder && (
+        <p className="mt-3 text-[14px] leading-[1.55] text-text-2" data-testid="deed-holder-transfers">
+          Transfers and listings are Bitcoin transactions. You prepare them in the world view, apart from your guardian.
+        </p>
       )}
 
       {inscription && (

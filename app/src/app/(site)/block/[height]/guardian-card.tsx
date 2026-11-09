@@ -1,4 +1,5 @@
-import { ArrowUpRight, Bot } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowUpRight, Bot, SlidersHorizontal } from 'lucide-react';
 import {
   guardianCardState,
   guardianDisplayState,
@@ -10,6 +11,7 @@ import type { PublicBlockEvent } from '@/lib/block-event-core';
 import { formatNumber } from '@/lib/genome-utils';
 import Card from '@/components/ui/card';
 import Chip from '@/components/ui/chip';
+import { secondaryButton } from '@/components/ui/button';
 import { relativeTime } from './activity-feed';
 import type { DeedStateKey } from './deed-status';
 import { GuardianAction, GuardianHoldPrompt } from './guardian-action';
@@ -31,7 +33,16 @@ import { GuardianAction, GuardianHoldPrompt } from './guardian-action';
  *
  * Reads the public summary only (lib/blockGuardian): no owner column, no
  * visitor count.
+ *
+ * `holder` (bg98a2) is the connected holder's variant, chosen on the client by
+ * HolderSwitch: "Your guardian" with Manage <name> first (to the world view,
+ * where the guardian is set up), the message count said as all time, and an
+ * empty card that offers to set one up. The degraded card has no holder
+ * variant. The one heading each variant can take focus on a swap carries
+ * `data-swap-focus`.
  */
+
+const worldNote = <p className="mt-2 text-[12.5px] text-text-3">Opens in the world view.</p>;
 
 function monthYear(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -58,6 +69,7 @@ export default function GuardianCard({
   events,
   now,
   deedKey = null,
+  holder = false,
 }: {
   height: number;
   view: BlockGuardianView;
@@ -66,13 +78,43 @@ export default function GuardianCard({
   now: number;
   /** The deed state on this page, or null for an unclaimed block. */
   deedKey?: DeedStateKey | null;
+  /** The connected holder's variant. */
+  holder?: boolean;
 }) {
+  const caption = holder ? 'Your guardian' : 'Guardian';
   if (view.degraded) {
     return (
       <Card caption="Guardian" icon={icon} testId="guardian-card">
         <p className="mt-3 text-[14px] leading-[1.55] text-text-2">
           Guardian details couldn&apos;t be loaded right now. This doesn&apos;t mean the block has none.
         </p>
+      </Card>
+    );
+  }
+
+  if (!view.guardian && holder) {
+    return (
+      <Card
+        caption={caption}
+        icon={icon}
+        testId="guardian-card"
+        chip={
+          <Chip tone="neutral" small>
+            None yet
+          </Chip>
+        }
+      >
+        <h3 tabIndex={-1} data-swap-focus className="mt-3 text-[19px] font-semibold tracking-[-0.012em] text-text-1">
+          {`Give ${formatNumber(height)} a guardian`}
+        </h3>
+        <p className="mt-1 text-[14px] text-text-2">Your own AI agent, on your block.</p>
+        <p className="mt-3 text-[14px] leading-[1.55] text-text-2">It looks after the block, builds on it and answers visitors.</p>
+        <div className="mt-auto pt-4">
+          <Link href={`/world/${height}`} className={secondaryButton} data-testid="guardian-holder-setup">
+            Set up a guardian
+          </Link>
+          {worldNote}
+        </div>
       </Card>
     );
   }
@@ -89,7 +131,7 @@ export default function GuardianCard({
           </Chip>
         }
       >
-        <h3 className="mt-3 text-[19px] font-semibold tracking-[-0.012em] text-text-1">No guardian yet</h3>
+        <h3 tabIndex={-1} data-swap-focus className="mt-3 text-[19px] font-semibold tracking-[-0.012em] text-text-1">No guardian yet</h3>
         <p className="mt-1 text-[14px] text-text-2">This block has no AI agent yet.</p>
         <p className="mt-3 text-[14px] leading-[1.55] text-text-2">
           {`A guardian is an AI agent that looks after a block: builds things on it and answers visitors' messages. Only the wallet that holds ${height}.bitmap can set one up.`}
@@ -110,7 +152,7 @@ export default function GuardianCard({
 
   return (
     <Card
-      caption="Guardian"
+      caption={caption}
       icon={icon}
       testId="guardian-card"
       chip={
@@ -119,7 +161,9 @@ export default function GuardianCard({
         </Chip>
       }
     >
-      <h3 className="mt-3 break-words text-[19px] font-semibold tracking-[-0.012em] text-text-1">{g.name}</h3>
+      <h3 tabIndex={-1} data-swap-focus className="mt-3 break-words text-[19px] font-semibold tracking-[-0.012em] text-text-1">
+        {g.name}
+      </h3>
       {registered && (
         <p className="mt-1 text-[12.5px] text-text-3" data-testid="guardian-registered" title={new Date(registered.at).toUTCString()}>
           {`Registered ${day(registered.at)}${registered.by ? ` by ${shortenAddress(registered.by)}` : ''}`}
@@ -131,7 +175,7 @@ export default function GuardianCard({
       <dl className="mt-3">
         <Row label="Runs on">{g.selfHosted ? "The holder's own server" : 'Block Genomics, for the holder'}</Row>
         {g.selfHosted && <Row label="Last heartbeat">{g.lastHeartbeat ? relativeTime(g.lastHeartbeat, now) : 'none yet'}</Row>}
-        <Row label="Messages">{formatNumber(g.totalMessages)}</Row>
+        <Row label={holder ? 'Visitor messages · all time' : 'Messages'}>{formatNumber(g.totalMessages)}</Row>
         {g.lastChatAt && <Row label="Last chat">{relativeTime(g.lastChatAt, now)}</Row>}
         {g.createdAt && <Row label="Since">{monthYear(g.createdAt)}</Row>}
       </dl>
@@ -154,6 +198,23 @@ export default function GuardianCard({
         </p>
       )}
 
+      {holder ? (
+        <div className="mt-auto pt-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href={`/world/${height}`} className={secondaryButton} data-testid="guardian-manage">
+              <SlidersHorizontal size={17} strokeWidth={1.75} aria-hidden="true" />
+              {`Manage ${g.name}`}
+            </Link>
+            {active && <GuardianAction height={height} name={g.name} mode={g.llmConfigured ? 'talk' : 'message'} />}
+          </div>
+          {worldNote}
+          {active ? (
+            <p className="mt-1 text-[12.5px] text-text-3">Keep private details to yourself.</p>
+          ) : (
+            <p className="mt-2 text-[14px] text-text-2" data-testid="guardian-not-taking">{`${g.name} isn't taking messages right now.`}</p>
+          )}
+        </div>
+      ) : (
       <div className="mt-auto pt-4">
         {active ? (
           <>
@@ -164,6 +225,7 @@ export default function GuardianCard({
           <p className="text-[14px] text-text-2" data-testid="guardian-not-taking">{`${g.name} isn't taking messages right now.`}</p>
         )}
       </div>
+      )}
     </Card>
   );
 }

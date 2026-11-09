@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Box, Map as MapIcon, Navigation } from 'lucide-react';
+import { Box, Map as MapIcon, Navigation, PenLine } from 'lucide-react';
 import { NEXUS_PATH, applyBlockParam } from '@/lib/blockDeepLink';
 import type { BlockPageData } from '@/lib/blockPageData';
 import { formatNumber } from '@/lib/genome-utils';
@@ -16,12 +16,20 @@ export function nexusHref(height: number): string {
 /**
  * The Build card: what stands on the block and its newest change, or the
  * ground as mined (one parcel per transaction). Walk the block here is the
- * secondary style: the hero holds the page's one main action.
+ * secondary style: the hero holds the page's one main action. For the
+ * connected holder (`holder`, bg98a2) it reads "Open the builder", with where
+ * it opens under the row.
  */
-export default function BuildCard({ data, now }: { data: BlockPageData; now: number }) {
+export default function BuildCard({ data, now, holder = false }: { data: BlockPageData; now: number; holder?: boolean }) {
   const { height } = data;
   const newest = [...data.objects].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
   const n = data.objectCount;
+  const mapLink = (
+    <Link href={nexusHref(height)} className="inline-flex min-h-[44px] items-center gap-1.5 text-[14px] text-accent-cyan hover:underline" data-testid="build-map">
+      <MapIcon size={15} strokeWidth={1.75} aria-hidden="true" />
+      See it on the map
+    </Link>
+  );
 
   return (
     <Card
@@ -38,7 +46,7 @@ export default function BuildCard({ data, now }: { data: BlockPageData; now: num
     >
       {n > 0 ? (
         <>
-          <h3 className="mt-3 text-[19px] font-semibold tracking-[-0.012em] text-text-1">
+          <h3 tabIndex={-1} data-swap-focus className="mt-3 text-[19px] font-semibold tracking-[-0.012em] text-text-1">
             {`${formatNumber(n)} ${n === 1 ? 'thing' : 'things'} built`}
           </h3>
           {newest && (
@@ -51,7 +59,7 @@ export default function BuildCard({ data, now }: { data: BlockPageData; now: num
         </>
       ) : data.chain ? (
         <>
-          <h3 className="mt-3 text-[19px] font-semibold tracking-[-0.012em] text-text-1">Nothing built yet</h3>
+          <h3 tabIndex={-1} data-swap-focus className="mt-3 text-[19px] font-semibold tracking-[-0.012em] text-text-1">Nothing built yet</h3>
           <p className="mt-2 text-[14px] leading-[1.55] text-text-2" data-testid="build-empty">
             {`The ground is laid out from the block's own ${formatNumber(data.chain.txCount)} transactions: one parcel each, bigger transactions, bigger parcels.`}
           </p>
@@ -67,21 +75,31 @@ export default function BuildCard({ data, now }: { data: BlockPageData; now: num
           </dl>
         </>
       ) : (
-        <h3 className="mt-3 text-[19px] font-semibold tracking-[-0.012em] text-text-1" data-testid="build-empty">
+        <h3 tabIndex={-1} data-swap-focus className="mt-3 text-[19px] font-semibold tracking-[-0.012em] text-text-1" data-testid="build-empty">
           Nothing built here yet.
         </h3>
       )}
 
-      <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 pt-4">
-        <Link href={`/world/${height}`} className={secondaryButton} data-testid="build-enter">
-          <Navigation size={17} strokeWidth={1.75} aria-hidden="true" />
-          Walk the block
-        </Link>
-        <Link href={nexusHref(height)} className="inline-flex min-h-[44px] items-center gap-1.5 text-[14px] text-accent-cyan hover:underline" data-testid="build-map">
-          <MapIcon size={15} strokeWidth={1.75} aria-hidden="true" />
-          See it on the map
-        </Link>
-      </div>
+      {holder ? (
+        <div className="mt-auto pt-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Link href={`/world/${height}`} className={secondaryButton} data-testid="build-enter">
+              <PenLine size={17} strokeWidth={1.75} aria-hidden="true" />
+              Open the builder
+            </Link>
+            {mapLink}
+          </div>
+          <p className="mt-2 text-[12.5px] text-text-3">Opens in the world view.</p>
+        </div>
+      ) : (
+        <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 pt-4">
+          <Link href={`/world/${height}`} className={secondaryButton} data-testid="build-enter">
+            <Navigation size={17} strokeWidth={1.75} aria-hidden="true" />
+            Walk the block
+          </Link>
+          {mapLink}
+        </div>
+      )}
     </Card>
   );
 }
