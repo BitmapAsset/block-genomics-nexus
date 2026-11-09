@@ -164,7 +164,7 @@ export default function ExperienceHostingPage() {
         <h1
           className="mb-4 text-4xl font-black tracking-tight sm:text-5xl"
           style={{
-            background: 'linear-gradient(135deg, #66ccff 0%, #ffffff 40%, #a855f7 75%, #f7931a 100%)',
+            background: 'linear-gradient(135deg, var(--doc-title-1) 0%, var(--doc-title-2) 40%, var(--doc-title-3) 75%, var(--doc-title-4) 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
@@ -361,9 +361,9 @@ function Section({ id, eyebrow, title, children }: { id: string; eyebrow?: strin
 
 function Badge({ children, color }: { children: React.ReactNode; color: 'cyan' | 'bitcoin' | 'purple' }) {
   const map = {
-    cyan: { bg: 'rgba(102,204,255,0.1)', bd: 'rgba(102,204,255,0.3)', fg: '#66ccff' },
-    bitcoin: { bg: 'rgba(247,147,26,0.08)', bd: 'rgba(247,147,26,0.25)', fg: '#f7931a' },
-    purple: { bg: 'rgba(168,85,247,0.1)', bd: 'rgba(168,85,247,0.3)', fg: '#c9a5f7' },
+    cyan: { bg: 'rgba(102,204,255,0.1)', bd: 'rgba(102,204,255,0.3)', fg: 'var(--doc-tone-cyan)' },
+    bitcoin: { bg: 'rgba(247,147,26,0.08)', bd: 'rgba(247,147,26,0.25)', fg: 'var(--doc-tone-bitcoin)' },
+    purple: { bg: 'rgba(168,85,247,0.1)', bd: 'rgba(168,85,247,0.3)', fg: 'var(--doc-tone-purple)' },
   }[color];
   return (
     <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" style={{ background: map.bg, border: `1px solid ${map.bd}`, color: map.fg }}>
@@ -389,5 +389,11 @@ function Td({ children }: { children: React.ReactNode }) {
 }
 
 function methodColor(m: string): string {
-  return m === 'GET' ? '#66ccff' : m === 'POST' ? '#4ade80' : m === 'DELETE' ? '#ff6b6b' : '#f7931a';
+  return m === 'GET'
+    ? 'var(--doc-method-get)'
+    : m === 'POST'
+      ? 'var(--doc-method-post)'
+      : m === 'DELETE'
+        ? 'var(--doc-method-delete)'
+        : 'var(--doc-method-other)';
 }
