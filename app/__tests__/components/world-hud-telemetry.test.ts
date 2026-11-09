@@ -134,6 +134,32 @@ describe('telemetry: measured, never echoed', () => {
   });
 });
 
+describe('the tour\'s pace: the curve, its length and the advance share one radius', () => {
+  const fly = () => fn('FlyoverController').getText(AST);
+
+  it('ParcelView measures the loop from TOUR_RADIUS with the figure-8 helper', () => {
+    expect(SRC).toMatch(/^const TOUR_RADIUS = BLOCK_SIZE \* 0\.6;$/m);
+    expect(SRC).toMatch(/^const TOUR_LOOP_UNITS = figureEightLength\(TOUR_RADIUS, 512\);$/m);
+  });
+
+  it('the tour path is drawn with TOUR_RADIUS, the radius its length was measured with', () => {
+    const src = fly();
+    const curve = src.slice(src.indexOf('const tourPath = useMemo('), src.indexOf('}, []);', src.indexOf('const tourPath = useMemo(')));
+    expect(curve).toMatch(/const r = TOUR_RADIUS;/);
+    expect(src).not.toMatch(/BLOCK_SIZE \* 0\.6/);
+  });
+
+  it('the tour advances by the set speed over the measured loop, spread over the path\'s segments', () => {
+    const frame = frameBodies(fn('FlyoverController')).join('\n');
+    expect(frame).toMatch(/const segments = tourPath\.length - 1;/);
+    expect(frame).toMatch(
+      /tourProgress\.current \+= \(unitsPerSecondFromKmh\(tourKmhRef\.current\) \* dt\) \/ TOUR_LOOP_UNITS \* segments;/,
+    );
+    // No other length (the old circle's 2·π·r) feeds the advance.
+    expect(frame).not.toMatch(/Math\.PI \* 2\) \* segments/);
+  });
+});
+
 describe('telemetry: source shape', () => {
   it('no useFrame callback in the controllers or the mini-map calls a React state setter', () => {
     for (const name of ['FlyoverController', 'StreetWalker', 'MiniMap']) {

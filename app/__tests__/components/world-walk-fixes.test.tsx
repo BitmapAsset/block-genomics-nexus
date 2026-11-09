@@ -8,7 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import * as React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import WorldHud, { type WorldHudProps } from '@/components/nexus/hud/WorldHud';
 import { createTelemetry } from '@/components/nexus/hud/telemetry';
 
@@ -70,19 +70,38 @@ describe('the Walk mini-map stays at its place whatever the camera faces', () =>
 });
 
 describe('a look-drag never counts as a click on a parcel, in Walk and Fly', () => {
-  it('the guard: a drag over 4 px is a look in Walk and Fly only', () => {
+  it('the guard: a drag over 3 px (Walk\'s own look threshold) is a look in Walk and Fly only', () => {
     const { isLookDrag, LOOK_DRAG_PX } = loadClicks();
-    expect(LOOK_DRAG_PX).toBe(4);
+    expect(LOOK_DRAG_PX).toBe(3);
     for (const mode of ['street', 'flyover']) {
-      expect(isLookDrag(mode, 5)).toBe(true);
+      expect(isLookDrag(mode, 4)).toBe(true);
+      expect(isLookDrag(mode, 3.5)).toBe(true);
       expect(isLookDrag(mode, 120)).toBe(true);
-      expect(isLookDrag(mode, 4)).toBe(false);
+      expect(isLookDrag(mode, 3)).toBe(false);
       expect(isLookDrag(mode, 0)).toBe(false);
       expect(isLookDrag(mode)).toBe(false);
     }
     for (const mode of ['flat', 'isometric', 'heights', 'dna']) {
       expect(isLookDrag(mode, 0)).toBe(false);
       expect(isLookDrag(mode, 300)).toBe(false);
+    }
+  });
+
+  it('one threshold: a drag that turns Walk\'s camera is never a click (same distance, same comparison)', () => {
+    const { isLookDrag, LOOK_DRAG_PX } = loadClicks();
+    const walk = fnSource('StreetWalker');
+    const m = walk.match(/const dragThreshold = (\d+(?:\.\d+)?);/);
+    expect(m).not.toBeNull();
+    const walkPx = Number(m![1]);
+    // Walk turns the camera once the straight-line distance from the press passes the threshold (strictly).
+    expect(walk).toMatch(/if \(Math\.sqrt\(dx \* dx \+ dy \* dy\) > dragThreshold\)/);
+    // R3F's e.delta is the same straight-line distance from the press; the guard compares it the same way.
+    expect(LOOK_DRAG_PX).toBe(walkPx);
+    const clicks = fs.readFileSync(path.join(HUD_DIR, 'clicks.ts'), 'utf8');
+    expect(clicks).toMatch(/dragPx > LOOK_DRAG_PX/);
+    for (const mode of ['street', 'flyover']) {
+      expect(isLookDrag(mode, walkPx)).toBe(false);
+      expect(isLookDrag(mode, walkPx + 0.01)).toBe(true);
     }
   });
 
@@ -140,4 +159,39 @@ describe('the scale chip and the ruler stay clear of the hover card and the reac
     // The fixed-width label still comes first.
     expect(classes(ruler.firstElementChild)).toContain('min-w-[48px]');
   });
+});
+
+describe('the HUD column\'s gaps pass taps to the scene', () => {
+  const cases: Array<[string, Partial<WorldHudProps>, boolean]> = [
+    ['Fly, tour on', { viewMode: 'flyover', autoTour: true }, false],
+    ['Fly, tour off', { viewMode: 'flyover', autoTour: false }, false],
+    ['Walk', { viewMode: 'street' }, false],
+    ['Analyze, rows open', { viewMode: 'flat' }, true],
+  ];
+  for (const phone of [false, true]) {
+    for (const [name, over, openMenu] of cases) {
+      if (phone && over.viewMode === 'street') continue;
+      it(`${name} (phone ${phone}): the column takes no taps, each control and panel takes them`, () => {
+        render(<WorldHud {...props({ phone, ...over })} />);
+        if (openMenu) fireEvent.click(screen.getByRole('button', { name: /Analyze/ }));
+        const column = topGroup();
+        expect(classes(column)).toContain('pointer-events-none');
+        expect(classes(column)).not.toContain('pointer-events-auto');
+        // The View group's own gaps pass taps too.
+        expect(classes(screen.getByRole('group', { name: 'View' }))).not.toContain('pointer-events-auto');
+        const panels = ['world-readouts', 'world-scale-chip', 'world-ruler', 'world-analyze-menu']
+          .map((id) => screen.queryByTestId(id))
+          .filter((el): el is HTMLElement => el !== null);
+        expect(panels.length).toBeGreaterThan(0);
+        for (const el of panels) expect(`${el.dataset.testid}: ${classes(el).includes('pointer-events-auto')}`).toBe(`${el.dataset.testid}: true`);
+        const controls = Array.from(column.querySelectorAll('button, input'));
+        expect(controls.length).toBeGreaterThan(1);
+        for (const el of controls) {
+          const owner = el.closest('.pointer-events-auto');
+          const label = el.textContent?.trim() || el.getAttribute('type') || el.tagName;
+          expect(`${label}: ${owner !== null && owner !== column && column.contains(owner)}`).toBe(`${label}: true`);
+        }
+      });
+    }
+  }
 });

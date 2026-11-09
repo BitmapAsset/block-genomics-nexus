@@ -193,6 +193,12 @@ describe('the HUD prints readings, not constants', () => {
     expect(offenders(SRC, /telemetry\.speedKmh\s*=/)).toEqual([]);
   });
 
+  it('only hud/telemetry.ts writes the speed: ParcelView never names speedKmh at all', () => {
+    // A text match on `telemetry.speedKmh =` lets `Object.assign(telemetry, { speedKmh: … })` through.
+    expect(offenders(SRC, /speedKmh/)).toEqual([]);
+    expect(SRC).not.toContain('speedKmh');
+  });
+
   it('the parcel count is the chain\'s count for real data only', () => {
     expect(SRC).toContain("parcels={dataSource === 'real' && realBlock ? realBlock.txCount : null}");
   });
