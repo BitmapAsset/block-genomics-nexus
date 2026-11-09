@@ -71,13 +71,18 @@ describe('on phones the chip never moves when the ruler appears', () => {
     expect(slot.parentElement).toBe(screen.getByTestId('world-scale-chip').parentElement);
   });
 
-  it('with the tour off there is no reserved row; desktop has none', () => {
+  it('with the tour off there is no reserved row and no ruler, on phones and on desktop', () => {
     const { unmount } = render(<WorldHud {...props({ phone: true, autoTour: false })} />);
     expect(screen.queryByTestId('world-ruler-slot')).toBeNull();
     unmount();
-    render(<WorldHud {...props()} />);
+    render(<WorldHud {...props({ autoTour: false })} />);
     expect(screen.queryByTestId('world-ruler-slot')).toBeNull();
-    expect(screen.getByTestId('world-ruler')).toBeTruthy();
+    expect(screen.queryByTestId('world-ruler')).toBeNull();
+  });
+
+  it('on desktop too, the tour reserves the ruler\'s row', () => {
+    render(<WorldHud {...props()} />);
+    expect(screen.getByTestId('world-ruler-slot').contains(screen.getByTestId('world-ruler'))).toBe(true);
   });
 });
 
