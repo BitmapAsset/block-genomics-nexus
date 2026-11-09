@@ -34,7 +34,7 @@ function GenomeBar() {
 
 function ModernSection({ s }: { s: typeof sections[0] }) {
   return (
-    <section id={s.id} className="scroll-mt-24 mb-16">
+    <section id={s.id} className="scroll-mt-[calc(6rem_-_65px)] mb-16">
       <div className="flex items-center gap-4 mb-6">
         <span className="flex items-center justify-center w-10 h-10 rounded-xl bg-accent-cyan/10 border border-accent-cyan/20 text-accent-cyan font-bold text-sm shrink-0">
           §{s.num}

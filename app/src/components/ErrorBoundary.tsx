@@ -45,7 +45,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               An unexpected error occurred while rendering this page.
             </p>
             {this.state.error && (
-              <p className="text-xs text-text-muted font-mono mb-6 break-words">
+              <p className="text-xs text-text-secondary font-mono mb-6 break-words">
                 {this.state.error.message}
               </p>
             )}

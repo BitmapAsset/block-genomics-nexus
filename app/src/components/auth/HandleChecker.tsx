@@ -60,11 +60,11 @@ export default function HandleChecker({ value, onChange, onValidChange }: Handle
           value={value}
           onChange={(e) => onChange(e.target.value.toLowerCase())}
           placeholder="your_handle"
-          className="w-full rounded-lg border border-border bg-bg-secondary px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-cyan/50 focus:outline-none focus:ring-1 focus:ring-accent-cyan/25 transition-colors"
+          className="w-full rounded-lg border border-border bg-bg-secondary px-4 py-3 text-sm text-text-primary placeholder:text-text-secondary focus:border-accent-cyan/50 focus:outline-none focus:ring-1 focus:ring-accent-cyan/25 transition-colors"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
           {availability === "checking" && (
-            <span className="text-xs text-text-muted">…</span>
+            <span className="text-xs text-text-secondary">…</span>
           )}
           {availability === "available" && (
             <span className="text-success text-sm">✓</span>
@@ -75,7 +75,7 @@ export default function HandleChecker({ value, onChange, onValidChange }: Handle
       {message && (
         <p
           className={`mt-2 text-xs ${
-            availability === "available" ? "text-success" : availability === "taken" ? "text-red-400" : "text-text-muted"
+            availability === "available" ? "text-success" : availability === "taken" ? "text-red-400" : "text-text-secondary"
           }`}
         >
           {message}

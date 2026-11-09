@@ -56,12 +56,10 @@ export default function Header() {
 
   return (
     <header
-      className="sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500"
-      style={
-        inNexus
-          ? { background: "rgba(2,2,8,0.92)", borderColor: "rgba(0,255,204,0.15)" }
-          : { background: "rgba(var(--bg-primary), 0.8)", borderColor: "var(--border)" }
-      }
+      className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${
+        inNexus ? "" : "border-border bg-bg-primary/80"
+      }`}
+      style={inNexus ? { background: "rgba(2,2,8,0.92)", borderColor: "rgba(0,255,204,0.15)" } : undefined}
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex min-h-[44px] shrink-0 items-center" aria-label="Block Genomics home">

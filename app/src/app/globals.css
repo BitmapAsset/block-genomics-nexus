@@ -430,6 +430,18 @@ body {
   }
 }
 
+/* Focused items and in-page anchors stop below the sticky header (64 px bar + 1 px border) and, on phones, above
+   the bottom tab bar (the taller of the two bars: 64 px on the landing page, 57 px elsewhere; plus the safe area),
+   never under them. */
+html {
+  scroll-padding-top: 65px;
+}
+@media (max-width: 767.98px) {
+  html {
+    scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* Haptic-style active state for buttons */
 @media (hover: none) and (pointer: coarse) {
   button, a, [role="button"] {
@@ -456,7 +468,7 @@ body {
   color: var(--color-text-primary);
   font-weight: 700;
   line-height: 1.25;
-  scroll-margin-top: 6rem;
+  scroll-margin-top: calc(6rem - 65px);
   letter-spacing: -0.01em;
 }
 .doc-prose h1 { font-size: 2rem; margin: 0 0 1.25rem; }

@@ -133,7 +133,7 @@ export default function DocsPage() {
       </div>
 
       {SECTIONS.map((s) => (
-        <section key={s.id} id={s.id} style={{ scrollMarginTop: '6rem' }} className="mb-12">
+        <section key={s.id} id={s.id} style={{ scrollMarginTop: 'calc(6rem - 65px)' }} className="mb-12">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-accent-purple)' }}>
             {s.eyebrow}
           </p>
@@ -158,7 +158,7 @@ export default function DocsPage() {
       </section>
 
       {/* FAQ teaser — the full list and its FAQPage JSON-LD live on /docs/faq */}
-      <section id="faq" style={{ scrollMarginTop: '6rem' }} className="mb-12">
+      <section id="faq" style={{ scrollMarginTop: 'calc(6rem - 65px)' }} className="mb-12">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-accent-purple)' }}>Questions</p>
         <h2 className="mb-4 text-2xl font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>FAQ</h2>
         <div className="space-y-5">
@@ -175,7 +175,7 @@ export default function DocsPage() {
       </section>
 
       {/* Resources */}
-      <section id="resources" style={{ scrollMarginTop: '6rem' }} className="mb-12">
+      <section id="resources" style={{ scrollMarginTop: 'calc(6rem - 65px)' }} className="mb-12">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-accent-purple)' }}>Links</p>
         <h2 className="mb-4 text-2xl font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>Resources</h2>
         <div className="grid gap-3 sm:grid-cols-2">

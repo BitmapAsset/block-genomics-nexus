@@ -5,11 +5,11 @@ export default function NotFoundContent() {
   return (
     <main className="flex min-h-[70vh] items-center justify-center px-5">
       <div className="max-w-md text-center">
-        <p className="font-mono text-sm text-text-muted">404</p>
+        <p className="font-mono text-sm text-text-secondary">404</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-text-primary">
           Nothing at this address
         </h1>
-        <p className="mt-3 text-sm text-text-muted">
+        <p className="mt-3 text-sm text-text-secondary">
           This page does not exist. A block URL looks like{' '}
           <span className="font-mono text-text-secondary">/block/840000</span> — a plain height, no
           decimals or letters.

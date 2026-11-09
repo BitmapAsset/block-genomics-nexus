@@ -124,7 +124,7 @@ export default function NotificationBell() {
                 {items.length > 0 && (
                   <button
                     onClick={clearAll}
-                    className="text-[10px] text-text-muted hover:text-text-secondary transition-colors cursor-pointer"
+                    className="text-[10px] text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
                   >
                     Clear all
                   </button>
@@ -139,8 +139,8 @@ export default function NotificationBell() {
                   <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-bg-tertiary/50 flex items-center justify-center">
                     <svg className="w-6 h-6 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                   </div>
-                  <p className="text-sm text-text-muted">No notifications yet</p>
-                  <p className="text-xs text-text-muted/60 mt-1">Activity will appear here</p>
+                  <p className="text-sm text-text-secondary">No notifications yet</p>
+                  <p className="text-xs text-text-secondary mt-1">Activity will appear here</p>
                 </div>
               ) : (
                 items.map((item, index) => {
@@ -167,8 +167,8 @@ export default function NotificationBell() {
                             <span className="w-1.5 h-1.5 rounded-full bg-accent-cyan shrink-0" />
                           )}
                         </div>
-                        <p className="text-xs text-text-muted truncate">{item.body}</p>
-                        <span className="text-[10px] text-text-muted/60 mt-0.5 block">{timeAgo(item.timestamp)}</span>
+                        <p className="text-xs text-text-secondary truncate">{item.body}</p>
+                        <span className="text-[10px] text-text-secondary mt-0.5 block">{timeAgo(item.timestamp)}</span>
                       </div>
                     </motion.div>
                   );

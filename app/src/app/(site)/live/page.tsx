@@ -109,7 +109,7 @@ export default function LivePage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by block #, handle, or keyword..."
-            className="w-full px-5 py-3 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all mb-4"
+            className="w-full px-5 py-3 rounded-xl text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all mb-4"
             style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
           />
           <div className="flex gap-2 justify-center">
@@ -125,7 +125,7 @@ export default function LivePage() {
                 style={{
                   background: tab === t.key ? 'rgba(255,51,51,0.15)' : 'rgba(255,255,255,0.04)',
                   border: `1px solid ${tab === t.key ? 'rgba(255,51,51,0.4)' : 'rgba(255,255,255,0.08)'}`,
-                  color: tab === t.key ? '#ff6b6b' : '#64748b',
+                  color: tab === t.key ? '#ff6b6b' : '#94a3b8',
                 }}
               >
                 {t.label} <span className="ml-1 text-xs opacity-60">{t.count}</span>
@@ -136,7 +136,7 @@ export default function LivePage() {
 
         {/* Content */}
         {loading ? (
-          <div className="text-center text-gray-500 py-20">
+          <div className="text-center text-gray-400 py-20">
             <div className="text-4xl mb-4 animate-pulse">📡</div>
             <p>Scanning the Bitmap universe...</p>
           </div>
@@ -144,7 +144,7 @@ export default function LivePage() {
           <div className="text-center py-20">
             <div className="text-6xl mb-6">🌙</div>
             <h2 className="text-xl font-bold text-gray-300 mb-2">Nothing live right now</h2>
-            <p className="text-gray-500 max-w-md mx-auto mb-6">
+            <p className="text-gray-400 max-w-md mx-auto mb-6">
               The Bitmap universe is quiet. Be the first to go live — own a block, click TimesSquare, and start streaming.
             </p>
             <Link
@@ -193,10 +193,10 @@ export default function LivePage() {
                     </span>
                   </div>
                   {stream.ownerHandle && (
-                    <span className="text-[11px] text-gray-500">@{stream.ownerHandle}</span>
+                    <span className="text-[11px] text-gray-400">@{stream.ownerHandle}</span>
                   )}
                   {stream.label && (
-                    <span className="text-[11px] text-gray-500 ml-2">{stream.label}</span>
+                    <span className="text-[11px] text-gray-400 ml-2">{stream.label}</span>
                   )}
                 </div>
               </Link>
@@ -230,7 +230,7 @@ export default function LivePage() {
                     </span>
                   </div>
                   {game.ownerHandle && (
-                    <span className="text-[11px] text-gray-500">@{game.ownerHandle}</span>
+                    <span className="text-[11px] text-gray-400">@{game.ownerHandle}</span>
                   )}
                 </div>
               </Link>

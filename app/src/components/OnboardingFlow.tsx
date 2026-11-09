@@ -231,7 +231,7 @@ export default function OnboardingFlow() {
                           ? "bg-success/20 text-success border border-success/30 cursor-pointer"
                           : i === step
                           ? "bg-accent-cyan/15 text-accent-cyan border border-accent-cyan/40"
-                          : "bg-bg-tertiary text-text-muted border border-border"
+                          : "bg-bg-tertiary text-text-secondary border border-border"
                       }`}
                     >
                       {i < step ? (
@@ -301,7 +301,7 @@ export default function OnboardingFlow() {
               <div className="flex items-center justify-between px-6 py-4 border-t border-border">
                 <button
                   onClick={handleSkip}
-                  className="text-xs text-text-muted hover:text-text-secondary transition-colors cursor-pointer"
+                  className="text-xs text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
                 >
                   Skip tour
                 </button>
