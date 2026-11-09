@@ -8,7 +8,7 @@
  */
 
 import { displayOwner, resolveDeedOwnership, verifiedOnDeedRule, type BlockOwnership } from '@/lib/blockPageData';
-import { deedStatus } from '@/app/(site)/block/[height]/deed-status';
+import { ageOf, deedStatus } from '@/app/(site)/block/[height]/deed-status';
 import { holderDeedLine, isHolderWallet } from '@/app/(site)/block/[height]/holder-view';
 
 const NOW = Date.UTC(2026, 10, 2, 12, 0, 0);
@@ -119,6 +119,30 @@ describe('holderDeedLine: one line per deed key', () => {
   it('a "verified" key without the deed rule keeps the visitor text', () => {
     const o = own({ ownerAddress: A, inscriptionId: STORED }, 'disputed');
     expect(holderDeedLine(o, { key: 'verified', badge: 'x', tone: 'verified', detail: 'x' }, NOW)).toBeNull();
+  });
+
+  // holder-view.ts says ageOf's age forms again (browser bundle); each age reads as deed-status's ageOf says it.
+  const SEC = 1_000;
+  const MIN = 60 * SEC;
+  const HOUR = 60 * MIN;
+  const AGES: [string, number][] = [
+    ['0 s', 0],
+    ['59 s', 59 * SEC],
+    ['1 min', MIN],
+    ['59 min', 59 * MIN],
+    ['59 min 59 s', 59 * MIN + 59 * SEC],
+    ['1 h', HOUR],
+    ['47 h', 47 * HOUR],
+    ['47 h 59 min', 47 * HOUR + 59 * MIN],
+    ['48 h', 48 * HOUR],
+    ['100 days', 100 * 24 * HOUR],
+    ['5 min in the future', -5 * MIN],
+  ];
+
+  it.each(AGES)('the age %s reads as deed-status says it', (_n, age) => {
+    const checkedAt = new Date(NOW - age).toISOString();
+    const o = own({ ownerAddress: A, inscriptionId: STORED }, 'canonical', { address: A, pending: false, checkedAt });
+    expect(holderDeedLine(o, deedStatus(o, NOW), NOW)).toBe(`You hold this deed · checked ${ageOf(checkedAt, NOW)}`);
   });
 
   it('a long age is said in full (no cap)', () => {

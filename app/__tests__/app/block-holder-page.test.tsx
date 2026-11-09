@@ -142,7 +142,7 @@ function oneOrange(container: HTMLElement) {
   expect(orange[0].closest('[data-testid="block-hero"]')).not.toBeNull();
 }
 
-const HOLDER_STRINGS = ['Your guardian', 'Your deed', 'Your address', 'Manage', 'Open the builder', 'On record for your wallet', 'You hold this deed', 'Set up a guardian', 'Opens in the world view'];
+const HOLDER_STRINGS = ['Your guardian', 'Your deed', 'Your address', 'Manage', 'Open the builder', 'On record for your wallet', 'You hold this deed', 'Set up a guardian', 'Opens in the world view', 'The builder opens in the world view'];
 
 beforeEach(() => {
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
@@ -173,8 +173,9 @@ describe('Your guardian', () => {
     const link = screen.getByRole('link', { name: 'Manage Atlas' });
     expect(link.getAttribute('href')).toBe(`/world/${HEIGHT}`);
     const text = g.textContent ?? '';
-    expect(text.indexOf('Opens in the world view.')).toBeGreaterThan(-1);
-    expect(text.indexOf('Keep private details to yourself.')).toBeGreaterThan(text.indexOf('Opens in the world view.'));
+    expect(text.indexOf('Manage Atlas opens in the world view.')).toBeGreaterThan(-1);
+    expect(text).not.toContain('Opens in the world view.');
+    expect(text.indexOf('Keep private details to yourself.')).toBeGreaterThan(text.indexOf('Manage Atlas opens in the world view.'));
     expect(g.querySelectorAll('[data-swap-focus]')).toHaveLength(1);
     oneOrange(container);
   });
@@ -190,7 +191,9 @@ describe('Your guardian', () => {
     expect(g.textContent).not.toContain('Talk to Atlas');
     expect(g.textContent).not.toContain('Keep private details to yourself.');
     const text = g.textContent ?? '';
-    expect(text.indexOf("isn't taking messages")).toBeGreaterThan(text.indexOf('Opens in the world view.'));
+    expect(text.indexOf('Manage Atlas opens in the world view.')).toBeGreaterThan(-1);
+    expect(text).not.toContain('Opens in the world view.');
+    expect(text.indexOf("isn't taking messages")).toBeGreaterThan(text.indexOf('Manage Atlas opens in the world view.'));
     oneOrange(container);
   });
 
@@ -243,7 +246,8 @@ describe('Your deed and Build', () => {
     expect(builder.getAttribute('href')).toBe('/world/612888');
     expect(b.textContent).not.toContain('Walk the block');
     expect(b.textContent).toContain('See it on the map');
-    expect(b.textContent).toContain('Opens in the world view.');
+    expect(b.textContent).toContain('The builder opens in the world view.');
+    expect(b.textContent).not.toContain('Opens in the world view.');
     oneOrange(container);
   });
 
