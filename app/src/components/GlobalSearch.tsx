@@ -66,6 +66,8 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelId = useId();
+  // A pointer press that started inside the search and has not been released yet.
+  const pressRef = useRef(false);
   const debounceRef = useRef<NodeJS.Timeout>(null);
   // Only the newest search may fill the dropdown (REVIEW bg57 P2-3).
   const [latest] = useState(latestRequest);
@@ -143,6 +145,24 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  // A press ends wherever the pointer is released.
+  useEffect(() => {
+    const release = () => { pressRef.current = false; };
+    document.addEventListener("pointerup", release);
+    document.addEventListener("mouseup", release);
+    return () => {
+      document.removeEventListener("pointerup", release);
+      document.removeEventListener("mouseup", release);
+    };
+  }, []);
+
+  // The selected result stays visible inside the panel as the arrow keys move it.
+  useEffect(() => {
+    if (selectedIdx < 0) return;
+    const el = document.getElementById(`${panelId}-option-${selectedIdx}`);
+    el?.scrollIntoView?.({ block: "nearest" });
+  }, [selectedIdx, panelId]);
 
   // Keyboard shortcut: Cmd+K or Ctrl+K
   useEffect(() => {
@@ -223,14 +243,29 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
     }
   };
 
-  // Keyboard focus moving on to the rest of the page closes the panel, as a click outside does.
+  // Focus moving on (to the rest of the page, to the box's own clear button, or out of the page) closes the panel, as a
+  // click outside does. It stays open while focus is in the box or the panel, and on a blur with no new target while a
+  // press inside the search is under way: a row click in Safari blurs the box to the page before the click lands.
   const handleBlur = (e: React.FocusEvent) => {
     const next = e.relatedTarget as Node | null;
-    if (next && !containerRef.current?.contains(next)) {
+    const panel = document.getElementById(panelId);
+    const staysInside = next ? next === inputRef.current || Boolean(panel?.contains(next)) : pressRef.current;
+    if (!staysInside) {
       setIsOpen(false);
       setShowRecent(false);
     }
   };
+  const startPress = () => { pressRef.current = true; };
+
+  const optionId = (idx: number) => `${panelId}-option-${idx}`;
+  // The box names the selected result while the results show, so a screen reader reads it as the arrows move.
+  const activeId = isOpen && results && selectedIdx >= 0 && allResults[selectedIdx] ? optionId(selectedIdx) : undefined;
+  const optionProps = (idx: number) => ({
+    id: optionId(idx),
+    role: "option" as const,
+    "aria-selected": selectedIdx === idx,
+    tabIndex: -1,
+  });
 
   const tierColors: Record<number, string> = {
     1: "#f7931a",
@@ -239,7 +274,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
   };
 
   return (
-    <div ref={containerRef} className="relative" onBlur={handleBlur}>
+    <div ref={containerRef} className="relative" onBlur={handleBlur} onPointerDown={startPress} onMouseDown={startPress}>
       {/* Search Input */}
       <div className="relative flex items-center">
         <svg
@@ -262,6 +297,8 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
           role="combobox"
           aria-expanded={Boolean(showDropdown)}
           aria-controls={panelId}
+          aria-autocomplete="list"
+          aria-activedescendant={activeId}
           className={`${size === "page" ? "w-full min-h-[56px] text-base" : "w-full lg:w-[180px] xl:w-[240px] min-h-[44px] text-sm"} pl-9 pr-12 rounded-full border border-border bg-bg-secondary/60 text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-[#00ffcc]/50 focus:ring-1 focus:ring-[#00ffcc]/20 transition-all`}
         />
         {/* Shortcut hint */}
@@ -371,10 +408,13 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
               <div className="px-4 py-3 text-sm text-text-secondary">No results for &ldquo;{query}&rdquo;</div>
             )}
 
+            {/* The results: one list of options in groups; the arrows and Enter choose, rows are not Tab stops. */}
+            {results && allResults.length > 0 && (
+            <div role="listbox" aria-label="Search results">
             {/* Blocks */}
-            {results && results.blocks.length > 0 && (
-              <div>
-                <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary">
+            {results.blocks.length > 0 && (
+              <div role="group" aria-labelledby={`${panelId}-blocks`}>
+                <div id={`${panelId}-blocks`} aria-hidden="true" className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary">
                   Blocks
                 </div>
                 {results.blocks.map((r, i) => {
@@ -382,6 +422,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
                   return (
                     <button
                       key={`block-${r.height}`}
+                      {...optionProps(idx)}
                       onClick={() => navigate(r.url)}
                       className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-bg-tertiary/60 transition-colors ${selectedIdx === idx ? "bg-bg-tertiary/60" : ""}`}
                     >
@@ -401,9 +442,9 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
             )}
 
             {/* Agents */}
-            {results && results.agents.length > 0 && (
-              <div>
-                <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary">
+            {results.agents.length > 0 && (
+              <div role="group" aria-labelledby={`${panelId}-agents`}>
+                <div id={`${panelId}-agents`} aria-hidden="true" className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary">
                   Agents
                 </div>
                 {results.agents.map((r, i) => {
@@ -411,6 +452,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
                   return (
                     <button
                       key={`agent-${r.handle}`}
+                      {...optionProps(idx)}
                       onClick={() => navigate(r.url)}
                       className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-bg-tertiary/60 transition-colors ${selectedIdx === idx ? "bg-bg-tertiary/60" : ""}`}
                     >
@@ -436,9 +478,9 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
             )}
 
             {/* Users */}
-            {results && results.users.length > 0 && (
-              <div>
-                <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary">
+            {results.users.length > 0 && (
+              <div role="group" aria-labelledby={`${panelId}-users`}>
+                <div id={`${panelId}-users`} aria-hidden="true" className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-secondary">
                   Users
                 </div>
                 {results.users.map((r, i) => {
@@ -446,6 +488,7 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
                   return (
                     <button
                       key={`user-${r.handle}`}
+                      {...optionProps(idx)}
                       onClick={() => navigate(r.url)}
                       className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-bg-tertiary/60 transition-colors ${selectedIdx === idx ? "bg-bg-tertiary/60" : ""}`}
                     >
@@ -468,6 +511,8 @@ export default function GlobalSearch({ size = "header" }: { size?: "header" | "p
                   );
                 })}
               </div>
+            )}
+            </div>
             )}
 
             {/* Search hint footer */}
