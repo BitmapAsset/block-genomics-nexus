@@ -162,7 +162,7 @@ export default function WorldHud(props: WorldHudProps) {
   };
 
   const ruler = (
-    <div ref={rulerRef} data-testid="world-ruler" hidden className={`${panelClass} flex items-center gap-2 rounded-full px-3 py-1.5`}>
+    <div ref={rulerRef} data-testid="world-ruler" hidden className={`${panelClass} pointer-events-auto flex items-center gap-2 rounded-full px-3 py-1.5`}>
       {/* The label first, at a fixed width, so a new bar width never moves it (no layout shift). */}
       <span ref={rulerLabelRef} className="min-w-[48px] text-right text-[12px] tabular-nums text-text-2" />
       <span ref={rulerBarRef} data-ruler-bar aria-hidden="true" className="block h-[6px] border-x-2 border-b-2 border-text-2" />
@@ -186,15 +186,16 @@ export default function WorldHud(props: WorldHudProps) {
         if (next && !rootRef.current?.contains(next)) hadFocus.current = false;
       }}
     >
-      {/* On phones the column starts below the title's wrapped caption line, with at least 8 px between them. */}
-      <div className={`pointer-events-auto absolute left-3 ${phone ? 'top-[92px]' : 'top-16'} flex w-[220px] max-w-[calc(100vw-24px)] flex-col gap-2`}>
+      {/* On phones the column starts below the title's wrapped caption line, with at least 8 px between them. The column
+          itself takes no taps (its gaps pass them to the scene); each control and panel in it takes its own. */}
+      <div className={`pointer-events-none absolute left-3 ${phone ? 'top-[92px]' : 'top-16'} flex w-[220px] max-w-[calc(100vw-24px)] flex-col gap-2`}>
         <div role="group" aria-label="View" className="flex flex-col gap-2">
           <button
             ref={flyRef}
             type="button"
             aria-pressed={isFly}
             onClick={() => onViewMode('flyover')}
-            className={modeButton(isFly)}
+            className={`${modeButton(isFly)} pointer-events-auto`}
           >
             <Plane size={18} strokeWidth={1.75} aria-hidden="true" />
             Fly
@@ -205,7 +206,7 @@ export default function WorldHud(props: WorldHudProps) {
               type="button"
               aria-pressed={isWalk}
               onClick={() => onViewMode('street')}
-              className={modeButton(isWalk)}
+              className={`${modeButton(isWalk)} pointer-events-auto`}
             >
               <Footprints size={18} strokeWidth={1.75} aria-hidden="true" />
               Walk
@@ -218,7 +219,7 @@ export default function WorldHud(props: WorldHudProps) {
               aria-expanded={menuOpen}
               aria-controls={menuId}
               onClick={() => setMenuOpen((o) => !o)}
-              className={`${modeButton(analyzeRow !== null)} w-full`}
+              className={`${modeButton(analyzeRow !== null)} pointer-events-auto w-full`}
             >
               <ScanSearch size={18} strokeWidth={1.75} aria-hidden="true" />
               <span className="truncate">{analyzeRow ? `Analyze · ${analyzeRow.label}` : 'Analyze'}</span>
@@ -231,7 +232,7 @@ export default function WorldHud(props: WorldHudProps) {
                 role="group"
                 aria-label="Analyze"
                 data-testid="world-analyze-menu"
-                className="absolute left-0 top-full z-10 mt-2 w-full rounded-[16px] border border-line-2 bg-bg-secondary p-1.5"
+                className="pointer-events-auto absolute left-0 top-full z-10 mt-2 w-full rounded-[16px] border border-line-2 bg-bg-secondary p-1.5"
               >
                 {ANALYZE_ROWS.map((row) => (
                   <button
@@ -250,7 +251,7 @@ export default function WorldHud(props: WorldHudProps) {
         </div>
 
         {(isFly || isWalk) && (
-          <div className={`${panelClass} flex flex-col gap-2 p-3`} data-testid="world-readouts">
+          <div className={`${panelClass} pointer-events-auto flex flex-col gap-2 p-3`} data-testid="world-readouts">
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[13px]">
               <div>
                 <dt className="text-text-3">Speed</dt>
@@ -314,7 +315,7 @@ export default function WorldHud(props: WorldHudProps) {
         {/* The chip and the ruler live in the HUD's own column, clear of the hover card and the reaction bar at
             bottom-left. While the tour is on, the ruler's row is reserved from the first frame, so nothing moves
             when it appears. */}
-        <span data-testid="world-scale-chip" className={`${panelClass} self-start rounded-full px-3 py-1.5 text-[12px] text-text-2`}>
+        <span data-testid="world-scale-chip" className={`${panelClass} pointer-events-auto self-start rounded-full px-3 py-1.5 text-[12px] text-text-2`}>
           {worldScaleChip(parcels)}
         </span>
         {isFly && autoTour && <div data-testid="world-ruler-slot" className="h-[32px] self-start">{ruler}</div>}

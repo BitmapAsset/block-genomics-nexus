@@ -3083,7 +3083,7 @@ function FlyoverController({ active, parcels, autoTour, onExitAutoTour, tourKmh,
 
   // Precompute auto-tour path (figure-8 around block)
   const tourPath = useMemo(() => {
-    const r = BLOCK_SIZE * 0.6;
+    const r = TOUR_RADIUS;
     const points: THREE.Vector3[] = [];
     const segments = 200;
     for (let i = 0; i <= segments; i++) {
