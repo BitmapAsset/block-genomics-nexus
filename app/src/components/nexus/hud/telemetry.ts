@@ -7,7 +7,7 @@
 import { METRES_PER_UNIT } from './scale';
 
 export interface WorldTelemetry {
-  /** Horizontal ground speed, km/h, smoothed. */
+  /** Horizontal ground speed, km/h: the distance moved over the last second of frames, over that time. */
   speedKmh: number;
   /** Camera height above the ground plane, m. */
   altitudeM: number;
@@ -22,23 +22,38 @@ export interface WorldTelemetry {
   lastXUnits: number;
   lastZUnits: number;
   primed: boolean;
+  /** The speed window: each recent frame's time (s) and distance (m), oldest first, and their sums. */
+  winDt: number[];
+  winM: number[];
+  winT: number;
+  winD: number;
 }
 
-/** Smoothing time constant, s: a change of speed is 86 % shown after 1 s and 99.7 % after 3 s. */
-export const SPEED_SMOOTHING_S = 0.5;
+/**
+ * The speed is averaged over at least this much frame time: uneven frames (a slow device, a stall) then read as the
+ * distance really covered over the time really taken, not as the last frame alone.
+ */
+export const SPEED_WINDOW_S = 1;
 
 export function createTelemetry(): WorldTelemetry {
   return {
     speedKmh: 0, altitudeM: 0, distanceM: 0, xM: 0, zM: 0, groundMetresPerPx: null,
-    lastXUnits: 0, lastZUnits: 0, primed: false,
+    lastXUnits: 0, lastZUnits: 0, primed: false, winDt: [], winM: [], winT: 0, winD: 0,
   };
+}
+
+function clearWindow(t: WorldTelemetry): void {
+  t.winDt.length = 0;
+  t.winM.length = 0;
+  t.winT = 0;
+  t.winD = 0;
 }
 
 const finite = (...n: number[]) => n.every(Number.isFinite);
 
 /**
- * One frame of camera motion: speed = horizontal displacement / dt, smoothed; altitude from y; `count` adds the
- * displacement to the walked distance. dt ≤ 0 (or any non-finite input) changes nothing.
+ * One frame of camera motion: speed = horizontal distance over the last second of frames / their time; altitude from
+ * y; `count` adds the displacement to the walked distance. dt ≤ 0 (or any non-finite input) changes nothing.
  */
 export function stepMotion(
   t: WorldTelemetry,
@@ -58,10 +73,17 @@ export function stepMotion(
   t.lastXUnits = m.xUnits;
   t.lastZUnits = m.zUnits;
   if (m.count) t.distanceM += movedM;
-  const instantKmh = (movedM / m.dt) * 3.6;
-  const a = 1 - Math.exp(-m.dt / SPEED_SMOOTHING_S);
-  t.speedKmh += a * (instantKmh - t.speedKmh);
-  if (t.speedKmh < 0.05) t.speedKmh = 0;
+  t.winDt.push(m.dt);
+  t.winM.push(movedM);
+  t.winT += m.dt;
+  t.winD += movedM;
+  // Forget the oldest frames while the rest still cover the window (one long frame alone may exceed it).
+  while (t.winDt.length > 1 && t.winT - t.winDt[0] >= SPEED_WINDOW_S) {
+    t.winT -= t.winDt.shift() as number;
+    t.winD -= t.winM.shift() as number;
+  }
+  const kmh = t.winT > 0 ? (t.winD / t.winT) * 3.6 : 0;
+  t.speedKmh = kmh < 0.05 ? 0 : kmh;
 }
 
 /** A warp or a teleport: the position moves, the speed and the walked distance do not. */
@@ -72,12 +94,14 @@ export function jump(t: WorldTelemetry, xUnits: number, zUnits: number): void {
   t.xM = xUnits * METRES_PER_UNIT;
   t.zM = zUnits * METRES_PER_UNIT;
   t.primed = true;
+  clearWindow(t);
 }
 
 /** A controller starts: the speed reads 0 until the camera moves. */
 export function resetMotion(t: WorldTelemetry): void {
   t.speedKmh = 0;
   t.primed = false;
+  clearWindow(t);
 }
 
 /** Walk starts: the walked distance starts again from 0. */

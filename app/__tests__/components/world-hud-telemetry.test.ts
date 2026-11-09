@@ -56,6 +56,18 @@ describe('telemetry: measured, never echoed', () => {
     expect(t.distanceM).toBe(0);
   });
 
+  it('uneven frames (a stall, then quick frames) read as the distance covered over the time taken', () => {
+    const t = createTelemetry();
+    let x = 0;
+    stepMotion(t, { xUnits: x, yUnits: 1, zUnits: 0, dt: 1 / 60, count: false });
+    // A slow device: each frame moves 1 m whatever its length (Fly caps motion per frame); one 2 s stall, then 0.05 s.
+    for (let i = 0; i < 10; i++) {
+      x += 1 / U; stepMotion(t, { xUnits: x, yUnits: 1, zUnits: 0, dt: 2, count: false });
+      x += 1 / U; stepMotion(t, { xUnits: x, yUnits: 1, zUnits: 0, dt: 0.05, count: false });
+    }
+    expect(t.speedKmh).toBeCloseTo((2 / 2.05) * 3.6, 6);
+  });
+
   it('a stop reads below 1 km/h within 3 s', () => {
     const t = createTelemetry();
     const x = run(t, 20, 3, 60, false);
