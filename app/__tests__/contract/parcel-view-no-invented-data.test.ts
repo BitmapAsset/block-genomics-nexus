@@ -160,3 +160,40 @@ describe('receive QR is never drawn from a seed', () => {
     expect(offenders(SRC, /qrModules/)).toEqual([]);
   });
 });
+
+describe('the HUD prints readings, not constants', () => {
+  // The Fly HUD once printed `ALT: {FLY_HEIGHT * METERS_PER_UNIT}m` and `SPD: 72 km/h`: constants dressed as
+  // readings. The HUD now prints only what the camera measured (hud/telemetry) and the chain's own count.
+  const HUD_FILE = path.join(__dirname, '..', '..', 'src', 'components', 'nexus', 'hud', 'WorldHud.tsx');
+  const HUD = fs.existsSync(HUD_FILE) ? fs.readFileSync(HUD_FILE, 'utf8') : '';
+
+  it('the HUD lives in hud/WorldHud.tsx', () => {
+    expect(HUD).not.toBe('');
+  });
+
+  it('neither file prints the fly height or a literal 72 as a reading', () => {
+    for (const text of [SRC, HUD]) {
+      expect(offenders(text, /FLY_HEIGHT\s*\*\s*METERS_PER_UNIT/)).toEqual([]);
+      expect(offenders(text, /'72'|"72"|>72</)).toEqual([]);
+    }
+  });
+
+  it('the HUD reads speed, altitude and distance only from telemetry', () => {
+    expect(offenders(HUD, /FLY_|AUTO_TOUR|speed\.current/)).toEqual([]);
+    const writes = offenders(HUD, /'data-(speed-kmh|alt-m|distance-m)'/);
+    expect(writes.length).toBe(3);
+    for (const line of writes) expect(line).toMatch(/telemetry\./);
+    for (const fmt of ['formatKmh(telemetry.speedKmh)', 'formatMetres(telemetry.altitudeM)', 'formatDistance(telemetry.distanceM)']) {
+      expect(HUD).toContain(fmt);
+    }
+  });
+
+  it('no controller hands its own speed setting to telemetry', () => {
+    expect(offenders(SRC, /stepMotion\([^)]*speed\.current/)).toEqual([]);
+    expect(offenders(SRC, /telemetry\.speedKmh\s*=/)).toEqual([]);
+  });
+
+  it('the parcel count is the chain\'s count for real data only', () => {
+    expect(SRC).toContain("parcels={dataSource === 'real' && realBlock ? realBlock.txCount : null}");
+  });
+});
