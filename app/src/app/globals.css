@@ -440,6 +440,10 @@ html {
   html {
     scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
+  /* While the block page's phone dock shows above the tab bar: the tab bar's 64 px plus the dock's 79 px. */
+  html:has([data-testid="phone-dock"]) {
+    scroll-padding-bottom: calc(143px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* Haptic-style active state for buttons */
