@@ -89,7 +89,7 @@ export default function BuildCard({ data, now, holder = false }: { data: BlockPa
             </Link>
             {mapLink}
           </div>
-          <p className="mt-2 text-[12.5px] text-text-3">Opens in the world view.</p>
+          <p className="mt-2 text-[12.5px] text-text-3">The builder opens in the world view.</p>
         </div>
       ) : (
         <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 pt-4">

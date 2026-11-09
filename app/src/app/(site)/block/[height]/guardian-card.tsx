@@ -207,7 +207,7 @@ export default function GuardianCard({
             </Link>
             {active && <GuardianAction height={height} name={g.name} mode={g.llmConfigured ? 'talk' : 'message'} />}
           </div>
-          {worldNote}
+          <p className="mt-2 text-[12.5px] text-text-3">{`Manage ${g.name} opens in the world view.`}</p>
           {active ? (
             <p className="mt-1 text-[12.5px] text-text-3">Keep private details to yourself.</p>
           ) : (
