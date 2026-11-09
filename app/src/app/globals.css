@@ -567,6 +567,37 @@ html {
 .doc-prose h2 a.anchor,
 .doc-prose h3 a.anchor { border: 0; }
 
+/* Docs colours (tone badges, HTTP method labels, inline code, the title gradient): today's values in the dark theme,
+   darker ones of the same hue under .light, which comes after so it wins there. */
+:root {
+  --doc-tone-cyan: #66ccff;
+  --doc-tone-bitcoin: #f7931a;
+  --doc-tone-purple: #c9a5f7;
+  --doc-method-get: #66ccff;
+  --doc-method-post: #4ade80;
+  --doc-method-delete: #ff6b6b;
+  --doc-method-other: #f7931a;
+  --doc-code-text: #cfe8ff;
+  --doc-title-1: #66ccff;
+  --doc-title-2: #ffffff;
+  --doc-title-3: #a855f7;
+  --doc-title-4: #f7931a;
+}
+.light {
+  --doc-tone-cyan: #0e7490;
+  --doc-tone-bitcoin: #92400e;
+  --doc-tone-purple: #6d28d9;
+  --doc-method-get: #0e7490;
+  --doc-method-post: #166534;
+  --doc-method-delete: #b91c1c;
+  --doc-method-other: #92400e;
+  --doc-code-text: #0c4a6e;
+  --doc-title-1: #0e7490;
+  --doc-title-2: #0f172a;
+  --doc-title-3: #7c3aed;
+  --doc-title-4: #c2410c;
+}
+
 /* Inline code used in bespoke docs JSX (outside .doc-prose) */
 .doc-inline-code {
   font-family: var(--font-mono);
@@ -575,7 +606,7 @@ html {
   border-radius: 5px;
   background: rgba(102, 204, 255, 0.08);
   border: 1px solid rgba(102, 204, 255, 0.14);
-  color: #cfe8ff;
+  color: var(--doc-code-text);
   white-space: nowrap;
 }
 

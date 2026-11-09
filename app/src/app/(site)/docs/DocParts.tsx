@@ -36,9 +36,9 @@ export function P({ children }: { children: React.ReactNode }) {
 
 export function Badge({ children, color }: { children: React.ReactNode; color: 'cyan' | 'bitcoin' | 'purple' }) {
   const map = {
-    cyan: { bg: 'rgba(102,204,255,0.1)', bd: 'rgba(102,204,255,0.3)', fg: '#66ccff' },
-    bitcoin: { bg: 'rgba(247,147,26,0.08)', bd: 'rgba(247,147,26,0.25)', fg: '#f7931a' },
-    purple: { bg: 'rgba(168,85,247,0.1)', bd: 'rgba(168,85,247,0.3)', fg: '#c9a5f7' },
+    cyan: { bg: 'rgba(102,204,255,0.1)', bd: 'rgba(102,204,255,0.3)', fg: 'var(--doc-tone-cyan)' },
+    bitcoin: { bg: 'rgba(247,147,26,0.08)', bd: 'rgba(247,147,26,0.25)', fg: 'var(--doc-tone-bitcoin)' },
+    purple: { bg: 'rgba(168,85,247,0.1)', bd: 'rgba(168,85,247,0.3)', fg: 'var(--doc-tone-purple)' },
   }[color];
   return (
     <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" style={{ background: map.bg, border: `1px solid ${map.bd}`, color: map.fg }}>
@@ -65,7 +65,13 @@ export function Td({ children }: { children: React.ReactNode }) {
 }
 
 export function methodColor(m: string): string {
-  return m === 'GET' ? '#66ccff' : m === 'POST' ? '#4ade80' : m === 'DELETE' ? '#ff6b6b' : '#f7931a';
+  return m === 'GET'
+    ? 'var(--doc-method-get)'
+    : m === 'POST'
+      ? 'var(--doc-method-post)'
+      : m === 'DELETE'
+        ? 'var(--doc-method-delete)'
+        : 'var(--doc-method-other)';
 }
 
 export function RefTable({ rows, left, right }: { rows: [string, string][]; left: string; right: string }) {

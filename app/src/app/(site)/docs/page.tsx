@@ -95,7 +95,7 @@ export default function DocsPage() {
         <h1
           className="mb-4 text-4xl font-black tracking-tight sm:text-5xl"
           style={{
-            background: 'linear-gradient(135deg, #66ccff 0%, #ffffff 40%, #a855f7 75%, #f7931a 100%)',
+            background: 'linear-gradient(135deg, var(--doc-title-1) 0%, var(--doc-title-2) 40%, var(--doc-title-3) 75%, var(--doc-title-4) 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
