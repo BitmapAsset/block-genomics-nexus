@@ -31,7 +31,7 @@ export default function CodeBlock({ code, lang = 'bash', title }: CodeBlockProps
         className="flex items-center justify-between px-4 py-1"
         style={{ borderBottom: '1px solid var(--color-border)', background: 'rgba(255,255,255,0.02)' }}
       >
-        <span className="font-mono text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+        <span className="font-mono text-xs" style={{ color: '#94a3b8' }}>
           {title ?? lang}
         </span>
         <button
