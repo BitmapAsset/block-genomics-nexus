@@ -145,6 +145,14 @@ describe('docs colours in both themes', () => {
     },
   );
 
+  it('the code block file-name label keeps a fixed light grey, because the code panel and its strip stay dark in both themes', () => {
+    const src = read('(site)/docs/CodeBlock.tsx');
+    const label = src.match(/<span className="font-mono text-xs" style=\{\{ color: ([^}]*) \}\}>\s*\{title \?\? lang\}/);
+    expect(label).not.toBeNull();
+    expect((label as RegExpMatchArray)[1].trim()).toBe("'#94a3b8'");
+    expect(src).toMatch(/background: '#0c0c14'/);
+  });
+
   it.each([['(site)/docs/page.tsx'], ['(site)/docs/experience-hosting/page.tsx']])(
     '%s: the title gradient is drawn from the variables',
     (file) => {
