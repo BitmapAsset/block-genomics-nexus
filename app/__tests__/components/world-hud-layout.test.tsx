@@ -9,7 +9,8 @@ import path from 'path';
 import * as React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import WorldHud, { SPEED_MAX_KMH, SPEED_MIN_KMH, SPEED_STEP_KMH, type WorldHudProps } from '@/components/nexus/hud/WorldHud';
-import { createTelemetry } from '@/components/nexus/hud/telemetry';
+import { createTelemetry, figureEightLength, figureEightPoint, stepMotion } from '@/components/nexus/hud/telemetry';
+import { unitsPerSecondFromKmh } from '@/components/nexus/hud/scale';
 
 const PV = fs.readFileSync(path.join(__dirname, '../../src/components/nexus/ParcelView.tsx'), 'utf8');
 
@@ -91,6 +92,37 @@ describe('the tour keeps today\'s pace by default', () => {
     expect(PV).toContain('const FLY_SPEED = 27.8 / METERS_PER_UNIT;');
     expect(PV).toContain('const DEFAULT_CRUISE_KMH = Math.round(FLY_SPEED * METERS_PER_UNIT * 3.6);');
     expect(Math.round(27.8 * 3.6)).toBe(100);
+  });
+
+  it('over one whole loop at the default, the readout averages 56 km/h (the tour\'s stepping, at 60 frames per second)', () => {
+    // The tour's own stepping (FlyoverController): a 200-segment figure-8 of radius 12 units, advanced by the loop's
+    // real length, the camera easing toward the point at dt x 3, telemetry stepped every frame and read every 6th.
+    const r = 12;
+    const segments = 200;
+    const pts = Array.from({ length: segments + 1 }, (_, i) => figureEightPoint(r, (i / segments) * Math.PI * 2));
+    const loop = figureEightLength(r, 512);
+    const dt = 1 / 60;
+    const t = createTelemetry();
+    let progress = 0;
+    let [x, z] = pts[0];
+    const reads: number[] = [];
+    const frames = Math.ceil(((loop / unitsPerSecondFromKmh(tourDefault)) + 3) / dt);
+    for (let f = 0; f < frames; f++) {
+      progress += (unitsPerSecondFromKmh(tourDefault) * dt) / loop * segments;
+      if (progress >= segments) progress -= segments;
+      const i = Math.floor(progress) % segments;
+      const frac = progress - Math.floor(progress);
+      const tx = pts[i][0] + (pts[i + 1][0] - pts[i][0]) * frac;
+      const tz = pts[i][1] + (pts[i + 1][1] - pts[i][1]) * frac;
+      x += (tx - x) * dt * 3;
+      z += (tz - z) * dt * 3;
+      stepMotion(t, { xUnits: x, yUnits: 100 / 105, zUnits: z, dt, count: false });
+      if (f >= 3 / dt && f % 6 === 0) reads.push(t.speedKmh);
+    }
+    const mean = reads.reduce((a, b) => a + b, 0) / reads.length;
+    expect(Math.abs(mean - 56)).toBeLessThanOrEqual(56 * 0.02);
+    expect(Math.max(...reads)).toBeGreaterThan(80); // the centre crossing is the loop's fastest stretch
+    expect(Math.min(...reads)).toBeLessThan(40);
   });
 
   it('the label reads "Tour speed · 56 km/h" at the default', () => {
