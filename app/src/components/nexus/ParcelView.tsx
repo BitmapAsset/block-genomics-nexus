@@ -2787,12 +2787,14 @@ const FLY_BOOST_SPEED = 55.6 / METERS_PER_UNIT; // 200 km/h
 const FLY_MOUSE_SENSITIVITY = 0.003;
 const FLY_MIN_HEIGHT = 20 / METERS_PER_UNIT;
 const FLY_MAX_HEIGHT = 300 / METERS_PER_UNIT;
-const AUTO_TOUR_SPEED = 20 / METERS_PER_UNIT;   // 72 km/h
 // Space / Ctrl climb and the velocity build-up keep the original rates; only the horizontal cruise follows the setting.
 const CLIMB_SPEED = FLY_SPEED;
 const CLIMB_BOOST_SPEED = FLY_BOOST_SPEED;
-/** The settings' defaults: the tour 72 km/h, free flight 100 km/h (Shift doubles it, at most 200 km/h). */
-const DEFAULT_TOUR_KMH = Math.round(AUTO_TOUR_SPEED * METERS_PER_UNIT * 3.6);
+/**
+ * The settings' defaults: the tour 56 km/h, free flight 100 km/h (Shift doubles it, at most 200 km/h). The tour's
+ * default keeps the pace it has always flown (57.9 km/h on average over its 6,362 m loop), on the control's 4 km/h steps.
+ */
+const DEFAULT_TOUR_KMH = 56;
 const DEFAULT_CRUISE_KMH = Math.round(FLY_SPEED * METERS_PER_UNIT * 3.6);
 const MAX_FLY_KMH = 200;
 const MOUSE_SENSITIVITY = 0.004;
