@@ -28,7 +28,7 @@ import WorldHud from './hud/WorldHud';
 import { metresOf, unitsPerSecondFromKmh } from './hud/scale';
 import { createTelemetry, figureEightLength, groundMetresPerPx, jump, resetMotion, resetWalk, stepMotion, type WorldTelemetry } from './hud/telemetry';
 import { controllerIgnoresKey } from './hud/keys';
-import { isLookDrag } from './hud/clicks';
+import { createLookTracker, isLookDrag, LOOK_DRAG_PX } from './hud/clicks';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import dynamic from 'next/dynamic';
 const GuardianConfigPanel = dynamic(() => import('../GuardianConfigPanel'), { ssr: false });
@@ -2912,7 +2912,7 @@ function StreetWalker({ active, parcels, teleportTo, runLocked, telemetry }: {
 
     // Click+drag to look — must drag >3px to activate (avoids conflict with parcel click)
     let mouseStartX = 0, mouseStartY = 0;
-    const dragThreshold = 3;
+    const dragThreshold = LOOK_DRAG_PX;
     const onMouseDown = (e: MouseEvent) => {
       if (e.button === 0 || e.button === 2) {
         mouseStartX = e.clientX;
@@ -3111,10 +3111,28 @@ function FlyoverController({ active, parcels, autoTour, onExitAutoTour, tourKmh,
     };
     const onKeyUp = (e: KeyboardEvent) => keys.current.delete(e.code);
     // Look-drag starts on the canvas only: dragging a HUD control (the speed thumb) never turns the camera.
-    const onMouseDown = (e: MouseEvent) => { if (e.button === 0) dragging.current = true; };
-    const onMouseUp = () => { dragging.current = false; };
+    // As in Walk, the view turns only once the pointer has gone more than LOOK_DRAG_PX from the press.
+    let pressX = 0, pressY = 0, looking = false;
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) {
+        dragging.current = true;
+        pressX = e.clientX;
+        pressY = e.clientY;
+        looking = false;
+      }
+    };
+    const onMouseUp = () => { dragging.current = false; looking = false; };
     const onMouseMove = (e: MouseEvent) => {
       if (!dragging.current) return;
+      if (!looking) {
+        const dx = e.clientX - pressX;
+        const dy = e.clientY - pressY;
+        if (Math.sqrt(dx * dx + dy * dy) > LOOK_DRAG_PX) {
+          looking = true;
+        } else {
+          return;
+        }
+      }
       yaw.current -= e.movementX * FLY_MOUSE_SENSITIVITY;
       pitch.current = Math.max(-80 * Math.PI / 180, Math.min(20 * Math.PI / 180,
         pitch.current - e.movementY * FLY_MOUSE_SENSITIVITY));
@@ -5710,6 +5728,25 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     setSelectedParcel(parcels[newIdx]);
   };
 
+  // How far each press went from its press point, for the look-drag guard in handleParcelClick. Window listeners in
+  // the capture phase, so mouse and touch count alike and a control that stops propagation cannot hide a move.
+  const [lookTracker] = useState(createLookTracker);
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => lookTracker.press(e.clientX, e.clientY);
+    const onMove = (e: PointerEvent) => lookTracker.move(e.clientX, e.clientY);
+    const onUp = () => lookTracker.release();
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('pointercancel', onUp, true);
+    return () => {
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onUp, true);
+    };
+  }, [lookTracker]);
+
   const computeFlyTarget = useCallback((p: ParcelData, closeUp: boolean): FlyTarget => {
     const h = Math.max(0.15, p.buildHeight * 4);
     const dist = closeUp ? 1.5 : 3.5;
@@ -5721,8 +5758,9 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
   }, []);
 
   const handleParcelClick = useCallback((p: ParcelData, dragPx?: number) => {
-    // A look-drag in Walk or Fly that ends on a parcel is not a click on it: no warp, no selection.
-    if (isLookDrag(viewMode, dragPx)) return;
+    // A look-drag in Walk or Fly that ends on a parcel is not a click on it: no warp, no selection. It is judged by
+    // how far the pointer went from the press, not by where it ended (a drag out and back is still a look).
+    if (isLookDrag(viewMode, Math.max(dragPx ?? 0, lookTracker.farthestPx()))) return;
     setSelectedParcel(p);
     setParcelNavIndex(p.txIndex);
     if (viewMode === 'street' || viewMode === 'flyover') {
@@ -5733,7 +5771,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
       setFlyTarget(target);
       if (controlsRef.current) controlsRef.current.enabled = false;
     }
-  }, [computeFlyTarget, viewMode]);
+  }, [computeFlyTarget, viewMode, lookTracker]);
 
   const handleParcelDoubleClick = useCallback((p: ParcelData) => {
     setSelectedParcel(p);
@@ -6121,7 +6159,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
 
         {/* Hover tooltip */}
         {hoveredParcel && viewMode !== 'dna' && (
-          <div className="absolute bottom-4 left-16 z-40 px-4 py-3 rounded-xl font-mono pointer-events-none"
+          <div className="absolute bottom-[124px] left-[256px] z-40 px-4 py-3 rounded-xl font-mono pointer-events-none"
             style={{ background: 'rgba(10,10,15,0.95)', border: '1px solid rgba(247,147,26,0.3)', backdropFilter: 'blur(16px)', color: '#e2e8f0', minWidth: 240 }}
           >
             <div className="flex items-center gap-2 mb-2">
