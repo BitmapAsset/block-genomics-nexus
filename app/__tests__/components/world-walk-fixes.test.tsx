@@ -29,7 +29,13 @@ function callbackSource(name: string): string {
   return PV.slice(start, PV.indexOf('}, [', start));
 }
 
-function loadClicks(): { isLookDrag: (viewMode: string, dragPx?: number) => boolean; LOOK_DRAG_PX: number } {
+interface LookTrackerLike { press(x: number, y: number): void; move(x: number, y: number): void; release(): void; farthestPx(): number }
+
+function loadClicks(): {
+  isLookDrag: (viewMode: string, dragPx?: number) => boolean;
+  LOOK_DRAG_PX: number;
+  createLookTracker?: () => LookTrackerLike;
+} {
   const file = path.join(HUD_DIR, 'clicks.ts');
   expect(fs.existsSync(file)).toBe(true);
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -90,13 +96,12 @@ describe('a look-drag never counts as a click on a parcel, in Walk and Fly', () 
   it('one threshold: a drag that turns Walk\'s camera is never a click (same distance, same comparison)', () => {
     const { isLookDrag, LOOK_DRAG_PX } = loadClicks();
     const walk = fnSource('StreetWalker');
-    const m = walk.match(/const dragThreshold = (\d+(?:\.\d+)?);/);
-    expect(m).not.toBeNull();
-    const walkPx = Number(m![1]);
+    // Walk's threshold is the guard's own constant, not a second literal.
+    expect(walk).toMatch(/const dragThreshold = LOOK_DRAG_PX;/);
+    expect(PV).toMatch(/import \{[^}]*\bLOOK_DRAG_PX\b[^}]*\} from '\.\/hud\/clicks';/);
+    const walkPx = LOOK_DRAG_PX;
     // Walk turns the camera once the straight-line distance from the press passes the threshold (strictly).
     expect(walk).toMatch(/if \(Math\.sqrt\(dx \* dx \+ dy \* dy\) > dragThreshold\)/);
-    // R3F's e.delta is the same straight-line distance from the press; the guard compares it the same way.
-    expect(LOOK_DRAG_PX).toBe(walkPx);
     const clicks = fs.readFileSync(path.join(HUD_DIR, 'clicks.ts'), 'utf8');
     expect(clicks).toMatch(/dragPx > LOOK_DRAG_PX/);
     for (const mode of ['street', 'flyover']) {
@@ -112,10 +117,83 @@ describe('a look-drag never counts as a click on a parcel, in Walk and Fly', () 
     expect(handler).toMatch(/onClick: \(p: ParcelData, dragPx\?: number\) => void;/);
   });
 
+  it('Fly turns the view only after the pointer has gone more than LOOK_DRAG_PX from the press, as Walk does', () => {
+    const fly = fnSource('FlyoverController');
+    const down = fly.slice(fly.indexOf('const onMouseDown'), fly.indexOf('const onMouseUp'));
+    expect(down).toMatch(/e\.clientX/);
+    expect(down).toMatch(/e\.clientY/);
+    const move = fly.slice(fly.indexOf('const onMouseMove'), fly.indexOf('const el = gl.domElement'));
+    expect(move).toMatch(/Math\.sqrt\(dx \* dx \+ dy \* dy\) > LOOK_DRAG_PX/);
+    // The threshold is checked before the view turns.
+    expect(move.indexOf('> LOOK_DRAG_PX')).toBeGreaterThan(-1);
+    expect(move.indexOf('> LOOK_DRAG_PX')).toBeLessThan(move.indexOf('yaw.current -='));
+  });
+
+  it('the look tracker keeps the farthest distance from the press, after the release too', () => {
+    const { createLookTracker } = loadClicks();
+    expect(typeof createLookTracker).toBe('function');
+    const t = createLookTracker!();
+    // Moves without a press count nothing.
+    t.move(500, 500);
+    expect(t.farthestPx()).toBe(0);
+    // Out to 200 px and back to the press point: the farthest point counts, not the end point.
+    t.press(100, 100);
+    t.move(150, 100);
+    t.move(300, 100);
+    t.move(200, 100);
+    t.move(100, 100);
+    expect(t.farthestPx()).toBe(200);
+    // The click arrives after the release: the value stays.
+    t.release();
+    expect(t.farthestPx()).toBe(200);
+    // Moves after the release do not count.
+    t.move(1000, 1000);
+    expect(t.farthestPx()).toBe(200);
+    // A new press starts from 0.
+    t.press(10, 10);
+    expect(t.farthestPx()).toBe(0);
+    t.move(13, 14);
+    expect(t.farthestPx()).toBe(5);
+  });
+
+  it('an out-and-back drag (end point 0 px, farthest 200 px) is a look in Walk and Fly, a click elsewhere', () => {
+    const { isLookDrag } = loadClicks();
+    expect(isLookDrag('street', Math.max(0, 200))).toBe(true);
+    expect(isLookDrag('flyover', Math.max(0, 200))).toBe(true);
+    expect(isLookDrag('street', 200)).toBe(true);
+    expect(isLookDrag('flat', 200)).toBe(false);
+    for (const mode of ['flat', 'isometric', 'heights', 'dna']) expect(isLookDrag(mode, 200)).toBe(false);
+  });
+
+  it('handleParcelClick judges by the larger of the click\'s delta and the farthest distance of the press', () => {
+    const body = callbackSource('handleParcelClick');
+    const m = body.match(/if \(isLookDrag\(viewMode, Math\.max\(dragPx \?\? 0, (\w+)\.farthestPx\(\)\)\)\) return;/);
+    expect(m).not.toBeNull();
+    expect(body).not.toMatch(/isLookDrag\(viewMode, dragPx\)/);
+    const tracker = m![1];
+    // One tracker for the life of the view.
+    expect(PV).toMatch(new RegExp(`const \\[${tracker}\\] = useState\\(createLookTracker\\);`));
+  });
+
+  it('the tracker hears every pointer on the window (capture phase), and the listeners go on unmount', () => {
+    const at = PV.indexOf('.press(e.clientX, e.clientY)');
+    expect(at).toBeGreaterThan(-1);
+    const start = PV.lastIndexOf('useEffect(', at);
+    const effect = PV.slice(start, PV.indexOf('}, [', at));
+    const cleanup = effect.slice(effect.indexOf('return () =>'));
+    expect(effect.indexOf('return () =>')).toBeGreaterThan(-1);
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
+      expect(effect).toMatch(new RegExp(`window\\.addEventListener\\('${type}', \\w+, true\\)`));
+      expect(cleanup).toMatch(new RegExp(`window\\.removeEventListener\\('${type}', \\w+, true\\)`));
+    }
+    expect(effect).toMatch(/\.move\(e\.clientX, e\.clientY\)/);
+    expect(effect).toMatch(/\.release\(\)/);
+  });
+
   it('handleParcelClick returns before selecting or warping when the click was a look-drag', () => {
     const body = callbackSource('handleParcelClick');
     expect(body).toMatch(/\(p: ParcelData, dragPx\?: number\)/);
-    const guard = body.indexOf('if (isLookDrag(viewMode, dragPx)) return;');
+    const guard = body.search(/if \(isLookDrag\(viewMode, [^\n]*\)\) return;/);
     expect(guard).toBeGreaterThan(-1);
     expect(guard).toBeLessThan(body.indexOf('setSelectedParcel(p)'));
     expect(guard).toBeLessThan(body.indexOf('setStreetTeleport'));
@@ -130,6 +208,19 @@ describe('a look-drag never counts as a click on a parcel, in Walk and Fly', () 
 });
 
 describe('the scale chip and the ruler stay clear of the hover card and the reaction bar', () => {
+  it('the hover card sits right of the HUD column and above the bottom row (keyboard hints, back link)', () => {
+    const at = PV.indexOf('{/* Hover tooltip */}\n        {hoveredParcel');
+    expect(at).toBeGreaterThan(-1);
+    const card = PV.slice(at, PV.indexOf('\n', PV.indexOf('<div className=', at)));
+    const cls = (card.match(/<div className="([^"]*)"/) ?? ['', ''])[1].split(/\s+/);
+    expect(cls).toContain('left-[256px]');
+    expect(cls).toContain('bottom-[124px]');
+    expect(cls).not.toContain('left-16');
+    expect(cls).not.toContain('bottom-4');
+    // Its look stays.
+    for (const c of ['absolute', 'z-40', 'px-4', 'py-3', 'rounded-xl', 'font-mono', 'pointer-events-none']) expect(cls).toContain(c);
+  });
+
   it.each([false, true])('they sit in the HUD\'s left column, below the readouts (phone %s)', (phone) => {
     render(<WorldHud {...props({ phone })} />);
     const chip = screen.getByTestId('world-scale-chip');
