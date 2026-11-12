@@ -188,7 +188,7 @@ export default function WorldHud(props: WorldHudProps) {
     >
       {/* On phones the column spans the width under the title (one caption line or none) and starts at 64 px like
           desktop's; it takes no taps itself (its gaps pass them to the scene). */}
-      <div className={phone ? 'pointer-events-none absolute left-3 right-3 top-16 flex flex-col gap-2' : 'pointer-events-none absolute left-3 top-16 flex w-[220px] max-w-[calc(100vw-24px)] flex-col gap-2'}>
+      <div className={phone ? 'pointer-events-none absolute left-3 right-3 top-16 flex max-w-[420px] flex-col gap-2' : 'pointer-events-none absolute left-3 top-16 flex w-[220px] max-w-[calc(100vw-24px)] flex-col gap-2'}>
         <div role="group" aria-label="View" className={phone ? 'flex flex-row gap-2 max-w-[calc(100%-77px)]' : 'flex flex-col gap-2'}>
           <button
             ref={flyRef}
