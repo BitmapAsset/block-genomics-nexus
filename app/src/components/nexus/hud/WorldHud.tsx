@@ -186,10 +186,10 @@ export default function WorldHud(props: WorldHudProps) {
         if (next && !rootRef.current?.contains(next)) hadFocus.current = false;
       }}
     >
-      {/* On phones the column starts below the title's wrapped caption line, with at least 8 px between them. The column
-          itself takes no taps (its gaps pass them to the scene); each control and panel in it takes its own. */}
-      <div className={`pointer-events-none absolute left-3 ${phone ? 'top-[92px]' : 'top-16'} flex w-[220px] max-w-[calc(100vw-24px)] flex-col gap-2`}>
-        <div role="group" aria-label="View" className="flex flex-col gap-2">
+      {/* On phones the column spans the width under the title (one caption line or none) and starts at 64 px like
+          desktop's; it takes no taps itself (its gaps pass them to the scene). */}
+      <div className={phone ? 'pointer-events-none absolute left-3 right-3 top-16 flex flex-col gap-2' : 'pointer-events-none absolute left-3 top-16 flex w-[220px] max-w-[calc(100vw-24px)] flex-col gap-2'}>
+        <div role="group" aria-label="View" className={phone ? 'flex flex-row gap-2 max-w-[calc(100%-77px)]' : 'flex flex-col gap-2'}>
           <button
             ref={flyRef}
             type="button"
@@ -212,7 +212,7 @@ export default function WorldHud(props: WorldHudProps) {
               Walk
             </button>
           )}
-          <div ref={analyzeBox} className="relative">
+          <div ref={analyzeBox} className={phone ? 'relative min-w-0' : 'relative'}>
             <button
               ref={analyzeRef}
               type="button"
@@ -232,7 +232,7 @@ export default function WorldHud(props: WorldHudProps) {
                 role="group"
                 aria-label="Analyze"
                 data-testid="world-analyze-menu"
-                className="pointer-events-auto absolute left-0 top-full z-10 mt-2 w-full rounded-[16px] border border-line-2 bg-bg-secondary p-1.5"
+                className={`pointer-events-auto absolute left-0 top-full z-10 mt-2 w-full rounded-[16px] border border-line-2 bg-bg-secondary p-1.5${phone ? ' min-w-[176px]' : ''}`}
               >
                 {ANALYZE_ROWS.map((row) => (
                   <button
@@ -251,8 +251,8 @@ export default function WorldHud(props: WorldHudProps) {
         </div>
 
         {(isFly || isWalk) && (
-          <div className={`${panelClass} pointer-events-auto flex flex-col gap-2 p-3`} data-testid="world-readouts">
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[13px]">
+          <div className={phone ? `${panelClass} pointer-events-auto grid grid-cols-2 items-center gap-x-3 gap-y-2 p-3` : `${panelClass} pointer-events-auto flex flex-col gap-2 p-3`} data-testid="world-readouts">
+            <dl className={phone ? 'grid grid-cols-[76px_auto] gap-x-4 text-[13px]' : 'grid grid-cols-2 gap-x-3 gap-y-1 text-[13px]'}>
               <div>
                 <dt className="text-text-3">Speed</dt>
                 <dd className="font-mono text-[15px] text-text-1"><span ref={speedRef} data-readout="speed">0 km/h</span></dd>
