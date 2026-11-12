@@ -55,7 +55,7 @@ describe('on phones the HUD is one full-width column at the top', () => {
   it('phones: the column spans left-3 to right-3 from top-16', () => {
     render(<WorldHud {...props({ phone: true })} />);
     const c = classes(topGroup());
-    for (const k of ['top-16', 'left-3', 'right-3', 'flex-col']) expect(c).toContain(k);
+    for (const k of ['top-16', 'left-3', 'right-3', 'max-w-[420px]', 'flex-col']) expect(c).toContain(k);
     expect(c).not.toContain('w-[220px]');
     expect(c).not.toContain('top-[92px]');
   });

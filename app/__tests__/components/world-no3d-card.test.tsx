@@ -18,6 +18,11 @@ describe('the no-3D card', () => {
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe("This browser can't show the 3D block");
   });
 
+  it('balances the title over its lines (no word alone on the second line)', () => {
+    render(<No3dCard {...base} phone />);
+    expect(screen.getByRole('heading', { level: 2 }).className.split(/\s+/)).toContain('text-balance');
+  });
+
   it('is a labelled section, not a dialog', () => {
     render(<No3dCard {...base} phone />);
     const section = screen.getByTestId('world-no3d');

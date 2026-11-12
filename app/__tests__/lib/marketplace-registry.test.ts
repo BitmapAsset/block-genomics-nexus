@@ -167,18 +167,21 @@ describe('adapter fault isolation', () => {
   });
 
   it('queries venues concurrently rather than one after another', async () => {
+    // Order, not a clock: every venue must start before any of them finishes.
+    const events: string[] = [];
     const slow = (id: string) =>
       createMockVenue({
         id,
         result: async () => {
+          events.push(`start:${id}`);
           await new Promise((r) => setTimeout(r, 60));
+          events.push(`end:${id}`);
           return { ok: true, listing: mockListing({ venue: id, priceSats: 1 }) };
         },
       });
-    const started = Date.now();
     await getBlockMarket(QUERY, { venues: [slow('a'), slow('b'), slow('c')] });
-    // Serial would be ~180ms. Generous bound to stay stable on a loaded CI box.
-    expect(Date.now() - started).toBeLessThan(150);
+    expect(events.slice(0, 3).every((e) => e.startsWith('start:'))).toBe(true);
+    expect(events).toHaveLength(6);
   });
 });
 

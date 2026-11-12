@@ -98,6 +98,14 @@ describe('the flat map keeps focus where a visitor expects it', () => {
     expect(document.activeElement).toBe(screen.getByTestId('world-flat-map'));
   });
 
+  it('the section takes focus without drawing a ring (it is a place, not a control); "Try again" keeps its ring', () => {
+    render(<FlatMap {...props({ dataSource: 'mock', txCount: null })} />);
+    const cls = screen.getByTestId('world-flat-map').className.split(/\s+/);
+    expect(cls).toContain('outline-none');
+    expect(cls).not.toContain('focus-visible:outline-2');
+    expect(screen.getByRole('button', { name: 'Try again' }).className.split(/\s+/)).toContain('focus-visible:outline-2');
+  });
+
   it('with focus on "Try again", turning real leaves focus on the section', () => {
     const { rerender } = render(<FlatMap {...props({ dataSource: 'mock', txCount: null })} />);
     screen.getByRole('button', { name: 'Try again' }).focus();
