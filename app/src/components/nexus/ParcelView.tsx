@@ -10,7 +10,7 @@ import { generateBlock, getEpochColor, getEpoch } from './NexusBlockData';
 import { epochDisplay } from '@/lib/bitmapStandard';
 import { type RealBlockData } from '@/lib/blockchainApi';
 import { useBlockLayoutData, LAYOUT_FADE_MS } from '@/hooks/useBlockLayoutData';
-import { packSquares, packSquaresToWorldSpace, packFrame } from '@/lib/square-packing';
+import { packSquaresToWorldSpace } from '@/lib/square-packing';
 import { completeSatTotals, estimatedSquareSize, logTxSize, txSatsToSizes } from '@/lib/bitmap-layout';
 import Helix from '../dna/Helix';
 import CrownShield, { type ShieldTier } from '../CrownShield';
@@ -29,6 +29,11 @@ import { metresOf, unitsPerSecondFromKmh } from './hud/scale';
 import { createTelemetry, figureEightLength, groundMetresPerPx, jump, resetMotion, resetWalk, stepMotion, type WorldTelemetry } from './hud/telemetry';
 import { controllerIgnoresKey } from './hud/keys';
 import { createLookTracker, isLookDrag, LOOK_DRAG_PX } from './hud/clicks';
+import { worldCaption } from './world/caption';
+import { webgl2Available } from './world/gl-support';
+import SceneBoundary from './world/SceneBoundary';
+import No3dCard from './world/No3dCard';
+import FlatMap from './world/FlatMap';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import dynamic from 'next/dynamic';
 const GuardianConfigPanel = dynamic(() => import('../GuardianConfigPanel'), { ssr: false });
@@ -3302,7 +3307,7 @@ function CameraManager({ viewMode }: { viewMode: ViewMode }) {
 
   useFrame((_, delta) => {
     if (!animating.current) return;
-    camera.position.lerp(targetPos.current, delta * 3);
+    camera.position.lerp(targetPos.current, Math.min(1, delta * 3));
     frameCount.current++;
     const dist = camera.position.distanceTo(targetPos.current);
     if (dist < 0.1 || frameCount.current > 120) {
@@ -4890,137 +4895,6 @@ function EmojiReactionBar({ onReact }: { onReact: (emoji: string) => void }) {
 }
 
 /* ═══════════════════════════════════════════
-   Standard Bitmap Canvas (2D Bitfeed-style rendering)
-   ═══════════════════════════════════════════ */
-
-function StandardBitmapCanvas({ blockHeight, parcels }: { blockHeight: number; parcels: ParcelData[] }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [magicEdenUrl, setMagicEdenUrl] = useState<string | null>(null);
-  const [showME, setShowME] = useState(false);
-
-  // Try to fetch Magic Eden image for comparison
-  useEffect(() => {
-    fetch(`/api/v1/bitmap-image/${blockHeight}`)
-      .then(r => r.json())
-      .then(json => {
-        if (json.success && json.data?.imageUrl) setMagicEdenUrl(json.data.imageUrl);
-      })
-      .catch(() => {});
-  }, [blockHeight]);
-
-  // Render bitmap on canvas
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || parcels.length === 0) return;
-
-    const SIZE = 576; // Match standard bitmap image size
-    canvas.width = SIZE;
-    canvas.height = SIZE;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Bitfeed dark background
-    ctx.fillStyle = '#1d1f31';
-    ctx.fillRect(0, 0, SIZE, SIZE);
-
-    // ═══ Canonical Bitmap layout (value-sized squares, Mondrian packing) ═══
-    // The parcels' own square sizes through the SHARED packer and framing
-    // (@/lib/square-packing packFrame) — identical arrangement to the top-view
-    // map tile, the server thumbnail and the inside-3D parcels.
-    const result = packSquares(parcels.map(p => ({ index: p.txIndex, size: p.gridSize })));
-    const packed = result.squares.map(sq => ({ x: sq.x, y: sq.y, size: sq.size }));
-    if (packed.length === 0) return;
-
-    // Scale to fit canvas — the larger dimension spans it, cells stay square
-    const { extent: maxDim, offsetX: offX, offsetY: offY } = packFrame(result);
-    const pxPerGrid = SIZE / maxDim;
-
-    // Half-unit gap between squares (bitlodo padd = 0.5, a quarter cell each side)
-    const unitPadding = Math.max(0.5, pxPerGrid / 4);
-
-    // Center the block
-    const offsetX = offX * pxPerGrid;
-    const offsetY = offY * pxPerGrid;
-
-    // Draw grid dots (Bitfeed characteristic background)
-    ctx.fillStyle = '#2a2c44';
-    for (let gx = 0; gx <= maxDim; gx++) {
-      for (let gy = 0; gy <= maxDim; gy++) {
-        const dotSize = Math.max(0.5, pxPerGrid * 0.06);
-        ctx.fillRect(offsetX + gx * pxPerGrid - dotSize / 2, offsetY + gy * pxPerGrid - dotSize / 2, dotSize, dotSize);
-      }
-    }
-
-    // Bitcoin orange #F7931A
-    for (let i = 0; i < packed.length; i++) {
-      const sq = packed[i];
-      const x = offsetX + sq.x * pxPerGrid + unitPadding;
-      const y = offsetY + sq.y * pxPerGrid + unitPadding;
-      const w = sq.size * pxPerGrid - unitPadding * 2;
-      const h = sq.size * pxPerGrid - unitPadding * 2;
-
-      if (w <= 0 || h <= 0) continue;
-      ctx.fillStyle = '#F7931A';
-      ctx.fillRect(x, y, w, h);
-    }
-  }, [parcels, blockHeight]);
-
-  return (
-    <div className="relative flex flex-col items-center gap-4">
-      <div className="relative">
-        {/* Our rendering */}
-        <canvas
-          ref={canvasRef}
-          className="rounded-lg shadow-2xl"
-          style={{
-            border: '2px solid rgba(247,147,26,0.4)',
-            borderRadius: '8px',
-            imageRendering: 'pixelated',
-            width: 'min(70vh, 576px)',
-            height: 'min(70vh, 576px)',
-            display: showME ? 'none' : 'block',
-          }}
-        />
-        {/* Magic Eden image (when available and toggled) */}
-        {showME && magicEdenUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={magicEdenUrl}
-            alt={`${blockHeight}.bitmap`}
-            className="rounded-lg shadow-2xl"
-            style={{
-              border: '2px solid rgba(0,245,212,0.3)',
-              imageRendering: 'pixelated',
-              width: 'min(70vh, 576px)',
-              height: 'min(70vh, 576px)',
-            }}
-          />
-        )}
-      </div>
-
-      <div className="flex items-center gap-3">
-        <div className="text-[10px] font-mono" style={{ color: '#64748b' }}>
-          {showME ? '🟦 Magic Eden Official' : '🟧 Block Genomics Render'} · {blockHeight.toLocaleString()}.bitmap · {parcels.length} transactions
-        </div>
-        {magicEdenUrl && (
-          <button
-            onClick={() => setShowME(!showME)}
-            className="px-3 py-1 rounded-md text-[10px] font-mono transition-all hover:brightness-125"
-            style={{
-              background: showME ? 'rgba(0,245,212,0.15)' : 'rgba(247,147,26,0.15)',
-              border: `1px solid ${showME ? 'rgba(0,245,212,0.3)' : 'rgba(247,147,26,0.3)'}`,
-              color: showME ? '#00f5d4' : '#f7931a',
-            }}
-          >
-            {showME ? '← Our Render' : 'Compare Magic Eden →'}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════
    Main Component
    ═══════════════════════════════════════════ */
 
@@ -5052,6 +4926,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
   const [reducedMotion] = useState(() => typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true);
   const [phone] = useState(() => typeof window !== 'undefined' && isPhoneClass(readPhoneHints()));
+  const [scene, setScene] = useState<'ok' | 'none'>(() => (webgl2Available(document) ? 'ok' : 'none'));
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
   const [autoTour, setAutoTour] = useState(!reducedMotion);
   const [tourStarted, setTourStarted] = useState(!reducedMotion);
@@ -5069,6 +4944,8 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     setAutoTour(on);
     if (on) setTourStarted(true);
   }, []);
+  const onSceneFail = useCallback(() => setScene('none'), []);
+  const openFlatMap = useCallback(() => setViewMode('standard'), []);
   const [streetTeleport, setStreetTeleport] = useState<ParcelData | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>('properties');
   const [panelSize, setPanelSize] = useState<PanelSize>(initialPanelHidden ? 'hidden' : 'quarter');
@@ -5486,6 +5363,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     return generateParcels(blockHeight, realBlock);
   
   }, [blockHeight, realBlock, dataSource]);
+  const flatMapData: 'loading' | 'real' | 'mock' = dataSource === 'real' && !(realBlock && realBlock.txs.length > 0) ? 'mock' : dataSource;
   // Showcase city buildings for featured blocks
   const showcaseInput = useMemo(() =>
     parcels.map(p => ({ txIndex: p.txIndex, x: p.x, z: p.z, width: p.width, depth: p.depth, bytes: p.bytes, isCoinbase: p.isCoinbase })),
@@ -5946,6 +5824,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
       {showGetAccess && <GetAccessModal onClose={() => setShowGetAccess(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? -1} owner={displayParcelOwner ?? blockOwner} />}
 
       {/* The world HUD: Fly / Walk / Analyze, measured readouts, the speed you set, the block's scale */}
+      {scene === 'ok' && (
       <WorldHud
         viewMode={viewMode}
         onViewMode={setViewMode}
@@ -5962,22 +5841,31 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         reducedMotion={reducedMotion}
         tourStarted={tourStarted}
       />
+      )}
 
-      {/* Standard Bitmap View (2D Bitfeed-style canvas rendering) */}
+      {/* The flat map: the block from above */}
       {viewMode === 'standard' && (
-        <div className="flex-1 relative flex items-center justify-center" style={{ background: '#0a0a0f', ...layoutStyle }}>
-          <StandardBitmapCanvas blockHeight={blockHeight} parcels={parcels} />
+        <div className="bp-dark flex-1 relative flex items-center justify-center bg-bg-primary">
+          <FlatMap blockHeight={blockHeight} dataSource={flatMapData} estimated={!!realBlock?.estimated} squares={parcels} txCount={flatMapData === 'real' && realBlock ? realBlock.txCount : null} onRetry={retryBlockData} />
+        </div>
+      )}
+
+      {/* No 3D: the card */}
+      {viewMode !== 'standard' && scene === 'none' && (
+        <div className="bp-dark flex-1 relative flex items-center justify-center bg-bg-primary">
+          <No3dCard phone={phone} blockHeight={blockHeight} onFlatMap={openFlatMap} />
         </div>
       )}
 
       {/* 3D Canvas */}
-      {viewMode !== 'standard' && <div className="flex-1 relative">
+      {viewMode !== 'standard' && scene === 'ok' && <div className="flex-1 relative" data-world-scene>
         {dataSource === 'loading' && (
           <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
             <span className="text-xs font-mono text-slate-400">⏳ Loading block…</span>
           </div>
         )}
         <div style={{ width: '100%', height: '100%', ...layoutStyle }}>
+        <SceneBoundary onFail={onSceneFail}>
         <Canvas
           shadows
           dpr={deviceCanvasDpr()}
@@ -6109,6 +5997,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
           <hemisphereLight args={['#3366aa', '#442211', 0.25]} />
           {/* Postprocessing disabled — causes client-side crashes on some devices */}
         </Canvas>
+        </SceneBoundary>
         </div>
 
         {/* Game HUD overlay */}
@@ -6133,9 +6022,11 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
               </span>
             )}
           </div>
+          {worldCaption(viewMode, phone) !== null && (
           <div className="text-[10px] font-mono" style={{ color: '#64748b' }}>
-            {viewMode === 'dna' ? 'GENOME VIEW' : `${parcels.length.toLocaleString()} parcels / txs · Bitmap layout · Drag to rotate · Scroll to zoom`}
+            {worldCaption(viewMode, phone)}
           </div>
+          )}
         </div>
 
         <VisitorOverlay count={realtimeViewerCount} />

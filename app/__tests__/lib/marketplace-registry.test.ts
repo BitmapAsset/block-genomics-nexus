@@ -20,6 +20,12 @@ const HEIGHT = 840_000;
 const INSCRIPTION = 'abc123i0';
 const QUERY = { height: HEIGHT, inscriptionId: INSCRIPTION };
 
+/** Waits until the clock has passed the given ISO time's millisecond, so a new checkedAt cannot equal it. */
+async function nextMillisecond(after: string) {
+  const t = Date.parse(after);
+  while (Date.now() <= t) await new Promise((r) => setTimeout(r, 1));
+}
+
 beforeEach(() => {
   clearMarketCache();
 });
@@ -161,18 +167,21 @@ describe('adapter fault isolation', () => {
   });
 
   it('queries venues concurrently rather than one after another', async () => {
+    // Order, not a clock: every venue must start before any of them finishes.
+    const events: string[] = [];
     const slow = (id: string) =>
       createMockVenue({
         id,
         result: async () => {
+          events.push(`start:${id}`);
           await new Promise((r) => setTimeout(r, 60));
+          events.push(`end:${id}`);
           return { ok: true, listing: mockListing({ venue: id, priceSats: 1 }) };
         },
       });
-    const started = Date.now();
     await getBlockMarket(QUERY, { venues: [slow('a'), slow('b'), slow('c')] });
-    // Serial would be ~180ms. Generous bound to stay stable on a loaded CI box.
-    expect(Date.now() - started).toBeLessThan(150);
+    expect(events.slice(0, 3).every((e) => e.startsWith('start:'))).toBe(true);
+    expect(events).toHaveLength(6);
   });
 });
 
@@ -280,7 +289,7 @@ describe('caching', () => {
   it('recomputes when the cache is cleared', async () => {
     const a = await getBlockMarket(QUERY);
     clearMarketCache();
-    await new Promise((r) => setTimeout(r, 2));
+    await nextMillisecond(a.checkedAt);
     const b = await getBlockMarket(QUERY);
     expect(b.checkedAt).not.toBe(a.checkedAt);
   });
@@ -292,7 +301,7 @@ describe('caching', () => {
     const before = await getBlockMarket({ height: HEIGHT, inscriptionId: null });
     // checkedAt is the discriminator, so the two calls must not land in the
     // same millisecond or the assertion proves nothing either way.
-    await new Promise((r) => setTimeout(r, 2));
+    await nextMillisecond(before.checkedAt);
     const after = await getBlockMarket({ height: HEIGHT, inscriptionId: INSCRIPTION });
     expect(after.checkedAt).not.toBe(before.checkedAt);
 
@@ -304,7 +313,7 @@ describe('caching', () => {
 
   it('recomputes when asked for a fresh view', async () => {
     const a = await getBlockMarket(QUERY);
-    await new Promise((r) => setTimeout(r, 2));
+    await nextMillisecond(a.checkedAt);
     const b = await getBlockMarket(QUERY, { fresh: true });
     expect(b.checkedAt).not.toBe(a.checkedAt);
   });

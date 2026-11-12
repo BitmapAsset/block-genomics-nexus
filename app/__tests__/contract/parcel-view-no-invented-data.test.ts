@@ -202,4 +202,15 @@ describe('the HUD prints readings, not constants', () => {
   it('the parcel count is the chain\'s count for real data only', () => {
     expect(SRC).toContain("parcels={dataSource === 'real' && realBlock ? realBlock.txCount : null}");
   });
+
+  it('the title caption prints no parcel count', () => {
+    const start = SRC.indexOf('{/* Title overlay */}');
+    expect(start).toBeGreaterThan(-1);
+    const end = SRC.indexOf('<VisitorOverlay', start);
+    expect(end).toBeGreaterThan(start);
+    const title = SRC.slice(start, end);
+    expect(title).toContain('worldCaption(');
+    expect(title).not.toContain('parcels.length');
+    expect(title).not.toContain('Bitmap layout');
+  });
 });
