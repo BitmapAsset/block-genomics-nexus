@@ -20,6 +20,12 @@ const HEIGHT = 840_000;
 const INSCRIPTION = 'abc123i0';
 const QUERY = { height: HEIGHT, inscriptionId: INSCRIPTION };
 
+/** Waits until the clock has passed the given ISO time's millisecond, so a new checkedAt cannot equal it. */
+async function nextMillisecond(after: string) {
+  const t = Date.parse(after);
+  while (Date.now() <= t) await new Promise((r) => setTimeout(r, 1));
+}
+
 beforeEach(() => {
   clearMarketCache();
 });
@@ -280,7 +286,7 @@ describe('caching', () => {
   it('recomputes when the cache is cleared', async () => {
     const a = await getBlockMarket(QUERY);
     clearMarketCache();
-    await new Promise((r) => setTimeout(r, 2));
+    await nextMillisecond(a.checkedAt);
     const b = await getBlockMarket(QUERY);
     expect(b.checkedAt).not.toBe(a.checkedAt);
   });
@@ -292,7 +298,7 @@ describe('caching', () => {
     const before = await getBlockMarket({ height: HEIGHT, inscriptionId: null });
     // checkedAt is the discriminator, so the two calls must not land in the
     // same millisecond or the assertion proves nothing either way.
-    await new Promise((r) => setTimeout(r, 2));
+    await nextMillisecond(before.checkedAt);
     const after = await getBlockMarket({ height: HEIGHT, inscriptionId: INSCRIPTION });
     expect(after.checkedAt).not.toBe(before.checkedAt);
 
@@ -304,7 +310,7 @@ describe('caching', () => {
 
   it('recomputes when asked for a fresh view', async () => {
     const a = await getBlockMarket(QUERY);
-    await new Promise((r) => setTimeout(r, 2));
+    await nextMillisecond(a.checkedAt);
     const b = await getBlockMarket(QUERY, { fresh: true });
     expect(b.checkedAt).not.toBe(a.checkedAt);
   });

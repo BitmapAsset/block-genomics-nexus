@@ -1,8 +1,9 @@
 /** @jest-environment jsdom */
 /**
- * The HUD keeps still: opening Analyze never moves the readouts, the phone HUD keeps clear of the title caption, the
- * phone chip never moves when the ruler appears; and the tour keeps today's pace by default. Classes are read in
- * jsdom (no layout there); the browser probe measures the boxes.
+ * The HUD keeps still: opening Analyze never moves the readouts; on phones the HUD is one full-width column at the top
+ * (the View row, a two-row tour bar, the chip, the ruler slot) and desktop keeps its 220 px column; the phone chip
+ * never moves when the ruler appears; and the tour keeps today's pace by default. Classes are read in jsdom (no layout
+ * there); the browser probe measures the boxes.
  */
 import fs from 'fs';
 import path from 'path';
@@ -48,15 +49,59 @@ describe('opening Analyze never moves the readouts', () => {
   });
 });
 
-describe('on phones the HUD keeps clear of the title caption', () => {
-  it('the phone top group starts at 92 px; the desktop one stays at top-16', () => {
-    const { unmount } = render(<WorldHud {...props({ phone: true })} />);
-    expect(classes(topGroup())).toContain('top-[92px]');
-    expect(classes(topGroup())).not.toContain('top-16');
-    unmount();
+describe('on phones the HUD is one full-width column at the top', () => {
+  const viewGroup = () => screen.getByRole('group', { name: 'View' });
+
+  it('phones: the column spans left-3 to right-3 from top-16', () => {
+    render(<WorldHud {...props({ phone: true })} />);
+    const c = classes(topGroup());
+    for (const k of ['top-16', 'left-3', 'right-3', 'flex-col']) expect(c).toContain(k);
+    expect(c).not.toContain('w-[220px]');
+    expect(c).not.toContain('top-[92px]');
+  });
+
+  it('phones: the View group is a row that ends left of the fullscreen button', () => {
+    render(<WorldHud {...props({ phone: true })} />);
+    expect(classes(viewGroup())).toContain('flex-row');
+    expect(classes(viewGroup())).toContain('max-w-[calc(100%-77px)]');
+    const box = screen.getByRole('button', { name: /^Analyze/ }).parentElement;
+    expect(classes(box)).toContain('min-w-0');
+    expect(classes(box)).toContain('relative');
+  });
+
+  it('phones: the tour bar has two rows, readouts and toggle, then label and range', () => {
+    render(<WorldHud {...props({ phone: true })} />);
+    const readouts = screen.getByTestId('world-readouts');
+    expect(classes(readouts)).toContain('grid');
+    expect(classes(readouts)).toContain('grid-cols-2');
+    expect(Array.from(readouts.children).map((el) => el.tagName)).toEqual(['DL', 'BUTTON', 'LABEL', 'INPUT']);
+    const dl = readouts.querySelector('dl');
+    expect(classes(dl)).toContain('grid-cols-[76px_auto]');
+    expect(classes(dl)).not.toContain('grid-cols-2');
+  });
+
+  it('phones: the Analyze rows keep a readable width', () => {
+    render(<WorldHud {...props({ phone: true })} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Analyze/ }));
+    const menu = screen.getByTestId('world-analyze-menu');
+    expect(classes(menu)).toContain('min-w-[176px]');
+    expect(classes(menu)).toContain('absolute');
+    expect(classes(menu)).toContain('top-full');
+  });
+
+  it('desktop keeps its column, View group, tour panel and menu', () => {
     render(<WorldHud {...props()} />);
-    expect(classes(topGroup())).toContain('top-16');
-    expect(classes(topGroup())).not.toContain('top-[92px]');
+    const c = classes(topGroup());
+    for (const k of ['top-16', 'left-3', 'w-[220px]', 'max-w-[calc(100vw-24px)]']) expect(c).toContain(k);
+    expect(c).not.toContain('right-3');
+    expect(classes(viewGroup())).toContain('flex-col');
+    expect(classes(viewGroup())).not.toContain('flex-row');
+    const readouts = screen.getByTestId('world-readouts');
+    expect(classes(readouts)).toContain('flex-col');
+    expect(classes(readouts)).not.toContain('grid');
+    expect(classes(readouts.querySelector('dl'))).toContain('grid-cols-2');
+    fireEvent.click(screen.getByRole('button', { name: /^Analyze/ }));
+    expect(classes(screen.getByTestId('world-analyze-menu'))).not.toContain('min-w-[176px]');
   });
 });
 
