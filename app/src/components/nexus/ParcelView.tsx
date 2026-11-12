@@ -3302,7 +3302,7 @@ function CameraManager({ viewMode }: { viewMode: ViewMode }) {
 
   useFrame((_, delta) => {
     if (!animating.current) return;
-    camera.position.lerp(targetPos.current, delta * 3);
+    camera.position.lerp(targetPos.current, Math.min(1, delta * 3));
     frameCount.current++;
     const dist = camera.position.distanceTo(targetPos.current);
     if (dist < 0.1 || frameCount.current > 120) {
