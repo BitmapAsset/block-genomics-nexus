@@ -97,7 +97,7 @@ export default function FlatMap({ blockHeight, dataSource, estimated, squares, t
       data-testid="world-flat-map"
       aria-label="Flat map"
       tabIndex={-1}
-      className={`bp-dark relative flex flex-col items-center gap-4 p-4 ${ring}`}
+      className="bp-dark relative flex flex-col items-center gap-4 p-4 outline-none"
     >
       {dataSource === 'real' && (
         <canvas
