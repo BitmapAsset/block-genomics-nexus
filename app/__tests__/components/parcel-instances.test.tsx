@@ -240,8 +240,11 @@ describe('InstancedParcels instance writes', () => {
     expect(props.onHover).toHaveBeenLastCalledWith(props.parcels[3]);
     el.onPointerOut();
     expect(props.onHover).toHaveBeenLastCalledWith(null);
-    el.onClick(event(4));
-    expect(props.onClick).toHaveBeenLastCalledWith(props.parcels[4]);
+    // The click carries R3F's drag length (e.delta), so the parent can tell a look-drag from a click.
+    el.onClick({ ...event(4), delta: 37 });
+    expect(props.onClick).toHaveBeenLastCalledWith(props.parcels[4], 37);
+    el.onClick({ ...event(4), delta: 0 });
+    expect(props.onClick).toHaveBeenLastCalledWith(props.parcels[4], 0);
     el.onDoubleClick(event(5));
     expect(props.onDoubleClick).toHaveBeenLastCalledWith(props.parcels[5]);
   });

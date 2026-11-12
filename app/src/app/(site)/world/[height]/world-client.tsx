@@ -38,7 +38,7 @@ export default function WorldClient({ blockHeight }: { blockHeight: number }) {
         fallbackHref={blockHref}
         fallbackLinkText="Back to the block page"
       >
-        <ParcelView blockHeight={blockHeight} onBack={() => router.push(blockHref)} initialPanelHidden />
+        <ParcelView blockHeight={blockHeight} onBack={() => router.push(blockHref)} initialPanelHidden initialViewMode="flyover" />
       </WebGLErrorBoundary>
       <Link
         href={blockHref}
