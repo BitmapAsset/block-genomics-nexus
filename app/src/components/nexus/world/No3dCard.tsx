@@ -30,7 +30,7 @@ export default function No3dCard({ phone, blockHeight, onFlatMap }: Props) {
       className="bp-dark mx-4 flex w-full max-w-[360px] flex-col items-center gap-4 rounded-[16px] border border-line-2 bg-bg-secondary p-6 text-center"
     >
       <MapPinOff size={32} aria-hidden="true" className="text-text-3" />
-      <h2 id={titleId} className="text-[18px] font-semibold text-text-1">
+      <h2 id={titleId} className="text-balance text-[18px] font-semibold text-text-1">
         {phone ? "This phone can't show the 3D block" : "This browser can't show the 3D block"}
       </h2>
       <p id={textId} className="text-[14px] text-text-2">The flat map shows every parcel of the block from above.</p>
