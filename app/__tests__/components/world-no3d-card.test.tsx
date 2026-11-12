@@ -46,6 +46,16 @@ describe('the no-3D card', () => {
     expect(onFlatMap).toHaveBeenCalledTimes(1);
   });
 
+  it('has exactly one orange action: the second is secondary', () => {
+    const { container } = render(<No3dCard {...base} phone />);
+    expect(container.querySelectorAll('[data-primary]').length).toBe(1);
+    const back = screen.getByRole('link', { name: 'Back to the block page' });
+    expect(back.hasAttribute('data-primary')).toBe(false);
+    const cls = back.className.split(/\s+/);
+    expect(cls).not.toContain('bg-bitcoin');
+    expect(cls).not.toContain('text-bitcoin-ink');
+  });
+
   it('"Back to the block page" links to the block', () => {
     render(<No3dCard {...base} phone />);
     expect(screen.getByRole('link', { name: 'Back to the block page' }).getAttribute('href')).toBe('/block/840000');

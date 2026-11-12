@@ -208,17 +208,13 @@ describe('a look-drag never counts as a click on a parcel, in Walk and Fly', () 
 });
 
 describe('the scale chip and the ruler stay clear of the hover card and the reaction bar', () => {
-  it('the hover card sits right of the HUD column and above the bottom row (keyboard hints, back link)', () => {
+  it('the hover card sits right of the HUD column on desktop and from the right edge on phones, above the bottom row', () => {
     const at = PV.indexOf('{/* Hover tooltip */}\n        {hoveredParcel');
     expect(at).toBeGreaterThan(-1);
-    const card = PV.slice(at, PV.indexOf('\n', PV.indexOf('<div className=', at)));
-    const cls = (card.match(/<div className="([^"]*)"/) ?? ['', ''])[1].split(/\s+/);
-    expect(cls).toContain('left-[256px]');
-    expect(cls).toContain('bottom-[124px]');
-    expect(cls).not.toContain('left-16');
-    expect(cls).not.toContain('bottom-4');
-    // Its look stays.
-    for (const c of ['absolute', 'z-40', 'px-4', 'py-3', 'rounded-xl', 'font-mono', 'pointer-events-none']) expect(cls).toContain(c);
+    const line = PV.slice(at, PV.indexOf('\n', PV.indexOf('<div data-world-hovercard', at)));
+    expect(line).toContain("className={`absolute ${phone ? 'right-3 bottom-[calc(136px+env(safe-area-inset-bottom))]' : 'left-[256px] bottom-[124px]'} z-40 px-4 py-3 rounded-xl font-mono pointer-events-none`}");
+    expect(line).not.toContain('left-16');
+    expect(line).not.toContain('bottom-4');
   });
 
   it.each([false, true])('they sit in the HUD\'s left column, below the readouts (phone %s)', (phone) => {
