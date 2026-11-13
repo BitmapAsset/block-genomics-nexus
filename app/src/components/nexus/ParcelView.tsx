@@ -34,7 +34,8 @@ import { webgl2Available } from './world/gl-support';
 import SceneBoundary from './world/SceneBoundary';
 import No3dCard from './world/No3dCard';
 import FlatMap from './world/FlatMap';
-import { Maximize2, Minimize2, PanelRightOpen } from 'lucide-react';
+import { Maximize2, Minimize2, PanelRightOpen, X } from 'lucide-react';
+import { secondaryButton } from '@/components/ui/button';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import dynamic from 'next/dynamic';
 const GuardianConfigPanel = dynamic(() => import('../GuardianConfigPanel'), { ssr: false });
@@ -154,8 +155,9 @@ type RightTab = 'properties' | 'chat' | 'gaming';
 type PanelSize = 'compact' | 'quarter' | 'third' | 'half' | 'hidden';
 const PANEL_WIDTHS: Record<PanelSize, string> = { compact: 'w-80', quarter: 'w-96', third: 'w-[33vw]', half: 'w-[50vw]', hidden: 'w-0' };
 // Below md a side column would leave the treemap a sliver (QA 2026-10-22 #6), so
-// the open panel becomes a bottom sheet over the scene instead. md and up unchanged. The scene column's md:min-w-0 pairs with this breakpoint.
-const PANEL_SHEET_BELOW_MD = 'max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:z-30 max-md:!w-full max-md:h-[45vh]';
+// the open panel becomes a bottom sheet over the scene instead, above the back link's row. Below md the hidden panel leaves the flow (max-md:hidden), so the scene column's min-w-0 holds at every width.
+const PANEL_SHEET_BELOW_MD = 'max-md:absolute max-md:inset-x-0 max-md:bottom-[calc(72px+env(safe-area-inset-bottom))] max-md:z-30 max-md:!w-full max-md:h-[calc(45vh-72px)] max-md:landscape:min-h-[min(224px,calc(100%-136px))] max-md:rounded-t-2xl max-md:border-t max-md:border-line-2';
+const PANEL_EDGE_MD = 'md:border-l md:border-line-2';
 const worldRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-cyan';
 
 /* ─── Deterministic RNG ─── */
@@ -1501,7 +1503,7 @@ function StreetSigns({ parcels, viewMode }: { parcels: ParcelData[]; viewMode: s
             <meshStandardMaterial color="#333" metalness={0.8} roughness={0.3} />
           </mesh>
           {/* Holographic sign panel */}
-          <Html center distanceFactor={1.5} style={{ pointerEvents: 'none' }}>
+          <Html center distanceFactor={1.5} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
             <div style={{
               background: 'rgba(0,255,200,0.12)',
               border: '1px solid rgba(0,255,200,0.4)',
@@ -1574,7 +1576,7 @@ function DirectionIndicators({ parcels, viewMode }: { parcels: ParcelData[]; vie
         const angle = Math.atan2(ind.targetX - ind.x, ind.targetZ - ind.z);
         return (
           <group key={`dir-${i}`} position={[ind.x, arrowHeight, ind.z]} rotation={[0, angle, 0]}>
-            <Html center distanceFactor={2} style={{ pointerEvents: 'none' }}>
+            <Html center distanceFactor={2} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
               <div style={{
                 background: 'rgba(247,147,26,0.15)',
                 border: '1px solid rgba(247,147,26,0.4)',
@@ -2104,7 +2106,7 @@ function EstateShape({ estate, parcels, isHovered, isClose, onHoverEstate, onCli
 
         {/* Only render Html name tag when camera is close */}
         {isClose && (
-          <Html position={[cx, h + 0.8, cz]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
+          <Html position={[cx, h + 0.8, cz]} center distanceFactor={8} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
             <div style={{
               background: 'rgba(10,10,15,0.9)',
               border: `1px solid ${estate.glowColor}55`,
@@ -4597,7 +4599,7 @@ function SpatialAvatars({ avatars, parcels }: { avatars: SpatialAvatar[]; parcel
               <sphereGeometry args={[0.06, 8, 8]} />
               <meshStandardMaterial color={color} emissive={color} emissiveIntensity={emissiveIntensity} />
             </mesh>
-            <Html position={[0, 0.35, 0]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
+            <Html position={[0, 0.35, 0]} center distanceFactor={8} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
               <div style={{
                 background: 'rgba(10,10,15,0.85)',
                 color: a.active ? '#f7931a' : '#64748b',
@@ -4649,7 +4651,7 @@ function SpatialMessages({ avatars, parcels }: { avatars: SpatialAvatar[]; parce
         const p = parcels[Math.min(a.parcelIndex, parcels.length - 1)];
 
         return (
-          <Html key={m.id} position={[p.x, 0.7, p.z]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
+          <Html key={m.id} position={[p.x, 0.7, p.z]} center distanceFactor={8} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
             <div style={{
               background: 'rgba(10,10,15,0.88)',
               color: '#e2e8f0',
@@ -4725,7 +4727,7 @@ function SpatialReactions({ parcels, reaction }: {
         const p = parcels[Math.min(r.parcelIndex, parcels.length - 1)];
 
         return (
-          <Html key={r.id} position={[p.x, r.y, p.z]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
+          <Html key={r.id} position={[p.x, r.y, p.z]} center distanceFactor={10} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
             <div style={{ fontSize: '16px', opacity: r.opacity, userSelect: 'none', transition: 'opacity 0.2s' }}>
               {r.emoji}
             </div>
@@ -4776,7 +4778,7 @@ function LivestreamOverlay3D({ parcel, ownerData, viewerCount }: { parcel: Parce
 
   return (
     <group>
-      <Html position={[parcel.x, h + 2.5, parcel.z]} center distanceFactor={6} style={{ pointerEvents: 'none' }}>
+      <Html position={[parcel.x, h + 2.5, parcel.z]} center distanceFactor={6} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
         <div style={{
           width: 200, background: 'rgba(10,10,15,0.92)', borderRadius: 12,
           border: '1px solid rgba(255,51,51,0.3)', overflow: 'hidden', userSelect: 'none',
@@ -5444,7 +5446,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                   handle: bp.handle,
                   avatar: bp.avatar || '₿',
                   tier: (bp.resolvedTier ?? 0) as ShieldTier,
-                  verified: bp.verified ?? true,
+                  verified: bp.verified ?? false,
                 });
                 if (!cancelled) setOwnerLoading(false);
                 return;
@@ -5455,7 +5457,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
             handle: owner.handle,
             avatar: '₿',
             tier: (owner.resolvedTier ?? 0) as ShieldTier,
-            verified: true,
+            verified: false,
           });
         }
       } catch { /* no owner found */ }
@@ -5877,7 +5879,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
       )}
 
       {/* 3D Canvas */}
-      {viewMode !== 'standard' && scene === 'ok' && <div className="flex-1 md:min-w-0 relative" data-world-scene>
+      {viewMode !== 'standard' && scene === 'ok' && <div className="flex-1 min-w-0 relative" data-world-scene>
         {dataSource === 'loading' && (
           <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
             <span className="text-xs font-mono text-slate-400">⏳ Loading block…</span>
@@ -6048,7 +6050,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
 
         {/* Top-right corner */}
         <div data-world-corner className="bp-dark pointer-events-none absolute top-3 right-3 z-20 flex flex-col items-end gap-2">
-          <VisitorOverlay count={realtimeViewerCount} phone={phone} />
+          {realtimeViewerCount > 0 && <VisitorOverlay count={realtimeViewerCount} phone={phone} />}
           {/* Fullscreen toggle */}
           {canFullscreen && (
             <button type="button" data-world-fs onClick={() => { void toggleFullscreen(); }} aria-label="Full screen"
@@ -6060,7 +6062,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         </div>
 
         {/* Hover tooltip */}
-        {hoveredParcel && viewMode !== 'dna' && (
+        {hoveredParcel && viewMode !== 'dna' && !(phone && panelSize !== 'hidden') && (
           <div data-world-hovercard className={`absolute ${phone ? 'right-3 bottom-[calc(136px+env(safe-area-inset-bottom))]' : 'left-[256px] bottom-[124px]'} z-40 px-4 py-3 rounded-xl font-mono pointer-events-none`}
             style={{ background: 'rgba(10,10,15,0.95)', border: '1px solid rgba(247,147,26,0.3)', backdropFilter: 'blur(16px)', color: '#e2e8f0', minWidth: 240 }}
           >
@@ -6132,37 +6134,33 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
       )}
 
       {/* ═══ Right Panel ═══ */}
-      <div className={`${PANEL_WIDTHS[panelSize]} ${panelSize !== 'hidden' ? PANEL_SHEET_BELOW_MD : ''} flex-shrink-0 flex flex-col transition-all duration-300 overflow-hidden`}
-        ref={panelRef} inert={panelSize === 'hidden'}
-        style={{ background: 'rgba(10,10,15,0.95)', borderLeft: panelSize !== 'hidden' ? '1px solid rgba(247,147,26,0.15)' : 'none' }}>
+      <div className={`bp-dark bg-bg-primary ${PANEL_WIDTHS[panelSize]} ${panelSize !== 'hidden' ? `${PANEL_SHEET_BELOW_MD} ${PANEL_EDGE_MD}` : 'max-md:hidden'} flex-shrink-0 flex flex-col transition-all duration-300 overflow-hidden`}
+        ref={panelRef} inert={panelSize === 'hidden'} data-world-panel>
         
         {/* Panel resize controls */}
-        <div className="flex items-center justify-between px-2 py-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <div className="flex gap-1">
+        <div data-world-panel-head className="flex items-center justify-between border-b border-line-2 px-2 py-1.5">
+          <div className="hidden gap-1 md:flex">
             {([
-              { size: 'compact' as PanelSize, icon: '▐', title: 'Compact' },
-              { size: 'quarter' as PanelSize, icon: '◧', title: 'Default' },
-              { size: 'third' as PanelSize, icon: '◫', title: '1/3 screen' },
-              { size: 'half' as PanelSize, icon: '◨', title: '1/2 screen' },
+              { size: 'compact' as PanelSize, label: 'S', name: 'Narrow' },
+              { size: 'quarter' as PanelSize, label: 'M', name: 'Default' },
+              { size: 'third' as PanelSize, label: 'L', name: 'One third' },
+              { size: 'half' as PanelSize, label: 'XL', name: 'Half' },
             ]).map(s => (
-              <button key={s.size} onClick={() => setPanelSize(s.size)} title={s.title}
-                className="w-7 h-7 rounded flex items-center justify-center text-xs transition-all hover:brightness-150"
-                style={{
-                  background: panelSize === s.size ? 'rgba(247,147,26,0.2)' : 'rgba(255,255,255,0.03)',
-                  color: panelSize === s.size ? '#f7931a' : '#475569',
-                  border: panelSize === s.size ? '1px solid rgba(247,147,26,0.3)' : '1px solid rgba(255,255,255,0.05)',
-                }}>{s.icon}</button>
+              <button key={s.size} type="button" onClick={() => setPanelSize(s.size)} title={s.name}
+                aria-label={`Panel width: ${s.name}`} aria-pressed={panelSize === s.size}
+                className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border font-mono text-[11px] font-bold ${panelSize === s.size ? 'border-line-2 bg-surface-3 text-text-1' : 'border-transparent text-text-3 hover:text-text-1'} ${worldRing}`}>
+                {s.label}
+              </button>
             ))}
           </div>
-          <button ref={panelHideRef} onClick={() => setPanelSize('hidden')} title="Hide panel" aria-label="Hide block panel"
-            className="w-6 h-6 rounded flex items-center justify-center text-[11px] transition-all hover:brightness-150"
-            style={{ background: 'rgba(255,255,255,0.03)', color: '#475569', border: '1px solid rgba(255,255,255,0.05)' }}>
-            ▶
+          <button type="button" ref={panelHideRef} onClick={() => setPanelSize('hidden')} title="Hide panel" aria-label="Hide block panel"
+            className={`ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-line-2 text-text-2 hover:text-text-1 ${worldRing}`}>
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b" style={{ borderColor: 'rgba(247,147,26,0.15)' }}>
+        <div className="flex border-b border-line-2">
           {[
             { key: 'properties' as RightTab, label: 'PROPERTIES' },
             { key: 'chat' as RightTab, label: 'CHAT' },
@@ -6170,12 +6168,10 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
           ].map(tab => (
             <button
               key={tab.key}
+              type="button"
               onClick={() => setRightTab(tab.key)}
-              className="px-3 py-3 text-xs font-bold tracking-wider transition-colors flex-1"
-              style={{
-                color: rightTab === tab.key ? '#f7931a' : '#475569',
-                borderBottom: rightTab === tab.key ? '2px solid #f7931a' : '2px solid transparent',
-              }}
+              aria-pressed={rightTab === tab.key}
+              className={`min-h-[44px] flex-1 border-b-2 px-3 text-xs font-bold tracking-wider ${rightTab === tab.key ? 'border-text-1 text-text-1' : 'border-transparent text-text-3 hover:text-text-2'} ${worldRing}`}
             >
               {tab.label}
             </button>
@@ -6204,7 +6200,6 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                   <div className="flex items-center gap-1.5 flex-1 min-w-0">
                     <span className="text-xs font-mono truncate" style={{ color: '#e2e8f0' }}>@{blockOwner.handle}</span>
                     <CrownShield tier={blockOwner.tier} size={16} />
-                    {blockOwner.verified && <span className="text-[9px]" style={{ color: '#66ccff' }}>✓</span>}
                   </div>
                   <button onClick={() => setShowQrProfile(true)} className="text-[12px] hover:brightness-150 transition-all active:scale-90" title="View Bitcoin address & QR">₿</button>
                 </>
@@ -6212,7 +6207,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
             </div>
 
             <div className="px-4 py-3 space-y-2 text-xs font-mono" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <PropRow label="PARCELS / TXS" value={parcels.length.toLocaleString()} />
+              <PropRow label="PARCELS / TXS" value={dataSource === 'real' && realBlock ? realBlock.txCount.toLocaleString() : NOT_FETCHED} />
               <PropRow label="VALUE" value={totalValueKnown ? `₿ ${totalValue.toFixed(4)}` : '— not fetched yet'} highlight />
               <PropRow label="VBYTES" value={blockStats.vbytes !== undefined ? blockStats.vbytes.toLocaleString() : NOT_FETCHED} />
               <PropRow label="HEIGHT" value={blockHeight.toLocaleString()} />
@@ -6222,8 +6217,8 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
               <PropRow label="EPOCH" value={epochDisplay(blockHeight)} />
               <PropRow label="DATA" value={
                 dataSource === 'real' 
-                  ? (realBlock?.estimated ? '🟡 Estimated' : '🟢 Live') 
-                  : dataSource === 'loading' ? '⏳ Loading...' : '🟡 Mock'
+                  ? (realBlock?.estimated ? 'Estimated' : 'Live')
+                  : dataSource === 'loading' ? 'Loading…' : 'Generated sample'
               } />
               {realBlock?.estimated && (
                 <div style={{ padding: '4px 8px' }}>
@@ -6231,37 +6226,18 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                     {retrying ? 'layout estimated; retrying' : 'layout estimated'}
                   </div>
                   <button
+                    type="button"
                     onClick={retryBlockData}
-                    style={{
-                      width: '100%', padding: '6px 10px', fontSize: '11px',
-                      background: '#f7931a', color: '#000', border: 'none', borderRadius: '4px',
-                      cursor: 'pointer', fontWeight: 600,
-                    }}
+                    className={`${secondaryButton} w-full font-sans ${worldRing}`}
                   >
-                    ⬇ Load Real TX Data
+                    Load real transaction data
                   </button>
                 </div>
               )}
               <PropRow label="LAYOUT" value="Bitmap standard (value squares)" />
               <PropRow label="DISTRICT" value="2.1 km × 2.1 km" />
-              <PropRow label="VISITORS" value={`👁 ${realtimeViewerCount}`} />
-              {parcelCustomizations.size > 0 && <PropRow label="CUSTOMIZED" value={`🎨 ${parcelCustomizations.size}`} />}
-            </div>
-
-            {/* Get Access button for visitors */}
-            <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <button
-                onClick={() => setShowGetAccess(true)}
-                className="w-full py-3 rounded-xl text-[13px] font-mono font-bold transition-all hover:brightness-130 active:scale-[0.97]"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(170,68,255,0.15), rgba(247,147,26,0.15))',
-                  border: '1.5px solid rgba(170,68,255,0.35)',
-                  color: '#aa44ff',
-                  boxShadow: '0 0 20px rgba(170,68,255,0.15)',
-                }}
-              >
-                🎫 Get Tier 3 Access
-              </button>
+              {realtimeViewerCount > 0 && <PropRow label="VISITORS" value={realtimeViewerCount.toLocaleString()} />}
+              {parcelCustomizations.size > 0 && <PropRow label="CUSTOMIZED" value={parcelCustomizations.size.toLocaleString()} />}
             </div>
 
             <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -6324,11 +6300,13 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                         <span style={{ color: '#64748b', fontSize: '11px' }}>GLOW</span>
                         <div className="w-3 h-3 rounded-full" style={{ background: estate.glowColor, boxShadow: `0 0 6px ${estate.glowColor}` }} />
                       </div>
+                      {ownerLock !== 'connect' && (
                       <button onClick={() => console.log('[Estate] Manage:', estate.id)}
                         className="w-full py-2 rounded-lg text-[11px] font-mono font-bold mt-1 transition-all hover:brightness-130"
                         style={{ background: `${estate.glowColor}15`, border: `1px solid ${estate.glowColor}44`, color: estate.glowColor }}>
                         📐 Manage Estate
                       </button>
+                      )}
                     </div>
                   );
                 })()}
@@ -6354,6 +6332,14 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                 <PropRow label="AREA" value={`${displayParcel.areaSqMeters.toLocaleString()} m²`} />
                 <PropRow label="BUILD HEIGHT" value={`${displayParcel.heightMeters.toFixed(0)}m`} />
 
+                {ownerLock === 'connect' ? (
+                  <div data-world-visitor-note className="mt-2 space-y-3 border-t border-line-2 pt-3">
+                    <p className="text-xs text-text-2">Owner tools open once the holder connects a wallet.</p>
+                    <button type="button" onClick={openWalletModal} className={`${secondaryButton} w-full font-sans ${worldRing}`}>
+                      Connect a wallet
+                    </button>
+                  </div>
+                ) : (<>
                 <div className="pt-3 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                   <div className="text-[10px] uppercase tracking-wider mb-3" style={{ color: '#475569' }}>Owner Actions</div>
                   {ownerLock && (
@@ -6516,6 +6502,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                     </div>
                   )}
                 </div>
+                </>)}
 
                 {/* ─── Land Customization Panel ─── */}
                 {showCustomizePanel && displayParcel && isVerified && (
