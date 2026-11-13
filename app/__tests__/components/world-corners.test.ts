@@ -156,7 +156,8 @@ describe('the corners of the world view', () => {
 
   it('on desktop the 3D view makes room when the block panel opens', () => {
     expect(PV).toContain(
-      "{viewMode !== 'standard' && scene === 'ok' && <div className=\"flex-1 min-w-0 relative\" data-world-scene>",
+      "{viewMode !== 'standard' && scene === 'ok' && <div className=\"flex-1 md:min-w-0 relative\" data-world-scene>",
     );
+    expect(PV).toContain("const PANEL_SHEET_BELOW_MD = 'max-md:absolute ");
   });
 });
