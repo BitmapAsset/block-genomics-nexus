@@ -6139,7 +6139,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         
         {/* Panel resize controls */}
         <div data-world-panel-head className="flex items-center justify-between border-b border-line-2 px-2 py-1.5">
-          <div className="hidden gap-1 md:flex">
+          <div role="group" aria-label="Panel width" className="hidden gap-1 md:flex">
             {([
               { size: 'compact' as PanelSize, label: 'S', name: 'Narrow' },
               { size: 'quarter' as PanelSize, label: 'M', name: 'Default' },
@@ -6147,7 +6147,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
               { size: 'half' as PanelSize, label: 'XL', name: 'Half' },
             ]).map(s => (
               <button key={s.size} type="button" onClick={() => setPanelSize(s.size)} title={s.name}
-                aria-label={`Panel width: ${s.name}`} aria-pressed={panelSize === s.size}
+                aria-pressed={panelSize === s.size}
                 className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border font-mono text-[11px] font-bold ${panelSize === s.size ? 'border-line-2 bg-surface-3 text-text-1' : 'border-transparent text-text-3 hover:text-text-1'} ${worldRing}`}>
                 {s.label}
               </button>
@@ -6838,7 +6838,7 @@ function StreamDuration({ startedAt }: { startedAt: number | null }) {
 function PropRow({ label, value, highlight }: { label: string; value: React.ReactNode; highlight?: boolean }) {
   return (
     <div className="flex justify-between items-center py-0.5">
-      <span className="text-xs" style={{ color: '#64748b' }}>{label}</span>
+      <span className="text-xs text-text-3">{label}</span>
       <span className="text-right text-xs font-medium truncate ml-3" style={{ color: highlight ? '#f7931a' : '#e2e8f0', maxWidth: '60%' }}>{value}</span>
     </div>
   );
