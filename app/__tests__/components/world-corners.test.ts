@@ -137,9 +137,18 @@ describe('the corners of the world view', () => {
     expect(PV).toContain('<EmojiReactionBar onReact={handleEmojiReact} phone={phone} />');
   });
 
-  it("item 4: the title's look uses tokens", () => {
+  it("item 4: the title's look uses tokens and reads over a bright parcel", () => {
     const title = titleSource();
-    for (const s of ['text-text-1', 'text-text-2', 'text-text-3', 'border-line-2', 'bg-surface-3']) expect(title).toContain(s);
-    for (const s of ['style=', 'animate-pulse', '#c8a050', 'bp-dark']) expect(title).not.toContain(s);
+    for (const s of ['text-text-1', 'text-text-2', 'text-text-3', 'border-line-2', 'bg-bg-primary/95', 'text-shadow-md/80', 'text-shadow-none']) {
+      expect(title).toContain(s);
+    }
+    for (const s of ['bg-surface-3', 'style=', 'animate-pulse', '#c8a050']) expect(title).not.toContain(s);
+    expect(title.split('bp-dark').length).toBe(2);
+    expect(title.split('text-shadow-md/80').length).toBe(3);
+    const lines = title.split('\n');
+    const wrapper = lines.find((l) => l.includes('data-world-title'));
+    expect(wrapper).toBeDefined();
+    expect(wrapper).toContain('bp-dark');
+    expect(lines.filter((l) => l.includes('bp-dark') && l.includes('text-text-')).length).toBe(0);
   });
 });
