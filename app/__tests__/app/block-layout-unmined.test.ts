@@ -13,8 +13,16 @@ jest.mock('next/navigation', () => ({
   },
 }));
 
+// The layout hints the hero picture to the browser from the first bytes of the response.
+const mockPreload = jest.fn();
+jest.mock('react-dom', () => ({
+  ...jest.requireActual('react-dom'),
+  preload: (...a: unknown[]) => mockPreload(...a),
+}));
+
 import BlockLayout from '@/app/(site)/block/[height]/layout';
 import { KNOWN_MINED_HEIGHT, isAboveTip } from '@/lib/block-summary';
+import { bitmapThumbnailUrl } from '@/lib/bitmap-layout';
 
 const TIP = 972_700;
 const fetchMock = jest.fn();
@@ -23,6 +31,7 @@ const layout = (height: string) => BlockLayout({ children: 'page', params: Promi
 beforeEach(() => {
   jest.resetModules();
   fetchMock.mockReset().mockResolvedValue({ ok: true, text: async () => String(TIP) });
+  mockPreload.mockReset();
   (global as unknown as { fetch: jest.Mock }).fetch = fetchMock;
 });
 
@@ -43,6 +52,26 @@ describe('/block/[height] layout', () => {
 
   it('still 404s an unreadable height', async () => {
     await expect(layout('abc')).rejects.toBeInstanceOf(NotFound);
+  });
+});
+
+describe('/block/[height] layout hero preload', () => {
+  it('preloads exactly the hero picture, high priority, for a valid height', async () => {
+    await expect(layout('612888')).resolves.toBe('page');
+    expect(mockPreload).toHaveBeenCalledTimes(1);
+    expect(mockPreload).toHaveBeenCalledWith(bitmapThumbnailUrl(612888), { as: 'image', fetchPriority: 'high' });
+    expect(bitmapThumbnailUrl(612888)).toBe('/api/v1/block-thumbnail/612888.png?v=3');
+  });
+
+  it('preloads the tip block too', async () => {
+    await expect(layout(String(TIP))).resolves.toBe('page');
+    expect(mockPreload).toHaveBeenCalledWith(bitmapThumbnailUrl(TIP), { as: 'image', fetchPriority: 'high' });
+  });
+
+  it('does not preload anything for a 404 height', async () => {
+    await expect(layout('980000')).rejects.toBeInstanceOf(NotFound);
+    await expect(layout('abc')).rejects.toBeInstanceOf(NotFound);
+    expect(mockPreload).not.toHaveBeenCalled();
   });
 });
 

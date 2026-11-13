@@ -35,9 +35,12 @@ export default function SplashScreen() {
 
   if (!visible) return null;
 
+  // The server renders this before the effect above can decide, so the overlay
+  // ships hidden and only a standalone display (the installed app) shows it from
+  // the first frame. A browser tab never shows it.
   return (
     <div
-      className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-bg-primary transition-opacity duration-500 ${
+      className={`fixed inset-0 z-[9999] hidden [@media(display-mode:standalone)]:flex flex-col items-center justify-center bg-bg-primary transition-opacity duration-500 ${
         fadeOut ? "opacity-0" : "opacity-100"
       }`}
     >
