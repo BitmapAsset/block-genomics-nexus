@@ -5877,7 +5877,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
       )}
 
       {/* 3D Canvas */}
-      {viewMode !== 'standard' && scene === 'ok' && <div className="flex-1 relative" data-world-scene>
+      {viewMode !== 'standard' && scene === 'ok' && <div className="flex-1 min-w-0 relative" data-world-scene>
         {dataSource === 'loading' && (
           <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
             <span className="text-xs font-mono text-slate-400">⏳ Loading block…</span>
