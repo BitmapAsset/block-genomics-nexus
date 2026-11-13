@@ -37,11 +37,12 @@ describe('the block panel', () => {
 
   it('the header has a 44 px hide button with the shared ring and named size buttons from md up', () => {
     const h = between('{/* Panel resize controls */}', '{/* Tabs */}');
-    for (const s of ['data-world-panel-head', 'aria-pressed={panelSize === s.size}', 'aria-label={`Panel width: ${s.name}`}',
+    for (const s of ['data-world-panel-head', 'aria-pressed={panelSize === s.size}', 'role="group" aria-label="Panel width"', 'title={s.name}',
       'title="Hide panel"', 'aria-label="Hide block panel"', 'ref={panelHideRef}', '<X size={18}']) {
       expect(h).toContain(s);
     }
     expect(h).toMatch(/className="[^"]*\bhidden\b[^"]*\bmd:flex\b[^"]*"/);
+    expect(h).not.toContain('aria-label={`Panel width');
     expect(h.split('min-h-[44px] min-w-[44px]').length).toBe(3);
     expect(h.split('${worldRing}').length).toBe(3);
     for (const s of ['style=', 'min-h-[36px]', 'w-6 h-6', 'w-7 h-7', '▶', '▐', '◧']) expect(h).not.toContain(s);
@@ -129,5 +130,13 @@ describe('the block panel', () => {
     const pinned = tags.filter((t) => t.includes('fullscreen'));
     expect(pinned).toHaveLength(1);
     expect(pinned[0]).not.toContain('zIndexRange');
+  });
+
+  it("the fact rows' labels are on the text-3 token", () => {
+    const k = PV.indexOf('function PropRow(');
+    expect(k).toBeGreaterThan(-1);
+    const r = PV.slice(k);
+    expect(r).toContain('<span className="text-xs text-text-3">{label}</span>');
+    expect(r).not.toContain("style={{ color: '#64748b' }}");
   });
 });
