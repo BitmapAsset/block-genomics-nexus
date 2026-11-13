@@ -6032,15 +6032,15 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         )}
 
         {/* Title overlay */}
-        <div data-world-title className={`absolute top-3 ${phone ? 'left-3' : 'left-16'} z-20`}>
-          <div className="text-lg font-mono font-bold text-text-1">
+        <div data-world-title className={`bp-dark absolute top-3 ${phone ? 'left-3' : 'left-16'} z-20`}>
+          <div className="text-lg font-mono font-bold text-text-1 text-shadow-md/80">
             {blockHeight.toLocaleString()}.BITMAP
             {isFeaturedBlock(blockHeight) && (
-              <span className="ml-2 rounded-full border border-line-2 bg-surface-3 px-2 py-0.5 text-[10px] font-bold text-text-2">Featured City</span>
+              <span className="ml-2 rounded-full border border-line-2 bg-bg-primary/95 px-2 py-0.5 text-[10px] font-bold text-text-2 text-shadow-none">Featured City</span>
             )}
           </div>
           {worldCaption(viewMode, phone) !== null && (
-          <div className="text-[10px] font-mono text-text-3">
+          <div className="text-[10px] font-mono text-text-3 text-shadow-md/80">
             {worldCaption(viewMode, phone)}
           </div>
           )}
