@@ -154,7 +154,7 @@ type RightTab = 'properties' | 'chat' | 'gaming';
 type PanelSize = 'compact' | 'quarter' | 'third' | 'half' | 'hidden';
 const PANEL_WIDTHS: Record<PanelSize, string> = { compact: 'w-80', quarter: 'w-96', third: 'w-[33vw]', half: 'w-[50vw]', hidden: 'w-0' };
 // Below md a side column would leave the treemap a sliver (QA 2026-10-22 #6), so
-// the open panel becomes a bottom sheet over the scene instead. md and up unchanged.
+// the open panel becomes a bottom sheet over the scene instead. md and up unchanged. The scene column's md:min-w-0 pairs with this breakpoint.
 const PANEL_SHEET_BELOW_MD = 'max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:z-30 max-md:!w-full max-md:h-[45vh]';
 const worldRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-cyan';
 
@@ -5877,7 +5877,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
       )}
 
       {/* 3D Canvas */}
-      {viewMode !== 'standard' && scene === 'ok' && <div className="flex-1 min-w-0 relative" data-world-scene>
+      {viewMode !== 'standard' && scene === 'ok' && <div className="flex-1 md:min-w-0 relative" data-world-scene>
         {dataSource === 'loading' && (
           <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
             <span className="text-xs font-mono text-slate-400">⏳ Loading block…</span>
