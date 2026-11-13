@@ -34,6 +34,7 @@ import { webgl2Available } from './world/gl-support';
 import SceneBoundary from './world/SceneBoundary';
 import No3dCard from './world/No3dCard';
 import FlatMap from './world/FlatMap';
+import { Maximize2, Minimize2, PanelRightOpen } from 'lucide-react';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import dynamic from 'next/dynamic';
 const GuardianConfigPanel = dynamic(() => import('../GuardianConfigPanel'), { ssr: false });
@@ -153,8 +154,9 @@ type RightTab = 'properties' | 'chat' | 'gaming';
 type PanelSize = 'compact' | 'quarter' | 'third' | 'half' | 'hidden';
 const PANEL_WIDTHS: Record<PanelSize, string> = { compact: 'w-80', quarter: 'w-96', third: 'w-[33vw]', half: 'w-[50vw]', hidden: 'w-0' };
 // Below md a side column would leave the treemap a sliver (QA 2026-10-22 #6), so
-// the open panel becomes a bottom sheet over the scene instead. md and up unchanged.
+// the open panel becomes a bottom sheet over the scene instead. md and up unchanged. The scene column's md:min-w-0 pairs with this breakpoint.
 const PANEL_SHEET_BELOW_MD = 'max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:z-30 max-md:!w-full max-md:h-[45vh]';
+const worldRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-cyan';
 
 /* ─── Deterministic RNG ─── */
 function seededRandom(seed: number): () => number {
@@ -4490,15 +4492,11 @@ function GetAccessModal({ onClose, blockHeight, parcelIndex, owner }: {
    Visitor Counter Overlay
    ═══════════════════════════════════════════ */
 
-function VisitorOverlay({ count }: { count: number }) {
+function VisitorOverlay({ count, phone }: { count: number; phone: boolean }) {
   return (
-    <div className="absolute top-3 right-3 z-20 flex items-center gap-2 px-3 py-2 rounded-xl"
-      style={{ background: 'rgba(10,10,15,0.85)', border: '1px solid rgba(247,147,26,0.15)', backdropFilter: 'blur(8px)' }}>
-      <style>{`@keyframes pulse-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.3); } }`}</style>
-      <div className="w-2 h-2 rounded-full" style={{ background: '#22c55e', animation: 'pulse-dot 2s ease-in-out infinite', boxShadow: '0 0 6px #22c55e' }} />
-      <span className="text-[11px] font-mono" style={{ color: '#94a3b8' }}>
-        👁 <span style={{ color: '#e2e8f0' }}>{count}</span> viewing
-      </span>
+    <div data-world-pill className="pointer-events-auto flex items-center gap-2 rounded-xl border border-line-2 bg-bg-primary/95 px-3 py-2 backdrop-blur">
+      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-success motion-safe:animate-pulse" />
+      <span className="font-mono text-[11px] text-text-2"><span className="text-text-1">{count}</span><span className={phone ? 'sr-only' : undefined}> viewing</span></span>
     </div>
   );
 }
@@ -4856,12 +4854,12 @@ function LivestreamBeam({ parcel }: { parcel: ParcelData }) {
 }
 
 /* ─── Emoji Reaction Bar (overlay) ─── */
-function EmojiReactionBar({ onReact }: { onReact: (emoji: string) => void }) {
+function EmojiReactionBar({ onReact, phone }: { onReact: (emoji: string) => void; phone: boolean }) {
   return (
-    <div style={{
+    <div data-world-reactions style={{
       position: 'absolute',
-      bottom: 36,
-      left: 16,
+      bottom: phone ? 'calc(72px + env(safe-area-inset-bottom, 0px))' : 36,
+      ...(phone ? { right: 16 } : { left: 16 }),
       zIndex: 30,
       display: 'flex',
       gap: '4px',
@@ -4883,6 +4881,8 @@ function EmojiReactionBar({ onReact }: { onReact: (emoji: string) => void }) {
             padding: '2px 4px',
             borderRadius: '6px',
             transition: 'transform 0.15s',
+            minWidth: phone ? 44 : undefined,
+            minHeight: phone ? 44 : undefined,
           }}
           onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.3)')}
           onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
@@ -5104,9 +5104,14 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
   }, [blockHeight]);
   const [showGetAccess, setShowGetAccess] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [canFullscreen] = useState(() => document.fullscreenEnabled === true);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const prevPanelSize = useRef<PanelSize>('quarter');
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelTabRef = useRef<HTMLButtonElement>(null);
+  const panelHideRef = useRef<HTMLButtonElement>(null);
+  const lastPanel = useRef(panelSize);
   /**
    * `requestFullscreen()` and `exitFullscreen()` return promises, and both
    * reject routinely — a permissions policy, a missing user activation, or a
@@ -5142,6 +5147,20 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
+
+  useEffect(() => { if (scene === 'none' && document.fullscreenElement) void document.exitFullscreen?.().catch(() => undefined); }, [scene]);
+
+  useEffect(() => {
+    if (lastPanel.current === panelSize) return;
+    lastPanel.current = panelSize;
+    const a = document.activeElement;
+    const inPanel = !!(a && panelRef.current?.contains(a));
+    if (panelSize === 'hidden') {
+      if (a === document.body || inPanel) panelTabRef.current?.focus();
+    } else if (a === document.body) {
+      panelHideRef.current?.focus();
+    }
+  }, [panelSize]);
 
   /* ─── Land Customization State ─── */
   const [parcelCustomizations, setParcelCustomizations] = useState<Map<number, ParcelCustomization>>(new Map());
@@ -5858,7 +5877,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
       )}
 
       {/* 3D Canvas */}
-      {viewMode !== 'standard' && scene === 'ok' && <div className="flex-1 relative" data-world-scene>
+      {viewMode !== 'standard' && scene === 'ok' && <div className="flex-1 md:min-w-0 relative" data-world-scene>
         {dataSource === 'loading' && (
           <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
             <span className="text-xs font-mono text-slate-400">⏳ Loading block…</span>
@@ -6013,44 +6032,36 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         )}
 
         {/* Title overlay */}
-        <div className="absolute top-3 left-16 z-20">
-          <div className="text-lg font-mono font-bold" style={{ color: '#c8a050', textShadow: '0 0 20px rgba(247,147,26,0.3)' }}>
+        <div data-world-title className={`bp-dark absolute top-3 ${phone ? 'left-3' : 'left-16'} z-20`}>
+          <div className="text-lg font-mono font-bold text-text-1 text-shadow-md/80">
             {blockHeight.toLocaleString()}.BITMAP
             {isFeaturedBlock(blockHeight) && (
-              <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold animate-pulse" style={{ background: 'rgba(255,215,0,0.15)', border: '1px solid rgba(255,215,0,0.3)', color: '#ffd700' }}>
-                ✨ Featured City
-              </span>
+              <span className="ml-2 rounded-full border border-line-2 bg-bg-primary/95 px-2 py-0.5 text-[10px] font-bold text-text-2 text-shadow-none">Featured City</span>
             )}
           </div>
           {worldCaption(viewMode, phone) !== null && (
-          <div className="text-[10px] font-mono" style={{ color: '#64748b' }}>
+          <div className="text-[10px] font-mono text-text-3 text-shadow-md/80">
             {worldCaption(viewMode, phone)}
           </div>
           )}
         </div>
 
-        <VisitorOverlay count={realtimeViewerCount} />
-
-        {/* Fullscreen toggle */}
-        <button onClick={() => { void toggleFullscreen(); }}
-          className="absolute z-20 px-2.5 py-2 rounded-xl transition-all hover:brightness-150 active:scale-90"
-          title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen immersive mode'}
-          style={{
-            top: 48,
-            right: 12,
-            background: 'rgba(10,10,15,0.85)',
-            border: `1px solid ${isFullscreen ? 'rgba(0,255,136,0.3)' : 'rgba(247,147,26,0.15)'}`,
-            backdropFilter: 'blur(8px)',
-            color: isFullscreen ? '#00ff88' : '#94a3b8',
-            boxShadow: isFullscreen ? '0 0 12px rgba(0,255,136,0.2)' : 'none',
-          }}>
-          <span className="text-[13px]">{isFullscreen ? '⛶' : '⛶'}</span>
-          <span className="ml-1.5 text-[9px] font-mono">{isFullscreen ? 'EXIT' : 'FULL'}</span>
-        </button>
+        {/* Top-right corner */}
+        <div data-world-corner className="bp-dark pointer-events-none absolute top-3 right-3 z-20 flex flex-col items-end gap-2">
+          <VisitorOverlay count={realtimeViewerCount} phone={phone} />
+          {/* Fullscreen toggle */}
+          {canFullscreen && (
+            <button type="button" data-world-fs onClick={() => { void toggleFullscreen(); }} aria-label="Full screen"
+              aria-pressed={isFullscreen} title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen immersive mode'}
+              className={`pointer-events-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-line-2 bg-bg-primary/95 text-text-2 backdrop-blur hover:text-text-1 ${worldRing}`}>
+              {isFullscreen ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
+            </button>
+          )}
+        </div>
 
         {/* Hover tooltip */}
         {hoveredParcel && viewMode !== 'dna' && (
-          <div className="absolute bottom-[124px] left-[256px] z-40 px-4 py-3 rounded-xl font-mono pointer-events-none"
+          <div data-world-hovercard className={`absolute ${phone ? 'right-3 bottom-[calc(136px+env(safe-area-inset-bottom))]' : 'left-[256px] bottom-[124px]'} z-40 px-4 py-3 rounded-xl font-mono pointer-events-none`}
             style={{ background: 'rgba(10,10,15,0.95)', border: '1px solid rgba(247,147,26,0.3)', backdropFilter: 'blur(16px)', color: '#e2e8f0', minWidth: 240 }}
           >
             <div className="flex items-center gap-2 mb-2">
@@ -6108,20 +6119,21 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         {viewMode !== 'dna' && <LiveActivityTicker activities={mockActivities} />}
 
         {/* Emoji Reaction Bar */}
-        {viewMode !== 'dna' && selectedParcel && <EmojiReactionBar onReact={handleEmojiReact} />}
+        {viewMode !== 'dna' && selectedParcel && <EmojiReactionBar onReact={handleEmojiReact} phone={phone} />}
       </div>}
 
       {/* ═══ Panel Toggle (when hidden) ═══ */}
       {panelSize === 'hidden' && (
-        <button onClick={() => setPanelSize('quarter')} aria-label="Show block panel"
-          className="absolute top-16 right-0 z-30 min-h-[44px] min-w-[44px] px-3 py-3 rounded-l-lg transition-all hover:brightness-130"
-          style={{ background: 'rgba(10,10,15,0.95)', border: '1px solid rgba(247,147,26,0.2)', borderRight: 'none', color: '#f7931a' }}>
-          ◀
+        <button type="button" ref={panelTabRef} onClick={() => setPanelSize('quarter')} aria-label="Show block panel"
+          className={`bp-dark group/tab absolute right-0 z-30 ${phone ? 'bottom-4' : 'top-[108px]'} inline-flex min-h-[48px] min-w-[44px] items-center justify-center rounded-l-xl border border-r-0 border-line-2 bg-bg-primary/95 px-3 py-3 ${worldRing}`}
+          style={phone ? { marginBottom: 'env(safe-area-inset-bottom, 0px)' } : undefined}>
+          <PanelRightOpen size={18} aria-hidden="true" className="text-text-2 group-hover/tab:text-text-1" />
         </button>
       )}
 
       {/* ═══ Right Panel ═══ */}
       <div className={`${PANEL_WIDTHS[panelSize]} ${panelSize !== 'hidden' ? PANEL_SHEET_BELOW_MD : ''} flex-shrink-0 flex flex-col transition-all duration-300 overflow-hidden`}
+        ref={panelRef} inert={panelSize === 'hidden'}
         style={{ background: 'rgba(10,10,15,0.95)', borderLeft: panelSize !== 'hidden' ? '1px solid rgba(247,147,26,0.15)' : 'none' }}>
         
         {/* Panel resize controls */}
@@ -6142,7 +6154,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                 }}>{s.icon}</button>
             ))}
           </div>
-          <button onClick={() => setPanelSize('hidden')} title="Hide panel"
+          <button ref={panelHideRef} onClick={() => setPanelSize('hidden')} title="Hide panel" aria-label="Hide block panel"
             className="w-6 h-6 rounded flex items-center justify-center text-[11px] transition-all hover:brightness-150"
             style={{ background: 'rgba(255,255,255,0.03)', color: '#475569', border: '1px solid rgba(255,255,255,0.05)' }}>
             ▶
@@ -6262,7 +6274,8 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                   <input
                     type="number" value={parcelNavIndex}
                     onChange={(e) => { const v = Math.max(0, Math.min(parcels.length - 1, parseInt(e.target.value) || 0)); setParcelNavIndex(v); setSelectedParcel(parcels[v]); }}
-                    className="w-16 bg-transparent text-right font-mono text-sm font-bold outline-none"
+                    aria-label="Parcel number"
+                    className={`w-16 bg-transparent text-right font-mono text-sm font-bold ${worldRing}`}
                     style={{ color: '#f7931a' }} min={0} max={parcels.length - 1}
                   />
                   <button onClick={() => navigateParcel(1)} className="text-[#64748b] hover:text-[#f7931a] transition-colors text-lg px-1.5 active:scale-90">›</button>
