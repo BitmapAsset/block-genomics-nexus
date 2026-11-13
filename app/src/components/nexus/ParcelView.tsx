@@ -6141,10 +6141,10 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         <div data-world-panel-head className="flex items-center justify-between border-b border-line-2 px-2 py-1.5">
           <div className="hidden gap-1 md:flex">
             {([
-              { size: 'compact' as PanelSize, label: 'S', name: 'Narrow (S)' },
-              { size: 'quarter' as PanelSize, label: 'M', name: 'Default (M)' },
-              { size: 'third' as PanelSize, label: 'L', name: 'One third (L)' },
-              { size: 'half' as PanelSize, label: 'XL', name: 'Half (XL)' },
+              { size: 'compact' as PanelSize, label: 'S', name: 'Narrow' },
+              { size: 'quarter' as PanelSize, label: 'M', name: 'Default' },
+              { size: 'third' as PanelSize, label: 'L', name: 'One third' },
+              { size: 'half' as PanelSize, label: 'XL', name: 'Half' },
             ]).map(s => (
               <button key={s.size} type="button" onClick={() => setPanelSize(s.size)} title={s.name}
                 aria-label={`Panel width: ${s.name}`} aria-pressed={panelSize === s.size}
