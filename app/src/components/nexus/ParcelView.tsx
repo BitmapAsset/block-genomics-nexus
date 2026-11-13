@@ -4904,7 +4904,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
   const { walletAddress, isConnected, profile, signMessage: walletSignMessage, e2eReady, e2eError, e2eSetup, e2eEncrypt, e2eDecrypt } = useGlobalWallet();
   const isVerified = !!(isConnected && walletAddress && profile);
   const isWalletConnected = !!(isConnected && walletAddress);
-  const ownerLock = !isWalletConnected ? 'connect' : (!isVerified ? 'verify' : null);
+  const ownerLock: string | null = !isWalletConnected ? 'connect' : (!isVerified ? 'verify' : null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showTransferPrep, setShowTransferPrep] = useState(false);
   const openWalletModal = () => {
