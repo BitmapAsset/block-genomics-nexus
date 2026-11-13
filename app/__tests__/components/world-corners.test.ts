@@ -27,7 +27,7 @@ function titleSource(): string {
 describe('the corners of the world view', () => {
   it('the pill shows the live count, compact on phones, in tokens', () => {
     const src = fnSource('VisitorOverlay');
-    for (const s of ['phone: boolean', 'data-world-pill', 'pointer-events-auto', 'bg-success', 'sr-only', 'viewing']) {
+    for (const s of ['phone: boolean', 'data-world-pill', 'pointer-events-auto', 'bg-success', 'motion-safe:animate-pulse', 'sr-only', 'viewing']) {
       expect(src).toContain(s);
     }
     for (const s of ['absolute', 'bp-dark', 'style=', '<style>', 'rgba(']) expect(src).not.toContain(s);
@@ -107,6 +107,8 @@ describe('the corners of the world view', () => {
       'panelTabRef.current?.focus()',
       'panelHideRef.current?.focus()',
       'if (lastPanel.current === panelSize) return;',
+      'if (a === document.body || inPanel) panelTabRef.current?.focus();',
+      '} else if (a === document.body) {',
     ]) {
       expect(PV).toContain(s);
     }
@@ -150,5 +152,11 @@ describe('the corners of the world view', () => {
     expect(wrapper).toBeDefined();
     expect(wrapper).toContain('bp-dark');
     expect(lines.filter((l) => l.includes('bp-dark') && l.includes('text-text-')).length).toBe(0);
+  });
+
+  it('on desktop the 3D view makes room when the block panel opens', () => {
+    expect(PV).toContain(
+      "{viewMode !== 'standard' && scene === 'ok' && <div className=\"flex-1 min-w-0 relative\" data-world-scene>",
+    );
   });
 });
