@@ -154,10 +154,12 @@ describe('the corners of the world view', () => {
     expect(lines.filter((l) => l.includes('bp-dark') && l.includes('text-text-')).length).toBe(0);
   });
 
-  it('on desktop the 3D view makes room when the block panel opens', () => {
+  it("the 3D view makes room for the panel on desktop and keeps the window's width on a phone, turned or not", () => {
     expect(PV).toContain(
-      "{viewMode !== 'standard' && scene === 'ok' && <div className=\"flex-1 md:min-w-0 relative\" data-world-scene>",
+      "{viewMode !== 'standard' && scene === 'ok' && <div className=\"flex-1 min-w-0 relative\" data-world-scene>",
     );
     expect(PV).toContain("const PANEL_SHEET_BELOW_MD = 'max-md:absolute ");
+    expect(PV).toContain(": 'max-md:hidden'}");
+    expect(PV).not.toContain('md:min-w-0');
   });
 });
