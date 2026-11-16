@@ -6205,7 +6205,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <button onClick={() => navigateParcel(-1)} className="text-[#64748b] hover:text-[#f7931a] transition-colors text-lg px-1.5 active:scale-90">‹</button>
-                  <span className="text-xs font-bold tracking-wider" style={{ color: '#94a3b8' }}>Parcel <span className="text-[10px] font-normal" style={{ color: '#475569' }}>(child inscription)</span></span>
+                  <span className="text-xs font-bold tracking-wider text-text-2">Parcel <span className="text-[10px] font-normal text-text-3">(child inscription)</span></span>
                 </div>
                 <div className="flex items-center gap-1">
                   <input
@@ -6258,7 +6258,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                       <PropRow label="TOTAL AREA" value={`${totalArea.toLocaleString()} m²`} />
                       <PropRow label="MAX HEIGHT" value={`${maxH.toFixed(0)}m`} />
                       <div className="flex items-center gap-1.5">
-                        <span style={{ color: '#64748b', fontSize: '11px' }}>GLOW</span>
+                        <span className="text-[11px] text-text-3">GLOW</span>
                         <div className="w-3 h-3 rounded-full" style={{ background: estate.glowColor, boxShadow: `0 0 6px ${estate.glowColor}` }} />
                       </div>
                       {ownerLock !== 'connect' && (
@@ -6492,20 +6492,20 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
             )}
 
             <div className="px-4 py-3">
-              <div className="text-[9px] uppercase tracking-wider mb-2" style={{ color: '#475569' }}>Height = BTC Value</div>
+              <div className="text-[9px] uppercase tracking-wider mb-2 text-text-3">Height = BTC Value</div>
               <div className="flex items-center gap-1 mb-1">
                 <div className="flex-1 h-2 rounded-sm" style={{ background: 'linear-gradient(to right, #3a2510, #c8852a, #f7931a, #ffcc44)' }} />
               </div>
-              <div className="flex justify-between text-[9px]" style={{ color: '#475569' }}><span>Low</span><span>High</span></div>
+              <div className="flex justify-between text-[9px] text-text-3"><span>Low</span><span>High</span></div>
               <div className="mt-2 flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#f7931a', boxShadow: '0 0 6px rgba(247,147,26,0.5)' }} />
-                <span className="text-[9px]" style={{ color: '#94a3b8' }}>⛏ Coinbase (glowing)</span>
+                <span className="text-[9px] text-text-2">⛏ Coinbase (glowing)</span>
               </div>
               <div className="mt-1 flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#475569' }} />
-                <span className="text-[9px]" style={{ color: '#94a3b8' }}>Side = ⌈log10(output sats)⌉ − 5 (Bitmap)</span>
+                <span className="text-[9px] text-text-2">Side = ⌈log10(output sats)⌉ − 5 (Bitmap)</span>
               </div>
-              <div className="mt-3 text-[9px]" style={{ color: '#334155' }}>
+              <div className="mt-3 text-[9px] text-text-3">
                 🖱 Drag to rotate · Scroll to zoom · Click parcel to fly
               </div>
             </div>
@@ -6800,7 +6800,7 @@ function PropRow({ label, value, highlight }: { label: string; value: React.Reac
   return (
     <div className="flex justify-between items-center py-0.5">
       <span className="text-xs text-text-3">{label}</span>
-      <span className="text-right text-xs font-medium truncate ml-3" style={{ color: highlight ? '#f7931a' : '#e2e8f0', maxWidth: '60%' }}>{value}</span>
+      <span className={`ml-3 max-w-[60%] truncate text-right text-xs font-medium ${highlight ? 'text-bitcoin' : 'text-text-1'}`}>{value}</span>
     </div>
   );
 }
