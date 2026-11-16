@@ -6246,7 +6246,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                   const maxH = Math.max(...estate.parcelIndices.map(i => parcels[i]?.heightMeters ?? 0));
                   return (
                     <div className="pb-2 mb-2 space-y-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: estate.glowColor, textShadow: `0 0 6px ${estate.glowColor}66` }}>🏰 ESTATE</div>
+                      <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: estate.glowColor, textShadow: `0 0 6px ${estate.glowColor}66` }}>ESTATE</div>
                       <div className="flex items-center gap-2">
                         <span className="text-[12px] font-bold" style={{ color: estate.glowColor, textShadow: `0 0 8px ${estate.glowColor}66` }}>{estate.name}</span>
                       </div>
@@ -6286,7 +6286,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                     <PropRow label="VIEWERS" value={`👁 ${streamViewerCount}`} />
                   </>
                 )}
-                <PropRow label="TYPE" value={displayParcel.isCoinbase ? '⛏ Coinbase' : 'Standard'} />
+                <PropRow label="TYPE" value={displayParcel.isCoinbase ? 'Coinbase' : 'Standard'} />
                 <PropRow label="VALUE" value={displayParcel.valueKnown ? `₿ ${displayParcel.value.toFixed(6)}` : '— not fetched yet'} />
                 <PropRow label="SIZE" value={`${displayParcel.bytes.toLocaleString()} vB`} />
                 <PropRow label="DIMENSIONS" value={`${fmtDim(displayParcel.width)}m × ${fmtDim(displayParcel.depth)}m`} />
@@ -6499,14 +6499,14 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
               <div className="flex justify-between text-[9px] text-text-3"><span>Low</span><span>High</span></div>
               <div className="mt-2 flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#f7931a', boxShadow: '0 0 6px rgba(247,147,26,0.5)' }} />
-                <span className="text-[9px] text-text-2">⛏ Coinbase (glowing)</span>
+                <span className="text-[9px] text-text-2">Coinbase (glowing)</span>
               </div>
               <div className="mt-1 flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#475569' }} />
                 <span className="text-[9px] text-text-2">Side = ⌈log10(output sats)⌉ − 5 (Bitmap)</span>
               </div>
               <div className="mt-3 text-[9px] text-text-3">
-                🖱 Drag to rotate · Scroll to zoom · Click parcel to fly
+                Drag to rotate · Scroll to zoom · Click parcel to fly
               </div>
             </div>
           </div>
