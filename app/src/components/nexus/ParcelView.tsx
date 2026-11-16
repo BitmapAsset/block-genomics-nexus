@@ -34,7 +34,9 @@ import { webgl2Available } from './world/gl-support';
 import SceneBoundary from './world/SceneBoundary';
 import No3dCard from './world/No3dCard';
 import FlatMap from './world/FlatMap';
-import { Maximize2, Minimize2, PanelRightOpen, X } from 'lucide-react';
+import PanelBar from './world/PanelBar';
+import { panelRootClass, type PanelSize, type RightTab } from './world/panel-frame';
+import { Maximize2, Minimize2, PanelRightOpen } from 'lucide-react';
 import { secondaryButton } from '@/components/ui/button';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import dynamic from 'next/dynamic';
@@ -151,13 +153,6 @@ interface Props {
 }
 
 export type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street' | 'standard' | 'flyover';
-type RightTab = 'properties' | 'chat' | 'gaming';
-type PanelSize = 'compact' | 'quarter' | 'third' | 'half' | 'hidden';
-const PANEL_WIDTHS: Record<PanelSize, string> = { compact: 'w-80', quarter: 'w-96', third: 'w-[33vw]', half: 'w-[50vw]', hidden: 'w-0' };
-// Below md a side column would leave the treemap a sliver (QA 2026-10-22 #6), so
-// the open panel becomes a bottom sheet over the scene instead, above the back link's row. Below md the hidden panel leaves the flow (max-md:hidden), so the scene column's min-w-0 holds at every width.
-const PANEL_SHEET_BELOW_MD = 'max-md:absolute max-md:inset-x-0 max-md:bottom-[calc(72px+env(safe-area-inset-bottom))] max-md:z-30 max-md:!w-full max-md:h-[calc(45vh-72px)] max-md:landscape:min-h-[min(224px,calc(100%-136px))] max-md:rounded-t-2xl max-md:border-t max-md:border-line-2';
-const PANEL_EDGE_MD = 'md:border-l md:border-line-2';
 const worldRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-cyan';
 
 /* ─── Deterministic RNG ─── */
@@ -6134,49 +6129,15 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
       )}
 
       {/* ═══ Right Panel ═══ */}
-      <div className={`bp-dark bg-bg-primary ${PANEL_WIDTHS[panelSize]} ${panelSize !== 'hidden' ? `${PANEL_SHEET_BELOW_MD} ${PANEL_EDGE_MD}` : 'max-md:hidden'} flex-shrink-0 flex flex-col transition-all duration-300 overflow-hidden`}
+      <div className={panelRootClass(panelSize)}
         ref={panelRef} inert={panelSize === 'hidden'} data-world-panel>
         
         {/* Panel resize controls */}
-        <div data-world-panel-head className="flex items-center justify-between border-b border-line-2 px-2 py-1.5">
-          <div role="group" aria-label="Panel width" className="hidden gap-1 md:flex">
-            {([
-              { size: 'compact' as PanelSize, label: 'S', name: 'Narrow' },
-              { size: 'quarter' as PanelSize, label: 'M', name: 'Default' },
-              { size: 'third' as PanelSize, label: 'L', name: 'One third' },
-              { size: 'half' as PanelSize, label: 'XL', name: 'Half' },
-            ]).map(s => (
-              <button key={s.size} type="button" onClick={() => setPanelSize(s.size)} title={s.name}
-                aria-pressed={panelSize === s.size}
-                className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border font-mono text-[11px] font-bold ${panelSize === s.size ? 'border-line-2 bg-surface-3 text-text-1' : 'border-transparent text-text-3 hover:text-text-1'} ${worldRing}`}>
-                {s.label}
-              </button>
-            ))}
-          </div>
-          <button type="button" ref={panelHideRef} onClick={() => setPanelSize('hidden')} title="Hide panel" aria-label="Hide block panel"
-            className={`ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-line-2 text-text-2 hover:text-text-1 ${worldRing}`}>
-            <X size={18} aria-hidden="true" />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex border-b border-line-2">
-          {[
-            { key: 'properties' as RightTab, label: 'PROPERTIES' },
-            { key: 'chat' as RightTab, label: 'CHAT' },
-            ...(gameElements.length > 0 ? [{ key: 'gaming' as RightTab, label: '🎮 GAMING' }] : []),
-          ].map(tab => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setRightTab(tab.key)}
-              aria-pressed={rightTab === tab.key}
-              className={`min-h-[44px] flex-1 border-b-2 px-3 text-xs font-bold tracking-wider ${rightTab === tab.key ? 'border-text-1 text-text-1' : 'border-transparent text-text-3 hover:text-text-2'} ${worldRing}`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <PanelBar size={panelSize} onSize={setPanelSize} hideRef={panelHideRef} tab={rightTab} onTab={setRightTab} tabs={[
+          { key: 'properties' as RightTab, label: 'PROPERTIES' },
+          { key: 'chat' as RightTab, label: 'CHAT' },
+          ...(gameElements.length > 0 ? [{ key: 'gaming' as RightTab, label: 'GAMING' }] : []),
+        ]} />
 
         {rightTab === 'properties' ? (
           <div className="flex-1 overflow-y-auto">
