@@ -2,6 +2,7 @@
  * The block panel as a visitor meets it: an opaque panel on the site's tokens, a phone sheet that ends above the back
  * link and keeps a floor on a phone on its side, 44 px controls with the shared ring, and only what a visitor without a
  * wallet can read or use. Source is read here (no layout in jsdom); the browser probe measures the boxes.
+ * The frame's behaviour is pressed in world-panel-frame.test.tsx; this file pins how the view wires it.
  */
 import fs from 'fs';
 import path from 'path';
@@ -12,51 +13,23 @@ const between = (a: string, b: string) => { const i = PV.indexOf(a); const j = P
 const PICT = /\p{Extended_Pictographic}/u; const LIT = /#[0-9a-fA-F]{3,8}\b|rgba?\(/;
 
 describe('the block panel', () => {
-  it('the panel root is opaque, on tokens, and leaves the flow below md when hidden', () => {
+  it('the panel root is opaque and takes its classes from the frame', () => {
     const r = between('{/* ═══ Right Panel ═══ */}', '{/* Panel resize controls */}');
-    for (const s of ['bp-dark', 'bg-bg-primary', '${PANEL_SHEET_BELOW_MD}', '${PANEL_EDGE_MD}', "'max-md:hidden'",
-      'flex-shrink-0', 'ref={panelRef}', "inert={panelSize === 'hidden'}", 'data-world-panel']) {
+    for (const s of ['className={panelRootClass(panelSize)}', 'ref={panelRef}', "inert={panelSize === 'hidden'}", 'data-world-panel']) {
       expect(r).toContain(s);
     }
     expect(r).not.toContain('style=');
     expect(r).not.toMatch(LIT);
   });
 
-  it("the sheet ends above the back link's row and keeps a floor on a phone on its side", () => {
-    const s = between("const PANEL_SHEET_BELOW_MD = '", "';");
-    for (const c of ['max-md:absolute', 'max-md:inset-x-0', 'max-md:bottom-[calc(72px+env(safe-area-inset-bottom))]',
-      'max-md:z-30', 'max-md:!w-full', 'max-md:h-[calc(45vh-72px)]', 'max-md:landscape:min-h-[min(224px,calc(100%-136px))]',
-      'max-md:rounded-t-2xl', 'max-md:border-t', 'max-md:border-line-2']) {
-      expect(s).toContain(c);
-    }
-    for (const c of ['max-md:bottom-0', 'max-md:h-[45vh]', '100dvh']) expect(s).not.toContain(c);
-    const e = between("const PANEL_EDGE_MD = '", "';");
-    expect(e).toMatch(/md:border-l[ ']/);
-    expect(e).toContain('md:border-line-2');
-  });
-
-  it('the header has a 44 px hide button with the shared ring and named size buttons from md up', () => {
-    const h = between('{/* Panel resize controls */}', '{/* Tabs */}');
-    for (const s of ['data-world-panel-head', 'aria-pressed={panelSize === s.size}', 'role="group" aria-label="Panel width"', 'title={s.name}',
-      'title="Hide panel"', 'aria-label="Hide block panel"', 'ref={panelHideRef}', '<X size={18}']) {
+  it("the panel's top comes from the frame", () => {
+    const h = between('{/* Panel resize controls */}', "{rightTab === 'properties' ? (");
+    for (const s of ['<PanelBar', 'size={panelSize}', 'onSize={setPanelSize}', 'hideRef={panelHideRef}', 'tab={rightTab}',
+      'onTab={setRightTab}', "label: 'PROPERTIES'", "label: 'CHAT'", "label: 'GAMING'"]) {
       expect(h).toContain(s);
     }
-    expect(h).toMatch(/className="[^"]*\bhidden\b[^"]*\bmd:flex\b[^"]*"/);
-    expect(h).not.toContain('aria-label={`Panel width');
-    expect(h.split('min-h-[44px] min-w-[44px]').length).toBe(3);
-    expect(h.split('${worldRing}').length).toBe(3);
-    for (const s of ['style=', 'min-h-[36px]', 'w-6 h-6', 'w-7 h-7', '▶', '▐', '◧']) expect(h).not.toContain(s);
-    expect(h).not.toMatch(LIT);
-  });
-
-  it('the tabs are on tokens, 44 px, with a pressed state', () => {
-    const t = between('{/* Tabs */}', "{rightTab === 'properties' ? (");
-    for (const s of ['border-b border-line-2', 'aria-pressed={rightTab === tab.key}', 'min-h-[44px]', 'border-text-1 text-text-1',
-      '${worldRing}']) {
-      expect(t).toContain(s);
-    }
-    expect(t).not.toContain('style=');
-    expect(t).not.toContain('#f7931a');
+    expect(h).not.toContain('<button');
+    expect(h).not.toMatch(PICT);
   });
 
   it('the owner row claims no check, and the fact rows print only what is known', () => {
@@ -138,5 +111,22 @@ describe('the block panel', () => {
     const r = PV.slice(k);
     expect(r).toContain('<span className="text-xs text-text-3">{label}</span>');
     expect(r).not.toContain("style={{ color: '#64748b' }}");
+  });
+
+  it("the properties tab's dim rows are on tokens and show no pictograph", () => {
+    for (const s of ['text-[10px] font-normal text-text-3">(child inscription)', '<span className="text-[11px] text-text-3">GLOW</span>',
+      'tracking-wider mb-2 text-text-3">Height = BTC Value', 'justify-between text-[9px] text-text-3"><span>Low</span>',
+      '<div className="mt-3 text-[9px] text-text-3">', "${highlight ? 'text-bitcoin' : 'text-text-1'}", 'max-w-[60%]']) {
+      expect(PV).toContain(s);
+    }
+    for (const s of ["style={{ color: '#475569' }}>Height = BTC Value", "style={{ color: '#475569' }}><span>Low</span>",
+      "style={{ color: '#475569' }}>(child inscription)", "style={{ color: '#64748b', fontSize: '11px' }}>GLOW", "maxWidth: '60%'",
+      "'\u{26CF} Coinbase'", '\u{1F3F0} ESTATE', '\u{26CF} Coinbase (glowing)', '\u{1F5B1} Drag to rotate']) {
+      expect(PV).not.toContain(s);
+    }
+  });
+
+  it("the view's root says a world view is open", () => {
+    expect(PV).toContain('<div ref={containerRef} data-world-view className="relative w-full h-full flex"');
   });
 });

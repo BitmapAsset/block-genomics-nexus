@@ -102,8 +102,7 @@ describe('the corners of the world view', () => {
     for (const s of [
       "inert={panelSize === 'hidden'}",
       'ref={panelRef}',
-      'ref={panelHideRef}',
-      'aria-label="Hide block panel"',
+      'hideRef={panelHideRef}',
       'panelTabRef.current?.focus()',
       'panelHideRef.current?.focus()',
       'if (lastPanel.current === panelSize) return;',
@@ -158,8 +157,6 @@ describe('the corners of the world view', () => {
     expect(PV).toContain(
       "{viewMode !== 'standard' && scene === 'ok' && <div className=\"flex-1 min-w-0 relative\" data-world-scene>",
     );
-    expect(PV).toContain("const PANEL_SHEET_BELOW_MD = 'max-md:absolute ");
-    expect(PV).toContain(": 'max-md:hidden'}");
     expect(PV).not.toContain('md:min-w-0');
   });
 });
