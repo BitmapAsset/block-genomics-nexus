@@ -5766,7 +5766,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
   const fmtDim = (worldUnits: number) => metresOf(worldUnits);
 
   return (
-    <div ref={containerRef} className="relative w-full h-full flex" style={{ background: '#0a0a0f' }}>
+    <div ref={containerRef} data-world-view className="relative w-full h-full flex" style={{ background: '#0a0a0f' }}>
       {showWorldBuilder && (
         <div className="fixed right-0 top-0 h-full z-50" style={{ width: '320px', borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
           <WorldBuilderPanel
