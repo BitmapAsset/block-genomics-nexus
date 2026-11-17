@@ -34,7 +34,9 @@ import { webgl2Available } from './world/gl-support';
 import SceneBoundary from './world/SceneBoundary';
 import No3dCard from './world/No3dCard';
 import FlatMap from './world/FlatMap';
-import { Maximize2, Minimize2, PanelRightOpen, X } from 'lucide-react';
+import PanelBar from './world/PanelBar';
+import { panelRootClass, type PanelSize, type RightTab } from './world/panel-frame';
+import { Maximize2, Minimize2, PanelRightOpen } from 'lucide-react';
 import { secondaryButton } from '@/components/ui/button';
 import { useRealtimeChat, usePresence, type RealtimeChatMessage } from '@/hooks/useRealtimeChat';
 import dynamic from 'next/dynamic';
@@ -151,13 +153,6 @@ interface Props {
 }
 
 export type ViewMode = 'flat' | 'isometric' | 'heights' | 'dna' | 'street' | 'standard' | 'flyover';
-type RightTab = 'properties' | 'chat' | 'gaming';
-type PanelSize = 'compact' | 'quarter' | 'third' | 'half' | 'hidden';
-const PANEL_WIDTHS: Record<PanelSize, string> = { compact: 'w-80', quarter: 'w-96', third: 'w-[33vw]', half: 'w-[50vw]', hidden: 'w-0' };
-// Below md a side column would leave the treemap a sliver (QA 2026-10-22 #6), so
-// the open panel becomes a bottom sheet over the scene instead, above the back link's row. Below md the hidden panel leaves the flow (max-md:hidden), so the scene column's min-w-0 holds at every width.
-const PANEL_SHEET_BELOW_MD = 'max-md:absolute max-md:inset-x-0 max-md:bottom-[calc(72px+env(safe-area-inset-bottom))] max-md:z-30 max-md:!w-full max-md:h-[calc(45vh-72px)] max-md:landscape:min-h-[min(224px,calc(100%-136px))] max-md:rounded-t-2xl max-md:border-t max-md:border-line-2';
-const PANEL_EDGE_MD = 'md:border-l md:border-line-2';
 const worldRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-cyan';
 
 /* ─── Deterministic RNG ─── */
@@ -5771,7 +5766,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
   const fmtDim = (worldUnits: number) => metresOf(worldUnits);
 
   return (
-    <div ref={containerRef} className="relative w-full h-full flex" style={{ background: '#0a0a0f' }}>
+    <div ref={containerRef} data-world-view className="relative w-full h-full flex" style={{ background: '#0a0a0f' }}>
       {showWorldBuilder && (
         <div className="fixed right-0 top-0 h-full z-50" style={{ width: '320px', borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
           <WorldBuilderPanel
@@ -6134,49 +6129,15 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
       )}
 
       {/* ═══ Right Panel ═══ */}
-      <div className={`bp-dark bg-bg-primary ${PANEL_WIDTHS[panelSize]} ${panelSize !== 'hidden' ? `${PANEL_SHEET_BELOW_MD} ${PANEL_EDGE_MD}` : 'max-md:hidden'} flex-shrink-0 flex flex-col transition-all duration-300 overflow-hidden`}
+      <div className={panelRootClass(panelSize)}
         ref={panelRef} inert={panelSize === 'hidden'} data-world-panel>
         
         {/* Panel resize controls */}
-        <div data-world-panel-head className="flex items-center justify-between border-b border-line-2 px-2 py-1.5">
-          <div role="group" aria-label="Panel width" className="hidden gap-1 md:flex">
-            {([
-              { size: 'compact' as PanelSize, label: 'S', name: 'Narrow' },
-              { size: 'quarter' as PanelSize, label: 'M', name: 'Default' },
-              { size: 'third' as PanelSize, label: 'L', name: 'One third' },
-              { size: 'half' as PanelSize, label: 'XL', name: 'Half' },
-            ]).map(s => (
-              <button key={s.size} type="button" onClick={() => setPanelSize(s.size)} title={s.name}
-                aria-pressed={panelSize === s.size}
-                className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border font-mono text-[11px] font-bold ${panelSize === s.size ? 'border-line-2 bg-surface-3 text-text-1' : 'border-transparent text-text-3 hover:text-text-1'} ${worldRing}`}>
-                {s.label}
-              </button>
-            ))}
-          </div>
-          <button type="button" ref={panelHideRef} onClick={() => setPanelSize('hidden')} title="Hide panel" aria-label="Hide block panel"
-            className={`ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-line-2 text-text-2 hover:text-text-1 ${worldRing}`}>
-            <X size={18} aria-hidden="true" />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex border-b border-line-2">
-          {[
-            { key: 'properties' as RightTab, label: 'PROPERTIES' },
-            { key: 'chat' as RightTab, label: 'CHAT' },
-            ...(gameElements.length > 0 ? [{ key: 'gaming' as RightTab, label: '🎮 GAMING' }] : []),
-          ].map(tab => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setRightTab(tab.key)}
-              aria-pressed={rightTab === tab.key}
-              className={`min-h-[44px] flex-1 border-b-2 px-3 text-xs font-bold tracking-wider ${rightTab === tab.key ? 'border-text-1 text-text-1' : 'border-transparent text-text-3 hover:text-text-2'} ${worldRing}`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <PanelBar size={panelSize} onSize={setPanelSize} hideRef={panelHideRef} tab={rightTab} onTab={setRightTab} tabs={[
+          { key: 'properties' as RightTab, label: 'PROPERTIES' },
+          { key: 'chat' as RightTab, label: 'CHAT' },
+          ...(gameElements.length > 0 ? [{ key: 'gaming' as RightTab, label: 'GAMING' }] : []),
+        ]} />
 
         {rightTab === 'properties' ? (
           <div className="flex-1 overflow-y-auto">
@@ -6244,7 +6205,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <button onClick={() => navigateParcel(-1)} className="text-[#64748b] hover:text-[#f7931a] transition-colors text-lg px-1.5 active:scale-90">‹</button>
-                  <span className="text-xs font-bold tracking-wider" style={{ color: '#94a3b8' }}>Parcel <span className="text-[10px] font-normal" style={{ color: '#475569' }}>(child inscription)</span></span>
+                  <span className="text-xs font-bold tracking-wider text-text-2">Parcel <span className="text-[10px] font-normal text-text-3">(child inscription)</span></span>
                 </div>
                 <div className="flex items-center gap-1">
                   <input
@@ -6285,7 +6246,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                   const maxH = Math.max(...estate.parcelIndices.map(i => parcels[i]?.heightMeters ?? 0));
                   return (
                     <div className="pb-2 mb-2 space-y-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: estate.glowColor, textShadow: `0 0 6px ${estate.glowColor}66` }}>🏰 ESTATE</div>
+                      <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: estate.glowColor, textShadow: `0 0 6px ${estate.glowColor}66` }}>ESTATE</div>
                       <div className="flex items-center gap-2">
                         <span className="text-[12px] font-bold" style={{ color: estate.glowColor, textShadow: `0 0 8px ${estate.glowColor}66` }}>{estate.name}</span>
                       </div>
@@ -6297,7 +6258,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                       <PropRow label="TOTAL AREA" value={`${totalArea.toLocaleString()} m²`} />
                       <PropRow label="MAX HEIGHT" value={`${maxH.toFixed(0)}m`} />
                       <div className="flex items-center gap-1.5">
-                        <span style={{ color: '#64748b', fontSize: '11px' }}>GLOW</span>
+                        <span className="text-[11px] text-text-3">GLOW</span>
                         <div className="w-3 h-3 rounded-full" style={{ background: estate.glowColor, boxShadow: `0 0 6px ${estate.glowColor}` }} />
                       </div>
                       {ownerLock !== 'connect' && (
@@ -6325,7 +6286,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                     <PropRow label="VIEWERS" value={`👁 ${streamViewerCount}`} />
                   </>
                 )}
-                <PropRow label="TYPE" value={displayParcel.isCoinbase ? '⛏ Coinbase' : 'Standard'} />
+                <PropRow label="TYPE" value={displayParcel.isCoinbase ? 'Coinbase' : 'Standard'} />
                 <PropRow label="VALUE" value={displayParcel.valueKnown ? `₿ ${displayParcel.value.toFixed(6)}` : '— not fetched yet'} />
                 <PropRow label="SIZE" value={`${displayParcel.bytes.toLocaleString()} vB`} />
                 <PropRow label="DIMENSIONS" value={`${fmtDim(displayParcel.width)}m × ${fmtDim(displayParcel.depth)}m`} />
@@ -6531,21 +6492,21 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
             )}
 
             <div className="px-4 py-3">
-              <div className="text-[9px] uppercase tracking-wider mb-2" style={{ color: '#475569' }}>Height = BTC Value</div>
+              <div className="text-[9px] uppercase tracking-wider mb-2 text-text-3">Height = BTC Value</div>
               <div className="flex items-center gap-1 mb-1">
                 <div className="flex-1 h-2 rounded-sm" style={{ background: 'linear-gradient(to right, #3a2510, #c8852a, #f7931a, #ffcc44)' }} />
               </div>
-              <div className="flex justify-between text-[9px]" style={{ color: '#475569' }}><span>Low</span><span>High</span></div>
+              <div className="flex justify-between text-[9px] text-text-3"><span>Low</span><span>High</span></div>
               <div className="mt-2 flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#f7931a', boxShadow: '0 0 6px rgba(247,147,26,0.5)' }} />
-                <span className="text-[9px]" style={{ color: '#94a3b8' }}>⛏ Coinbase (glowing)</span>
+                <span className="text-[9px] text-text-2">Coinbase (glowing)</span>
               </div>
               <div className="mt-1 flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#475569' }} />
-                <span className="text-[9px]" style={{ color: '#94a3b8' }}>Side = ⌈log10(output sats)⌉ − 5 (Bitmap)</span>
+                <span className="text-[9px] text-text-2">Side = ⌈log10(output sats)⌉ − 5 (Bitmap)</span>
               </div>
-              <div className="mt-3 text-[9px]" style={{ color: '#334155' }}>
-                🖱 Drag to rotate · Scroll to zoom · Click parcel to fly
+              <div className="mt-3 text-[9px] text-text-3">
+                Drag to rotate · Scroll to zoom · Click parcel to fly
               </div>
             </div>
           </div>
@@ -6839,7 +6800,7 @@ function PropRow({ label, value, highlight }: { label: string; value: React.Reac
   return (
     <div className="flex justify-between items-center py-0.5">
       <span className="text-xs text-text-3">{label}</span>
-      <span className="text-right text-xs font-medium truncate ml-3" style={{ color: highlight ? '#f7931a' : '#e2e8f0', maxWidth: '60%' }}>{value}</span>
+      <span className={`ml-3 max-w-[60%] truncate text-right text-xs font-medium ${highlight ? 'text-bitcoin' : 'text-text-1'}`}>{value}</span>
     </div>
   );
 }

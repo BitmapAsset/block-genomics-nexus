@@ -446,6 +446,11 @@ html {
   }
 }
 
+/* The site's install card stays off an open world view: the view's root says it is there (bg98b3c). */
+body:has([data-world-view]) [data-install-card] {
+  display: none;
+}
+
 /* Haptic-style active state for buttons */
 @media (hover: none) and (pointer: coarse) {
   button, a, [role="button"] {

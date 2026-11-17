@@ -71,7 +71,7 @@ export default function InstallPrompt() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-md md:bottom-6 md:left-auto md:right-6">
+    <div data-install-card className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-md md:bottom-6 md:left-auto md:right-6">
       <div className="glass-panel overflow-hidden rounded-2xl border border-bitcoin/30 shadow-lg shadow-bitcoin/10">
         {/* Accent bar */}
         <div className="h-1 bg-gradient-to-r from-bitcoin via-accent-cyan to-accent-purple" />
