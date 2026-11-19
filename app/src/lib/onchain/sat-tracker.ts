@@ -26,21 +26,27 @@
  * has a rule for odd input — an input whose script does not parse contributes
  * no envelopes — the rule is followed, not guessed around.
  *
- * TRUST: providers are tried in order and one trace never mixes providers, so
- * a trace reads one consistent view of the chain. Each NEW location a trace
- * reaches is then confirmed by the other provider (same output address, not
- * spent in a block); if it disagrees the answer is unknown. If no other
- * provider can be reached the single answer stands, which is the trust
- * ordinals.com alone had.
+ * TRUST: each provider traces on its own, from the reveal (or from its own
+ * cached location), and one trace never mixes providers, so each answer reads
+ * one consistent view of the chain. The providers run in parallel and every
+ * answer is handed to the caller, which decides by agreement
+ * (lib/onchain/holder-agreement.ts): a holder counts only when two distinct
+ * hosts name the same output and address and none contradicts them. A provider
+ * whose data puts the sat somewhere the rules cannot name is a dissent, not a
+ * missing answer. No single provider's answer stands on its own.
  *
- * CACHE: the location reached is cached per inscription once the transaction
- * that created it is buried six blocks deep, so a repeated check is one
- * `outspend` call. The cached point is only ever a starting position: every
- * check still asks the chain whether it has been spent since.
+ * CACHE: the location reached is cached per provider and inscription once the
+ * transaction that created it is buried six blocks deep, so a repeated check is
+ * one `outspend` call per provider. The cached point is only ever a starting
+ * position: every check still asks the chain whether it has been spent since.
+ * A trace that ends in a dissent or `not_found` leaves no location behind, and
+ * a disagreement between sources drops every provider's location
+ * (`forgetLocations`).
  */
 
 import { CHAIN_USER_AGENT } from '@/lib/onchain/user-agent';
 import { ESPLORA_BASES } from '@/lib/onchain/esplora';
+import { agreeOnHolder, type SourceAnswer } from '@/lib/onchain/holder-agreement';
 import { tapscriptOf as resolverTapscriptOf } from '@/vendor/bitmap-resolver/parse/envelope';
 
 const REQUEST_TIMEOUT_MS = 6000;
@@ -56,6 +62,8 @@ const MAX_CACHED = 5_000;
  * distinct blocks would otherwise turn into a burst against a free public API.
  */
 const MAX_CONCURRENT_TRACES = 4;
+/** A provider that redirects is treated as down: the URL it was asked is the only one read. */
+const ESPLORA_REDIRECT: RequestRedirect = 'error';
 
 // ─── Public shapes ───────────────────────────────────────────────
 
@@ -64,7 +72,7 @@ export interface TrackedHolder {
   address: string;
   /** `<txid>:<vout>:<offset>`, same shape as ord's satpoint. */
   satpoint: string;
-  /** `esplora:<host>` of the provider that answered. */
+  /** `esplora:<host>` of the first provider among those that agreed. */
   source: string;
   /** Spends followed on this call (0 when the cached or genesis output is unspent). */
   hops: number;
@@ -77,7 +85,10 @@ export interface UntrackedHolder {
 
 export type TrackResult = TrackedHolder | UntrackedHolder;
 
-/** On by default; `OWNERSHIP_SAT_TRACKER=0` (or false/off) turns it off. */
+/**
+ * On by default; `OWNERSHIP_SAT_TRACKER=0` (or false/off) turns it off. With it
+ * off only the ord answer remains, one source, so every holder is unavailable.
+ */
 export function isSatTrackerEnabled(): boolean {
   const v = (process.env.OWNERSHIP_SAT_TRACKER ?? '').trim().toLowerCase();
   return !(v === '0' || v === 'false' || v === 'off');
@@ -307,6 +318,7 @@ class Esplora {
       res = await fetch(`${this.base}${path}`, {
         headers: { Accept: kind === 'json' ? 'application/json' : 'text/plain', 'User-Agent': CHAIN_USER_AGENT },
         signal: AbortSignal.timeout(remaining),
+        redirect: ESPLORA_REDIRECT,
       });
     } catch {
       throw new ProviderDown(`network ${path}`);
@@ -333,14 +345,16 @@ class Esplora {
   }
 }
 
-let tipCache: { base: string; height: number; at: number } | null = null;
+/** Per provider base: its tip height and when it was read. */
+const tipCache = new Map<string, { height: number; at: number }>();
 
 async function tipHeight(esplora: Esplora): Promise<number | null> {
-  if (tipCache && tipCache.base === esplora.base && Date.now() - tipCache.at < TIP_TTL_MS) return tipCache.height;
+  const hit = tipCache.get(esplora.base);
+  if (hit && Date.now() - hit.at < TIP_TTL_MS) return hit.height;
   try {
     const height = Number.parseInt(String(await esplora.get('/blocks/tip/height', 'text')), 10);
     if (!Number.isSafeInteger(height) || height <= 0) return null;
-    tipCache = { base: esplora.base, height, at: Date.now() };
+    tipCache.set(esplora.base, { height, at: Date.now() });
     return height;
   } catch {
     return null;
@@ -358,11 +372,10 @@ interface Location {
   height: number;
 }
 
+/** Per provider and inscription: the deepest location 6+ blocks deep a trace reached. */
 const cache = new Map<string, Location>();
-/** Per inscription, the last location a second provider agreed with. */
-const crossChecked = new Map<string, string>();
 
-const locationKey = (l: Location) => `${l.txid}:${l.vout}:${l.offset}:${l.address}`;
+const locKey = (base: string, inscriptionId: string) => `${base}|${inscriptionId}`;
 
 function remember<V>(map: Map<string, V>, key: string, value: V): void {
   if (map.size >= MAX_CACHED && !map.has(key)) {
@@ -389,8 +402,12 @@ async function withTraceSlot<T>(work: () => Promise<T>): Promise<T> {
 /** Test seam. */
 export function __resetSatTracker(): void {
   cache.clear();
-  crossChecked.clear();
-  tipCache = null;
+  tipCache.clear();
+}
+
+/** Forget every provider's cached location for an inscription. */
+export function forgetLocations(inscriptionId: string): void {
+  for (const base of ESPLORA_BASES) cache.delete(locKey(base, inscriptionId));
 }
 
 function hexToBytes(hex: string): Uint8Array {
@@ -483,7 +500,7 @@ async function traceOn(
   txid: string,
   index: number,
 ): Promise<{ holder: TrackedHolder; loc: Location }> {
-  let loc = cache.get(inscriptionId) ?? genesisLocation(await esplora.tx(txid), index);
+  let loc = cache.get(locKey(esplora.base, inscriptionId)) ?? genesisLocation(await esplora.tx(txid), index);
   const tip = await tipHeight(esplora);
   const progress: { deepest: Location | null } = { deepest: null };
   const noteDepth = (l: Location) => {
@@ -509,8 +526,16 @@ async function traceOn(
       }
       if (++hops > MAX_HOPS) throw new Unknown('hop_budget');
       if (typeof spend.txid !== 'string' || !Number.isInteger(spend.vin)) throw new Unknown('outspend_shape');
+      if (!/^[0-9a-f]{64}$/.test(spend.txid)) throw new Unknown('bad_txid');
 
-      const next = await esplora.tx(spend.txid);
+      let next: EsploraTx;
+      try {
+        next = await esplora.tx(spend.txid);
+      } catch (e) {
+        // This provider's own outspend named the spend as confirmed: it says the sat moved on.
+        if (e instanceof Unknown && e.message === 'not_found') throw new Unknown('spend_tx_missing');
+        throw e;
+      }
       const k = spend.vin as number;
       const vin = next.vin[k];
       if (!vin || vin.txid !== loc.txid || vin.vout !== loc.vout) throw new Unknown('spend_mismatch');
@@ -521,75 +546,76 @@ async function traceOn(
       noteDepth(loc);
     }
   } finally {
-    if (progress.deepest) remember(cache, inscriptionId, progress.deepest);
+    if (progress.deepest) remember(cache, locKey(esplora.base, inscriptionId), progress.deepest);
   }
 }
 
-/**
- * Ask the providers other than `primary` whether they see the same output at
- * `loc`, with the same address, not spent in a block. The first one that
- * answers decides; `unreachable` when none does.
- */
-async function confirmElsewhere(primary: string, loc: Location): Promise<'agree' | 'disagree' | 'unreachable'> {
-  for (const base of ESPLORA_BASES) {
-    if (base === primary) continue;
-    const esplora = new Esplora(base, Date.now() + 2 * REQUEST_TIMEOUT_MS);
-    try {
-      const tx = await esplora.tx(loc.txid);
-      if (tx.status?.confirmed !== true || tx.vout[loc.vout]?.scriptpubkey_address !== loc.address) return 'disagree';
-      const spend = await esplora.outspend(loc.txid, loc.vout);
-      return spend.spent && spend.status?.confirmed === true ? 'disagree' : 'agree';
-    } catch (e) {
-      if (e instanceof ProviderDown) continue;
-      // An unknown transaction or a malformed answer is a disagreement too.
-      return 'disagree';
+/** Unknown reasons that mean "this provider could not answer", not "it contradicts". */
+const NO_ANSWER_REASONS = new Set(['time_budget', 'hop_budget', 'not_found']);
+
+/** One provider's own trace, as a source answer. Never throws. */
+async function traceProvider(base: string, inscriptionId: string, id: { txid: string; index: number }): Promise<SourceAnswer> {
+  const source = `esplora:${hostOf(base)}`;
+  const esplora = new Esplora(base, Date.now() + TRACE_BUDGET_MS);
+  try {
+    const { holder } = await traceOn(esplora, inscriptionId, id.txid, id.index);
+    return { source, host: base, state: 'ok', address: holder.address, satpoint: holder.satpoint, hops: holder.hops };
+  } catch (e) {
+    if (e instanceof ProviderDown) {
+      console.warn(`[sat-tracker] ${hostOf(base)} unavailable: ${e.message}`);
+      return { source, host: base, state: 'none', reason: 'provider_down' };
     }
+    const reason = e instanceof Unknown ? e.message : 'internal_error';
+    if (!(e instanceof Unknown)) console.warn('[sat-tracker] unexpected failure:', e instanceof Error ? e.message : e);
+    if (NO_ANSWER_REASONS.has(reason)) {
+      if (reason === 'not_found') cache.delete(locKey(base, inscriptionId));
+      return { source, host: base, state: 'none', reason };
+    }
+    // The provider's data puts the sat somewhere the rules cannot name.
+    cache.delete(locKey(base, inscriptionId));
+    return { source, host: base, state: 'dissent', reason };
   }
-  return 'unreachable';
 }
 
 /**
- * Current holder of `inscriptionId`, derived from Esplora alone.
+ * Every Esplora provider's own answer for `inscriptionId`, in `ESPLORA_BASES`
+ * order. The providers trace in parallel inside one trace slot. This does not
+ * decide anything: the caller hands the answers to `agreeOnHolder`.
+ *
+ * Never throws; a malformed id makes no request and answers `[]`.
+ */
+export async function traceEachProvider(inscriptionId: string): Promise<SourceAnswer[]> {
+  const id = parseInscriptionId(inscriptionId);
+  if (!id) return [];
+  const bases = [...new Set(ESPLORA_BASES)];
+  return withTraceSlot(() => Promise.all(bases.map((base) => traceProvider(base, inscriptionId, id))));
+}
+
+/**
+ * Current holder of `inscriptionId`, derived from Esplora alone: `ok` only when
+ * the providers agree (lib/onchain/holder-agreement.ts).
  *
  * Never throws. `unknown` carries a short machine reason for logs; callers
  * treat every `unknown` as "on-chain truth unavailable".
  */
 export async function trackInscriptionHolder(inscriptionId: string): Promise<TrackResult> {
-  const id = parseInscriptionId(inscriptionId);
-  if (!id) return { status: 'unknown', reason: 'bad_inscription_id' };
-  return withTraceSlot(() => trackOn(inscriptionId, id));
-}
-
-async function trackOn(inscriptionId: string, id: { txid: string; index: number }): Promise<TrackResult> {
-  let lastReason = 'no_provider';
-  for (const base of ESPLORA_BASES) {
-    const esplora = new Esplora(base, Date.now() + TRACE_BUDGET_MS);
-    try {
-      const { holder, loc } = await traceOn(esplora, inscriptionId, id.txid, id.index);
-      const key = locationKey(loc);
-      if (crossChecked.get(inscriptionId) !== key) {
-        const verdict = await confirmElsewhere(base, loc);
-        if (verdict === 'disagree') {
-          cache.delete(inscriptionId);
-          crossChecked.delete(inscriptionId);
-          console.warn(`[sat-tracker] providers disagree on ${inscriptionId} at ${holder.satpoint}; answering unknown`);
-          return { status: 'unknown', reason: 'esplora_disagreement' };
-        }
-        if (verdict === 'agree') remember(crossChecked, inscriptionId, key);
-      }
-      return holder;
-    } catch (e) {
-      if (e instanceof ProviderDown) {
-        lastReason = 'provider_down';
-        console.warn(`[sat-tracker] ${hostOf(base)} unavailable: ${e.message}`);
-        continue;
-      }
-      const reason = e instanceof Unknown ? e.message : 'internal_error';
-      if (!(e instanceof Unknown)) console.warn('[sat-tracker] unexpected failure:', e instanceof Error ? e.message : e);
-      return { status: 'unknown', reason };
-    }
+  if (!parseInscriptionId(inscriptionId)) return { status: 'unknown', reason: 'bad_inscription_id' };
+  const answers = await traceEachProvider(inscriptionId);
+  const verdict = agreeOnHolder(answers);
+  if (verdict.state === 'agreed') {
+    const first = answers.find((a) => a.state === 'ok' && a.source === verdict.sources[0]);
+    const hops = first?.state === 'ok' ? first.hops ?? 0 : 0;
+    return { status: 'ok', address: verdict.address, satpoint: verdict.satpoint, source: verdict.sources[0], hops };
   }
-  return { status: 'unknown', reason: lastReason };
+  if (verdict.state === 'disputed') {
+    forgetLocations(inscriptionId);
+    console.warn(`[sat-tracker] providers disagree on ${inscriptionId}; answering unknown`);
+    return { status: 'unknown', reason: 'esplora_disagreement' };
+  }
+  if (verdict.reason === 'one_source') return { status: 'unknown', reason: 'one_source' };
+  if (answers.length === 0) return { status: 'unknown', reason: 'no_provider' };
+  const told = answers.find((a) => a.state !== 'ok' && a.reason !== 'provider_down');
+  return { status: 'unknown', reason: told && told.state !== 'ok' ? told.reason : 'provider_down' };
 }
 
 /**
