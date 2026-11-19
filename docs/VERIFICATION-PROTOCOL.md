@@ -143,7 +143,7 @@ Maximum possible score: 100
 ## Public API Endpoints
 
 ```
-GET  /api/v1/ownership/verify?blockHeight={h} → On-chain holder vs registry: verdict (match | mismatch | unknown), chain, source
+GET  /api/v1/ownership/verify?blockHeight={h} → On-chain holder vs registry: verdict (match | mismatch | unknown), chain, source, sources
 GET  /api/v1/ownership/{height}        → The same ownership answer, by path
 GET  /api/v1/blocks/{height}           → Block record: owner, inscription, parcels
 GET  /api/v1/agents/block/{blockHeight} → Agents registered under this block
@@ -155,6 +155,8 @@ POST /api/v1/agents/register           → Register new agent
 GET/POST /api/v1/delegations/listings  → Delegation (rental) listings
 GET  /api/v1/stats                     → Protocol statistics
 ```
+
+`sources` lists the hosts that agreed on the current holder of the deed inscription, at least two. Which inscription is the deed comes from the deed rule; for 18 recorded heights from the recorded resolver answers of 2026-10-15.
 
 There is no per-agent verification route: `GET /api/v1/verify/{agentId}` never
 existed, and the old `/api/v1/verify` answers 410. An agent's standing is its
