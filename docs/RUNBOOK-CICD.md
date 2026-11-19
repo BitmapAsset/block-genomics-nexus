@@ -17,6 +17,8 @@ nothing for public repos.
 | Post-deploy smoke | `post-deploy-smoke.yml` | 17 read-only probes; failure opens a `prod-smoke-failed` issue |
 | Database migrations | `migrate-production.yml` | Manual, `main` only, approval by the `production-db` environment reviewer |
 | npm releases | `release.yml` | `v*` tag; see `RELEASING.md` |
+| Promise checks | `gates/` (`gates` job in `ci.yml`) | Typecheck and tests on every PR; the runner reads the live site once a day on a maintainers' machine (see "Promise checks") |
+| Security scans | `dep-audit.yml`, `dependency-review.yml`, `scorecard.yml`, `secrets` job, CodeQL | Dependency audit on `main`, weekly and on lockfile PRs; dependency review on every PR; Scorecard weekly (see "Security scanning") |
 
 ## Production database migrations
 
@@ -222,11 +224,11 @@ alerts of severity High or higher).
 
 ## Required status checks on `main`
 
-Branch protection requires five checks today: `sdk`, `mcp`, `cli`, `app`,
-`secrets`. The other seven CI jobs (`typecheck`, `lint`, `build`,
-`migrations`, `resolver`, `example`, `workflows`) run on every PR but a red
-one does not block the merge button. Every job in `ci.yml` should be
-required:
+Branch protection requires twelve checks today: `sdk`, `mcp`, `resolver`,
+`cli`, `typecheck`, `app`, `migrations`, `lint`, `example`, `build`,
+`secrets`, `workflows`. The newer `engine` and `gates` jobs run on every PR
+but a red one does not block the merge button until they are added. The call
+that set the twelve:
 
 ```bash
 gh api -X PATCH repos/BitmapAsset/block-genomics-nexus/branches/main/protection/required_status_checks \
@@ -266,3 +268,111 @@ Verify: `gh api repos/BitmapAsset/block-genomics-nexus/branches/main/protection/
 
 When a job is renamed or removed in `ci.yml`, update this list in the same
 change window, or merges stall.
+
+## Security scanning
+
+| Workflow | Trigger | Permissions | What it checks |
+|---|---|---|---|
+| `ci.yml`, job `secrets` | every PR, push to `main` | `contents: read` | gitleaks over the whole history of the PR's branch |
+| CodeQL (default setup) | every PR, push to `main`, weekly | GitHub's own | JavaScript/TypeScript and GitHub Actions code (see "Code scanning") |
+| `dependency-review.yml` | every PR | `contents: read` | fails a PR that adds or upgrades a dependency with a high or critical advisory (runtime and development scope) |
+| `dep-audit.yml` | push to `main`, Mondays 13:17 UTC, PRs that change a lockfile, the allow-list or the audit script, by hand | `contents: read` | `npm audit --package-lock-only` over every `package-lock.json` the repository tracks; high and critical findings need an allow-list entry |
+| `scorecard.yml` | push to `main`, Mondays 14:23 UTC, branch protection changes | `read-all`; its job adds `security-events: write` to upload its SARIF | OpenSSF Scorecard; results go to Security → Code scanning (category `scorecard`), not to the public Scorecard site |
+
+No workflow uses `pull_request_target` or `workflow_run`, every action is
+pinned by commit SHA, and every checkout sets `persist-credentials: false`, so
+no job keeps a git credential in its clone. `gates/__tests__/workflows.test.ts`
+checks the pins, the checkout setting, a top-level `permissions` and the
+absence of `pull_request_target` line by line on every PR.
+
+### Reading results
+
+- `dep-audit`: the job log prints one row per high or critical finding
+  (`dir package GHSA-id severity allowed|NEW`), then any `expired:`,
+  `too far ahead:` or `fixed: remove` line. Run it locally with
+  `node .github/scripts/dep-audit.mjs` from the repository root (it needs git
+  and npm; it reads only the lockfiles).
+- `dependency-review`: the job log names each dependency the PR adds and its
+  advisory.
+- Scorecard and CodeQL: Security → Code scanning, filtered by tool.
+
+### Adding an allow-list entry
+
+A high or critical finding with no fix that can merge today goes into
+`.github/audit-allowlist.json`:
+
+```json
+{ "ghsa": "GHSA-xxxx-xxxx-xxxx", "dir": "app", "reason": "...", "expires": "YYYY-MM-DD" }
+```
+
+`dir` is the lockfile's directory (`.` for the root). `expires` must be no
+more than 30 days ahead; on that day `dep-audit` turns red on `main` again, so
+the entry is renewed with a new reason or the fix lands. The reason says only
+why the fix waits, one of: "A fixed version is published; the update arrives
+as a dependency pull request.", "No fixed version is published yet; re-checked
+on expiry.", "The fix is a major version; scheduled for the next security
+slice." When a fix lands, the job prints `fixed: remove <id> (<dir>)`: remove
+the entry. A PR that changes the allow-list runs `dep-audit` before it merges.
+
+### Making the new checks required
+
+After `gates` and `dependency-review` have run green on `main` (and on a PR
+opened after that merge), add them to the required checks, in the shape of the
+call in "Required status checks on `main`":
+
+```bash
+gh api -X PATCH repos/BitmapAsset/block-genomics-nexus/branches/main/protection/required_status_checks \
+  --input - <<'EOF_JSON'
+{
+  "strict": true,
+  "checks": [
+    { "context": "sdk",               "app_id": 15368 },
+    { "context": "mcp",               "app_id": 15368 },
+    { "context": "resolver",          "app_id": 15368 },
+    { "context": "cli",               "app_id": 15368 },
+    { "context": "typecheck",         "app_id": 15368 },
+    { "context": "app",               "app_id": 15368 },
+    { "context": "migrations",        "app_id": 15368 },
+    { "context": "lint",              "app_id": 15368 },
+    { "context": "example",           "app_id": 15368 },
+    { "context": "build",             "app_id": 15368 },
+    { "context": "secrets",           "app_id": 15368 },
+    { "context": "workflows",         "app_id": 15368 },
+    { "context": "gates",             "app_id": 15368 },
+    { "context": "dependency-review", "app_id": 15368 }
+  ]
+}
+EOF_JSON
+```
+
+`dep-audit` cannot be required: it reports only on PRs that change a lockfile,
+the allow-list or its script, so on every other PR a required `dep-audit`
+would wait forever. It guards `main` instead. The code scanning merge rule
+(Settings → Rules → Rulesets → *Require code scanning results*, see "Code
+scanning") names CodeQL as its tool, so Scorecard results never block a merge.
+
+## Promise checks
+
+`gates/` holds checks of what the project promises, run against the live
+site: each answers pass, fail or not run, and a run writes one JSON report and
+one line (`gates/README.md` has the details). On a PR, the `gates` job only
+typechecks them and runs their tests on made-up answers; it makes no network
+request.
+
+The runner itself runs once a day on a machine of the maintainers' choosing,
+from a fresh clone of `main`, with Node 22.18 or newer:
+
+```bash
+BG_GATES_BLOCKS=840000 BG_GATES_GATE_BLOCK=<a block height> \
+  node gates/run.ts --out ./gates-out --commit "$(git rev-parse HEAD)"
+```
+
+| Variable | Meaning |
+|---|---|
+| `BG_GATES_BLOCKS` | up to 3 block heights for the map checks (default `840000`) |
+| `BG_GATES_GATE_BLOCK` | the block the ownership check sends its refused build requests for |
+| `BG_GATES_PLAN_FILE` | optional file of planned checks not built yet, kept outside the repository |
+
+It writes `gates-<date>.json`, `latest.json` and `latest.txt` (the line) to
+`--out`, and exits 0 once the report is written. It holds no secret, sends no
+credential, reads four fixed origins and makes at most 40 requests a run.
