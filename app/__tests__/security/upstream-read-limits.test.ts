@@ -8,7 +8,7 @@
  *   paged walk, a page fails the walk.
  * - The deed resolver's fetch adds the configured private ord host's
  *   Authorization only to requests for that host, and those requests never
- *   follow a redirect. Requests to any other host are passed through as before.
+ *   follow a redirect. Requests to any other host carry no Authorization and refuse redirects as well.
  * - The capped reader lives in lib/capped-read and is shared with lib/onchain/ord
  *   (its own cap tests are in __tests__/lib/ord-content-cap.test.ts).
  */
@@ -175,7 +175,7 @@ describe('the deed resolver fetch', () => {
     expect(seen[0].redirect).toBe('error');
   });
 
-  it('to an Esplora host: no Authorization and the redirect mode is left as given', async () => {
+  it('to an Esplora host: no Authorization, and redirects are refused', async () => {
     const seen: any[] = [];
     global.fetch = jest.fn(async (_url: string, init?: any) => {
       seen.push(init);
@@ -184,6 +184,6 @@ describe('the deed resolver fetch', () => {
     await deedResolverOptions().fetch(`${BS}/blocks/tip/height`, { redirect: 'follow' });
     const headers = new Headers(seen[0].headers);
     expect(headers.get('Authorization')).toBeNull();
-    expect(seen[0].redirect).toBe('follow');
+    expect(seen[0].redirect).toBe('error');
   });
 });

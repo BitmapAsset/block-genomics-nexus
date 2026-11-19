@@ -9,11 +9,15 @@
  *
  * The synthetic cases pin ord's location rules one at a time, and every case
  * the tracker does not model answering `unknown` rather than a guess.
+ *
+ * Each Esplora provider traces on its own; a holder is answered only when both
+ * agree (lib/onchain/holder-agreement.ts).
  */
 
 import fixture from '../fixtures/esplora-deed-history.json';
 import {
   trackInscriptionHolder,
+  traceEachProvider,
   readInscriptionBodyFromChain,
   isSatTrackerEnabled,
   tokenizeScript,
@@ -61,6 +65,7 @@ afterEach(() => {
 
 const WALLET = 'bc1ps8ja9w4269rs04uqn7dzgtscs628mss2598x2jvluhz2p09lf6tqae8978';
 const FIVE_TX = '5574518830fa75bd44de78ca6a324314544d757ec53a3a7c4e3a275baa4589a1';
+const REVEAL_718840 = 'cd031d5761e72f2ca1c7806fed7aae0f0ac94d7ced2c152692f9ff97aaf4afd4';
 
 const GROUND_TRUTH: [string, string, string, string][] = [
   // [block, inscription, holder per ordinals.com, satpoint per ordinals.com]
@@ -84,7 +89,7 @@ describe('matches ordinals.com on real deeds', () => {
     expect(r).toMatchObject({ status: 'ok', address: holder, satpoint, source: 'esplora:mempool.space' });
   });
 
-  it('a repeat check is one outspend call from the cached location', async () => {
+  it('a repeat check is one outspend call per provider', async () => {
     serve(replay);
     const [, id, holder, satpoint] = GROUND_TRUTH[0];
     const first = await trackInscriptionHolder(id);
@@ -94,16 +99,51 @@ describe('matches ordinals.com on real deeds', () => {
     requested = [];
     const again = await trackInscriptionHolder(id);
     expect(again).toMatchObject({ status: 'ok', address: holder, satpoint, hops: 0 });
-    expect(requested).toEqual([`${MEMPOOL}/tx/${FIVE_TX}/outspend/3`]);
+    expect([...requested].sort()).toEqual([
+      `${BLOCKSTREAM}/tx/${FIVE_TX}/outspend/3`,
+      `${MEMPOOL}/tx/${FIVE_TX}/outspend/3`,
+    ]);
   });
 
-  it('a new location is confirmed by the second provider before it is answered', async () => {
+  it('both providers trace, and the answer needs both', async () => {
     serve(replay);
     await trackInscriptionHolder(GROUND_TRUTH[0][1]);
     expect(requested).toEqual(expect.arrayContaining([
       `${BLOCKSTREAM}/tx/${FIVE_TX}`,
       `${BLOCKSTREAM}/tx/${FIVE_TX}/outspend/3`,
+      `${BLOCKSTREAM}/tx/${REVEAL_718840}`,
     ]));
+  });
+
+  it('after a disagreement both providers start again from the reveal', async () => {
+    const elsewhere = (url: string): Reply | undefined => {
+      if (url !== `${BLOCKSTREAM}/tx/${FIVE_TX}`) return replay(url);
+      const body = JSON.parse(JSON.stringify(recorded[`/tx/${FIVE_TX}`].body));
+      body.vout[3].scriptpubkey_address = 'bc1pqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqsomeoneelse';
+      return { status: 200, body };
+    };
+    serve(elsewhere);
+    expect(await trackInscriptionHolder(GROUND_TRUTH[0][1])).toEqual({ status: 'unknown', reason: 'esplora_disagreement' });
+
+    serve(replay);
+    requested = [];
+    expect(await trackInscriptionHolder(GROUND_TRUTH[0][1])).toMatchObject({ status: 'ok', address: WALLET });
+    expect(requested).toEqual(expect.arrayContaining([`${MEMPOOL}/tx/${REVEAL_718840}`, `${BLOCKSTREAM}/tx/${REVEAL_718840}`]));
+  });
+
+  it('a trace that ended in a dissent starts from the reveal', async () => {
+    serve((url) => (url === `${BLOCKSTREAM}/tx/${FIVE_TX}` ? undefined : replay(url)));
+    const answers = await traceEachProvider(GROUND_TRUTH[0][1]);
+    expect(answers).toEqual([
+      expect.objectContaining({ source: 'esplora:mempool.space', state: 'ok', address: WALLET }),
+      expect.objectContaining({ source: 'esplora:blockstream.info', state: 'dissent', reason: 'spend_tx_missing' }),
+    ]);
+
+    serve(replay);
+    requested = [];
+    expect(await trackInscriptionHolder(GROUND_TRUTH[0][1])).toMatchObject({ status: 'ok', address: WALLET });
+    expect(requested).toContain(`${BLOCKSTREAM}/tx/${REVEAL_718840}`);
+    expect(requested).not.toContain(`${MEMPOOL}/tx/${REVEAL_718840}`);
   });
 
   it('reads the deed body out of the reveal transaction', async () => {
@@ -270,10 +310,10 @@ describe('transfers follow ord', () => {
 describe('providers', () => {
   const reveal = tx({ txid: REVEAL, vin: [{ value: 10_000, witness: tapWitness(envelope()) }], vout: [{ value: 546, address: 'bc1pholder' }] });
 
-  it('falls over to blockstream.info when mempool.space is down', async () => {
+  it('one provider down: one_source', async () => {
     const second = chain([reveal], {}, [BLOCKSTREAM]);
     serve((url) => (url.startsWith(MEMPOOL) ? { status: 503, body: 'down' } : second(url)));
-    expect(await trackInscriptionHolder(ID)).toMatchObject({ status: 'ok', address: 'bc1pholder', source: 'esplora:blockstream.info' });
+    expect(await trackInscriptionHolder(ID)).toEqual({ status: 'unknown', reason: 'one_source' });
   });
 
   it('unknown when the second provider names another address for that output', async () => {
@@ -291,10 +331,18 @@ describe('providers', () => {
     expect(await trackInscriptionHolder(ID)).toEqual({ status: 'unknown', reason: 'esplora_disagreement' });
   });
 
-  it('a single provider answer stands when the other is unreachable', async () => {
+  it('a single provider answer is one_source', async () => {
     const first = chain([reveal], {}, [MEMPOOL]);
     serve((url) => first(url) ?? { status: 503, body: 'down' });
-    expect(await trackInscriptionHolder(ID)).toMatchObject({ status: 'ok', address: 'bc1pholder', source: 'esplora:mempool.space' });
+    expect(await trackInscriptionHolder(ID)).toEqual({ status: 'unknown', reason: 'one_source' });
+  });
+
+  it('a provider that answers burned beside a holder', async () => {
+    const burned = tx({ txid: REVEAL, vin: [{ value: 10_000, witness: tapWitness(envelope()) }], vout: [{ value: 546, type: 'op_return' }] });
+    const first = chain([reveal], {}, [MEMPOOL]);
+    const second = chain([burned], {}, [BLOCKSTREAM]);
+    serve((url) => first(url) ?? second(url));
+    expect(await trackInscriptionHolder(ID)).toEqual({ status: 'unknown', reason: 'esplora_disagreement' });
   });
 
   it('unknown when every provider is down', async () => {
@@ -316,7 +364,7 @@ describe('providers', () => {
 });
 
 describe('load', () => {
-  it('runs at most four traces at once and queues the rest', async () => {
+  it('runs at most four checks at once and queues the rest', async () => {
     let inFlight = 0;
     let peak = 0;
     const release: (() => void)[] = [];
@@ -330,12 +378,13 @@ describe('load', () => {
 
     const ids = Array.from({ length: 6 }, (_, i) => `${(i + 1).toString(16).repeat(64)}i0`);
     const all = Promise.all(ids.map((id) => trackInscriptionHolder(id)));
-    for (let i = 0; i < 50 && release.length < 6; i++) {
+    for (let i = 0; i < 50 && release.length < 12; i++) {
       await new Promise((r) => setTimeout(r, 1));
       release.splice(0).forEach((r) => r());
     }
     const results = await all;
-    expect(peak).toBe(4);
+    // one slot holds one check with its two parallel traces
+    expect(peak).toBe(8);
     expect(results.every((r) => r.status === 'unknown')).toBe(true);
   });
 });
