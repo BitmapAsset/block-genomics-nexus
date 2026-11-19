@@ -1,0 +1,10 @@
+{
+  "entries": [
+    {
+      "ghsa": "GHSA-ggr8-5vv4-36mx",
+      "dir": "app",
+      "reason": "The fix is a major version; scheduled for the next security slice.",
+      "expires": "2026-12-19"
+    }
+  ]
+}
