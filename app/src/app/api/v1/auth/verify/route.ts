@@ -75,25 +75,11 @@ async function verifyPost(req: NextRequest) {
     let tier = 3; // default: no block ownership
     // What the on-chain holder check did on THIS request, so the client can say
     // it truthfully: 'live' = an indexer confirmed the holder just now,
-    // 'previous' = skipped because this wallet was already verified for this
-    // block, 'none' = no block claimed.
-    let holderCheck: 'live' | 'previous' | 'none' = 'none';
+    // 'none' = no block claimed.
+    let holderCheck: 'live' | 'none' = 'none';
 
-    // Check if user already exists (used for skip-on-chain and genome hash reuse)
+    // Check if user already exists (used for genome hash reuse and the repeat check below)
     const existingUser = await prisma.user.findUnique({ where: { walletAddress } });
-
-    // Skip on-chain check if user already verified for this block (e.g. Step 4 profile creation after Step 3 verify).
-    // Only while our block record still names this wallet: a buyer who verified
-    // here (rather than through ownership sync) leaves the seller's anchor in
-    // place, and the seller's cached verification must not outrank that.
-    if (blockHeight && existingUser?.verified && existingUser?.tier === 1 && existingUser?.anchorBlock === blockHeight && existingUser?.genomeHash) {
-      const recorded = await prisma.block.findUnique({ where: { height: blockHeight } });
-      if (recorded?.ownerAddress === walletAddress) {
-        verifiedBlockHeight = blockHeight;
-        tier = 1;
-        holderCheck = 'previous';
-      }
-    }
 
     // The deed the live check was about, written to the block record below.
     let deedInscriptionId: string | null = null;
@@ -181,25 +167,36 @@ async function verifyPost(req: NextRequest) {
       });
     }
 
-    // Create/update block record only if ownership was verified on-chain ON THIS
-    // REQUEST. A 'previous' answer is the wallet's own cached verification, not
-    // proof of the current holder, so it never rewrites the block's owner.
+    // Record the block only after a live holder check on this request. The owner
+    // is written only where none is recorded: flipping another wallet's
+    // ownership belongs to processOwnershipTransfer, which releases the seller's
+    // data first. A changed deed id may always be written.
     if (verifiedBlockHeight && holderCheck === 'live') {
-      await prisma.block.upsert({
-        where: { height: verifiedBlockHeight },
-        update: {
-          ownerAddress: walletAddress,
-          ...(deedInscriptionId && { inscriptionId: deedInscriptionId }),
-        },
-        create: {
-          height: verifiedBlockHeight,
-          ownerAddress: walletAddress,
-          ...(deedInscriptionId && { inscriptionId: deedInscriptionId }),
-        },
-      });
+      const recorded = await prisma.block.findUnique({ where: { height: verifiedBlockHeight } });
+      const mayWriteOwner = !recorded?.ownerAddress;
+      const newDeed = deedInscriptionId && deedInscriptionId !== recorded?.inscriptionId ? deedInscriptionId : null;
+      if (!recorded) {
+        await prisma.block.create({
+          data: {
+            height: verifiedBlockHeight,
+            ownerAddress: walletAddress,
+            ...(deedInscriptionId && { inscriptionId: deedInscriptionId }),
+          },
+        });
+      } else if (mayWriteOwner || newDeed) {
+        await prisma.block.update({
+          where: { height: verifiedBlockHeight },
+          data: {
+            ...(mayWriteOwner && { ownerAddress: walletAddress }),
+            ...(newDeed && { inscriptionId: newDeed }),
+          },
+        });
+      }
+      // A wallet already tier 1 and anchored to this block announces nothing again.
+      const repeat = existingUser?.verified === true && existingUser.tier === 1 && existingUser.anchorBlock === verifiedBlockHeight;
       // Living Block: `deed.verified`, wallet-proofed by the challenge message
       // whose nonce was consumed above (it re-authorizes nothing). Never throws.
-      await emitDeedVerified({ block: verifiedBlockHeight, holder: walletAddress, inscriptionId: deedInscriptionId, via: 'auth', walletProof: walletProofOf(walletAddress, message, signature) });
+      if (!repeat) await emitDeedVerified({ block: verifiedBlockHeight, holder: walletAddress, inscriptionId: deedInscriptionId, via: 'auth', walletProof: walletProofOf(walletAddress, message, signature) });
     }
 
     // Auto-create BlockProfile for the anchor block if one doesn't exist yet
