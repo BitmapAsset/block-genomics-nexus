@@ -19,12 +19,16 @@ async function count(ctx: Ctx, path: string, key: 'objects' | 'placements'): Pro
   return list.length;
 }
 
-function isRefused(a: Answer): boolean {
-  return a.status === 401 || a.status === 403;
+function isRefused(a: Answer | null): boolean {
+  return a !== null && (a.status === 401 || a.status === 403);
 }
 
-function isOff(a: Answer): boolean {
-  if (a.status !== 503) return false;
+function isAccepted(a: Answer | null): boolean {
+  return a !== null && a.status >= 200 && a.status < 300;
+}
+
+function isOff(a: Answer | null): boolean {
+  if (a === null || a.status !== 503) return false;
   const body = jsonOf(a) as Record<string, unknown> | null;
   return body !== null && typeof body === 'object' && body.enabled === false;
 }
@@ -42,15 +46,19 @@ export const gOwnerOnly: Check = {
     const n0 = await count(ctx, `/api/v1/world?blockHeight=${gb}`, 'objects');
     const p0 = await count(ctx, `/api/v1/blocks/${gb}/world`, 'placements');
 
+    // Each answer is judged as it arrives: after an accepted build, no further build is sent.
     const a = await ctx.http.refusalProbe('/api/v1/world', { blockHeight: gb, objectType: 'box' });
-    const b = await ctx.http.refusalProbe('/api/v1/world', {
-      blockHeight: gb,
-      objectType: 'box',
-      ownerAddress: OWNER,
-      message: MESSAGE,
-      signature: SIGNATURE,
-    });
-    const c = await ctx.http.refusalProbe(`/api/v1/blocks/${gb}/world/place`, {});
+    const b = isAccepted(a)
+      ? null
+      : await ctx.http.refusalProbe('/api/v1/world', {
+          blockHeight: gb,
+          objectType: 'box',
+          ownerAddress: OWNER,
+          message: MESSAGE,
+          signature: SIGNATURE,
+        });
+    const c =
+      isAccepted(a) || isAccepted(b) ? null : await ctx.http.refusalProbe(`/api/v1/blocks/${gb}/world/place`, {});
 
     // The second reads use their own addresses, so neither a cache here nor the site's edge
     // cache can answer with the first read.
@@ -60,21 +68,21 @@ export const gOwnerOnly: Check = {
     const place = isRefused(c) ? 'refused' : isOff(c) ? 'off' : null;
     const values = {
       a: a.status,
-      b: b.status,
-      c: c.status,
+      b: b === null ? null : b.status,
+      c: c === null ? null : c.status,
       place,
       objects: [n0, n1],
       placements: [p0, p1],
       covers: ['no credential', 'made-up signature'],
     };
 
-    const sent: [string, Answer][] = [
+    const sent: [string, Answer | null][] = [
       ['A', a],
       ['B', b],
       ['C', c],
     ];
     for (const [name, ans] of sent) {
-      if (ans.status >= 200 && ans.status < 300) {
+      if (ans !== null && isAccepted(ans)) {
         return {
           status: 'fail',
           reason: `The site accepted a build without a signature (request ${name}, status ${ans.status}).`,
@@ -92,7 +100,7 @@ export const gOwnerOnly: Check = {
     ];
     for (const [name, ok] of unread) {
       if (!ok) {
-        const status = sent.find(([n]) => n === name)?.[1].status;
+        const status = sent.find(([n]) => n === name)?.[1]?.status;
         return {
           status: 'not_run',
           reason: `request ${name} answered ${status} before a credential was checked; the check needs a new request`,

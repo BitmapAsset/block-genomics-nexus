@@ -37,7 +37,7 @@ High-priority areas include:
 
 ## What every change is checked for
 
-- **Secret scan:** gitleaks over the whole history of every pull request's branch and every push to `main`.
+- **Secret scan:** gitleaks on the commits of every pull request and of every push to `main`.
 - **Code scanning:** CodeQL (GitHub's default setup) on every pull request, every push to `main` and weekly.
 - **Dependency audit:** `npm audit` over every lockfile of the tree on each push to `main`, weekly, and on pull requests that change a lockfile. A high or critical finding fails it unless it has an entry in `.github/audit-allowlist.json`, and every entry expires within 30 days.
 - **Dependency review:** every pull request fails when a dependency it adds or upgrades carries a high or critical advisory.

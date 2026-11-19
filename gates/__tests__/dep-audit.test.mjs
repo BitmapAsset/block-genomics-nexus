@@ -16,6 +16,11 @@ describe('evaluate', () => {
     expect(r.lines.join('\n')).toContain('NEW');
   });
 
+  it('fails on a finding whose only entry names another directory', () => {
+    const r = evaluate([finding], [{ ghsa: A, dir: 'app', reason: 'r', expires: '2026-01-20' }], today);
+    expect(r.code).toBe(1);
+  });
+
   it('fails on an expired entry', () => {
     const r = evaluate([finding], [{ ghsa: A, dir: '.', reason: 'r', expires: '2026-01-09' }], today);
     expect(r.code).toBe(1);

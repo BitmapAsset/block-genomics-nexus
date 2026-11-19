@@ -273,7 +273,7 @@ change window, or merges stall.
 
 | Workflow | Trigger | Permissions | What it checks |
 |---|---|---|---|
-| `ci.yml`, job `secrets` | every PR, push to `main` | `contents: read` | gitleaks over the whole history of the PR's branch |
+| `ci.yml`, job `secrets` | every PR, push to `main` | `contents: read` | gitleaks on the commits of the pull request or the push |
 | CodeQL (default setup) | every PR, push to `main`, weekly | GitHub's own | JavaScript/TypeScript and GitHub Actions code (see "Code scanning") |
 | `dependency-review.yml` | every PR | `contents: read` | fails a PR that adds or upgrades a dependency with a high or critical advisory (runtime and development scope) |
 | `dep-audit.yml` | push to `main`, Mondays 13:17 UTC, PRs that change a lockfile, the allow-list or the audit script, by hand | `contents: read` | `npm audit --package-lock-only` over every `package-lock.json` the repository tracks; high and critical findings need an allow-list entry |
@@ -306,13 +306,15 @@ A high or critical finding with no fix that can merge today goes into
 ```
 
 `dir` is the lockfile's directory (`.` for the root). `expires` must be no
-more than 30 days ahead; on that day `dep-audit` turns red on `main` again, so
-the entry is renewed with a new reason or the fix lands. The reason says only
-why the fix waits, one of: "A fixed version is published; the update arrives
-as a dependency pull request.", "No fixed version is published yet; re-checked
-on expiry.", "The fix is a major version; scheduled for the next security
-slice." When a fix lands, the job prints `fixed: remove <id> (<dir>)`: remove
-the entry. A PR that changes the allow-list runs `dep-audit` before it merges.
+more than 30 days ahead; the entry counts through that day; from the next day
+(UTC) `dep-audit` turns red at its next run on `main` (a push or the Monday
+run), so the entry is renewed with a new reason or the fix lands before then.
+The reason says only why the fix waits, one of: "A fixed version is published;
+the update arrives as a dependency pull request.", "No fixed version is
+published yet; re-checked on expiry.", "The fix is a major version; scheduled
+for the next security slice." When a fix lands, the job prints `fixed: remove
+<id> (<dir>)`: remove the entry. A PR that changes the allow-list runs
+`dep-audit` before it merges.
 
 ### Making the new checks required
 

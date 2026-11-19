@@ -165,9 +165,23 @@ describe('G-OWNER-ONLY', () => {
   });
 
   it('fails when a build is accepted', async () => {
-    const r = await probe(gOwnerOnly, makeCtx('G-OWNER-ONLY', routes({ [POST_WORLD]: world(401, 201) })));
+    const calls: Call[] = [];
+    const r = await probe(gOwnerOnly, makeCtx('G-OWNER-ONLY', routes({ [POST_WORLD]: world(401, 201) }), { calls }));
     expect(r.status).toBe('fail');
     expect(r.reason).toBe('The site accepted a build without a signature (request B, status 201).');
+    expect(calls.filter((c) => `${c.method} ${c.url}` === POST_PLACE)).toHaveLength(0);
+    expect(r.values.c).toBeNull();
+  });
+
+  it('stops sending after the first accepted build', async () => {
+    const calls: Call[] = [];
+    const r = await probe(gOwnerOnly, makeCtx('G-OWNER-ONLY', routes({ [POST_WORLD]: world(201, 401) }), { calls }));
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
+    expect(r.status).toBe('fail');
+    expect(r.reason).toBe('The site accepted a build without a signature (request A, status 201).');
+    expect(r.values.b).toBeNull();
+    expect(r.values.c).toBeNull();
+    expect(r.values.place).toBeNull();
   });
 
   it('fails when the objects changed', async () => {

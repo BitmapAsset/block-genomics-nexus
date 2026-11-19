@@ -58,6 +58,7 @@ describe('the guarded HTTP client', () => {
     await expect(c.get('http://blockgenomics.io/x')).rejects.toThrow();
     await expect(c.refusalProbe('https://example.org/blocks/840000/x', { blockHeight: 840000 })).rejects.toThrow();
     await expect(c.refusalProbe('https://blockstream.info/api/v1/world', { blockHeight: 840000 })).rejects.toThrow();
+    await expect(c.refusalProbe('/\\blockstream.info/api/v1/world', { blockHeight: 840000 })).rejects.toThrow();
     expect(calls).toHaveLength(0);
   });
 

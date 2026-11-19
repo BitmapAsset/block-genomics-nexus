@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -205,6 +205,13 @@ describe('the run', () => {
       checks: [ok],
       print: () => {},
     });
+    expect(res.code).toBe(2);
+  });
+
+  it('exits 2 when a report file cannot be written', async () => {
+    const out = mkdtempSync(join(tmpdir(), 'gates-out-'));
+    mkdirSync(join(out, 'latest.json'));
+    const res = await runGates({ argv: ['--out', out], env: {}, fetchImpl: fakeFetch({}), checks: [ok], print: () => {} });
     expect(res.code).toBe(2);
   });
 
