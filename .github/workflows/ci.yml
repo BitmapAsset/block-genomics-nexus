@@ -6,8 +6,9 @@
 #
 # Job names double as branch-protection status checks: sdk, mcp, cli, app,
 # lint, typecheck, example, build, secrets, migrations, resolver, workflows. Keep every
-# `name:` stable; renaming one silently orphans its required check. `engine` is
-# newer and not a required check until someone adds it to branch protection.
+# `name:` stable; renaming one silently orphans its required check. `engine` and
+# `gates` are newer and not required checks until someone adds them to branch
+# protection.
 #
 # Every job carries a 15-minute timeout (the slowest, `build`, takes ~2 min).
 # The GitHub default is 360 minutes, so a hung step would otherwise hold the
@@ -105,6 +106,24 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npx vitest run engine
+
+  gates:
+    name: gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The promise checks: typecheck and tests on made-up answers. No network.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npx tsc -p gates/tsconfig.json
+      - run: npx vitest run --dir gates
 
   resolver:
     name: resolver
