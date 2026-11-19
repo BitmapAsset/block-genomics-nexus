@@ -40,11 +40,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
       # A tag can point at any commit, including one on an unmerged branch that
       # never passed review. Only release what is already on main.
       - name: Tagged commit must be on main
         run: |
+          # The repository is public, so this fetch needs no stored git credential.
           git fetch --no-tags origin main
           if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
             echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main. Tag a commit on main."
@@ -92,6 +94,8 @@ jobs:
         working-directory: ${{ matrix.dir }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # npm Trusted Publishing requires Node >= 22.14 and npm >= 11.5.1
       # (docs.npmjs.com/trusted-publishers). The previous Node 20 + `npm@latest`
       # combination met neither: Node 20 is below the floor, and npm@latest is
