@@ -42,17 +42,20 @@ const mockRateLimit = jest.fn(async () => ({ response: null as unknown, headers:
 jest.mock('@/lib/api-rate-limit', () => ({
   enforceRateLimit: (...args: unknown[]) => mockRateLimit(...(args as [])),
   PUBLIC_READ_LIMIT: 120,
+  ESTATE_WRITE_LIMIT: 20,
 }));
 
 const mockCreateInvoice = jest.fn(async () => ({ bolt11: 'lnbc1...', invoiceId: 'inv_1' }));
 jest.mock('@/lib/lightning', () => ({ createLightningInvoice: (...args: unknown[]) => mockCreateInvoice(...(args as [])) }));
+const mockLiveOwner = jest.fn();
+jest.mock('@/lib/ownership-gate', () => ({ requireLiveBlockOwner: (...args: unknown[]) => mockLiveOwner(...(args as [])) }));
 
 import prisma from '@/lib/prisma';
 import { issueChallenge } from '@/lib/challenges';
 import { buildActionMessage, hashBody } from '@/lib/action-message';
 import { mintVerifiedSession } from '@/lib/verified-sessions';
 import { POST as INVOICE } from '@/app/api/v1/lightning/invoice/route';
-import { DELETE as END_STREAM } from '@/app/api/v1/livestream/route';
+import { DELETE as END_STREAM, POST as START_STREAM } from '@/app/api/v1/livestream/route';
 import { POST as APPEAL } from '@/app/api/v1/brain/appeal/route';
 import { POST as ACTIVITY } from '@/app/api/v1/activity/route';
 import { makeWallet, sign, freshNonce } from '../helpers/wallet-sim';
@@ -62,6 +65,8 @@ const db = prisma as any;
 
 const OWNER = makeWallet('p2tr');
 const STRANGER = makeWallet('p2tr');
+const NEWHOLDER = makeWallet('p2tr');
+const THIRD = makeWallet('p2tr');
 const BLOCK = 840000;
 
 type Wallet = { privKey: string; address: string };
@@ -94,7 +99,8 @@ const jsonReq = (body: Record<string, unknown>, token?: string) =>
 
 beforeEach(() => {
   db.__reset();
-  mockRateLimit.mockClear();
+  mockRateLimit.mockReset().mockImplementation(async () => ({ response: null as unknown, headers: {} }));
+  mockLiveOwner.mockReset().mockResolvedValue({ ok: false, status: 403, code: 'ownership_lost', reason: 'Block 840000 is not held by this wallet on-chain.' });
   mockCreateInvoice.mockClear();
 });
 
@@ -148,6 +154,8 @@ describe('DELETE /livestream', () => {
     const res: any = await END_STREAM(jsonReq(await signedBody(STRANGER, END, { blockHeight: BLOCK, ownerAddress: STRANGER.address })));
     expect(res.status).toBe(403);
     expect(await streamOwner()).toBe(OWNER.address);
+    expect(mockLiveOwner).toHaveBeenCalledTimes(1);
+    expect(mockLiveOwner).toHaveBeenCalledWith(STRANGER.address, BLOCK);
   });
 
   it('the stream owner ends it with a signed request; a replay is refused', async () => {
@@ -161,6 +169,114 @@ describe('DELETE /livestream', () => {
     const replay: any = await END_STREAM(jsonReq(body));
     expect(replay.status).toBe(401);
     expect(await streamOwner()).toBe(OWNER.address);
+  });
+
+  const HOLDS = () => ({ ok: true, status: 200, walletAddress: NEWHOLDER.address });
+  const holderEnd = () => signedBody(NEWHOLDER, END, { blockHeight: BLOCK, ownerAddress: NEWHOLDER.address });
+
+  it("U1 the wallet that holds the block now ends the starter's stream with its own signed body", async () => {
+    mockLiveOwner.mockResolvedValueOnce(HOLDS());
+    const res: any = await END_STREAM(jsonReq(await holderEnd()));
+    expect(res.status).toBe(200);
+    expect(await streamOwner()).toBeNull();
+  });
+
+  it('U3 the gate answers 503', async () => {
+    const reason = 'On-chain ownership could not be confirmed right now. Retry shortly.';
+    mockLiveOwner.mockResolvedValueOnce({ ok: false, status: 503, code: 'onchain_unavailable', reason });
+    const res: any = await END_STREAM(jsonReq(await holderEnd()));
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toBe(reason);
+    expect(res.headers.get('Retry-After')).toBe('15');
+    expect(await streamOwner()).toBe(OWNER.address);
+  });
+
+  it("U4 holder's replay: U1's body sent twice", async () => {
+    const body = await holderEnd();
+    mockLiveOwner.mockResolvedValueOnce(HOLDS());
+    const res: any = await END_STREAM(jsonReq(body));
+    expect(res.status).toBe(200);
+
+    await db.block.update({ where: { height: BLOCK }, data: { streamOwner: OWNER.address, streamUrl: 'https://youtu.be/abc' } });
+    const replay: any = await END_STREAM(jsonReq(body));
+    expect(replay.status).toBe(401);
+    expect(mockLiveOwner).toHaveBeenCalledTimes(1);
+    expect(await streamOwner()).toBe(OWNER.address);
+  });
+
+  it('U5 another block: NEWHOLDER signs the binding for block BLOCK + 1 with body { blockHeight: BLOCK, ownerAddress }, gate ok', async () => {
+    mockLiveOwner.mockResolvedValue(HOLDS());
+    const body = await signedBody(NEWHOLDER, { ...END, blockHeight: BLOCK + 1 }, { blockHeight: BLOCK, ownerAddress: NEWHOLDER.address });
+    const res: any = await END_STREAM(jsonReq(body));
+    expect(res.status).toBe(401);
+    expect(await streamOwner()).toBe(OWNER.address);
+    expect(mockLiveOwner).not.toHaveBeenCalled();
+  });
+
+  it("U6 another action: NEWHOLDER signs action: 'livestream.start', gate ok", async () => {
+    mockLiveOwner.mockResolvedValue(HOLDS());
+    const body = await signedBody(NEWHOLDER, { ...END, action: 'livestream.start' }, { blockHeight: BLOCK, ownerAddress: NEWHOLDER.address });
+    const res: any = await END_STREAM(jsonReq(body));
+    expect(res.status).toBe(401);
+    expect(await streamOwner()).toBe(OWNER.address);
+  });
+
+  it("U7 changed body: NEWHOLDER's signed body, then note: 'x' added before sending, gate ok", async () => {
+    mockLiveOwner.mockResolvedValue(HOLDS());
+    const body = await holderEnd();
+    const res: any = await END_STREAM(jsonReq({ ...body, note: 'x' }));
+    expect(res.status).toBe(401);
+    expect(await streamOwner()).toBe(OWNER.address);
+  });
+
+  it("U8 a block without a stream, NEWHOLDER's signed end, gate ok", async () => {
+    await db.block.update({ where: { height: BLOCK }, data: { streamUrl: null, streamType: null, streamStartedAt: null, streamOwner: null } });
+    mockLiveOwner.mockResolvedValue(HOLDS());
+    const res: any = await END_STREAM(jsonReq(await holderEnd()));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe('Not the stream owner');
+    expect(mockLiveOwner).not.toHaveBeenCalled();
+  });
+
+  it("U9 a start by another wallet lands between the read and the clear, NEWHOLDER's signed end", async () => {
+    mockLiveOwner.mockImplementationOnce(async () => {
+      // The new start lands as a new row value. The memory store hands out its
+      // stored objects, so an in-place update would also change the route's
+      // earlier read; a database read is a copy, which this models.
+      const rows = db.__rows('block');
+      const i = rows.findIndex((r: any) => r.height === BLOCK);
+      rows[i] = { ...rows[i], streamOwner: THIRD.address, streamUrl: 'https://youtu.be/xyz' };
+      return HOLDS();
+    });
+    const res: any = await END_STREAM(jsonReq(await holderEnd()));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('The stream changed. Nothing was ended.');
+    const row = await db.block.findUnique({ where: { height: BLOCK } });
+    expect(row.streamOwner).toBe(THIRD.address);
+    expect(row.streamUrl).toBe('https://youtu.be/xyz');
+  });
+
+  it("U10 the limiter refuses an end: OWNER's signed end; then the same body again", async () => {
+    mockRateLimit.mockResolvedValueOnce({ response: { status: 429 }, headers: {} });
+    const body = await signedBody(OWNER, END, { blockHeight: BLOCK, ownerAddress: OWNER.address });
+    const res: any = await END_STREAM(jsonReq(body));
+    expect(res.status).toBe(429);
+    expect(await streamOwner()).toBe(OWNER.address);
+    expect(mockLiveOwner).not.toHaveBeenCalled();
+    expect(mockRateLimit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ bucket: 'v1-livestream-write', limit: 20 }));
+
+    const again: any = await END_STREAM(jsonReq(body));
+    expect(again.status).toBe(200);
+  });
+
+  it('U11 the limiter refuses a start', async () => {
+    mockRateLimit.mockResolvedValueOnce({ response: { status: 429 }, headers: {} });
+    const res: any = await START_STREAM(
+      jsonReq({ blockHeight: BLOCK, streamUrl: 'https://www.twitch.tv/somechannel', walletAddress: NEWHOLDER.address, signature: 'x', message: 'y' }),
+    );
+    expect(res.status).toBe(429);
+    expect(await streamOwner()).toBe(OWNER.address);
+    expect(mockRateLimit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ bucket: 'v1-livestream-write', limit: 20 }));
   });
 });
 
