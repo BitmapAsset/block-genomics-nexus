@@ -1,0 +1,37 @@
+# Dependency review: judges what a pull request adds to any lockfile or manifest.
+#
+# Trigger: pull_request only. It fails the pull request when a dependency it
+# adds or upgrades carries a known advisory of high or critical severity, in
+# runtime or development scope. It does not judge what is already on main;
+# dep-audit.yml does that.
+#
+# Permissions: `contents: read` only, to read the two commits it compares. It
+# uses no secret and posts no comment.
+#
+# A pull request from a fork runs this with a read-only token and no secrets
+# (GitHub's rule for the pull_request trigger), and this workflow asks for
+# nothing more, so a fork can reach neither a secret nor a write token here.
+# Every action is pinned by commit SHA; the checkout keeps no git credential.
+
+name: Dependency review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: dependency-review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
+        with:
+          fail-on-severity: high
+          fail-on-scopes: runtime, development
+          comment-summary-in-pr: never
