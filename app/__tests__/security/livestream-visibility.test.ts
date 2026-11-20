@@ -190,6 +190,34 @@ describe('GET /livestream', () => {
     await Promise.all(Array.from({ length: 100 }, () => get()));
     expect(mockOrd).toHaveBeenCalledTimes(1);
   });
+
+  it('V15 the deed lookup throws', async () => {
+    await seed(3_600_000);
+    deedMock.mockRejectedValue(new Error('deed lookup failed'));
+    expect(await get()).toEqual({ live: false, ended: 'unconfirmed' });
+    expect(mockOrd).not.toHaveBeenCalled();
+  });
+
+  it('V16 the block has no deed (verdict none)', async () => {
+    await seed(3_600_000);
+    deedMock.mockResolvedValue({ height: 612888, inscriptionId: null, ruleId: 'test', verdict: 'none', resolvedAt: '2026-11-19T00:00:00.000Z' });
+    expect(await get()).toEqual({ live: false, ended: 'holder_changed' });
+    expect(mockOrd).not.toHaveBeenCalled();
+  });
+
+  it('V17 the deed is not settled (verdict undetermined, with an id)', async () => {
+    await seed(3_600_000);
+    deedMock.mockResolvedValue({ height: 612888, inscriptionId: 'insc_live0', ruleId: 'test', verdict: 'undetermined', resolvedAt: '2026-11-19T00:00:00.000Z' });
+    expect(await get()).toEqual({ live: false, ended: 'unconfirmed' });
+    expect(mockOrd).not.toHaveBeenCalled();
+  });
+
+  it('V18 a row with a link and no starter', async () => {
+    await seed(3_600_000, null as any);
+    expect(await get()).toEqual({ live: false, ended: 'holder_changed' });
+    expect(deedMock).not.toHaveBeenCalled();
+    expect(mockOrd).not.toHaveBeenCalled();
+  });
 });
 
 describe('GET /livestream/active', () => {
@@ -242,5 +270,18 @@ describe('GET /livestream/active', () => {
     expect(a.label).toBeNull();
     expect(a.ownerHandle).toBeNull();
     expect(b.label).toBe('Plaza Two');
+  });
+
+  it('V19 the deed lookup throws for one of two rows; list()', async () => {
+    await seed(3_600_000);
+    await seed(3_600_000, HOLDER, 612889);
+    deedMock.mockImplementation(async (h: number) => {
+      if (h === 612889) throw new Error('deed lookup failed');
+      return { height: h, inscriptionId: 'insc_live0', ruleId: 'test', verdict: 'canonical', resolvedAt: '2026-11-19T00:00:00.000Z' };
+    });
+    const body = await list();
+    expect(body.count).toBe(1);
+    expect(body.streams[0].blockHeight).toBe(612888);
+    expect(body.checking).toBe(0);
   });
 });
