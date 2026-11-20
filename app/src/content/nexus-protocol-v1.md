@@ -432,6 +432,7 @@ writes, and the ownership check runs for the verified signer.
 | `POST /ownership/prep-transfer` | `ownership.prep-transfer` | `ownership` |
 | `POST /brain/flag` (Block = `voterBlock`, a block the signer holds) | `brain.flag` | `brain` |
 | `POST /livestream` | `livestream.start` | `world` |
+| `DELETE /livestream` | `livestream.end` | `world` |
 | `POST /chat/{blockHeight}` | `chat.send` | `chat` |
 | `POST /chat/react` (Block 0) | `chat.react` | `chat` |
 | `POST /game/claim` | `game.claim` | `game` |
@@ -441,6 +442,15 @@ writes, and the ownership check runs for the verified signer.
 
 A request without such a signature is a `401` whose error names the purpose to
 request from `POST /api/v1/challenge`.
+
+**Live streams on a block.** `GET /api/v1/livestream?blockHeight=…` and `GET /api/v1/livestream/active` show a
+stream only while the wallet that signed its latest start still holds the block, by the same chain answer the
+public block page uses (two agreeing sources, at most 5 minutes old), and only if that start was signed less than
+12 hours ago. A hidden stream answers `{ "live": false, "ended": … }` with `expired`, `holder_changed` or
+`unconfirmed` (the holder could not be named in time) and names no address, link or player; a shown one names the
+wallet that signed its start (`startedBy`). The list leaves out rows it could not check in time and counts them in
+`checking`. The wallet that signed the start may end the stream; so may the wallet that holds the block, while
+the sources agree on it (`503` with `Retry-After` otherwise). Starting and ending are rate limited per caller.
 
 ### 7.3 Batch semantics
 

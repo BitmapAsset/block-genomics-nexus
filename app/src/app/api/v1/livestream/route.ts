@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyWalletSignature } from '@/lib/api-helpers';
 import { verifySignedAction } from '@/lib/signed-action';
 import { requireLiveBlockOwner } from '@/lib/ownership-gate';
-import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { enforceRateLimit, ESTATE_WRITE_LIMIT } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
 import { consumeChallenge } from '@/lib/challenges';
@@ -48,6 +48,10 @@ export async function GET(req: NextRequest) {
 
 /* ─── POST: Start a stream (owner only, BIP-322 authenticated) ─── */
 export async function POST(req: NextRequest) {
+  // Limit BEFORE any chain work: a start is one live chain call per attempt.
+  const rlStart = await enforceRateLimit(req, { bucket: 'v1-livestream-write', limit: ESTATE_WRITE_LIMIT });
+  if (rlStart.response) return rlStart.response;
+
   try {
     const body = await req.json();
     const { blockHeight, streamUrl, streamType, walletAddress, signature, message } = body;
@@ -97,8 +101,12 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/* ─── DELETE: End a stream (stream owner only, action-bound signature) ─── */
+/* ─── DELETE: End a stream (its starter or the block's live holder, action-bound signature) ─── */
 export async function DELETE(req: NextRequest) {
+  // Limit BEFORE any chain work: a holder's end is one live chain call per attempt.
+  const rlEnd = await enforceRateLimit(req, { bucket: 'v1-livestream-write', limit: ESTATE_WRITE_LIMIT });
+  if (rlEnd.response) return rlEnd.response;
+
   try {
     const body = await req.json();
     const { blockHeight, ownerAddress, signature, message } = body;
@@ -129,22 +137,34 @@ export async function DELETE(req: NextRequest) {
     }
 
     const block = await prisma.block.findUnique({ where: { height: blockHeight } });
-    if (!block || block.streamOwner !== ownerAddress) {
+    if (!block || !block.streamUrl) {
       return NextResponse.json({ error: 'Not the stream owner' }, { status: 403 });
     }
     if (!(await consumeChallenge(binding.nonce!, { address: ownerAddress, purpose: 'world' }))) {
       return NextResponse.json({ error: 'Invalid or already-used challenge nonce' }, { status: 401 });
     }
+    // The starter may end their stream; so may the wallet that holds the block
+    // right now, asked of the chain on the auth tier: a buyer never inherits a
+    // stream they cannot remove. The nonce is spent first, so every chain
+    // question here costs one signed, one-time request.
+    if (block.streamOwner !== ownerAddress) {
+      const holder = await requireLiveBlockOwner(ownerAddress, blockHeight);
+      if (!holder.ok) {
+        if (holder.status === 503) {
+          return NextResponse.json({ error: holder.reason }, { status: 503, headers: { 'Retry-After': '15' } });
+        }
+        return NextResponse.json({ error: 'Not the stream owner or the holder of this block' }, { status: 403 });
+      }
+    }
 
-    await prisma.block.update({
-      where: { height: blockHeight },
-      data: {
-        streamUrl: null,
-        streamType: null,
-        streamStartedAt: null,
-        streamOwner: null,
-      },
+    // Clear only the stream that was read: a start that landed since is kept.
+    const cleared = await prisma.block.updateMany({
+      where: { height: blockHeight, streamOwner: block.streamOwner },
+      data: { streamUrl: null, streamType: null, streamStartedAt: null, streamOwner: null },
     });
+    if (cleared.count === 0) {
+      return NextResponse.json({ error: 'The stream changed. Nothing was ended.' }, { status: 409 });
+    }
 
     return NextResponse.json({ ok: true });
   } catch {
