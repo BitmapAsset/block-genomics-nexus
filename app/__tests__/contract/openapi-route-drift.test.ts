@@ -119,6 +119,8 @@ const UNDOCUMENTED_BY_DESIGN: Record<string, string> = {
   '/api/v1/guardian/{id}': 'guardian product surface',
   '/api/v1/heartbeat': 'web client heartbeat, distinct from the agent heartbeat',
   '/api/v1/history': 'web explorer history feed',
+  '/api/v1/keeper/grant': 'keeper grants (bg-grant/1); these join openapi.json when the pairing page is built',
+  '/api/v1/keeper/grant/prepare': 'keeper grants (bg-grant/1); these join openapi.json when the pairing page is built',
   '/api/v1/leaderboard': 'web explorer leaderboard',
   '/api/v1/lightning/invoice': 'RuneBolt Lightning payment flow',
   '/api/v1/lightning/status/{invoiceId}': 'RuneBolt Lightning payment flow',

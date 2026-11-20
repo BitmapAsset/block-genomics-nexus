@@ -141,6 +141,7 @@ export function createMemoryPrisma() {
       const existing = rowsOf(model).find((r) => matchWhere(r, where));
       if (existing) { Object.assign(existing, update); return existing; }
       const row: Row = { ...create };
+      if (model === 'keeperGrant' && row.id === undefined) row.id = `mock_${model}_${++counter}`;
       if (!('createdAt' in row)) row.createdAt = new Date();
       if (!('updatedAt' in row)) row.updatedAt = new Date();
       rowsOf(model).push(row);
@@ -154,7 +155,7 @@ export function createMemoryPrisma() {
     'vPSLink', 'delegation', 'delegationListing', 'ownershipTransfer', 'handleHistory', 'parcel',
     'apiRateLimit', 'experience', 'contentFlag', 'contentVerdict', 'brainAction',
     'verifiedSession', 'blockObject', 'blockTerrain', 'activityLog', 'estate', 'chatMessage', 'appeal',
-    'chatReaction', 'flagStrike', 'gameQuest', 'gameElement', 'gameState',
+    'chatReaction', 'flagStrike', 'gameQuest', 'gameElement', 'gameState', 'keeperGrant',
   ] as const;
 
   const client: any = {
