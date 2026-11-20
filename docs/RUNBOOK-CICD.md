@@ -312,7 +312,9 @@ run), so the entry is renewed with a new reason or the fix lands before then.
 The reason says only why the fix waits, one of: "A fixed version is published;
 the update arrives as a dependency pull request.", "No fixed version is
 published yet; re-checked on expiry.", "The fix is a major version; scheduled
-for the next security slice." When a fix lands, the job prints `fixed: remove
+for the next security slice.", "A fixed version is published, but the package
+that depends on it pins an older one; an override is scheduled for the next
+security slice." When a fix lands, the job prints `fixed: remove
 <id> (<dir>)`: remove the entry. A PR that changes the allow-list runs
 `dep-audit` before it merges.
 

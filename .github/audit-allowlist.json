@@ -5,6 +5,12 @@
       "dir": "app",
       "reason": "The fix is a major version; scheduled for the next security slice.",
       "expires": "2026-12-19"
+    },
+    {
+      "ghsa": "GHSA-7589-6fvf-x4pw",
+      "dir": "app",
+      "reason": "A fixed version is published, but the package that depends on it pins an older one; an override is scheduled for the next security slice.",
+      "expires": "2026-12-19"
     }
   ]
 }
