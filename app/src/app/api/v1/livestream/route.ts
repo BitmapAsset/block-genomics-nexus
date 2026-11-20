@@ -8,6 +8,7 @@ import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-heig
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
 import { consumeChallenge } from '@/lib/challenges';
 import { getStreamEmbedUrl, normaliseStreamUrl } from '@/lib/stream-embed';
+import { STREAM_GET_BUDGET_MS, streamExpired, streamHolderState } from '@/lib/stream-visibility';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,12 +29,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ live: false });
   }
 
+  // Shown for 12 hours after its latest signed start, and only while the wallet
+  // that signed it holds the block (lib/stream-visibility.ts). A hidden stream
+  // names no address, link or player.
+  if (streamExpired(block.streamStartedAt)) return NextResponse.json({ live: false, ended: 'expired' });
+  const holder = await streamHolderState(blockHeight, block.streamOwner, STREAM_GET_BUDGET_MS);
+  if (holder !== 'holds') return NextResponse.json({ live: false, ended: holder === 'not_holder' ? 'holder_changed' : 'unconfirmed' });
+
   return NextResponse.json({
     live: true,
     streamUrl: normaliseStreamUrl(block.streamUrl),
     streamType: block.streamType,
     startedAt: block.streamStartedAt,
     embedUrl: getStreamEmbedUrl(block.streamUrl),
+    startedBy: block.streamOwner,
   });
 }
 

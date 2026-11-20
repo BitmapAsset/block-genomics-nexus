@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
+import { withoutStreamColumns } from '@/lib/stream-visibility';
 
 // Legacy route — redirects to new schema. Use /api/v1/blocks/[height] for new API.
 export async function GET(
@@ -28,7 +29,7 @@ export async function GET(
       return NextResponse.json({ error: 'Block not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: block });
+    return NextResponse.json({ success: true, data: withoutStreamColumns(block) });
   } catch (error) {
     console.error('Block fetch error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
