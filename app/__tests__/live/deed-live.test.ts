@@ -5,8 +5,11 @@
  * (or the ORD_BASE_URLS host) and Esplora. The ids are the canonical deeds the
  * resolver recorded in packages/bitmap-resolver/test/vectors (2026-10-15);
  * 612888 and 718840 also match the inscriptionId the production block API shows.
+ * This suite is about heights whose deed must come from the resolver, so the pins are off.
  */
 import { canonicalDeedFor, __resetDeedCacheForTest } from '@/lib/onchain/deed';
+
+jest.mock('@/lib/onchain/deed-pins', () => ({ pinnedDeed: () => null }));
 
 jest.mock('@/lib/prisma', () => ({
   __esModule: true,

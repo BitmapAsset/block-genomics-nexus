@@ -6,8 +6,11 @@
  * Unlike the other gate suites this one runs the REAL deed module and the REAL
  * vendored resolver (gate → deed → resolver as one chain); only the network
  * (`fetch`), the database (in memory, no DeedVerdict table) and the holder
- * lookup are stood in for.
+ * lookup are stood in for. This suite is about heights whose deed must come
+ * from the resolver, so the pins are off.
  */
+
+jest.mock('@/lib/onchain/deed-pins', () => ({ pinnedDeed: () => null }));
 
 const mockMint = jest.fn();
 const mockSession = { current: null as null | { id: string; walletAddress: string; verifiedBlocks: number[] } };

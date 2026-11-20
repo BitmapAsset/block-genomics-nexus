@@ -16,6 +16,10 @@
  *   - `checkedAt`: when that check ran (display reads share a cached check).
  *   - `lastVerifiedAt` / `unavailableSince`: this server's memory of the last
  *     answer and of when answers stopped.
+ *
+ * Fields added 2026-11-19:
+ *   - `sources`: the hosts that agreed on the current holder (at least two),
+ *     when the chain answered; `[]` otherwise.
  */
 
 import type { OwnershipCheck } from '@/lib/ownership-sync';
@@ -33,6 +37,8 @@ export interface OwnershipAnswer {
   verdict: OwnershipVerdict;
   chain: ChainState;
   source: string | null;
+  /** The hosts that agreed on the holder; empty unless the chain answered. */
+  sources: string[];
   checkedAt: string | null;
   lastVerifiedAt: string | null;
   unavailableSince: string | null;
@@ -55,6 +61,7 @@ export function ownershipAnswer(check: OwnershipCheck, now: Date = new Date()): 
     verdict: answered ? (check.match ? 'match' : 'mismatch') : 'unknown',
     chain,
     source: answered ? availability?.source ?? null : null,
+    sources: answered ? check.holderSources ?? [] : [],
     checkedAt: availability?.checkedAt ?? null,
     lastVerifiedAt: availability?.lastVerifiedAt ?? null,
     unavailableSince: chain === 'unavailable' ? availability?.unavailableSince ?? null : null,

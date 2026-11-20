@@ -31,6 +31,12 @@
  * `none` and `undetermined` are cached briefly, and only in process: a `none`
  * can turn into a deed once someone inscribes, and an outage should clear.
  *
+ * PINS. For the heights the repository recorded (lib/onchain/deed-pins.data.ts,
+ * held equal to packages/bitmap-resolver/test/vectors by a test) the deed is
+ * the pinned id, asked before memory, the table and the resolver: no request,
+ * no cache, no table read. Pins apply only under the rule id they were
+ * recorded with. The holder of a pinned deed is still asked live.
+ *
  * BUDGET. Below 942,000 the resolver answers from the OCI plus a few ord and
  * Esplora reads. From 942,000 it walks raw blocks, which can take longer than
  * a request may wait. A lookup that misses REQUEST_BUDGET_MS answers
@@ -44,6 +50,8 @@ import { getOrdHosts } from '@/lib/onchain/ord';
 import { ESPLORA_BASES } from '@/lib/onchain/esplora';
 import { CHAIN_USER_AGENT } from '@/lib/onchain/user-agent';
 import { resolve, RULE_ID, type ResolveResult } from '@/vendor/bitmap-resolver';
+import { pinnedDeed } from '@/lib/onchain/deed-pins';
+import { DEED_PINS_RECORDED_AT } from '@/lib/onchain/deed-pins.data';
 
 export const DEED_RULE_ID = RULE_ID;
 
@@ -75,7 +83,7 @@ export interface CanonicalDeed {
   /** Plain-words reason for any verdict other than canonical. */
   reason?: string;
   /** Where this answer came from on this call. */
-  source: 'memory' | 'db' | 'resolver';
+  source: 'memory' | 'db' | 'resolver' | 'pin';
 }
 
 interface Entry {
@@ -90,11 +98,13 @@ function key(height: number): string {
   return `${RULE_ID}:${height}`;
 }
 
+const CHAIN_REDIRECT: RequestRedirect = 'error';
+
 /**
  * The fetch the resolver uses: the app's chain User-Agent on every request, and
  * the Basic auth of a configured private ord host (lifted out of its URL by
- * lib/onchain/ord.ts) on requests to that host only. A request carrying that
- * Authorization never follows a redirect.
+ * lib/onchain/ord.ts) on requests to that host only. No request follows a
+ * redirect: the URL the resolver asked is the only one read.
  */
 const chainFetch: typeof fetch = (input, init) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
@@ -105,7 +115,7 @@ const chainFetch: typeof fetch = (input, init) => {
     headers.set('Authorization', ord.authorization);
     return fetch(input, { ...init, headers, redirect: 'error' });
   }
-  return fetch(input, { ...init, headers });
+  return fetch(input, { ...init, headers, redirect: CHAIN_REDIRECT });
 };
 
 /** The resolver options the app uses (also read by scripts/ownership-dry-run.ts). */
@@ -117,6 +127,10 @@ export function deedResolverOptions() {
     fetch: chainFetch,
     origins: { ...(ord ? { ord: ord.base } : {}), esplora: [...ESPLORA_BASES] },
   };
+}
+
+function pinAnswer(height: number, inscriptionId: string): CanonicalDeed {
+  return { height, inscriptionId, ruleId: RULE_ID, verdict: 'canonical', resolvedAt: DEED_PINS_RECORDED_AT, source: 'pin' };
 }
 
 function fromResult(r: ResolveResult): CanonicalDeed {
@@ -229,6 +243,9 @@ export async function canonicalDeedFor(height: number, opts: { budgetMs?: number
     };
   }
 
+  const pin = pinnedDeed(height);
+  if (pin) return pinAnswer(height, pin.inscriptionId);
+
   const k = key(height);
   const hit = memory.get(k);
   if (hit && hit.expiresAt > Date.now()) return { ...hit.deed, source: 'memory' };
@@ -277,6 +294,8 @@ export async function canonicalDeedFor(height: number, opts: { budgetMs?: number
  */
 export async function peekCanonicalDeed(height: number): Promise<CanonicalDeed | null> {
   if (!Number.isSafeInteger(height) || height < 0) return null;
+  const pin = pinnedDeed(height);
+  if (pin) return pinAnswer(height, pin.inscriptionId);
   const hit = memory.get(key(height));
   if (hit && hit.expiresAt > Date.now()) return { ...hit.deed, source: 'memory' };
   return readStored(height);

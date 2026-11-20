@@ -89,6 +89,8 @@ export interface OwnershipCheck {
    * `holderMayTriggerTransfer`.
    */
   holderSource?: string | null;
+  /** Every source that agreed on `onChainOwnerAddress` (at least two), in the order asked. */
+  holderSources?: string[];
   /**
    * Why a live mismatch did not become `action: 'update'`: with the deed
    * cross-check configured, a transfer needs the index to name the same deed
@@ -241,6 +243,7 @@ export async function verifyBlockOwnership(
     indeterminate: false,
     action: match || transferDeferred ? 'none' : 'update',
     holderSource,
+    holderSources: holder?.sources ?? [],
     ...(transferDeferred ? { transferDeferred } : {}),
   };
 }

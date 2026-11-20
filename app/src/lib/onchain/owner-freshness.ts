@@ -41,37 +41,43 @@
  *     Pointing ORD_BASE_URL at a self-hosted ord instance removes that term.
  *
  * SECOND-ORDER EFFECT: INDEXER LOAD
- * Querying live on every authorization sounds like it should multiply indexer
- * traffic. Two structural facts mean it does not:
+ * Every lookup asks the ord host and both Esplora providers, also when ord
+ * answers: a holder needs two agreeing hosts, so no source is skipped. What
+ * keeps that bounded:
  *
- *   1. ord.ts self-throttles to ~1 request/sec process-wide. Total indexer
- *      traffic is capped by construction, whatever this module decides; TTL
- *      tuning here could only ever trade staleness for write latency, never
- *      protect the indexer from a stampede it was already immune to.
+ *   1. ord.ts self-throttles to ~1 request/sec process-wide, and the sat
+ *      tracker runs at most four checks (eight Esplora requests) at once per
+ *      process; a repeat check from cached locations is one `outspend` call
+ *      per provider.
  *   2. Request coalescing (single-flight) collapses concurrent lookups for the
  *      same inscription into ONE query, so a burst of writes against one block
- *      costs one round-trip rather than N sequential throttled ones.
+ *      costs one round of requests rather than N.
  *
- * Net effect versus main: the hot authorization path (world writes) previously
- * bypassed the memo and hit the indexer on EVERY write with no coalescing, so
- * routing it here strictly REDUCES its query count. The paths that were being
- * cache-served (experiences, agent register, delegation listings) are
- * low-frequency owner operations, and they now warm the display cache for free.
+ * The paths that were being cache-served (experiences, agent register,
+ * delegation listings) are low-frequency owner operations, and they warm the
+ * display cache for free.
  *
  * SCOPE: the display cache is per-process (a module-level Map), so serverless
  * instances each keep their own. That can only make a display read fresher than
  * its TTL (a cold instance queries live), never staler.
  *
- * PROVIDERS: ord hosts first (lib/onchain/ord.ts, with its own failover), then
- * the Esplora sat tracker (lib/onchain/sat-tracker.ts) when no ord host names a
- * holder, then unknown. Every check records which source answered and, per
- * inscription, when a source last answered and since when none has, so an
+ * PROVIDERS: every lookup asks, in parallel, the ord hosts (lib/onchain/ord.ts,
+ * with its own failover: one answer, one source, however many hosts are set)
+ * and each Esplora provider's own trace (lib/onchain/sat-tracker.ts). A holder
+ * is named only when answers from at least two distinct hosts agree and none
+ * contradicts them (lib/onchain/holder-agreement.ts); anything less is null,
+ * as an outage is. Every check records which sources agreed and, per
+ * inscription, when sources last agreed and since when they have not, so an
  * outage can be reported as an outage (`getOwnerAvailability`) rather than as
  * an unverified owner. That record is per-process like the cache.
  */
 
 import { getInscriptionOwner as ordGetInscriptionOwner, type InscriptionOwner } from '@/lib/onchain/ord';
-import { isSatTrackerEnabled, trackInscriptionHolder } from '@/lib/onchain/sat-tracker';
+import { forgetLocations, isSatTrackerEnabled, traceEachProvider } from '@/lib/onchain/sat-tracker';
+import { agreeOnHolder, type SourceAnswer } from '@/lib/onchain/holder-agreement';
+
+/** A holder that at least two distinct hosts named; `source` is `sources[0]`. */
+export type AgreedOwner = InscriptionOwner & { sources: string[] };
 
 /** How old an observation may be when a DISPLAY/READ path serves it. */
 export const DISPLAY_TTL_MS = 5 * 60 * 1000;
@@ -85,13 +91,13 @@ export const DISPLAY_TTL_MS = 5 * 60 * 1000;
 export type OwnerFreshness = 'auth' | 'display';
 
 interface Observation {
-  owner: InscriptionOwner | null;
+  owner: AgreedOwner | null;
   /** When the indexer answered, not when the entry was read. */
   observedAt: number;
 }
 
 const observations = new Map<string, Observation>();
-const inFlight = new Map<string, Promise<InscriptionOwner | null>>();
+const inFlight = new Map<string, Promise<AgreedOwner | null>>();
 
 interface ChainRecord {
   /** Last time any source named a holder. */
@@ -102,21 +108,43 @@ interface ChainRecord {
 
 const chainRecords = new Map<string, ChainRecord>();
 
-/** One holder lookup across every source, in order. null = no source could say. */
-async function queryHolder(inscriptionId: string): Promise<InscriptionOwner | null> {
-  const fromOrd = await ordGetInscriptionOwner(inscriptionId);
-  if (fromOrd) return fromOrd;
-  if (!isSatTrackerEnabled()) return null;
-
-  const tracked = await trackInscriptionHolder(inscriptionId);
-  if (tracked.status === 'ok') {
-    return { address: tracked.address, satpoint: tracked.satpoint, source: tracked.source };
+/** One holder lookup across every source. null = no two sources agree on a holder. */
+async function queryHolder(inscriptionId: string): Promise<AgreedOwner | null> {
+  const [fromOrd, esplora] = await Promise.all([
+    ordGetInscriptionOwner(inscriptionId),
+    isSatTrackerEnabled() ? traceEachProvider(inscriptionId) : Promise.resolve([] as SourceAnswer[]),
+  ]);
+  const answers: SourceAnswer[] = [];
+  if (fromOrd) {
+    const label = fromOrd.source ?? 'ord';
+    answers.push({ source: label, host: label, state: 'ok', address: fromOrd.address, satpoint: fromOrd.satpoint });
   }
-  console.warn(`[owner-freshness] no source could place ${inscriptionId} (sat tracker: ${tracked.reason})`);
+  answers.push(...esplora);
+
+  const verdict = agreeOnHolder(answers);
+  if (verdict.state === 'agreed') {
+    const ordAgreed = fromOrd !== null && verdict.sources.includes(fromOrd.source ?? 'ord');
+    return {
+      address: verdict.address,
+      satpoint: verdict.satpoint,
+      source: verdict.sources[0],
+      sources: verdict.sources,
+      ...(ordAgreed && fromOrd?.delegate ? { delegate: fromOrd.delegate } : {}),
+    };
+  }
+  if (verdict.state === 'disputed') {
+    forgetLocations(inscriptionId);
+    console.warn(
+      `[owner-freshness] sources disagree on ${inscriptionId}: ` +
+        answers.map((a) => a.source + '=' + a.state + (a.state === 'ok' ? '' : '/' + a.reason)).join(' '),
+    );
+    return null;
+  }
+  console.warn(`[owner-freshness] no two sources agree on ${inscriptionId} (${verdict.reason})`);
   return null;
 }
 
-function recordOutcome(inscriptionId: string, owner: InscriptionOwner | null, at: number): void {
+function recordOutcome(inscriptionId: string, owner: AgreedOwner | null, at: number): void {
   const rec = chainRecords.get(inscriptionId) ?? { lastOkAt: null, unavailableSince: null };
   if (owner) {
     rec.lastOkAt = at;
@@ -143,7 +171,7 @@ function recordOutcome(inscriptionId: string, owner: InscriptionOwner | null, at
 export async function resolveInscriptionOwner(
   inscriptionId: string,
   freshness: OwnerFreshness,
-): Promise<InscriptionOwner | null> {
+): Promise<AgreedOwner | null> {
   if (freshness === 'display') {
     const cached = observations.get(inscriptionId);
     if (cached && Date.now() - cached.observedAt < DISPLAY_TTL_MS) {

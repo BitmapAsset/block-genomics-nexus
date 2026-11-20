@@ -39,6 +39,16 @@ jest.mock('@/lib/onchain/ord', () => ({
   getAddressInscriptions: jest.fn(async () => null),
 }));
 
+// Both holder sources answer through mocks: the ord host and one Esplora host,
+// so the real agreement rule decides (lib/onchain/holder-agreement.ts).
+jest.mock('@/lib/onchain/sat-tracker', () => ({
+  isSatTrackerEnabled: () => true,
+  traceEachProvider: jest.fn(async () => []),
+  forgetLocations: jest.fn(),
+  // The base's single-provider call; it never names a holder here.
+  trackInscriptionHolder: jest.fn(async () => ({ status: 'unknown', reason: 'no_provider' })),
+}));
+
 jest.mock('@/lib/prisma', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { createMemoryPrisma } = require('../helpers/memory-prisma');
@@ -67,6 +77,7 @@ jest.mock('@/lib/onchain/deed', () => require('../helpers/chain-ownership-mock')
 
 import prisma from '@/lib/prisma';
 import * as ord from '@/lib/onchain/ord';
+import { traceEachProvider } from '@/lib/onchain/sat-tracker';
 import { issueChallenge } from '@/lib/challenges';
 import {
   resolveInscriptionOwner,
@@ -81,7 +92,17 @@ import { makeWallet, sign, freshNonce, challengeMessage } from '../helpers/walle
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const db = prisma as any;
 const getOwner = ord.getInscriptionOwner as jest.Mock;
-const onChain = (address: string) => ({ address, satpoint: `${address}:0` });
+const tracer = traceEachProvider as jest.Mock;
+const SP = 'ab'.repeat(32) + ':0:0';
+/** The chain names `address` (or nothing): the ord host and one Esplora host agree. */
+function chainSays(address: string | null) {
+  getOwner.mockResolvedValue(address === null ? null : { address, satpoint: SP, source: 'ord.test' });
+  tracer.mockResolvedValue(
+    address === null
+      ? []
+      : [{ source: 'esplora:esplora.test', host: 'https://esplora.test/api', state: 'ok', address, satpoint: SP }],
+  );
+}
 
 const req = (body: any, url = 'http://test.local/') =>
   ({ json: async () => body, url, nextUrl: new URL(url) } as any);
@@ -122,7 +143,7 @@ beforeEach(() => {
   db.__reset();
   __resetOwnerObservations();
   getOwner.mockReset();
-  getOwner.mockResolvedValue(null);
+  chainSays(null);
   jest.spyOn(console, 'warn').mockImplementation(() => {});
   jest.spyOn(console, 'log').mockImplementation(() => {});
 });
@@ -135,28 +156,28 @@ afterEach(() => {
 
 describe('owner-freshness tiers', () => {
   it('AUTH never serves a stored observation — every auth lookup queries live', async () => {
-    getOwner.mockResolvedValue(onChain('addr-old'));
+    chainSays('addr-old');
     expect((await resolveInscriptionOwner('insc-a', 'auth'))?.address).toBe('addr-old');
 
     // Chain state changes with no time passing at all.
-    getOwner.mockResolvedValue(onChain('addr-new'));
+    chainSays('addr-new');
     expect((await resolveInscriptionOwner('insc-a', 'auth'))?.address).toBe('addr-new');
     expect(getOwner).toHaveBeenCalledTimes(2);
   });
 
   it('a warm DISPLAY observation does not leak into an AUTH answer', async () => {
-    getOwner.mockResolvedValue(onChain('addr-old'));
+    chainSays('addr-old');
     await resolveInscriptionOwner('insc-b', 'display'); // warm it
 
-    getOwner.mockResolvedValue(onChain('addr-new'));
+    chainSays('addr-new');
     expect((await resolveInscriptionOwner('insc-b', 'auth'))?.address).toBe('addr-new');
   });
 
   it('DISPLAY still caches — the tier split is real, not "cache disabled everywhere"', async () => {
-    getOwner.mockResolvedValue(onChain('addr-old'));
+    chainSays('addr-old');
     await resolveInscriptionOwner('insc-c', 'display');
 
-    getOwner.mockResolvedValue(onChain('addr-new'));
+    chainSays('addr-new');
     expect((await resolveInscriptionOwner('insc-c', 'display'))?.address).toBe('addr-old');
     expect(getOwner).toHaveBeenCalledTimes(1);
   });
@@ -164,19 +185,19 @@ describe('owner-freshness tiers', () => {
   it('DISPLAY re-queries once its observation ages past the TTL', async () => {
     const t0 = Date.now();
     const clock = jest.spyOn(Date, 'now').mockReturnValue(t0);
-    getOwner.mockResolvedValue(onChain('addr-old'));
+    chainSays('addr-old');
     await resolveInscriptionOwner('insc-d', 'display');
 
     clock.mockReturnValue(t0 + DISPLAY_TTL_MS + 1);
-    getOwner.mockResolvedValue(onChain('addr-new'));
+    chainSays('addr-new');
     expect((await resolveInscriptionOwner('insc-d', 'display'))?.address).toBe('addr-new');
   });
 
   it('an AUTH lookup warms the display cache, so live checks pay for reads', async () => {
-    getOwner.mockResolvedValue(onChain('addr-x'));
+    chainSays('addr-x');
     await resolveInscriptionOwner('insc-e', 'auth');
 
-    getOwner.mockResolvedValue(onChain('addr-y'));
+    chainSays('addr-y');
     expect((await resolveInscriptionOwner('insc-e', 'display'))?.address).toBe('addr-x');
     expect(getOwner).toHaveBeenCalledTimes(1);
   });
@@ -187,7 +208,8 @@ describe('owner-freshness tiers', () => {
     // would serialize into N seconds of write latency.
     let release!: (v: unknown) => void;
     const gate = new Promise((r) => { release = r; });
-    getOwner.mockImplementation(async () => { await gate; return onChain('addr-z'); });
+    chainSays('addr-z');
+    getOwner.mockImplementation(async () => { await gate; return { address: 'addr-z', satpoint: SP, source: 'ord.test' }; });
 
     const all = Promise.all(
       Array.from({ length: 8 }, () => resolveInscriptionOwner('insc-f', 'auth')),
@@ -200,32 +222,32 @@ describe('owner-freshness tiers', () => {
   });
 
   it('coalescing does not outlive the query — a later auth lookup queries again', async () => {
-    getOwner.mockResolvedValue(onChain('addr-old'));
+    chainSays('addr-old');
     await Promise.all([
       resolveInscriptionOwner('insc-g', 'auth'),
       resolveInscriptionOwner('insc-g', 'auth'),
     ]);
     expect(getOwner).toHaveBeenCalledTimes(1);
 
-    getOwner.mockResolvedValue(onChain('addr-new'));
+    chainSays('addr-new');
     expect((await resolveInscriptionOwner('insc-g', 'auth'))?.address).toBe('addr-new');
     expect(getOwner).toHaveBeenCalledTimes(2);
   });
 
   it('an indexer outage is not held against the next auth check', async () => {
-    getOwner.mockResolvedValue(null); // outage → indeterminate
+    chainSays(null); // outage → indeterminate
     expect(await resolveInscriptionOwner('insc-h', 'auth')).toBeNull();
 
-    getOwner.mockResolvedValue(onChain('addr-back'));
+    chainSays('addr-back');
     expect((await resolveInscriptionOwner('insc-h', 'auth'))?.address).toBe('addr-back');
   });
 
   it('invalidation drops the observation for display reads too', async () => {
-    getOwner.mockResolvedValue(onChain('addr-old'));
+    chainSays('addr-old');
     await resolveInscriptionOwner('insc-i', 'display');
 
     invalidateInscriptionOwner('insc-i');
-    getOwner.mockResolvedValue(onChain('addr-new'));
+    chainSays('addr-new');
     expect((await resolveInscriptionOwner('insc-i', 'display'))?.address).toBe('addr-new');
   });
 });
@@ -241,13 +263,13 @@ describe('SIM: a sale is honoured on the very next authorization', () => {
     });
 
     // Warm the shared observation with the PRE-SALE owner via a public read.
-    getOwner.mockResolvedValue(onChain(seller.address));
+    chainSays(seller.address);
     const read: any = await displayRead(4001);
     expect(read.status).toBe(200);
 
     // The sale lands on-chain. No time passes — this is the adversarial case:
     // under the old shared memo the warm entry would answer for ~5 more minutes.
-    getOwner.mockResolvedValue(onChain(buyer.address));
+    chainSays(buyer.address);
 
     expect((await registerAs(seller, 4001)).status).toBe(403);
     expect(await db.experience.count({ where: { blockHeight: 4001 } })).toBe(0);
@@ -262,7 +284,7 @@ describe('SIM: a sale is honoured on the very next authorization', () => {
     await db.block.create({
       data: { height: 4002, ownerAddress: seller.address, inscriptionId: 'insc-4002' },
     });
-    getOwner.mockResolvedValue(onChain(buyer.address));
+    chainSays(buyer.address);
 
     expect((await registerAs(seller, 4002)).status).toBe(403);
     expect((await registerAs(buyer, 4002)).status).toBe(201);
@@ -276,12 +298,12 @@ describe('SIM: a sale is honoured on the very next authorization', () => {
     });
 
     // first → second.
-    getOwner.mockResolvedValue(onChain(second.address));
+    chainSays(second.address);
     expect((await registerAs(first, 4003)).status).toBe(403);
     expect((await registerAs(second, 4003)).status).toBe(201);
 
     // second → first, again with no time passing.
-    getOwner.mockResolvedValue(onChain(first.address));
+    chainSays(first.address);
     expect((await registerAs(second, 4003)).status).toBe(403);
     expect((await registerAs(first, 4003)).status).toBe(201);
   });
@@ -293,10 +315,10 @@ describe('SIM: a sale is honoured on the very next authorization', () => {
       data: { height: 4004, ownerAddress: seller.address, inscriptionId: 'insc-4004' },
     });
 
-    getOwner.mockResolvedValue(onChain(seller.address));
+    chainSays(seller.address);
     await displayRead(4004);
 
-    getOwner.mockResolvedValue(onChain(buyer.address));
+    chainSays(buyer.address);
     const read: any = await displayRead(4004);
     expect(read.body.data.onChainOwner).toBe(seller.address); // display tolerance, by design
 

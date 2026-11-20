@@ -12,6 +12,8 @@
  *     `match: null`, and the outage start is reported;
  *   - ord host 1 blocked → host 2 answers, and `source` says which;
  *   - every ord host blocked → the Esplora sat tracker answers;
+ *   - a holder needs two agreeing sources (an ord host and both Esplora hosts
+ *     count one each), and the answer names them in `sources`;
  *   - the MCP ownership tool hands those fields through unchanged.
  */
 
@@ -68,6 +70,8 @@ type Upstream = 'down' | 'holder' | 'replay';
 let ordA: Upstream = 'down';
 let ordB: Upstream = 'down';
 let esplora: Upstream = 'down';
+/** With `esplora = 'replay'` both hosts serve the recording unless blockstream is taken down. */
+let blockstream: 'up' | 'down' = 'up';
 
 const blockPage = () => new Response('<title>Attention Required! | Cloudflare</title>', { status: 403 });
 const recorded = (fixture as { responses: Record<string, { status: number; body: unknown }> }).responses;
@@ -81,6 +85,7 @@ beforeEach(() => {
   ordA = 'down';
   ordB = 'down';
   esplora = 'down';
+  blockstream = 'up';
   jest.spyOn(console, 'warn').mockImplementation(() => {});
 
   global.fetch = jest.fn(async (input: RequestInfo | URL) => {
@@ -91,9 +96,11 @@ beforeEach(() => {
       if (ord === 'down') return blockPage();
       return new Response(JSON.stringify({ address: HOLDER, satpoint: SATPOINT }), { status: 200 });
     }
-    if (url.startsWith('https://mempool.space/api') || url.startsWith('https://blockstream.info/api')) {
-      if (esplora === 'down' || !url.startsWith('https://mempool.space/api')) return new Response('down', { status: 503 });
-      const r = recorded[url.slice('https://mempool.space/api'.length)];
+    const esploraBase = ['https://mempool.space/api', 'https://blockstream.info/api'].find((b) => url.startsWith(b));
+    if (esploraBase) {
+      if (esplora === 'down') return new Response('down', { status: 503 });
+      if (esploraBase === 'https://blockstream.info/api' && blockstream === 'down') return new Response('down', { status: 503 });
+      const r = recorded[url.slice(esploraBase.length)];
       if (!r) return new Response('not found', { status: 404 });
       return new Response(typeof r.body === 'string' ? r.body : JSON.stringify(r.body), { status: r.status });
     }
@@ -147,6 +154,7 @@ describe('GET /api/v1/ownership/[height]', () => {
 
   it('ord host 1 blocked: host 2 answers and is named as the source', async () => {
     ordB = 'holder';
+    esplora = 'replay';
     await seed(HOLDER);
     expect(await read()).toMatchObject({
       onChainOwner: HOLDER,
@@ -154,8 +162,15 @@ describe('GET /api/v1/ownership/[height]', () => {
       verdict: 'match',
       chain: 'ok',
       source: 'b.example',
+      sources: ['b.example', 'esplora:mempool.space', 'esplora:blockstream.info'],
       unavailableSince: null,
     });
+  });
+
+  it('one ord host alone: unavailable', async () => {
+    ordB = 'holder';
+    await seed(HOLDER);
+    expect(await read()).toMatchObject({ onChainOwner: null, match: null, verdict: 'unknown', chain: 'unavailable', sources: [] });
   });
 
   it('every ord host blocked: the Esplora sat tracker answers', async () => {
@@ -167,11 +182,20 @@ describe('GET /api/v1/ownership/[height]', () => {
       verdict: 'match',
       chain: 'ok',
       source: 'esplora:mempool.space',
+      sources: ['esplora:mempool.space', 'esplora:blockstream.info'],
     });
+  });
+
+  it('one Esplora host alone: unavailable', async () => {
+    esplora = 'replay';
+    blockstream = 'down';
+    await seed(HOLDER);
+    expect(await read()).toMatchObject({ onChainOwner: null, match: null, verdict: 'unknown', chain: 'unavailable', sources: [] });
   });
 
   it('a live holder that differs from the record is a mismatch', async () => {
     ordA = 'holder';
+    esplora = 'replay';
     await seed(OTHER);
     expect(await read()).toMatchObject({ onChainOwner: HOLDER, match: false, verdict: 'mismatch', chain: 'ok', action: 'update' });
   });
@@ -186,10 +210,12 @@ describe('GET /api/v1/ownership/[height]', () => {
     let now = Date.parse('2026-10-22T23:00:00Z');
     jest.spyOn(Date, 'now').mockImplementation(() => now);
     ordA = 'holder';
+    esplora = 'replay';
     await seed(HOLDER);
     expect((await read()).chain).toBe('ok');
 
     ordA = 'down';
+    esplora = 'down';
     now += DISPLAY_TTL_MS + 61_000; // past the display cache and the host cooldown
     const data = await read();
     expect(data).toMatchObject({
@@ -245,6 +271,7 @@ describe('a derived holder never triggers a transfer on its own', () => {
 
   it('the same mismatch read from an ord host is transferred', async () => {
     ordB = 'holder';
+    esplora = 'replay';
     await seed(OTHER);
     const [check] = await batchVerifyOwnership([BLOCK]);
     expect(check.holderSource).toBe('b.example');

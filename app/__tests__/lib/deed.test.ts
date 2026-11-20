@@ -32,7 +32,7 @@ jest.mock('@/lib/prisma', () => ({
   },
 }));
 
-import { canonicalDeedFor, prewarmDeeds, __resetDeedCacheForTest, DEED_RULE_ID } from '@/lib/onchain/deed';
+import { canonicalDeedFor, prewarmDeeds, deedResolverOptions, __resetDeedCacheForTest, DEED_RULE_ID } from '@/lib/onchain/deed';
 
 const ID = 'cd'.repeat(32) + 'i0';
 
@@ -166,4 +166,27 @@ it('prewarmDeeds resolves in order and stops at its deadline', async () => {
     { height: 3, verdict: 'canonical', source: 'resolver' },
   ]);
   expect(await prewarmDeeds([4, 5], { deadline: Date.now() - 1 })).toEqual([]);
+});
+
+it("the resolver's fetch refuses redirects", async () => {
+  const realFetch = global.fetch;
+  const seen: RequestInit[] = [];
+  global.fetch = jest.fn(async (_input: unknown, init?: RequestInit) => {
+    seen.push(init ?? {});
+    return new Response('972000', { status: 200 });
+  }) as unknown as typeof fetch;
+  try {
+    await deedResolverOptions().fetch('https://mempool.space/api/blocks/tip/height');
+  } finally {
+    global.fetch = realFetch;
+  }
+  expect(seen).toHaveLength(1);
+  expect(seen[0].redirect).toBe('error');
+});
+
+it('a pinned height under another rule id asks the resolver', async () => {
+  mockResolve.mockResolvedValue(result('canonical', { height: 720143 }));
+  await canonicalDeedFor(720143);
+  expect(mockResolve).toHaveBeenCalledTimes(1);
+  expect(mockResolve.mock.calls[0][0]).toBe(720143);
 });

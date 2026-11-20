@@ -17,10 +17,10 @@
  *     public and immutable, so a content match alone proves nothing about who
  *     holds it now. A live indexer must report the current holder, and that
  *     holder must equal the claimed wallet (case-sensitive bech32).
- *   - Providers, in order: the ord hosts (`ORD_BASE_URLS`, default
- *     ordinals.com), then the Esplora sat tracker (both through
- *     owner-freshness), then Unisat as a tertiary fallback — applying the SAME
- *     equality assertion. Unisat is NEVER a content-only bypass.
+ *   - Sources (through owner-freshness): the ord hosts (`ORD_BASE_URLS`,
+ *     default ordinals.com; one answer, one source) and each Esplora
+ *     provider's own trace. A holder counts only when two distinct hosts agree
+ *     and none contradicts them; there is no single-source fallback.
  *   - The deed's content is re-read and must be exactly `N.bitmap` (no
  *     delegate, no content-encoding): an ADDITIONAL constraint, never a
  *     substitute for the holder check. There is no content-only success path.
@@ -32,9 +32,9 @@
  *     hard-denying. A block with no valid deed is a definitive 403.
  *   - With an independent deed index configured (lib/onchain/deed-crosscheck,
  *     `DEED_CROSSCHECK_URL`), a grant also needs that index to name the same
- *     deed AND the holder to come from an ord host. A disagreement, an index
- *     that cannot answer, or a holder known only from the sat tracker or
- *     Unisat is `unavailable` (503), never a grant.
+ *     deed AND an ord host to be the first of the agreeing sources. A
+ *     disagreement, an index that cannot answer, or a holder agreed without an
+ *     ord host is `unavailable` (503), never a grant.
  *
  * FRESHNESS: every question this module answers gates a mutation, so the holder
  * lookup always runs on the AUTH tier (lib/onchain/owner-freshness.ts). That is
@@ -49,15 +49,7 @@ import { readInscriptionBodyFromChain } from '@/lib/onchain/sat-tracker';
 import { canonicalDeedFor } from '@/lib/onchain/deed';
 import { crossCheckDeed, isDeedCrossCheckConfigured } from '@/lib/onchain/deed-crosscheck';
 
-/** Timeout for the Unisat calls made from this module. */
-const FETCH_TIMEOUT_MS = 8000;
 const NOT_HELD_REASON = 'Inscription is not held by this wallet';
-
-function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = FETCH_TIMEOUT_MS): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(timer));
-}
 
 /**
  * Inscription content from the ord hosts, else read out of the reveal
@@ -90,8 +82,8 @@ export interface OwnershipCheck {
   inscriptionId?: string;
   /** `ownership_not_proven` when the block has no valid deed at all. */
   code?: 'ownership_not_proven';
-  /** Which kind of source named the holder: an ord host, the Esplora sat tracker, or Unisat. */
-  holderSource?: 'ord' | 'sat-tracker' | 'unisat';
+  /** Which kind of source is first among those that agreed: an ord host or the Esplora sat tracker. */
+  holderSource?: 'ord' | 'sat-tracker';
 }
 
 /**
@@ -118,25 +110,6 @@ export async function verifyInscriptionOwnership(
     if (ordOwner) {
       holderAddress = ordOwner.address;
       holderSource = (ordOwner.source ?? '').startsWith('esplora:') ? 'sat-tracker' : 'ord';
-    }
-
-    // Tertiary fallback: Unisat, ONLY to learn the current holder.
-    if (!holderAddress) {
-      try {
-        const res = await fetchWithTimeout(
-          `https://open-api.unisat.io/v1/indexer/inscription/info/${encodeURIComponent(inscriptionId)}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          const address: unknown = data?.data?.address;
-          if (typeof address === 'string' && address.length > 0) {
-            holderAddress = address;
-            holderSource = 'unisat';
-          }
-        }
-      } catch {
-        /* Unisat unavailable — fall through to fail-closed below */
-      }
     }
 
     if (!holderAddress) {
