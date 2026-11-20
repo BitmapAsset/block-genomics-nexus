@@ -836,6 +836,23 @@ model VerifiedSession {
   @@index([expiresAt])
 }
 
+// One keeper grant per block: the agent key a holder connected with one signature
+// over the bg-grant/1 text (lib/keeper-grant.ts).
+model KeeperGrant {
+  id            String   @id @default(cuid())
+  blockHeight   Int      @unique
+  walletAddress String
+  agentName     String
+  agentKey      String
+  scopes        String[] @default([])
+  message       String
+  signature     String
+  validUntil    DateTime
+  createdAt     DateTime @default(now())
+
+  @@index([walletAddress])
+}
+
 // ─── Living Block event spine (`bg-event/1`) ───
 // One append-only, per-block hash chain of public events: who built, verified,
 // moved or registered what on a block, each with a proof that can be re-checked
