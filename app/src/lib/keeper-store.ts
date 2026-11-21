@@ -50,12 +50,13 @@ export async function putGrant(data: {
 
 /**
  * Remove exactly the grant that was read: a grant that replaced it in between
- * keeps the row's id but names another wallet or key, so it matches nothing.
+ * keeps the row's id but carries a new createdAt (every replace sets one), so it
+ * matches nothing, also when the same wallet connected the same key again.
  */
-export async function deleteGrant(g: { id: string; walletAddress: string; agentKey: string }): Promise<number> {
+export async function deleteGrant(g: { id: string; walletAddress: string; agentKey: string; createdAt: Date }): Promise<number> {
   if (!g.id) return 0;
   try {
-    return (await prisma.keeperGrant.deleteMany({ where: { id: g.id, walletAddress: g.walletAddress, agentKey: g.agentKey } })).count;
+    return (await prisma.keeperGrant.deleteMany({ where: { id: g.id, walletAddress: g.walletAddress, agentKey: g.agentKey, createdAt: g.createdAt } })).count;
   } catch (e) {
     console.error('[keeper] store unavailable:', (e as { code?: string })?.code ?? 'unknown');
     throw new KeeperUnavailable();
