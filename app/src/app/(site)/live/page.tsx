@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import BitmapBlocksBg from '@/components/BitmapBlocksBg';
+import StreamPlayer, { type StreamPlayerStatus } from '@/components/nexus/StreamPlayer';
+import { keepPlayingCard, liveCardStatus, mergeLiveList, parseStreamRead, recheckDelay, streamIdentity } from '@/lib/stream-read';
 
 interface LiveStream {
   blockHeight: number;
@@ -10,9 +12,9 @@ interface LiveStream {
   streamType: string;
   startedAt: string;
   embedUrl: string;
-  ownerHandle?: string;
+  ownerHandle: string | null;
   ownerAddress?: string;
-  label?: string;
+  label: string | null;
 }
 
 interface LiveGame {
@@ -31,28 +33,111 @@ export default function LivePage() {
   const [tab, setTab] = useState<Tab>('all');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(0);
+  const [listRound, setListRound] = useState(0);
+  const [ended, setEnded] = useState<ReadonlySet<string>>(new Set());
+  const [unsure, setUnsure] = useState<ReadonlySet<string>>(new Set());
+  const playing = useRef<Set<string>>(new Set());
+  const endedRef = useRef<Set<string>>(new Set());
+  const inFlight = useRef<Set<string>>(new Set());
+  const rechecks = useRef(0);
+  const shown = useRef<LiveStream[]>([]);
+  const recheckIds = useRef<string[]>([]);
+
+  // Keyed by identity (embedUrl and the server's startedAt), never by height: an identity that ended stays ended in
+  // this tab, and a playing card the list left out is asked about on its own, on the 30 s tick only, one request in
+  // flight per identity (lib/stream-read.ts).
+  const askAgain = useCallback(async (id: string, height: number) => {
+    if (inFlight.current.has(id)) return;
+    inFlight.current.add(id);
+    let read = null;
+    try {
+      const r = await fetch(`/api/v1/livestream?blockHeight=${height}`);
+      read = r.ok ? parseStreamRead(await r.json()) : null;
+    } catch { read = null; }
+    inFlight.current.delete(id);
+    if (!keepPlayingCard(read, id)) {
+      playing.current.delete(id);
+      endedRef.current.add(id);
+      setEnded(new Set(endedRef.current));
+    }
+    setUnsure(prev => {
+      const next = new Set(prev);
+      if (read !== null && read.kind === 'hidden' && read.ended === 'unconfirmed') next.add(id); else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const fetchStreams = useCallback(async () => {
+    try {
+      const res = await fetch('/api/v1/livestream/active');
+      if (!res.ok) return;
+      const data = await res.json();
+      const incoming: LiveStream[] = Array.isArray(data.streams) ? data.streams : [];
+      const merged = mergeLiveList(shown.current, incoming, playing.current, endedRef.current);
+      shown.current = merged.cards;
+      recheckIds.current = merged.recheck;
+      setStreams(merged.cards);
+      // A row the list returns is confirmed by it: no card it returns stays "being checked".
+      setUnsure(prev => { const next = new Set(prev); for (const c of incoming) next.delete(streamIdentity(c)); return next; });
+      const n = typeof data.checking === 'number' ? data.checking : 0;
+      if (n === 0) rechecks.current = 0;
+      setChecking(n);
+      setListRound(r => r + 1);
+    } catch { /* the cards on screen stay */ }
+  }, []);
+
+  // The single read for each kept card: on the 30 s tick only.
+  const askKept = useCallback(() => {
+    for (const id of recheckIds.current) {
+      const card = shown.current.find(c => streamIdentity(c) === id);
+      if (card) void askAgain(id, card.blockHeight);
+    }
+  }, [askAgain]);
 
   useEffect(() => {
-    async function fetchLive() {
-      setLoading(true);
+    async function fetchGames() {
       try {
-        const [streamsRes, gamesRes] = await Promise.all([
-          fetch('/api/v1/livestream/active'),
-          fetch('/api/v1/game/active'),
-        ]);
-        if (streamsRes.ok) {
-          const data = await streamsRes.json();
-          setStreams(data.streams || []);
-        }
+        const gamesRes = await fetch('/api/v1/game/active');
         if (gamesRes.ok) {
           const data = await gamesRes.json();
           setGames(data.games || []);
         }
       } catch { /* silent */ }
+    }
+    async function fetchLive() {
+      await Promise.all([fetchStreams(), fetchGames()]);
       setLoading(false);
     }
-    fetchLive();
-    const iv = setInterval(fetchLive, 30000);
+    void fetchLive();
+    // The 30 s tick: the list, the games and the kept cards' single reads; nothing while the tab is hidden. It never
+    // starts the re-ask count again.
+    const iv = setInterval(() => {
+      if (document.hidden) return;
+      void fetchLive();
+      askKept();
+    }, 30000);
+    return () => clearInterval(iv);
+  }, [fetchStreams, askKept]);
+
+  // Rows the list could not confirm in time are counted in `checking`: ask the list again after 3, 6, 12 and 24 s,
+  // then wait for the tick. The count starts again only when a list answers `checking` 0.
+  useEffect(() => {
+    if (checking <= 0) return;
+    const delay = recheckDelay(rechecks.current);
+    if (delay === null) return;
+    const t = setTimeout(() => {
+      if (document.hidden) return;
+      rechecks.current += 1;
+      void fetchStreams();
+    }, delay);
+    return () => clearTimeout(t);
+  }, [checking, listRound, fetchStreams]);
+
+  // The 12-hour rule on this clock: a card past its 12 hours reads ENDED (liveCardStatus); re-render once a minute.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(iv);
   }, []);
 
@@ -156,85 +241,73 @@ export default function LivePage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Streams */}
-            {(tab === 'all' || tab === 'streams') && filteredStreams.map(stream => (
-              <Link
-                key={`stream-${stream.blockHeight}`}
-                href={`/world/${stream.blockHeight}`}
-                className="group rounded-xl overflow-hidden transition-all hover:scale-[1.02]"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,51,51,0.2)' }}
-              >
-                {/* Embed preview */}
-                <div className="relative aspect-video bg-black">
-                  <iframe
-                    src={stream.embedUrl}
-                    title={`Live stream from Block ${stream.blockHeight.toLocaleString()}${stream.ownerHandle ? ` by @${stream.ownerHandle}` : ''}`}
-                    width="100%"
-                    height="100%"
-                    allow="autoplay; encrypted-media"
-                    style={{ border: 'none', pointerEvents: 'none' }}
-                  />
-                  <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-full" style={{ background: 'rgba(255,51,51,0.9)' }}>
-                    <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                    <span className="text-[10px] font-bold text-white">LIVE</span>
-                  </div>
-                  <div className="absolute top-2 right-2 px-2 py-1 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.7)', color: '#94a3b8' }}>
-                    {timeSince(stream.startedAt)}
-                  </div>
-                </div>
-                <div className="p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-bold text-white group-hover:text-red-400 transition-colors">
-                      Block {stream.blockHeight.toLocaleString()}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,51,51,0.1)', color: '#ff6b6b' }}>
-                      📺 {stream.streamType}
-                    </span>
-                  </div>
-                  {stream.ownerHandle && (
-                    <span className="text-[11px] text-gray-400">@{stream.ownerHandle}</span>
-                  )}
-                  {stream.label && (
-                    <span className="text-[11px] text-gray-400 ml-2">{stream.label}</span>
-                  )}
-                </div>
-              </Link>
-            ))}
-
-            {/* Games */}
-            {(tab === 'all' || tab === 'games') && filteredGames.map(game => (
-              <Link
-                key={`game-${game.blockHeight}`}
-                href={`/world/${game.blockHeight}`}
-                className="group rounded-xl overflow-hidden transition-all hover:scale-[1.02]"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,255,136,0.2)' }}
-              >
-                <div className="relative aspect-video flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0a1628, #1a0a28)' }}>
-                  <div className="text-6xl">🎮</div>
-                  <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-full" style={{ background: 'rgba(0,255,136,0.9)' }}>
-                    <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                    <span className="text-[10px] font-bold text-black">PLAYING</span>
-                  </div>
-                  <div className="absolute bottom-2 right-2 px-2 py-1 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.7)', color: '#00ff88' }}>
-                    {game.playerCount} player{game.playerCount !== 1 ? 's' : ''}
-                  </div>
-                </div>
-                <div className="p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-bold text-white group-hover:text-green-400 transition-colors">
-                      Block {game.blockHeight.toLocaleString()}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,255,136,0.1)', color: '#00ff88' }}>
-                      🎮 {game.elementCount} elements
-                    </span>
-                  </div>
-                  {game.ownerHandle && (
-                    <span className="text-[11px] text-gray-400">@{game.ownerHandle}</span>
-                  )}
-                </div>
-              </Link>
-            ))}
+          <div className="space-y-6">
+            {(tab === 'all' || tab === 'streams') && filteredStreams.length > 0 && (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4" data-testid="live-streams">
+                {filteredStreams.map(stream => {
+                  const id = streamIdentity(stream);
+                  const status: StreamPlayerStatus = liveCardStatus(stream, ended, unsure, now);
+                  return (
+                    <div key={id} className="mx-auto w-full max-w-[720px] xl:max-w-none rounded-xl overflow-hidden p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,51,51,0.2)' }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="flex items-center gap-1.5 px-2 py-1 rounded-full" style={{ background: status === 'ended' ? 'rgba(100,116,139,0.9)' : 'rgba(255,51,51,0.9)' }}>
+                          {status !== 'ended' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                          <span className="text-[10px] font-bold text-white">{status === 'ended' ? 'ENDED' : 'LIVE'}</span>
+                        </span>
+                        <span className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>{timeSince(stream.startedAt)}</span>
+                      </div>
+                      <StreamPlayer key={id} blockHeight={stream.blockHeight} streamUrl={stream.streamUrl} embedUrl={stream.embedUrl} status={status} onPlay={() => { playing.current.add(id); }} />
+                      <div className="flex items-center justify-between mt-2">
+                        <Link href={`/world/${stream.blockHeight}`} className="text-sm font-bold text-white hover:text-red-400 transition-colors">
+                          Block {stream.blockHeight.toLocaleString()} →
+                        </Link>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,51,51,0.1)', color: '#ff6b6b' }}>
+                          📺 {stream.streamType}
+                        </span>
+                      </div>
+                      {stream.ownerHandle && <span className="text-[11px] text-gray-400">@{stream.ownerHandle}</span>}
+                      {stream.label && <span className="text-[11px] text-gray-400 ml-2">{stream.label}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {(tab === 'all' || tab === 'games') && filteredGames.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredGames.map(game => (
+                  <Link
+                    key={`game-${game.blockHeight}`}
+                    href={`/world/${game.blockHeight}`}
+                    className="group rounded-xl overflow-hidden transition-all hover:scale-[1.02]"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,255,136,0.2)' }}
+                  >
+                    <div className="relative aspect-video flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0a1628, #1a0a28)' }}>
+                      <div className="text-6xl">🎮</div>
+                      <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-full" style={{ background: 'rgba(0,255,136,0.9)' }}>
+                        <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                        <span className="text-[10px] font-bold text-black">PLAYING</span>
+                      </div>
+                      <div className="absolute bottom-2 right-2 px-2 py-1 rounded-full text-[10px] font-mono" style={{ background: 'rgba(0,0,0,0.7)', color: '#00ff88' }}>
+                        {game.playerCount} player{game.playerCount !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                    <div className="p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-bold text-white group-hover:text-green-400 transition-colors">
+                          Block {game.blockHeight.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,255,136,0.1)', color: '#00ff88' }}>
+                          🎮 {game.elementCount} elements
+                        </span>
+                      </div>
+                      {game.ownerHandle && (
+                        <span className="text-[11px] text-gray-400">@{game.ownerHandle}</span>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
