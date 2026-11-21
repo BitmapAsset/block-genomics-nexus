@@ -187,4 +187,12 @@ describe('stream players switch', () => {
     ];
     for (const [needle, n] of liveCounts) expect([needle, count(live, needle)]).toEqual([needle, n]);
   });
+
+  it('S7 from 640 px on the close control keeps a tap area larger than its glyph, by padding with equal negative margins, and its focus ring is drawn inside its box', () => {
+    const pv = src(PV);
+    const at = pv.indexOf('data-testid="stream-panel-close"');
+    expect(at).toBeGreaterThan(0);
+    const element = pv.slice(at, pv.indexOf('</button>', at));
+    expect(count(element, 'className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:-mx-2.5 sm:-my-1 sm:px-2.5 sm:py-1 items-center justify-center text-[#64748b] hover:text-white text-xs focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-cyan"')).toBe(1);
+  });
 });

@@ -4,7 +4,7 @@
  * substring (CodeQL #16-#21), and ids cannot smuggle path or query parts.
  */
 
-import { PLAYER_ORIGINS, STREAM_URL_MAX, getStreamEmbedUrl, playerFrameSrc, streamPlatform, streamTypeOf } from '@/lib/stream-embed';
+import { PLAYER_ORIGINS, STREAM_TYPES, STREAM_URL_MAX, getStreamEmbedUrl, playerFrameSrc, streamPlatform, streamTypeOf } from '@/lib/stream-embed';
 
 describe('streamPlatform', () => {
   it.each([
@@ -139,6 +139,7 @@ describe("what a start accepts", () => {
     for (const t of ['broadcast', 'townhall', 'spatial']) expect(streamTypeOf(t)).toBe(t);
     for (const t of ['Broadcast', '', 'x'.repeat(5000), undefined, null, 7, {}, ['townhall']]) expect(streamTypeOf(t)).toBe('broadcast');
     expect(STREAM_URL_MAX).toBe(500);
+    expect(STREAM_TYPES).toEqual(['broadcast', 'townhall', 'spatial']);
   });
 
   it("E6 a past video, a clip, the directory and a Kick video page are not a channel; a channel's own pages still play", () => {
@@ -153,5 +154,18 @@ describe("what a start accepts", () => {
     expect(getStreamEmbedUrl('https://www.twitch.tv/somechannel/videos')).toContain('?channel=somechannel&');
     expect(getStreamEmbedUrl('https://m.twitch.tv/somechannel')).toContain('?channel=somechannel&');
     expect(getStreamEmbedUrl('https://kick.com/somechannel/videos')).toBe('https://player.kick.com/somechannel');
+    // The channel is the first part of the path: a link that goes on after it plays that channel.
+    expect(getStreamEmbedUrl('https://www.twitch.tv/somechannel/clip/SomeClipNameOfWords')).toContain('?channel=somechannel&');
+    expect(getStreamEmbedUrl('https://kick.com/somechannel/videos/0a1b2c3d-1111-2222-3333-444455556666')).toBe('https://player.kick.com/somechannel');
+    // A name that only begins with a refused word is a channel.
+    expect(getStreamEmbedUrl('https://www.twitch.tv/videos_tv')).toContain('?channel=videos_tv&');
+    expect(getStreamEmbedUrl('https://www.twitch.tv/directoryfan')).toContain('?channel=directoryfan&');
+    expect(getStreamEmbedUrl('https://kick.com/videogamer')).toBe('https://player.kick.com/videogamer');
+    // A name is ASCII letters, digits and _ (on Kick also -), at most 64 characters.
+    expect(getStreamEmbedUrl('https://www.twitch.tv/' + 'a'.repeat(64))).toContain(`?channel=${'a'.repeat(64)}&`);
+    expect(getStreamEmbedUrl('https://kick.com/' + 'a'.repeat(64))).toBe('https://player.kick.com/' + 'a'.repeat(64));
+    for (const link of ['https://www.twitch.tv/' + 'a'.repeat(65), 'https://kick.com/' + 'a'.repeat(65), 'https://www.twitch.tv/some-channel', 'https://www.twitch.tv/s%C3%B6me']) {
+      expect([link, getStreamEmbedUrl(link)]).toEqual([link, null]);
+    }
   });
 });

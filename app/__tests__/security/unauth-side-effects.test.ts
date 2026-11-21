@@ -278,6 +278,38 @@ describe('DELETE /livestream', () => {
     expect(await streamOwner()).toBe(OWNER.address);
     expect(mockRateLimit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ bucket: 'v1-livestream-write', limit: 20 }));
   });
+
+  it("U14 a new start by the same wallet lands between the read and the clear, NEWHOLDER's signed end: the new stream is kept", async () => {
+    const before = (await db.block.findUnique({ where: { height: BLOCK } })).streamStartedAt as Date;
+    const restarted = new Date(before.getTime() + 1000);
+    mockLiveOwner.mockImplementationOnce(async () => {
+      // As in U9 the new start lands as a new row value: the same wallet, a later start time, another link.
+      const rows = db.__rows('block');
+      const i = rows.findIndex((r: any) => r.height === BLOCK);
+      rows[i] = { ...rows[i], streamUrl: 'https://youtu.be/xyz', streamStartedAt: restarted };
+      return HOLDS();
+    });
+    const res: any = await END_STREAM(jsonReq(await holderEnd()));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('The stream changed. Nothing was ended.');
+    const row = await db.block.findUnique({ where: { height: BLOCK } });
+    expect(row.streamOwner).toBe(OWNER.address);
+    expect(row.streamUrl).toBe('https://youtu.be/xyz');
+    expect(row.streamStartedAt).toEqual(restarted);
+  });
+
+  it("U15 another end lands between the read and the clear, NEWHOLDER's signed end: 409 and nothing more is ended", async () => {
+    mockLiveOwner.mockImplementationOnce(async () => {
+      const rows = db.__rows('block');
+      const i = rows.findIndex((r: any) => r.height === BLOCK);
+      rows[i] = { ...rows[i], streamUrl: null, streamType: null, streamStartedAt: null, streamOwner: null };
+      return HOLDS();
+    });
+    const res: any = await END_STREAM(jsonReq(await holderEnd()));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('The stream changed. Nothing was ended.');
+    expect(await streamOwner()).toBeNull();
+  });
 });
 
 // ── POST /livestream ────────────────────────────────────────────────────
