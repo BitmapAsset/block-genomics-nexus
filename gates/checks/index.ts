@@ -5,5 +5,6 @@ import { gMap } from './g-map.ts';
 import { gOpen } from './g-open.ts';
 import { gOwnerOnly } from './g-owner-only.ts';
 import { gSecCi } from './g-sec-ci.ts';
+import { gLiveFrame } from './g-live-frame.ts';
 
-export const checks: readonly Check[] = [gMap, gDistrict, gOwnerOnly, gOpen, gSecCi];
+export const checks: readonly Check[] = [gMap, gDistrict, gOwnerOnly, gOpen, gLiveFrame, gSecCi];
