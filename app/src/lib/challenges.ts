@@ -35,6 +35,7 @@ export const CHALLENGE_PURPOSES = {
   ownership: 'sync or prepare the transfer of a block you own',
   chat: 'send a chat message or reaction',
   game: 'use the game with this wallet',
+  keeper: 'connect or disconnect an agent on a block you own',
 } as const;
 
 export type ChallengePurpose = keyof typeof CHALLENGE_PURPOSES;
