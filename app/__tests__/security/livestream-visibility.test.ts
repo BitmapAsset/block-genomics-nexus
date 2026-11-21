@@ -113,7 +113,7 @@ describe('GET /livestream', () => {
     await seed(3_600_000);
     const body = await get();
     expect(body.live).toBe(true);
-    expect(body.embedUrl).toBe('https://player.twitch.tv/?channel=somechannel&parent=blockgenomics.io&autoplay=true&muted=true');
+    expect(body.embedUrl).toBe('https://player.twitch.tv/?channel=somechannel&parent=blockgenomics.io&parent=www.blockgenomics.io&autoplay=true&muted=true');
     expect(body.startedBy).toBe(HOLDER);
   });
 

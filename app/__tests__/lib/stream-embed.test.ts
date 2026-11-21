@@ -4,7 +4,7 @@
  * substring (CodeQL #16-#21), and ids cannot smuggle path or query parts.
  */
 
-import { getStreamEmbedUrl, streamPlatform } from '@/lib/stream-embed';
+import { PLAYER_ORIGINS, getStreamEmbedUrl, playerFrameSrc, streamPlatform } from '@/lib/stream-embed';
 
 describe('streamPlatform', () => {
   it.each([
@@ -51,7 +51,7 @@ describe('getStreamEmbedUrl', () => {
       'https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=1',
     );
     expect(getStreamEmbedUrl('https://www.twitch.tv/some_channel')).toBe(
-      'https://player.twitch.tv/?channel=some_channel&parent=blockgenomics.io&autoplay=true&muted=true',
+      'https://player.twitch.tv/?channel=some_channel&parent=blockgenomics.io&parent=www.blockgenomics.io&autoplay=true&muted=true',
     );
     expect(getStreamEmbedUrl('https://kick.com/some-channel')).toBe('https://player.kick.com/some-channel');
   });
@@ -74,5 +74,52 @@ describe('getStreamEmbedUrl', () => {
     expect(getStreamEmbedUrl('https://www.youtube.com/')).toBeNull();
     expect(getStreamEmbedUrl('https://www.twitch.tv/')).toBeNull();
     expect(getStreamEmbedUrl('not a url')).toBeNull();
+  });
+});
+
+describe('playerFrameSrc', () => {
+  const SOURCES = [
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    'https://youtu.be/dQw4w9WgXcQ',
+    'https://www.twitch.tv/some_channel',
+    'https://kick.com/some-channel',
+  ];
+
+  it('E1 every player address the builder makes has one of the three player origins, never the site\'s own', () => {
+    expect(PLAYER_ORIGINS).toEqual(['https://www.youtube.com', 'https://player.twitch.tv', 'https://player.kick.com']);
+    for (const source of SOURCES) {
+      const e = getStreamEmbedUrl(source);
+      expect(e).not.toBeNull();
+      const origin = new URL(e!).origin;
+      expect(PLAYER_ORIGINS as readonly string[]).toContain(origin);
+      expect(origin).not.toBe('https://blockgenomics.io');
+      expect(origin).not.toBe('https://www.blockgenomics.io');
+      expect(playerFrameSrc(e!, 'blockgenomics.io')).not.toBeNull();
+    }
+  });
+
+  it('E2 an address on any other origin, with a credential, or no URL at all is refused', () => {
+    for (const e of [
+      'https://blockgenomics.io/embed/x',
+      'https://www.blockgenomics.io/',
+      'http://www.youtube.com/embed/x',
+      'https://www.youtube.com.other.example/embed/x',
+      'https://user:pw@player.kick.com/x',
+      'javascript:alert(1)',
+      '/embed/x',
+      'not a url',
+      '',
+    ]) {
+      expect(playerFrameSrc(e, 'blockgenomics.io')).toBeNull();
+    }
+  });
+
+  it('E3 Twitch gets the page\'s own host as one more parent, once; other players are unchanged', () => {
+    const twitch = getStreamEmbedUrl('https://www.twitch.tv/some_channel')!;
+    const youtube = getStreamEmbedUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ')!;
+    expect(playerFrameSrc(twitch, 'preview-abc.vercel.app')).toBe(`${twitch}&parent=preview-abc.vercel.app`);
+    expect(playerFrameSrc(twitch, 'www.blockgenomics.io')).toBe(twitch);
+    expect(playerFrameSrc(twitch, 'BAD HOST/x')).toBe(twitch);
+    expect(playerFrameSrc(youtube, 'preview-abc.vercel.app')).toBe(youtube);
   });
 });
