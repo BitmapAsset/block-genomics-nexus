@@ -151,6 +151,11 @@ describe('bg-grant/1 text', () => {
     }
   });
 
+  it('(6c) a Valid until with milliseconds is not a grant text', () => {
+    expect(parseGrantMessage(buildGrantMessage({ ...FIELDS, validUntil: '2027-02-17T09:00:00.500Z' }))).toBeNull();
+    expect(parseGrantMessage(buildGrantMessage({ ...FIELDS, validUntil: '2027-02-17T09:00:01.000Z' }))).not.toBeNull();
+  });
+
   it('(7) keyCheck is the hex part of keyId in four groups', () => {
     const kc = keyCheck(keyOf(1));
     expect(kc).toMatch(/^[0-9a-f]{4}(-[0-9a-f]{4}){3}$/);
@@ -173,5 +178,12 @@ describe('bg-grant/1 text', () => {
     expect(checkClock(at(now + 90 * DAY, now - 1000), now)).toBe('grant_text_expired');
     expect(checkClock(at(now + 90 * DAY, now + 20 * MIN), now)).toBe('bad_expires');
     expect(checkClock(at(now + 90 * DAY, now + 10 * MIN), now)).toBeNull();
+  });
+
+  it('(8b) Expires may lie at most 11 minutes ahead', () => {
+    const now = Date.parse('2026-11-19T10:00:00.000Z');
+    const at = (expiresMs: number): GrantFields => ({ ...FIELDS, expiresAt: new Date(expiresMs).toISOString() });
+    expect(checkClock(at(now + 11 * 60_000), now)).toBeNull();
+    expect(checkClock(at(now + 11 * 60_000 + 1000), now)).toBe('bad_expires');
   });
 });

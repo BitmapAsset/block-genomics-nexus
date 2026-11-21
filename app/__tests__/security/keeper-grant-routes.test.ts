@@ -151,9 +151,9 @@ async function prepared(w: SimWallet = HOLDER) {
   return (await bodyOf(prepRes)).data.message as string;
 }
 
-async function revokeBody(w: SimWallet, blockHeight: number) {
+async function revokeBody(w: SimWallet, blockHeight: number, purpose = 'keeper') {
   const nonce = freshNonce();
-  await issueChallenge(nonce, { address: w.address, purpose: 'keeper' });
+  await issueChallenge(nonce, { address: w.address, purpose });
   const message = buildActionMessage({
     action: 'keeper.revoke',
     method: 'DELETE',
@@ -254,6 +254,28 @@ describe('POST /api/v1/keeper/grant/prepare', () => {
     const signature = sign(HOLDER.privKey, HOLDER.address, message);
     await expectRefusal(await call(GRANT, { message, signature }), 400, 'bad_grant_text');
     expect(challengeRow(nonce).consumedAt).toBeNull();
+  });
+
+  it('(G29) prepare takes 30, 90 or 365 days and refuses any other value', async () => {
+    for (const days of [1, 31, 366, '90', null]) {
+      const res = await call(PREPARE, { blockHeight: BLOCK, walletAddress: HOLDER.address, agentName: 'Helper', agentKey: keyOf(1), days });
+      await expectRefusal(res, 400, 'bad_days');
+    }
+    expect(db.__rows('challenge')).toHaveLength(0);
+    const t0 = Date.now();
+    const ok = await call(PREPARE, { blockHeight: BLOCK, walletAddress: HOLDER.address, agentName: 'Helper', agentKey: keyOf(1), days: 30 });
+    expect(ok.status).toBe(200);
+    const validUntil = Date.parse(parseGrantMessage((await bodyOf(ok)).data.message)!.validUntil);
+    expect(validUntil).toBeGreaterThanOrEqual(t0 + 30 * DAY - 1000);
+    expect(validUntil).toBeLessThanOrEqual(Date.now() + 30 * DAY);
+  });
+
+  it('(G30) prepare refuses a wallet that is not a mainnet address and issues nothing', async () => {
+    for (const walletAddress of ['', 'holder', HOLDER.address.toUpperCase(), 'tb1q' + HOLDER.address.slice(4), 42]) {
+      const res = await call(PREPARE, { blockHeight: BLOCK, walletAddress, agentName: 'Helper', agentKey: keyOf(1) });
+      await expectRefusal(res, 400, 'bad_wallet');
+    }
+    expect(db.__rows('challenge')).toHaveLength(0);
   });
 });
 
@@ -377,6 +399,8 @@ describe('POST /api/v1/keeper/grant', () => {
     const signature = sign(HOLDER.privKey, HOLDER.address, message);
     const res = await call(GRANT, { message, signature, blockHeight: 720143, walletAddress: OTHER.address });
     expect(res.status).toBe(201);
+    expect(mockGate).toHaveBeenCalledTimes(1);
+    expect(mockGate).toHaveBeenCalledWith(HOLDER.address, BLOCK);
     const rows = db.__rows('keeperGrant');
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ blockHeight: BLOCK, walletAddress: HOLDER.address });
@@ -452,9 +476,11 @@ describe('DELETE /api/v1/keeper/grant', () => {
     expect((await grantFlow(HOLDER)).res.status).toBe(201);
     mockGate.mockResolvedValueOnce({ ok: false, status: 403, code: 'ownership_lost', reason: 'Block 612888 is not held by this wallet on-chain. Ownership check failed.' });
     await expectRefusal(await call(REVOKE, await revokeBody(OTHER, BLOCK)), 403, 'ownership_lost');
+    expect(mockGate).toHaveBeenLastCalledWith(OTHER.address, BLOCK);
     expect(db.__rows('keeperGrant')).toHaveLength(1);
     const res = await call(REVOKE, await revokeBody(OTHER, BLOCK));
     expect(res.status).toBe(200);
+    expect(mockGate).toHaveBeenLastCalledWith(OTHER.address, BLOCK);
     expect(db.__rows('keeperGrant')).toHaveLength(0);
   });
 
@@ -491,6 +517,42 @@ describe('DELETE /api/v1/keeper/grant', () => {
     const rows = db.__rows('keeperGrant');
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ walletAddress: OTHER.address, agentKey: keyOf(2) });
+  });
+
+  it('(G23b) a late revoke leaves a newer grant by the same wallet with the same key', async () => {
+    expect((await grantFlow(HOLDER)).res.status).toBe(201);
+    const old = { ...db.__rows('keeperGrant')[0] };
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const again = await grantFlow(HOLDER);
+    expect(again.res.status).toBe(201);
+    expect(db.__rows('keeperGrant')[0].createdAt.getTime()).toBeGreaterThan(old.createdAt.getTime());
+    jest.spyOn(db.keeperGrant, 'findUnique').mockResolvedValueOnce(old);
+    await expectRefusal(await call(REVOKE, await revokeBody(HOLDER, BLOCK)), 409, 'grant_changed');
+    const rows = db.__rows('keeperGrant');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ walletAddress: HOLDER.address, agentKey: keyOf(1), message: again.message });
+  });
+
+  it('(G27) a revoke signed around a nonce of another purpose is refused and ends nothing', async () => {
+    expect((await grantFlow(HOLDER)).res.status).toBe(201);
+    await expectRefusal(await call(REVOKE, await revokeBody(HOLDER, BLOCK, 'world')), 401, 'bad_signature');
+    expect(db.__rows('keeperGrant')).toHaveLength(1);
+  });
+
+  it('(G28) another wallet revokes while the gate cannot answer: 503 that says to sign again, the grant stays', async () => {
+    expect((await grantFlow(HOLDER)).res.status).toBe(201);
+    mockGate.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      code: 'onchain_unavailable',
+      reason: 'On-chain ownership could not be confirmed right now. Retry shortly.',
+    });
+    const res = await call(REVOKE, await revokeBody(OTHER, BLOCK));
+    const body = await expectRefusal(res, 503, 'onchain_unavailable');
+    expect(body.error).toBe(GATE_RETRY_SENTENCE);
+    expect(res.headers.get('Retry-After')).toBe('15');
+    expect(mockGate).toHaveBeenLastCalledWith(OTHER.address, BLOCK);
+    expect(db.__rows('keeperGrant')).toHaveLength(1);
   });
 
   it('(G25) a block height as a string is refused', async () => {
