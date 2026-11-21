@@ -147,10 +147,13 @@ describe('connectXverse: a site the wallet has not connected to yet', () => {
 
   it('(X19) known limit: a wallet that never answers wallet_connect leaves the connect pending, no legacy call', async () => {
     const { request, connect } = wallet({ getAddresses: DENIED });
-    const state = await Promise.race([
-      connectXverse().then(() => 'settled', () => 'settled'),
-      new Promise((resolve) => setTimeout(() => resolve('pending'), 50)),
-    ]);
+    jest.useFakeTimers();
+    let state = 'pending';
+    connectXverse().then(() => { state = 'settled'; }, () => { state = 'settled'; });
+    for (let i = 0; i < 30; i++) await Promise.resolve();
+    jest.advanceTimersByTime(60 * 60 * 1000);
+    for (let i = 0; i < 30; i++) await Promise.resolve();
+    jest.useRealTimers();
     expect(state).toBe('pending');
     expect(methods(request)).toEqual(['getAddresses', 'wallet_connect']);
     expect(connect).not.toHaveBeenCalled();
@@ -162,7 +165,7 @@ describe('connectXverse: every other answer goes on as before', () => {
     ['(X15) getAddresses throws another error', rejects(new Error('Internal error'))],
     ['(X16) getAddresses resolves another error', { error: { code: -32603, message: 'Internal error' } }],
   ])('%s: wallet_connect is not called, the legacy connect answers', async (_name, answer) => {
-    const { request, connect } = wallet({ getAddresses: answer });
+    const { request, connect } = wallet({ getAddresses: answer, wallet_connect: CONNECTED });
     await expect(connectXverse()).resolves.toBe(ORDINALS);
     expect(methods(request)).toEqual(['getAddresses']);
     expect(connect).toHaveBeenCalledTimes(1);
@@ -173,6 +176,29 @@ describe('connectXverse: every other answer goes on as before', () => {
     const { request, connect } = wallet({ getAddresses: rejects(refused) });
     expect(await thrownBy(connectXverse)).toBe(refused);
     expect(methods(request)).toEqual(['getAddresses']);
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it('(X20) getAddresses answers an empty list: the legacy connect answers, wallet_connect is not called', async () => {
+    const { request, connect } = wallet({ getAddresses: { result: { addresses: [] } }, wallet_connect: CONNECTED });
+    await expect(connectXverse()).resolves.toBe(ORDINALS);
+    expect(methods(request)).toEqual(['getAddresses']);
+    expect(connect).toHaveBeenCalledTimes(1);
+  });
+
+  it('(X21) getAddresses cancelled by the user (thrown, "cancel"): rethrown, nothing else called', async () => {
+    const cancelled = new Error('User cancelled the request.');
+    const { request, connect } = wallet({ getAddresses: rejects(cancelled), wallet_connect: CONNECTED });
+    expect(await thrownBy(connectXverse)).toBe(cancelled);
+    expect(methods(request)).toEqual(['getAddresses']);
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it('(X22) wallet_connect answers neither a result nor an error: an Error, no legacy call', async () => {
+    const { connect } = wallet({ getAddresses: DENIED, wallet_connect: {} });
+    const err = await thrownBy(connectXverse);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe('Xverse returned no Bitcoin address');
     expect(connect).not.toHaveBeenCalled();
   });
 
