@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
-import { getStreamEmbedUrl, normaliseStreamUrl } from '@/lib/stream-embed';
+import { getStreamEmbedUrl, normaliseStreamUrl, streamTypeOf } from '@/lib/stream-embed';
 import { STREAM_LIST_BUDGET_MS, STREAM_LIST_GROUP, STREAM_MAX_AGE_MS, streamHolderState } from '@/lib/stream-visibility';
 
 export const dynamic = 'force-dynamic';
@@ -55,7 +55,7 @@ export async function GET(req: Request) {
       return {
         blockHeight: b.height,
         streamUrl: normaliseStreamUrl(b.streamUrl) ?? '',
-        streamType: b.streamType || 'broadcast',
+        streamType: streamTypeOf(b.streamType),
         startedAt: b.streamStartedAt?.toISOString() || new Date().toISOString(),
         embedUrl: getStreamEmbedUrl(b.streamUrl!) || '',
         ownerHandle: own ? b.owner?.handle || null : null,

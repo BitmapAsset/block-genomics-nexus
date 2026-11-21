@@ -30,6 +30,7 @@ export const gLiveFrame: Check = {
     const rows = Array.isArray(body.streams) ? (body.streams as { embedUrl?: unknown }[]) : null;
     if (list.status !== 200 || rows === null || typeof body.checking !== 'number') fails.push(`The list of streams answered ${list.status}${list.status === 200 ? ' without streams and checking' : ''}.`);
     const offOrigin = (rows ?? []).filter((r) => {
+      if (!String(r.embedUrl).startsWith('https://')) return true;
       try { return !PLAYER_ORIGINS.includes(new URL(String(r.embedUrl)).origin); } catch { return true; }
     }).length;
     if (offOrigin > 0) fails.push(`${offOrigin} listed stream(s) name a player address outside the three platforms.`);

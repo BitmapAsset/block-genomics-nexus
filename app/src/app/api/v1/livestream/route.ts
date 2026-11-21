@@ -7,7 +7,7 @@ import { enforceRateLimit, ESTATE_WRITE_LIMIT } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 import { verifyActionBinding, hashBody } from '@/lib/action-message';
 import { consumeChallenge } from '@/lib/challenges';
-import { getStreamEmbedUrl, normaliseStreamUrl } from '@/lib/stream-embed';
+import { getStreamEmbedUrl, normaliseStreamUrl, STREAM_URL_MAX, streamTypeOf } from '@/lib/stream-embed';
 import { STREAM_GET_BUDGET_MS, streamExpired, streamHolderState } from '@/lib/stream-visibility';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     live: true,
     streamUrl: normaliseStreamUrl(block.streamUrl),
-    streamType: block.streamType,
+    streamType: streamTypeOf(block.streamType),
     startedAt: block.streamStartedAt,
     embedUrl: getStreamEmbedUrl(block.streamUrl),
     startedBy: block.streamOwner,
@@ -58,6 +58,11 @@ export async function POST(req: NextRequest) {
 
     if (!blockHeight || !streamUrl || !walletAddress || !signature || !message) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // A link is short: a longer value is refused before any signature or chain work.
+    if (typeof streamUrl !== 'string' || streamUrl.length > STREAM_URL_MAX) {
+      return NextResponse.json({ error: 'That stream link is too long. Paste the plain link to your stream.' }, { status: 400 });
     }
 
     // The canonical 'livestream.start' message for this block and body, with a
@@ -89,7 +94,7 @@ export async function POST(req: NextRequest) {
       where: { height: blockHeight },
       data: {
         streamUrl: normalisedUrl,
-        streamType: streamType || 'broadcast',
+        streamType: streamTypeOf(streamType),
         streamStartedAt: new Date(),
         streamOwner: walletAddress,
       },

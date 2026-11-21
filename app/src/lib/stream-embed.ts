@@ -18,6 +18,18 @@
 
 export type StreamPlatform = 'youtube' | 'twitch' | 'kick';
 
+/** The three kinds of stream a holder can pick. */
+export const STREAM_TYPES = ['broadcast', 'townhall', 'spatial'] as const;
+export type StreamKind = (typeof STREAM_TYPES)[number];
+
+/** One of the three stream types; anything else (another word, a long text, no string) reads as a broadcast. */
+export function streamTypeOf(raw: unknown): StreamKind {
+  return (STREAM_TYPES as readonly unknown[]).includes(raw) ? (raw as StreamKind) : 'broadcast';
+}
+
+/** A stream link is short: the start refuses a longer value before any signature or chain work. */
+export const STREAM_URL_MAX = 500;
+
 function isDomainOrSubdomain(hostname: string, domain: string): boolean {
   return hostname === domain || hostname.endsWith(`.${domain}`);
 }
@@ -57,6 +69,7 @@ export function normaliseStreamUrl(raw: unknown): string | null {
 const YOUTUBE_VIDEO_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const TWITCH_CHANNEL = /^[A-Za-z0-9_]{1,64}$/;
 const KICK_CHANNEL = /^[A-Za-z0-9_-]{1,64}$/;
+const TWITCH_NOT_A_CHANNEL = ['videos', 'directory'];
 
 /** The embeddable player URL for a YouTube, Twitch or Kick stream URL, else null. */
 export function getStreamEmbedUrl(raw: string): string | null {
@@ -82,11 +95,15 @@ export function getStreamEmbedUrl(raw: string): string | null {
     case 'twitch': {
       const channel = u.pathname.split('/').filter(Boolean)[0];
       if (!channel || !TWITCH_CHANNEL.test(channel)) return null;
+      // A clip, a past video and the directory are not a channel's live page.
+      if (u.hostname === 'clips.twitch.tv' || TWITCH_NOT_A_CHANNEL.includes(channel.toLowerCase())) return null;
       return `https://player.twitch.tv/?channel=${channel}&parent=blockgenomics.io&parent=www.blockgenomics.io&autoplay=true&muted=true`;
     }
     case 'kick': {
       const channel = u.pathname.split('/').filter(Boolean)[0];
       if (!channel || !KICK_CHANNEL.test(channel)) return null;
+      // kick.com/video/<id> is a past video, not a channel.
+      if (channel.toLowerCase() === 'video') return null;
       return `https://player.kick.com/${channel}`;
     }
     default:
@@ -107,6 +124,8 @@ const PAGE_HOST = /^[a-z0-9.-]{1,253}$/;
 export function playerFrameSrc(embedUrl: string, pageHost: string): string | null {
   let u: URL;
   try { u = new URL(embedUrl); } catch { return null; }
+  // Only https: a blob: address carries a player's origin inside it and is no player.
+  if (u.protocol !== 'https:') return null;
   if (!(PLAYER_ORIGINS as readonly string[]).includes(u.origin)) return null;
   if (u.username !== '' || u.password !== '') return null;
   if (u.origin === 'https://player.twitch.tv') {
