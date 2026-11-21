@@ -164,7 +164,7 @@ export async function DELETE(req: NextRequest) {
 
     // Clear only the stream that was read: a start that landed since is kept.
     const cleared = await prisma.block.updateMany({
-      where: { height: blockHeight, streamOwner: block.streamOwner },
+      where: { height: blockHeight, streamOwner: block.streamOwner, streamStartedAt: block.streamStartedAt },
       data: { streamUrl: null, streamType: null, streamStartedAt: null, streamOwner: null },
     });
     if (cleared.count === 0) {

@@ -5841,7 +5841,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
               <span className="text-[10px] font-mono font-bold" style={{ color: shownStream.status === 'ended' ? '#94a3b8' : '#ff3333' }}>{shownStream.status === 'ended' ? 'ENDED' : 'LIVE'}</span>
               <span className="text-[10px] font-mono" style={{ color: '#64748b' }}>{shownStream.stream.streamType}</span>
             </div>
-            <button type="button" data-testid="stream-panel-close" aria-label="Close the stream panel" onClick={() => setStreamPanelOpen(false)} className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center text-[#64748b] hover:text-white text-xs">✕</button>
+            <button type="button" data-testid="stream-panel-close" aria-label="Close the stream panel" onClick={() => setStreamPanelOpen(false)} className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:-mx-2.5 sm:-my-1 sm:px-2.5 sm:py-1 items-center justify-center text-[#64748b] hover:text-white text-xs focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-cyan">✕</button>
           </div>
           <div className="px-2 pb-2">
             <StreamPlayer key={streamIdentity(shownStream.stream)} blockHeight={blockHeight} streamUrl={shownStream.stream.streamUrl} embedUrl={shownStream.stream.embedUrl} status={shownStream.status} />
