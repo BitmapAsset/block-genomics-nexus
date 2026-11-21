@@ -452,6 +452,23 @@ wallet that signed its start (`startedBy`). The list leaves out rows it could no
 `checking`. The wallet that signed the start may end the stream; so may the wallet that holds the block, while
 the sources agree on it (`503` with `Retry-After` otherwise). Starting and ending are rate limited per caller.
 
+A start is `POST /api/v1/livestream` with the JSON body `{ blockHeight, streamUrl, streamType, walletAddress,
+message, signature }`. `walletAddress` is the signer and must hold the block. `streamUrl`, at most 500 characters, is
+a YouTube video (`youtube.com/watch?v=…`, `youtu.be/…`, `youtube.com/live/…`), a Twitch channel
+(`twitch.tv/<channel>`) or a Kick channel (`kick.com/<channel>`); a Twitch clip, past video or directory link and
+a Kick video link are refused. `streamType` is `broadcast`, `townhall` or `spatial`; anything else is stored as
+`broadcast`. The answer is
+`{ "ok": true, "embedUrl": … }`, or `400` for a missing field or a link that is none of these or too long, `401`
+when the signature or its one-time nonce is not valid, `403` when the signer does not hold the block, `503` when
+the chain sources cannot say. An end is `DELETE /api/v1/livestream` with `{ blockHeight, ownerAddress, message,
+signature }`, where `ownerAddress` is the signer. It answers `{ "ok": true }`, `403` when the block has no stream or
+the signer is neither its starter nor the block's holder, and `409` when another start landed first (nothing is
+ended). Starts and ends share one limit of 20 a minute per caller (`429` with `Retry-After`). A shown stream reads
+`{ "live": true, "streamUrl": …, "streamType": …, "startedAt": …, "embedUrl": …, "startedBy": … }`. The list
+answers `{ "streams": […], "count": …, "checking": … }`: at most 50 rows, newest first, each with `blockHeight`,
+`streamUrl`, `streamType`, `startedAt`, `embedUrl` and `ownerAddress` (the wallet that signed the start);
+`ownerHandle` and `label` are filled only when that wallet is also the block's recorded owner.
+
 ### 7.3 Batch semantics
 
 `POST /api/v1/world/batch` carries up to **100** sub-operations. It is
