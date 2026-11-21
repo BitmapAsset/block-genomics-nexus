@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
+import { preload } from 'react-dom';
 import { parseBlockParam } from '@/lib/blockDeepLink';
 import { isAboveTip } from '@/lib/block-summary';
+import { bitmapThumbnailUrl } from '@/lib/bitmap-layout';
 
 /**
  * Height validation lives in the layout, not the page, because this segment has
@@ -30,6 +32,11 @@ export default async function BlockLayout({
   // /block/980000 is a real 404 and not a streamed 200. Heights at or below
   // KNOWN_MINED_HEIGHT skip the tip fetch, so mined blocks pay nothing.
   if (await isAboveTip(height)) notFound();
+
+  // The hero picture streams in after the loading fallback; hinting it from the
+  // layout puts the preload in <head> with the first bytes, so the request starts
+  // before the page's data work is done. Same URL as the hero's <img>.
+  preload(bitmapThumbnailUrl(height), { as: 'image', fetchPriority: 'high' });
 
   return children;
 }

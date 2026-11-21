@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { useGlobalWallet, type WalletType } from "@/context/GlobalWalletContext";
 import { resolvePublicHandle } from "@/lib/public-handle";
 import { safeNextPath } from "@/lib/site-nav";
+import { preloadWalletLibrary } from "@/lib/wallet-utils";
 
 function truncateAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -62,6 +63,12 @@ export default function WalletConnect() {
     window.addEventListener('open-wallet-modal', handler as EventListener);
     return () => window.removeEventListener('open-wallet-modal', handler as EventListener);
   }, []);
+
+  // The wallet library loads on first use; start it when the connect modal opens,
+  // so the first click on a wallet does not wait for it.
+  useEffect(() => {
+    if (open && !isConnected) preloadWalletLibrary().catch(() => {});
+  }, [open, isConnected]);
 
   // Lock body scroll when modal is open (disconnected state)
   useEffect(() => {
