@@ -7,6 +7,7 @@ import { gDistrict } from '../checks/g-district.ts';
 import { gOwnerOnly } from '../checks/g-owner-only.ts';
 import { gOpen } from '../checks/g-open.ts';
 import { gSecCi } from '../checks/g-sec-ci.ts';
+import { gLiveFrame } from '../checks/g-live-frame.ts';
 import { NotRunError } from '../lib/types.ts';
 import type { Check, Ctx, ProbeResult } from '../lib/types.ts';
 import { runGates } from '../run.ts';
@@ -368,5 +369,88 @@ describe('G-SEC-CI', () => {
     const r = await probe(gSecCi, makeCtx('G-SEC-CI', { [DEPLOYS]: { status: 403, body: {} } }));
     expect(r.status).toBe('not_run');
     expect(r.reason).toBe('GitHub refused the anonymous read (rate limit).');
+  });
+});
+
+describe('G-LIVE-FRAME', () => {
+  const OK = "default-src 'self'; frame-src https://www.youtube.com https://player.twitch.tv https://player.kick.com; frame-ancestors 'none';";
+  const OLD = "default-src 'self'; frame-ancestors 'none';";
+  const OPEN = "default-src 'self'; frame-src https://www.youtube.com https://player.twitch.tv https://player.kick.com;";
+  const BLOCK = `GET ${SITE}/block/840000`;
+  const WORLD = `GET ${SITE}/world/840000`;
+  const LIVE = `GET ${SITE}/live`;
+  const LIST = `GET ${SITE}/api/v1/livestream/active`;
+  const ONE = { streams: [{ embedUrl: 'https://player.kick.com/somechannel' }], count: 1, checking: 0 };
+
+  function page(policy: string, status = 200): Route {
+    return { status, text: '<html></html>', headers: { 'content-security-policy': policy } };
+  }
+
+  function routes(over: Record<string, Route> = {}): Record<string, Route> {
+    return { [BLOCK]: page(OK), [WORLD]: page(OK), [LIVE]: page(OK), [LIST]: { status: 200, body: ONE }, ...over };
+  }
+
+  const run = (over: Record<string, Route> = {}) => probe(gLiveFrame, makeCtx('G-LIVE-FRAME', routes(over)));
+
+  it('GL1 the policy frames only the three players on all three pages and every listed stream is on them', async () => {
+    const r = await run();
+    expect(r.status).toBe('pass');
+    expect(r.reason).toContain('1 listed stream(s), all on them');
+  });
+
+  it('GL2 a fourth framed host on one page fails', async () => {
+    const wider = OK.replace('https://player.kick.com;', 'https://player.kick.com https://evil.example;');
+    const r = await run({ [LIVE]: page(wider) });
+    expect(r.status).toBe('fail');
+    expect(r.reason).toContain('frame rule on /live');
+  });
+
+  it('GL3 a policy without a frame rule fails (production before the ship)', async () => {
+    const r = await run({ [BLOCK]: page(OLD), [WORLD]: page(OLD), [LIVE]: page(OLD) });
+    expect(r.status).toBe('fail');
+    expect(r.reason).toContain('frame rule');
+  });
+
+  it('GL4 a listed stream on another origin fails', async () => {
+    const r = await run({ [LIST]: { status: 200, body: { ...ONE, streams: [{ embedUrl: 'https://evil.example/x' }] } } });
+    expect(r.status).toBe('fail');
+    expect(r.reason).toContain('1 listed stream(s) name a player address outside');
+  });
+
+  it('GL5 a list without `checking` fails', async () => {
+    const r = await run({ [LIST]: { status: 200, body: { streams: [] } } });
+    expect(r.status).toBe('fail');
+  });
+
+  it('GL6 a listed player address that is not a URL fails', async () => {
+    const r = await run({ [LIST]: { status: 200, body: { ...ONE, streams: [{ embedUrl: 'not a url' }] } } });
+    expect(r.status).toBe('fail');
+  });
+
+  it('GL7 a policy that lets other sites frame the page fails', async () => {
+    const r = await run({ [WORLD]: page(OPEN) });
+    expect(r.status).toBe('fail');
+    expect(r.reason).toContain('frame the page');
+  });
+
+  it('GL8 a page or a list that does not answer 200 fails', async () => {
+    const a = await run({ [BLOCK]: page(OK, 503) });
+    expect(a.status).toBe('fail');
+    expect(a.reason).toContain('The page /block/840000 answered 503');
+    const b = await run({ [LIST]: { status: 500, body: ONE } });
+    expect(b.status).toBe('fail');
+    expect(b.reason).toContain('answered 500');
+  });
+
+  it("GL9 an empty list passes and says it checked only the list's shape", async () => {
+    const r = await run({ [LIST]: { status: 200, body: { streams: [], count: 0, checking: 0 } } });
+    expect(r.status).toBe('pass');
+    expect(r.reason).toContain("checked only the list's shape");
+  });
+
+  it('GL10 a listed blob: address with a player origin inside fails', async () => {
+    const r = await run({ [LIST]: { status: 200, body: { ...ONE, streams: [{ embedUrl: 'blob:https://www.youtube.com/3c1b6e0e-6f0a-4d2e-9d57-0f6f1f1b7a10' }] } } });
+    expect(r.status).toBe('fail');
+    expect(r.reason).toContain('1 listed stream(s) name a player address outside the three platforms.');
   });
 });

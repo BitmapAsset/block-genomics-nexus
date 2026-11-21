@@ -8,7 +8,7 @@ export const NPM = 'https://registry.npmjs.org';
 export const GH = 'https://api.github.com';
 
 export type Call = { method: string; url: string; headers: Record<string, string>; body?: string };
-export type Reply = { status: number; body?: unknown; text?: string };
+export type Reply = { status: number; body?: unknown; text?: string; headers?: Record<string, string> };
 export type Route = Reply | ((body: unknown) => Reply);
 
 // Keys are 'GET <url>' or 'POST <url>'. A route that is missing answers 599, so a test that
@@ -27,7 +27,7 @@ export function fakeFetch(routes: Record<string, Route>, calls: Call[] = []): ty
     if (route === undefined) return new Response('no made-up route', { status: 599 });
     const reply = typeof route === 'function' ? route(body === undefined ? undefined : JSON.parse(body)) : route;
     const text = reply.text ?? (reply.body === undefined ? '' : JSON.stringify(reply.body));
-    return new Response(text, { status: reply.status });
+    return new Response(text, { status: reply.status, headers: reply.headers });
   }) as typeof fetch;
 }
 

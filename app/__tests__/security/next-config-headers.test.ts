@@ -8,8 +8,8 @@
 import { createHash } from 'crypto';
 import nextConfig from '../../next.config';
 
-/** sha256 of the CSP value at 3ef46497 (313 characters). */
-const CSP_DIGEST = '104b98356e58a121608cffb45cbecddcf2fbb576ca5cca7adea84e88a8222b0d';
+/** sha256 of the CSP value: the policy at 3ef46497 with frame-src for the three stream players (397 characters). */
+const CSP_DIGEST = 'e623dc53918307af4846db4b9cd508e3923a5da0a61f08565145a46905f08f5b';
 
 describe('next.config.ts headers', () => {
   it('does not send x-powered-by', () => {
@@ -21,7 +21,7 @@ describe('next.config.ts headers', () => {
     const all = entries.find((e) => e.source === '/(.*)')!;
     const csp = all.headers.filter((h) => h.key === 'Content-Security-Policy');
     expect(csp).toHaveLength(1);
-    expect(csp[0].value).toHaveLength(313);
+    expect(csp[0].value).toHaveLength(397);
     expect(createHash('sha256').update(csp[0].value).digest('hex')).toBe(CSP_DIGEST);
     expect(csp[0].value).toContain("script-src 'self' 'unsafe-eval' 'unsafe-inline'");
   });

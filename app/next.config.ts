@@ -4,7 +4,7 @@ import path from "path";
 const securityHeaders = [
   {
     key: "X-DNS-Prefetch-Control",
-    value: "on",
+    value: "off",
   },
   {
     key: "X-Frame-Options",
@@ -28,7 +28,7 @@ const securityHeaders = [
   },
   {
     key: "Content-Security-Policy",
-    value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://mempool.space https://blockchain.info https://ordinals.com wss://*.supabase.co https://*.supabase.co; frame-ancestors 'none';",
+    value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; frame-src https://www.youtube.com https://player.twitch.tv https://player.kick.com; connect-src 'self' https://mempool.space https://blockchain.info https://ordinals.com wss://*.supabase.co https://*.supabase.co; frame-ancestors 'none';",
   },
 ];
 

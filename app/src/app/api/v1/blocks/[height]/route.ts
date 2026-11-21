@@ -5,6 +5,7 @@ import { sandboxGate } from '@/lib/sandbox-keys';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { INVALID_BLOCK_HEIGHT_MESSAGE, parseBlockHeight } from '@/lib/block-height';
 import { getBlockHashAtHeight } from '@/lib/onchain/esplora';
+import { withoutStreamColumns } from '@/lib/stream-visibility';
 
 /**
  * Fetch the chain's hash for a block whose row is missing one, and keep it.
@@ -57,7 +58,7 @@ export async function GET(
 
     return success(
       {
-        ...block,
+        ...withoutStreamColumns(block),
         hash,
         parcelCount: block._count.parcels,
         _count: undefined,

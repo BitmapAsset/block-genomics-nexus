@@ -432,6 +432,7 @@ writes, and the ownership check runs for the verified signer.
 | `POST /ownership/prep-transfer` | `ownership.prep-transfer` | `ownership` |
 | `POST /brain/flag` (Block = `voterBlock`, a block the signer holds) | `brain.flag` | `brain` |
 | `POST /livestream` | `livestream.start` | `world` |
+| `DELETE /livestream` | `livestream.end` | `world` |
 | `POST /chat/{blockHeight}` | `chat.send` | `chat` |
 | `POST /chat/react` (Block 0) | `chat.react` | `chat` |
 | `POST /game/claim` | `game.claim` | `game` |
@@ -441,6 +442,38 @@ writes, and the ownership check runs for the verified signer.
 
 A request without such a signature is a `401` whose error names the purpose to
 request from `POST /api/v1/challenge`.
+
+**Live streams on a block.** `GET /api/v1/livestream?blockHeight=…` and `GET /api/v1/livestream/active` show a
+stream only while the wallet that signed its latest start still holds the block, by the same chain answer the
+public block page uses (two agreeing sources, at most 5 minutes old), and only if that start was signed less than
+12 hours ago. A hidden stream answers `{ "live": false, "ended": … }` with `expired`, `holder_changed` or
+`unconfirmed` (the holder could not be named in time) and names no address, link or player; a shown one names the
+wallet that signed its start (`startedBy`). The list leaves out rows it could not check in time and counts them in
+`checking`. The wallet that signed the start may end the stream; so may the wallet that holds the block, while
+the sources agree on it (`503` with `Retry-After` otherwise). Starting and ending are rate limited per caller.
+
+A start is `POST /api/v1/livestream` with the JSON body `{ blockHeight, streamUrl, streamType, walletAddress,
+message, signature }`. `walletAddress` is the signer and must hold the block. `streamUrl`, at most 500 characters
+as sent (UTF-16 code units; the stored link is its normalised form), is a YouTube video (`youtube.com/watch?v=…`,
+`youtu.be/…`, `youtube.com/live/…`), a Twitch channel (`twitch.tv/<channel>`) or a Kick channel
+(`kick.com/<channel>`). On Twitch and Kick the channel is the first part of the link's path (ASCII letters,
+digits and `_`, on Kick also `-`, at most 64 characters) and what follows it is ignored: a link that goes on
+after the channel, such as `twitch.tv/<channel>/clip/…` or `kick.com/<channel>/videos/…`, plays that channel's
+live stream. The name is not checked against the platform, so `twitch.tv/settings` is taken as a channel named
+`settings`. `clips.twitch.tv` links and a first path part `videos` or `directory` (Twitch) or `video` (Kick), in
+any letter case, are refused. `streamType` is `broadcast`, `townhall` or `spatial`; anything else is stored as
+`broadcast`. The answer is
+`{ "ok": true, "embedUrl": … }`, or `400` for a missing field or a link that is none of these or too long, `401`
+when the signature or its one-time nonce is not valid, `403` when the signer does not hold the block, `503` when
+the chain sources cannot say. An end is `DELETE /api/v1/livestream` with `{ blockHeight, ownerAddress, message,
+signature }`, where `ownerAddress` is the signer. It answers `{ "ok": true }`, `403` when the block has no stream or
+the signer is neither its starter nor the block's holder, and `409` when another start or end landed after the
+request read the stream (nothing is ended by this request). Starts and ends share one limit of 20 a minute per
+caller (`429` with `Retry-After`). A shown stream reads
+`{ "live": true, "streamUrl": …, "streamType": …, "startedAt": …, "embedUrl": …, "startedBy": … }`. The list
+answers `{ "streams": […], "count": …, "checking": … }`: at most 50 rows, newest first, each with `blockHeight`,
+`streamUrl`, `streamType`, `startedAt`, `embedUrl` and `ownerAddress` (the wallet that signed the start);
+`ownerHandle` and `label` are filled only when that wallet is also the block's recorded owner.
 
 ### 7.3 Batch semantics
 

@@ -12,10 +12,23 @@
  * segment or a query parameter.
  *
  * Shared by `POST|GET /api/v1/livestream`, `GET /api/v1/livestream/active` and
- * the go-live form in ParcelView, so the client and both routes agree.
+ * the go-live form in ParcelView, so the client and both routes agree,
+ * and by `components/nexus/StreamPlayer.tsx`, the only place a player frame is made.
  */
 
 export type StreamPlatform = 'youtube' | 'twitch' | 'kick';
+
+/** The three kinds of stream a holder can pick. */
+export const STREAM_TYPES = ['broadcast', 'townhall', 'spatial'] as const;
+export type StreamKind = (typeof STREAM_TYPES)[number];
+
+/** One of the three stream types; anything else (another word, a long text, no string) reads as a broadcast. */
+export function streamTypeOf(raw: unknown): StreamKind {
+  return (STREAM_TYPES as readonly unknown[]).includes(raw) ? (raw as StreamKind) : 'broadcast';
+}
+
+/** A stream link is short: the start refuses a longer value before any signature or chain work. */
+export const STREAM_URL_MAX = 500;
 
 function isDomainOrSubdomain(hostname: string, domain: string): boolean {
   return hostname === domain || hostname.endsWith(`.${domain}`);
@@ -56,6 +69,7 @@ export function normaliseStreamUrl(raw: unknown): string | null {
 const YOUTUBE_VIDEO_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const TWITCH_CHANNEL = /^[A-Za-z0-9_]{1,64}$/;
 const KICK_CHANNEL = /^[A-Za-z0-9_-]{1,64}$/;
+const TWITCH_NOT_A_CHANNEL = ['videos', 'directory'];
 
 /** The embeddable player URL for a YouTube, Twitch or Kick stream URL, else null. */
 export function getStreamEmbedUrl(raw: string): string | null {
@@ -81,14 +95,42 @@ export function getStreamEmbedUrl(raw: string): string | null {
     case 'twitch': {
       const channel = u.pathname.split('/').filter(Boolean)[0];
       if (!channel || !TWITCH_CHANNEL.test(channel)) return null;
-      return `https://player.twitch.tv/?channel=${channel}&parent=blockgenomics.io&autoplay=true&muted=true`;
+      // A clip, a past video and the directory are not a channel's live page.
+      if (u.hostname === 'clips.twitch.tv' || TWITCH_NOT_A_CHANNEL.includes(channel.toLowerCase())) return null;
+      return `https://player.twitch.tv/?channel=${channel}&parent=blockgenomics.io&parent=www.blockgenomics.io&autoplay=true&muted=true`;
     }
     case 'kick': {
       const channel = u.pathname.split('/').filter(Boolean)[0];
       if (!channel || !KICK_CHANNEL.test(channel)) return null;
+      // kick.com/video/<id> is a past video, not a channel.
+      if (channel.toLowerCase() === 'video') return null;
       return `https://player.kick.com/${channel}`;
     }
     default:
       return null;
   }
+}
+
+/** The only origins a player frame may load: the page policy's `frame-src` names exactly these. */
+export const PLAYER_ORIGINS = ['https://www.youtube.com', 'https://player.twitch.tv', 'https://player.kick.com'] as const;
+
+const PAGE_HOST = /^[a-z0-9.-]{1,253}$/;
+
+/**
+ * The address a player frame loads, or null when it is not a player address of the three platforms (another origin,
+ * the site's own, a credential in it, not a URL). Twitch plays only on the pages its `parent` values name; the page's
+ * own host is added when it is not one of them (a preview deployment), so the player works wherever the page is served.
+ */
+export function playerFrameSrc(embedUrl: string, pageHost: string): string | null {
+  let u: URL;
+  try { u = new URL(embedUrl); } catch { return null; }
+  // Only https: a blob: address carries a player's origin inside it and is no player.
+  if (u.protocol !== 'https:') return null;
+  if (!(PLAYER_ORIGINS as readonly string[]).includes(u.origin)) return null;
+  if (u.username !== '' || u.password !== '') return null;
+  if (u.origin === 'https://player.twitch.tv') {
+    const host = pageHost.toLowerCase();
+    if (PAGE_HOST.test(host) && !u.searchParams.getAll('parent').includes(host)) u.searchParams.append('parent', host);
+  }
+  return u.href;
 }

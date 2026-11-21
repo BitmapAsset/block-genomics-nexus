@@ -61,6 +61,7 @@ jest.mock('@/lib/ownership-gate', () => ({
 // suite, signed-action-routes. Here every signed request is authorized, so a
 // decision can only come from what this suite is about.
 jest.mock('@/lib/signed-action', () => ({ verifySignedAction: async () => ({ ok: true }) }));
+jest.mock('@/lib/stream-visibility', () => ({ ...jest.requireActual('@/lib/stream-visibility'), streamHolderState: async () => 'holds' }));
 
 import { POST } from '@/app/api/v1/livestream/route';
 import { GET as ACTIVE } from '@/app/api/v1/livestream/active/route';

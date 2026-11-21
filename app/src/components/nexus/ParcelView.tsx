@@ -21,6 +21,8 @@ import { signedWorldFetch } from '@/lib/world-signing';
 import { signAction, signedActionFetch } from '@/lib/signed-fetch';
 import { prepareDmPayload, UNENCRYPTED_DM_CONFIRM } from '@/lib/dm-payload';
 import { streamPlatform } from '@/lib/stream-embed';
+import StreamPlayer, { PLAYERS_ON, platformLabel } from '@/components/nexus/StreamPlayer';
+import { blockPageAskDelay, emptyPageStream, endPastTwelveHours, goLiveNotes, hiddenStreamNote, nextPageStream, parseStreamRead, streamEndsAt, streamIdentity, type StreamRead } from '@/lib/stream-read';
 import { useShowcaseBuildings, ShowcaseCityRenderer, isFeaturedBlock } from './ShowcaseCity';
 import { patchParcelShader, type ParcelUniforms } from './parcel-shader';
 import { deviceCanvasDpr, isPhoneClass, readPhoneHints } from './phone-dpr';
@@ -3536,27 +3538,23 @@ function VPSLinkModal({ onClose, blockHeight, parcelIndex }: { onClose: () => vo
 /* ─── Livestream Modal ─── */
 type StreamType = 'broadcast' | 'townhall' | 'spatial';
 
-function LivestreamModal({ onClose, blockHeight, parcelIndex, isStreaming, onStartStream, onEndStream, walletAddress }: {
-  onClose: () => void; blockHeight: number; parcelIndex: number;
-  isStreaming: boolean; onStartStream: (type: StreamType, url: string) => void; onEndStream: () => void;
+function LivestreamModal({ onClose, blockHeight, parcelIndex, read, onStartStream, onEndStream, walletAddress }: {
+  onClose: () => void; blockHeight: number; parcelIndex: number; read: StreamRead;
+  onStartStream: (type: StreamType, url: string) => Promise<string | null>; onEndStream: () => Promise<string | null>;
   walletAddress: string | null;
 }) {
+  void parcelIndex;
   const [streamType, setStreamType] = useState<StreamType>('broadcast');
   const [streamUrl, setStreamUrl] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [streamElapsed, setStreamElapsed] = useState(0);
-
-  useEffect(() => {
-    if (!isStreaming) { setStreamElapsed(0); return; }
-    const timer = setInterval(() => setStreamElapsed(s => s + 1), 1000);
-    return () => clearInterval(timer);
-  }, [isStreaming]);
-
-  const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const [started, setStarted] = useState(false);
+  const isLive = read.kind === 'live';
+  const liveStart = read.kind === 'live' ? Date.parse(read.startedAt) : null;
+  const shownUntil = read.kind === 'live' ? new Date(streamEndsAt(read.startedAt)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
 
   const streamTypes: { key: StreamType; icon: string; label: string; desc: string }[] = [
-    { key: 'broadcast', icon: '📺', label: 'Broadcast', desc: 'You stream on YouTube/Twitch, visitors watch here' },
+    { key: 'broadcast', icon: '📺', label: 'Broadcast', desc: 'You stream on YouTube, Twitch or Kick; visitors watch here' },
     { key: 'townhall', icon: '🎤', label: 'Town Hall', desc: 'Stream + block chat for live Q&A' },
     { key: 'spatial', icon: '🗣️', label: 'Spatial Chat', desc: 'Proximity-based audio (coming soon)' },
   ];
@@ -3564,17 +3562,25 @@ function LivestreamModal({ onClose, blockHeight, parcelIndex, isStreaming, onSta
   const handleStart = async () => {
     if (!streamUrl.trim()) { setError('Paste your stream URL'); return; }
     if (!walletAddress) { setError('Connect wallet first'); return; }
-
-    // Quick client-side URL validation (same host rule the route enforces)
     try {
       const u = new URL(streamUrl);
       if (!streamPlatform(u)) { setError('Use a YouTube, Twitch, or Kick URL'); return; }
     } catch { setError('Invalid URL'); return; }
-
     setLoading(true);
     setError('');
-    onStartStream(streamType, streamUrl);
+    const err = await onStartStream(streamType, streamUrl);
     setLoading(false);
+    if (err) setError(err);
+    else setStarted(true);
+  };
+
+  const handleEnd = async () => {
+    setLoading(true);
+    setError('');
+    const err = await onEndStream();
+    setLoading(false);
+    if (err) setError(err);
+    else setStarted(false);
   };
 
   return (
@@ -3586,16 +3592,32 @@ function LivestreamModal({ onClose, blockHeight, parcelIndex, isStreaming, onSta
         </div>
         <p className="text-[11px] mb-4 -mt-2" style={{ color: '#64748b' }}>Go live on your block — broadcast to every visitor on {blockHeight}.bitmap</p>
 
-        {isStreaming && (
+        {isLive && (
           <div className="mb-4 px-4 py-3 rounded-xl flex items-center gap-3" style={{ background: 'rgba(255,51,51,0.1)', border: '1px solid rgba(255,51,51,0.3)' }}>
             <style>{`@keyframes live-pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }`}</style>
             <div className="w-3 h-3 rounded-full" style={{ background: '#ff3333', animation: 'live-pulse 1s ease-in-out infinite', boxShadow: '0 0 8px #ff3333' }} />
             <span className="text-sm font-mono font-bold" style={{ color: '#ff3333' }}>LIVE</span>
-            <span className="text-sm font-mono" style={{ color: '#e2e8f0' }}>{fmtTime(streamElapsed)}</span>
+            <span className="text-sm font-mono" style={{ color: '#e2e8f0' }}><StreamDuration startedAt={liveStart} /></span>
+            <span className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>shown until {shownUntil}</span>
+          </div>
+        )}
+        {read.kind === 'hidden' && (
+          <div data-testid="stream-hidden-note" className="mb-4 px-4 py-3 rounded-xl text-[11px]" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', color: '#cbd5e1' }}>
+            <div className="mb-2">{hiddenStreamNote(read.ended)}</div>
+            <button type="button" onClick={() => { void handleEnd(); }} disabled={loading}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold disabled:opacity-50"
+              style={{ background: 'rgba(255,51,51,0.15)', border: '1px solid rgba(255,51,51,0.3)', color: '#ff3333' }}>
+              ⏹️ If you hold this block or started the stream: end it
+            </button>
+          </div>
+        )}
+        {started && read.kind === 'none' && (
+          <div data-testid="stream-started-note" className="mb-4 text-[11px]" style={{ color: '#cbd5e1' }}>
+            Your stream is set, but this page&apos;s check did not find it yet. Reload the page in a minute to see what visitors see.
           </div>
         )}
 
-        {!isStreaming && (
+        {!isLive && (
           <>
             <div className="mb-4">
               <label className="text-[10px] uppercase tracking-wider block mb-2" style={{ color: '#64748b' }}>Stream Type</label>
@@ -3645,21 +3667,22 @@ function LivestreamModal({ onClose, blockHeight, parcelIndex, isStreaming, onSta
         )}
 
         <button
-          onClick={() => isStreaming ? onEndStream() : handleStart()}
+          onClick={() => { void (isLive ? handleEnd() : handleStart()); }}
           disabled={loading}
           className="w-full py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
           style={{
-            background: isStreaming ? 'rgba(255,51,51,0.2)' : 'rgba(0,255,136,0.15)',
-            border: `1.5px solid ${isStreaming ? '#ff3333' : '#00ff88'}`,
-            color: isStreaming ? '#ff3333' : '#00ff88',
-            boxShadow: isStreaming ? '0 0 20px rgba(255,51,51,0.2)' : '0 0 20px rgba(0,255,136,0.15)',
+            background: isLive ? 'rgba(255,51,51,0.2)' : 'rgba(0,255,136,0.15)',
+            border: `1.5px solid ${isLive ? '#ff3333' : '#00ff88'}`,
+            color: isLive ? '#ff3333' : '#00ff88',
+            boxShadow: isLive ? '0 0 20px rgba(255,51,51,0.2)' : '0 0 20px rgba(0,255,136,0.15)',
           }}>
-          {loading ? '⏳ Connecting...' : isStreaming ? '⏹️ End Stream' : '📺 TimesSquare'}
+          {loading ? '⏳ Connecting...' : isLive ? '⏹️ End Stream' : '📺 TimesSquare'}
         </button>
 
-        <div className="mt-4 space-y-2">
-          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>📺</span><span>Paste your YouTube, Twitch, or Kick URL — broadcast on your Times Square</span></div>
-          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#64748b' }}><span>🔐</span><span>Stream live on your block — your own Times Square — verified via BIP-322</span></div>
+        <div className="mt-4 space-y-2" data-testid="go-live-notes">
+          {goLiveNotes(PLAYERS_ON).map(note => (
+            <div key={note} className="text-[10px]" style={{ color: '#64748b' }}>{note}</div>
+          ))}
         </div>
       </div>
     </div>
@@ -4768,43 +4791,15 @@ const LiveActivityTicker = memo(function LiveActivityTicker({ activities }: { ac
 });
 
 /* ─── Livestream 3D Overlay ─── */
-function LivestreamOverlay3D({ parcel, ownerData, viewerCount }: { parcel: ParcelData; ownerData: OwnerData; viewerCount: number }) {
+// A label over the selected parcel: our own words, no picture of the platform, no count. The player is the panel.
+function LivestreamOverlay3D({ parcel, platform }: { parcel: ParcelData; platform: string }) {
   const h = Math.max(0.15, parcel.buildHeight * 4);
-
   return (
     <group>
       <Html position={[parcel.x, h + 2.5, parcel.z]} center distanceFactor={6} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
-        <div style={{
-          width: 200, background: 'rgba(10,10,15,0.92)', borderRadius: 12,
-          border: '1px solid rgba(255,51,51,0.3)', overflow: 'hidden', userSelect: 'none',
-          boxShadow: '0 0 30px rgba(255,51,51,0.15)',
-        }}>
-          <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, background: '#ff3333', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 8, fontFamily: 'monospace' }}>
-            🔴 LIVE
-          </div>
-          <div style={{ width: '100%', height: 110, background: 'linear-gradient(135deg, #6b21a8, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 28, opacity: 0.7 }}>▶</span>
-          </div>
-          <div style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 10, color: '#e2e8f0', fontFamily: 'monospace' }}>@{ownerData.handle}</span>
-            <span style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace', marginLeft: 'auto' }}>👁 {viewerCount} watching</span>
-          </div>
-          <div style={{ padding: '0 10px 6px', display: 'flex', alignItems: 'center', gap: 3 }}>
-            <span style={{ fontSize: 10 }}>🔊</span>
-            {[3,5,2,4,3].map((h2,i) => (
-              <div key={i} style={{
-                width: 2, height: h2, background: '#ff3333', borderRadius: 1,
-                animation: `audio-bar-${i} 0.5s ease-in-out infinite alternate`,
-              }} />
-            ))}
-            <style>{`
-              @keyframes audio-bar-0 { to { height: 6px; } }
-              @keyframes audio-bar-1 { to { height: 3px; } }
-              @keyframes audio-bar-2 { to { height: 7px; } }
-              @keyframes audio-bar-3 { to { height: 2px; } }
-              @keyframes audio-bar-4 { to { height: 5px; } }
-            `}</style>
-          </div>
+        <div style={{ width: 200, background: 'rgba(10,10,15,0.92)', borderRadius: 12, border: '1px solid rgba(255,51,51,0.3)', padding: '8px 10px', userSelect: 'none', boxShadow: '0 0 30px rgba(255,51,51,0.15)', fontFamily: 'monospace' }}>
+          <span style={{ background: '#ff3333', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 8 }}>🔴 LIVE</span>
+          <span style={{ fontSize: 10, color: '#e2e8f0', marginLeft: 8 }}>on {platform} · {PLAYERS_ON ? 'player below' : 'link below'}</span>
         </div>
       </Html>
     </group>
@@ -5297,32 +5292,59 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
     }
   }, [walletAddress, blockHeight, parcelCustomizations, isSavingCustomization]);
 
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [activeStreamType, setActiveStreamType] = useState<StreamType>('broadcast');
-  const [streamStartTime, setStreamStartTime] = useState<number | null>(null);
+  // The stream on this block, as the single read answers it (lib/stream-read.ts, nextPageStream): the page shows a
+  // stream only from that read, keeps a frame that is already playing while an answer is only `unconfirmed`, closes
+  // it for good when the stream ends or its 12 hours pass, and asks again by blockPageAskDelay, never while hidden.
+  const [page, setPage] = useState(() => emptyPageStream(blockHeight));
+  const [idleTick, setIdleTick] = useState(0);
+  const [streamPanelOpen, setStreamPanelOpen] = useState(true);
   const [showLivestreamModal, setShowLivestreamModal] = useState(false);
-  const [streamViewerCount] = useState(0);
-  const [streamEmbedUrl, setStreamEmbedUrl] = useState<string | null>(null);
+  const shownStream = page.height === blockHeight ? page.shown : null;
+  const live = shownStream !== null && shownStream.status === 'live' ? shownStream.stream : null;
+  const isStreaming = live !== null;
+  const streamStartTime = live ? Date.parse(live.startedAt) : null;
+  const activeStreamType = live ? live.streamType : 'broadcast';
+  const livePlatform = live ? (platformLabel(live.streamUrl) ?? 'its platform') : null;
 
-  // Check for active stream on load
+  // Under 640 CSS px the panel waits for a tap on the chip; from 640 it opens by itself as our still card.
   useEffect(() => {
-    fetch(`/api/v1/livestream?blockHeight=${blockHeight}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.live) {
-          setIsStreaming(true);
-          setStreamEmbedUrl(data.embedUrl);
-          setActiveStreamType(data.streamType || 'broadcast');
-          setStreamStartTime(data.startedAt ? new Date(data.startedAt).getTime() : Date.now());
-        }
-      })
-      .catch(() => {});
+    if (window.innerWidth < 640) setStreamPanelOpen(false);
+  }, []);
+
+  const readSeq = useRef(0);
+  const readStream = useCallback(async () => {
+    // A read asked later has the newer answer (a start, the next ask, another block): an older one is dropped.
+    const seq = ++readSeq.current;
+    let answer: StreamRead | null = null;
+    try {
+      const r = await fetch(`/api/v1/livestream?blockHeight=${blockHeight}`);
+      answer = r.ok ? parseStreamRead(await r.json()) : null;
+    } catch {
+      answer = null;
+    }
+    if (seq !== readSeq.current) return;
+    setPage(prev => nextPageStream(prev, answer, Date.now(), blockHeight));
   }, [blockHeight]);
 
+  useEffect(() => { void readStream(); }, [readStream]);
 
+  // While the tab is hidden nothing is asked; the 12-hour rule still runs on each tick.
+  const askDelay = blockPageAskDelay(page);
+  useEffect(() => {
+    if (askDelay === null) return;
+    const t = setTimeout(() => {
+      if (document.hidden) {
+        setPage(prev => endPastTwelveHours(prev, Date.now()));
+        setIdleTick(n => n + 1);
+      } else {
+        void readStream();
+      }
+    }, askDelay);
+    return () => clearTimeout(t);
+  }, [page, askDelay, idleTick, readStream]);
 
-  const handleStartStream = useCallback(async (type: StreamType, url: string) => {
-    if (!walletAddress) return;
+  const handleStartStream = useCallback(async (type: StreamType, url: string): Promise<string | null> => {
+    if (!walletAddress) return 'Connect wallet first';
     try {
       // Owner-only on the server: an action-bound signature with a one-time
       // 'world' nonce, the same as ending a stream.
@@ -5331,23 +5353,22 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         address: walletAddress, body: { blockHeight, streamUrl: url, streamType: type, walletAddress },
         signMessage: walletSignMessage,
       });
-      const data = await resp.json();
-      if (data.ok) {
-        setActiveStreamType(type);
-        setIsStreaming(true);
-        setStreamStartTime(Date.now());
-        setStreamEmbedUrl(data.embedUrl);
-      }
+      const data = (await resp.json().catch(() => null)) as { ok?: boolean; embedUrl?: string; error?: string } | null;
+      if (!resp.ok || !data?.ok || typeof data.embedUrl !== 'string') return data?.error || `Starting the stream failed (HTTP ${resp.status}).`;
+      // The starter's page shows what every visitor's page shows: the public read, asked now.
+      setStreamPanelOpen(true);
+      void readStream();
+      return null;
     } catch (e) {
-      console.error('Failed to start stream:', e);
+      return e instanceof Error ? e.message : 'Starting the stream failed.';
     }
-  }, [walletAddress, blockHeight, walletSignMessage]);
+  }, [walletAddress, blockHeight, walletSignMessage, readStream]);
 
-  const handleEndStream = useCallback(async () => {
-    if (!walletAddress) return;
+  const handleEndStream = useCallback(async (): Promise<string | null> => {
+    if (!walletAddress) return 'Connect wallet first';
     try {
-      // Owner-only on the server: an action-bound signature with a one-time nonce.
-      await signedWorldFetch({
+      // The starter or the block's live holder, on the server: an action-bound signature with a one-time nonce.
+      const resp = await signedWorldFetch({
         method: 'DELETE',
         path: '/api/v1/livestream',
         action: 'livestream.end',
@@ -5356,13 +5377,17 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         body: { blockHeight },
         signMessage: walletSignMessage,
       });
+      const data = (await resp.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!resp.ok || !data?.ok) {
+        void readStream();
+        return data?.error || `Ending the stream failed (HTTP ${resp.status}).`;
+      }
+      setPage(prev => nextPageStream(prev, { kind: 'none' }, Date.now(), blockHeight));
+      return null;
     } catch (e) {
-      console.error('Failed to end stream:', e);
+      return e instanceof Error ? e.message : 'Ending the stream failed.';
     }
-    setIsStreaming(false);
-    setStreamStartTime(null);
-    setStreamEmbedUrl(null);
-  }, [walletAddress, blockHeight, walletSignMessage]);
+  }, [walletAddress, blockHeight, walletSignMessage, readStream]);
 
   // The block's real transactions, from one summary request, painted once.
   // An estimate appears only if the summary fails, badged, retried and faded.
@@ -5797,28 +5822,32 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         }}
       />}
       {showEstateModal && <EstateModal onClose={() => setShowEstateModal(false)} blockHeight={blockHeight} parcels={parcels} onEstateCreated={() => { void loadEstates(); }} />}
-      {showLivestreamModal && <LivestreamModal onClose={() => setShowLivestreamModal(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? 0} isStreaming={isStreaming} onStartStream={handleStartStream} onEndStream={handleEndStream} walletAddress={walletAddress} />}
+      {showLivestreamModal && <LivestreamModal onClose={() => setShowLivestreamModal(false)} blockHeight={blockHeight} parcelIndex={displayParcel?.txIndex ?? 0} read={page.height === blockHeight ? page.read : { kind: 'none' }} onStartStream={handleStartStream} onEndStream={handleEndStream} walletAddress={walletAddress} />}
 
-      {/* Live Stream Embed — visible to ALL visitors when stream is active */}
-      {isStreaming && streamEmbedUrl && !showLivestreamModal && (
-        <div className="fixed bottom-4 right-4 z-40 rounded-xl overflow-hidden shadow-2xl" style={{ border: '2px solid rgba(255,51,51,0.5)', width: 400, height: 240 }}>
-          <div className="flex items-center justify-between px-3 py-1.5" style={{ background: 'rgba(15,15,24,0.95)' }}>
+      {/* The stream panel: our still card first; the player only after the visitor's click (StreamPlayer). */}
+      {shownStream && shownStream.status !== 'ended' && !streamPanelOpen && !showLivestreamModal && panelSize === 'hidden' && (
+        <button type="button" data-testid="stream-chip" onClick={() => setStreamPanelOpen(true)} aria-label="Open the stream panel"
+          className="fixed z-40 sm:hidden inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full px-3 text-[11px] font-mono font-bold"
+          style={{ left: 16, bottom: 'calc(140px + env(safe-area-inset-bottom, 0px))', background: 'rgba(15,15,24,0.95)', border: '1.5px solid #ff3333', color: '#ff3333' }}>
+          ● LIVE
+        </button>
+      )}
+      {shownStream && streamPanelOpen && !showLivestreamModal && (
+        <div data-testid="stream-panel" className="fixed z-40 inset-x-0 bottom-0 sm:inset-x-auto sm:bottom-[68px] sm:right-4 sm:w-[520px] sm:max-w-[calc(160dvh_-_256px)] sm:rounded-xl overflow-hidden shadow-2xl" style={{ border: '2px solid rgba(255,51,51,0.5)', background: 'rgba(15,15,24,0.95)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          <div className="flex items-center justify-between px-3 py-1.5">
             <div className="flex items-center gap-2">
               <style>{`@keyframes live-dot { 0%,100% { opacity:1; } 50% { opacity:0.3; } }`}</style>
-              <div className="w-2 h-2 rounded-full" style={{ background: '#ff3333', animation: 'live-dot 1s ease-in-out infinite' }} />
-              <span className="text-[10px] font-mono font-bold" style={{ color: '#ff3333' }}>LIVE</span>
-              <span className="text-[10px] font-mono" style={{ color: '#64748b' }}>{activeStreamType}</span>
+              {shownStream.status !== 'ended' && <div className="w-2 h-2 rounded-full" style={{ background: '#ff3333', animation: 'live-dot 1s ease-in-out infinite' }} />}
+              <span className="text-[10px] font-mono font-bold" style={{ color: shownStream.status === 'ended' ? '#94a3b8' : '#ff3333' }}>{shownStream.status === 'ended' ? 'ENDED' : 'LIVE'}</span>
+              <span className="text-[10px] font-mono" style={{ color: '#64748b' }}>{shownStream.stream.streamType}</span>
             </div>
-            <button onClick={() => setStreamEmbedUrl(null)} className="text-[#64748b] hover:text-white text-xs">✕</button>
+            <button type="button" data-testid="stream-panel-close" aria-label="Close the stream panel" onClick={() => setStreamPanelOpen(false)} className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:-mx-2.5 sm:-my-1 sm:px-2.5 sm:py-1 items-center justify-center text-[#64748b] hover:text-white text-xs focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-cyan">✕</button>
           </div>
-          <iframe
-            src={streamEmbedUrl}
-            width="100%"
-            height="208"
-            allow="autoplay; encrypted-media; fullscreen"
-            allowFullScreen
-            style={{ border: 'none' }}
-          />
+          <div className="px-2 pb-2">
+            <StreamPlayer key={streamIdentity(shownStream.stream)} blockHeight={blockHeight} streamUrl={shownStream.stream.streamUrl} embedUrl={shownStream.stream.embedUrl} status={shownStream.status} />
+          </div>
+          {/* Room for the page's back link, which lies over the bottom of a phone's screen. */}
+          <div className="h-[60px] sm:hidden" aria-hidden="true" />
         </div>
       )}
       {showSendBtcModal && <SendBitcoinModal onClose={() => setShowSendBtcModal(false)} blockHeight={blockHeight} recipientOwner={displayParcelOwner ?? blockOwner} />}
@@ -5975,9 +6004,9 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
               {parcels.length <= 2000 && <SpatialAvatars avatars={spatialAvatars.slice(0, 5)} parcels={parcels} />}
               {parcels.length <= 2000 && <SpatialMessages avatars={spatialAvatars.slice(0, 3)} parcels={parcels} />}
               {parcels.length <= 2000 && <SpatialReactions parcels={parcels} reaction={reaction} />}
-              {isStreaming && selectedParcel && displayParcelOwner && (
+              {live && livePlatform && selectedParcel && (
                 <>
-                  <LivestreamOverlay3D parcel={selectedParcel} ownerData={displayParcelOwner} viewerCount={streamViewerCount} />
+                  <LivestreamOverlay3D parcel={selectedParcel} platform={livePlatform} />
                   <LivestreamPulseRing parcel={selectedParcel} />
                   <LivestreamBeam parcel={selectedParcel} />
                 </>
@@ -6283,7 +6312,6 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                 {isStreaming && (
                   <>
                     <PropRow label="STREAM TIME" value={<StreamDuration startedAt={streamStartTime} />} />
-                    <PropRow label="VIEWERS" value={`👁 ${streamViewerCount}`} />
                   </>
                 )}
                 <PropRow label="TYPE" value={displayParcel.isCoinbase ? 'Coinbase' : 'Standard'} />
@@ -6629,16 +6657,16 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
                 </div>
               ) : (
                 <>
-                {isStreaming && displayParcelOwner && (
+                {live && (
                   <div className="mb-3 p-3 rounded-xl" style={{ background: 'rgba(255,51,51,0.08)', border: '1px solid rgba(255,51,51,0.25)' }}>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#ff3333', color: '#fff' }}>🔴 LIVE NOW</span>
-                      <span className="text-[10px] font-mono" style={{ color: '#e2e8f0' }}>@{displayParcelOwner.handle} is streaming on parcel {displayParcel?.txIndex}</span>
+                      <span className="text-[10px] font-mono" style={{ color: '#e2e8f0' }}>A stream is live on this block, on {livePlatform}</span>
                     </div>
                     <div className="text-[10px] font-mono mb-2" style={{ color: '#94a3b8' }}>
-                      📺 {activeStreamType.charAt(0).toUpperCase() + activeStreamType.slice(1)} · {streamViewerCount} viewers · <StreamDuration startedAt={streamStartTime} />
+                      📺 {activeStreamType.charAt(0).toUpperCase() + activeStreamType.slice(1)} · <StreamDuration startedAt={streamStartTime} />
                     </div>
-                    <button onClick={() => console.log('[Stream] Click to watch')}
+                    <button type="button" onClick={() => setStreamPanelOpen(true)}
                       className="px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold transition-all hover:brightness-130"
                       style={{ background: 'rgba(255,51,51,0.15)', border: '1px solid rgba(255,51,51,0.3)', color: '#ff3333' }}>
                       Click to watch
