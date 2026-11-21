@@ -85,6 +85,15 @@ function addressesFromResponse(response: ProviderResponse): WalletAddress[] {
 /** Connect to Xverse wallet — always uses direct provider to avoid adapter validation errors */
 export async function connectXverse(): Promise<string> {
   const provider = window.BitcoinProvider;
+  // JSON-RPC answers by code (sats-connect RpcErrorCode) or by message, resolved ({ error }) or thrown.
+  const answerIs = (x: unknown, codes: number[], words: RegExp): boolean => {
+    const o = (x && typeof x === 'object' ? x : {}) as { code?: unknown; message?: unknown };
+    const msg = typeof x === 'string' ? x : typeof o.message === 'string' ? o.message : '';
+    return (typeof o.code === 'number' && codes.includes(o.code)) || words.test(msg);
+  };
+  const ACCESS_DENIED: [number[], RegExp] = [[-32002], /access denied/i];
+  const METHOD_UNKNOWN: [number[], RegExp] = [[-32601, -32001], /method not found|not supported|unknown method/i];
+  let accessDenied = false;
 
   // Path 1: Direct provider.request (works on both mobile in-app AND desktop extension)
   if (provider?.request) {
@@ -96,11 +105,46 @@ export async function connectXverse(): Promise<string> {
       }) as ProviderResponse;
       const addr = extractXverseAddress(addressesFromResponse(response));
       if (addr) return addr;
+      accessDenied = answerIs(response?.error, ...ACCESS_DENIED);
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e);
       if (errMsg.includes('reject') || errMsg.includes('cancel')) throw e;
       console.error('[Xverse provider.request getAddresses failed]', errMsg);
+      accessDenied = answerIs(e, ...ACCESS_DENIED);
     }
+  }
+
+  // Path 1b: a site this wallet has not connected to yet gets "Access denied." from getAddresses, and the
+  // legacy connect() below opens an Xverse window that crashes (Xverse 2.12.1 desktop). Ask with
+  // wallet_connect, the call Xverse documents for this. Only a wallet that does not know the call goes on
+  // to the legacy path; the user closing or denying the window, or any other error, ends here.
+  if (accessDenied && provider?.request) {
+    let response: ProviderResponse | undefined;
+    let unknownMethod = false;
+    try {
+      response = await provider.request('wallet_connect', {
+        addresses: [AddressPurpose.Ordinals, AddressPurpose.Payment],
+        message: 'Block Genomics needs your Bitcoin address for verification.',
+      }) as ProviderResponse;
+    } catch (e: unknown) {
+      if (!answerIs(e, ...METHOD_UNKNOWN)) {
+        const m = typeof e === 'string' ? e : (e as { message?: unknown } | null)?.message;
+        throw e instanceof Error ? e : new Error(typeof m === 'string' && m ? m : 'Xverse connection failed');
+      }
+      unknownMethod = true;
+    }
+    if (!unknownMethod) {
+      if (response?.error) {
+        if (!answerIs(response.error, ...METHOD_UNKNOWN)) {
+          throw new Error(response.error.message || 'Xverse connection failed');
+        }
+      } else {
+        const addr = extractXverseAddress(addressesFromResponse(response as ProviderResponse));
+        if (addr) return addr;
+        throw new Error('Xverse returned no Bitcoin address');
+      }
+    }
+    console.error('[Xverse wallet_connect not supported, using legacy connect]');
   }
 
   // Path 2: Legacy provider.connect fallback — extract the SAME canonical address
