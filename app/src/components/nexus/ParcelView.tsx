@@ -5833,7 +5833,7 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
         </button>
       )}
       {shownStream && streamPanelOpen && !showLivestreamModal && (
-        <div data-testid="stream-panel" className="fixed z-40 inset-x-0 bottom-0 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-[520px] sm:rounded-xl overflow-hidden shadow-2xl" style={{ border: '2px solid rgba(255,51,51,0.5)', background: 'rgba(15,15,24,0.95)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <div data-testid="stream-panel" className="fixed z-40 inset-x-0 bottom-0 sm:inset-x-auto sm:bottom-[68px] sm:right-4 sm:w-[520px] sm:rounded-xl overflow-hidden shadow-2xl" style={{ border: '2px solid rgba(255,51,51,0.5)', background: 'rgba(15,15,24,0.95)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           <div className="flex items-center justify-between px-3 py-1.5">
             <div className="flex items-center gap-2">
               <style>{`@keyframes live-dot { 0%,100% { opacity:1; } 50% { opacity:0.3; } }`}</style>
@@ -5846,6 +5846,8 @@ export default function ParcelView({ blockHeight, onBack, initialPanelHidden = f
           <div className="px-2 pb-2">
             <StreamPlayer key={streamIdentity(shownStream.stream)} blockHeight={blockHeight} streamUrl={shownStream.stream.streamUrl} embedUrl={shownStream.stream.embedUrl} status={shownStream.status} />
           </div>
+          {/* Room for the page's back link, which lies over the bottom of a phone's screen. */}
+          <div className="h-[60px] sm:hidden" aria-hidden="true" />
         </div>
       )}
       {showSendBtcModal && <SendBitcoinModal onClose={() => setShowSendBtcModal(false)} blockHeight={blockHeight} recipientOwner={displayParcelOwner ?? blockOwner} />}

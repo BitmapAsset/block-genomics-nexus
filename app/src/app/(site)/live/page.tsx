@@ -156,7 +156,9 @@ export default function LivePage() {
     g.label?.toLowerCase().includes(filtered)
   );
 
-  const totalLive = streams.length + games.length;
+  // A card that reads ENDED stays until a list leaves it out; it is not counted as live.
+  const liveStreamCount = streams.filter(s => liveCardStatus(s, ended, unsure, now) !== 'ended').length;
+  const totalLive = liveStreamCount + games.length;
 
   function timeSince(iso: string) {
     const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -200,7 +202,7 @@ export default function LivePage() {
           <div className="flex gap-2 justify-center">
             {([
               { key: 'all', label: '🌐 All', count: totalLive },
-              { key: 'streams', label: '📺 Streams', count: streams.length },
+              { key: 'streams', label: '📺 Streams', count: liveStreamCount },
               { key: 'games', label: '🎮 Games', count: games.length },
             ] as { key: Tab; label: string; count: number }[]).map(t => (
               <button
@@ -225,7 +227,7 @@ export default function LivePage() {
             <div className="text-4xl mb-4 animate-pulse">📡</div>
             <p>Scanning the Bitmap universe...</p>
           </div>
-        ) : totalLive === 0 ? (
+        ) : streams.length + games.length === 0 ? (
           <div className="text-center py-20">
             <div className="text-6xl mb-6">🌙</div>
             <h2 className="text-xl font-bold text-gray-300 mb-2">Nothing live right now</h2>
