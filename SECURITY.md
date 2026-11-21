@@ -35,6 +35,17 @@ High-priority areas include:
 - Local .env files and generated artifacts must remain untracked.
 - Dependency updates should be tested with npm ci and npm run build in app/.
 
+## What every change is checked for
+
+- **Secret scan:** gitleaks on the commits of every pull request and of every push to `main`.
+- **Code scanning:** CodeQL (GitHub's default setup) on every pull request, every push to `main` and weekly.
+- **Dependency audit:** `npm audit` over every lockfile of the tree on each push to `main`, weekly, and on pull requests that change a lockfile. A high or critical finding fails it unless it has an entry in `.github/audit-allowlist.json`, and every entry expires within 30 days.
+- **Dependency review:** every pull request fails when a dependency it adds or upgrades carries a high or critical advisory.
+- **OpenSSF Scorecard:** a weekly score of the repository's supply-chain practices, kept in the repository's code scanning results.
+- **Workflow hygiene:** every GitHub Action is pinned by commit SHA, every workflow token is read-only unless a job names one write permission it needs, no workflow holds a secret a pull request can reach, and no checkout keeps a git credential.
+
+GitHub's private vulnerability reporting form will be listed under "Reporting A Vulnerability" once the owner switches it on.
+
 ## Supported Version
 
 The active supported version is the main branch.

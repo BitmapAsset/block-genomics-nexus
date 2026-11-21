@@ -1,0 +1,55 @@
+# Dependency audit: `npm audit` over every lockfile of the tree, gated by a
+# dated allow-list (.github/audit-allowlist.json).
+#
+# Triggers:
+# - push to main and a weekly schedule (Mondays 13:17 UTC): the whole tree is
+#   audited against the advisories known that day;
+# - pull_request, only when a lockfile, the allow-list, the script or this file
+#   changes: such a change is audited before it merges;
+# - workflow_dispatch: a run by hand.
+#
+# Why a workflow of its own and not a job of ci.yml: an advisory published
+# overnight must never turn an unrelated pull request red. It turns this
+# workflow red on main instead, where the allow-list or a dependency update
+# answers it. Every high or critical finding needs an allow-list entry that
+# expires within 30 days.
+#
+# Permissions: `contents: read` only. It uses no secret: `npm audit` reads the
+# public advisory database without a token.
+#
+# A pull request from a fork runs this with a read-only token and no secrets
+# (GitHub's rule for the pull_request trigger), and this workflow asks for
+# nothing more, so a fork can reach neither a secret nor a write token here.
+# Every action is pinned by commit SHA; the checkout keeps no git credential.
+
+name: Dependency audit
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 13 * * 1'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '**/package-lock.json'
+      - .github/audit-allowlist.json
+      - .github/scripts/dep-audit.mjs
+      - .github/workflows/dep-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  dep-audit:
+    name: dep-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: node .github/scripts/dep-audit.mjs
