@@ -134,7 +134,8 @@ describe('stream players switch', () => {
     expect(player).not.toMatch(/w-\[\d+px\]/);
     expect(player).not.toMatch(/width:\s*\d/);
     const pv = src(PV);
-    expect(pv).toContain('inset-x-0 bottom-0 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-[520px]');
+    expect(pv).toContain('inset-x-0 bottom-0 sm:inset-x-auto sm:bottom-[68px] sm:right-4 sm:w-[520px]');
+    expect(count(pv, '<div className="h-[60px] sm:hidden" aria-hidden="true" />')).toBe(1);
     expect(count(pv, "paddingBottom: 'env(safe-area-inset-bottom, 0px)'")).toBe(1);
     expect(count(pv, "bottom: 'calc(140px + env(safe-area-inset-bottom, 0px))'")).toBe(1);
     expect(count(pv, 'data-testid="stream-panel-close"')).toBe(1);
@@ -144,5 +145,28 @@ describe('stream players switch', () => {
       const element = pv.slice(at, pv.indexOf('</button>', at));
       expect([testid, element.includes('min-h-[44px] min-w-[44px]')]).toEqual([testid, true]);
     }
+  });
+
+  it('S5 the pages hand the player its status, keep what plays, count each re-ask, close the panel and count only live cards', () => {
+    const pv = src(PV);
+    const pvOnce: [string, number][] = [
+      ['status={shownStream.status} />', 1],
+      ['setPage(prev => nextPageStream(prev, answer, Date.now(), blockHeight));', 1],
+      ['{shownStream && streamPanelOpen && !showLivestreamModal && (', 1],
+      ['onClick={() => setStreamPanelOpen(false)}', 1],
+      ['setPage(prev => endPastTwelveHours(prev, Date.now()));', 1],
+    ];
+    for (const [needle, n] of pvOnce) expect([needle, count(pv, needle)]).toEqual([needle, n]);
+    const live = src(LIVE);
+    const liveOnce: [string, number][] = [
+      ['rechecks.current += 1;', 1],
+      ['mergeLiveList(shown.current, incoming, playing.current, endedRef.current)', 1],
+      ['onPlay={() => { playing.current.add(id); }}', 1],
+      ["liveCardStatus(s, ended, unsure, now) !== 'ended'", 1],
+      ['const totalLive = liveStreamCount + games.length;', 1],
+      ['count: liveStreamCount }', 1],
+      [') : streams.length + games.length === 0 ? (', 1],
+    ];
+    for (const [needle, n] of liveOnce) expect([needle, count(live, needle)]).toEqual([needle, n]);
   });
 });

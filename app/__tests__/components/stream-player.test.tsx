@@ -187,4 +187,24 @@ describe('StreamPlayer', () => {
     }
     void React;
   });
+
+  it('P12 the frame may autoplay, play protected video, go fullscreen and float, and nothing else', () => {
+    expect(PLAYER_ALLOW).toBe('autoplay; encrypted-media; fullscreen; picture-in-picture');
+    const { container } = render(<StreamPlayer {...YOUTUBE_STREAM} status="live" />);
+    fireEvent.click(playButton()!);
+    const f = container.querySelector('iframe')!;
+    expect(f.getAttribute('allow')).toBe('autoplay; encrypted-media; fullscreen; picture-in-picture');
+    expect(f.hasAttribute('allowfullscreen')).toBe(true);
+  });
+
+  it('P13 a click in a box that has become too small for Twitch makes no frame and says so', () => {
+    const { container } = render(<StreamPlayer {...TWITCH_STREAM} status="live" />);
+    expect(playButton()).not.toBeNull();
+    boxOf(400, 250);
+    fireEvent.click(playButton()!);
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(playButton()).toBeNull();
+    expect(container.textContent).toContain("Twitch's player needs a wider screen. Watch it on Twitch.");
+    expect(container.querySelector('a')?.getAttribute('href')).toBe(LINK);
+  });
 });

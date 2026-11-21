@@ -82,6 +82,13 @@ describe('parseStreamRead', () => {
       expect(parseStreamRead(body)).toBeNull();
     }
   });
+
+  it('R18 a live answer keeps its stream type; one without a type reads as a broadcast', () => {
+    const body = { live: true, streamUrl: 'https://www.twitch.tv/somechannel', startedAt: '2026-11-20T00:00:00.000Z', embedUrl: TWITCH };
+    expect(parseStreamRead({ ...body, streamType: 'townhall' })).toMatchObject({ kind: 'live', streamType: 'townhall', startedBy: null });
+    expect(parseStreamRead(body)).toMatchObject({ kind: 'live', streamType: 'broadcast', startedBy: null });
+    expect(parseStreamRead({ ...body, streamType: 7, startedBy: 'bc1pholder' })).toMatchObject({ streamType: 'broadcast', startedBy: 'bc1pholder' });
+  });
 });
 
 describe('nextPageStream', () => {
@@ -173,6 +180,18 @@ describe('nextPageStream', () => {
     expect(live.unsettled).toBe(0);
     expect(blockPageAskDelay(after([{ kind: 'none' }]))).toBeNull();
     expect(blockPageAskDelay(after([{ kind: 'hidden', ended: 'expired' }]))).toBeNull();
+  });
+
+  it('R17 the block page asks no more once the stream it showed has ended', () => {
+    const answers: StreamRead[] = [{ kind: 'hidden', ended: 'expired' }, { kind: 'hidden', ended: 'holder_changed' }, { kind: 'none' }];
+    for (const answer of answers) {
+      const s = after([LIVE_A, answer]);
+      expect(s.shown?.status).toBe('ended');
+      expect(blockPageAskDelay(s)).toBeNull();
+    }
+    const past = endPastTwelveHours(after([LIVE_A]), streamEndsAt(LIVE_A.startedAt));
+    expect(past.shown?.status).toBe('ended');
+    expect(blockPageAskDelay(past)).toBeNull();
   });
 });
 
