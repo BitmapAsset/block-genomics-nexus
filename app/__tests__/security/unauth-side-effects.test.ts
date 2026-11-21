@@ -280,6 +280,49 @@ describe('DELETE /livestream', () => {
   });
 });
 
+// ── POST /livestream ────────────────────────────────────────────────────
+describe('POST /livestream', () => {
+  const START = { action: 'livestream.start', method: 'POST', path: '/api/v1/livestream', blockHeight: BLOCK, purpose: 'world' };
+  const HOLDS = () => ({ ok: true, status: 200, walletAddress: NEWHOLDER.address });
+  const row = async () => db.block.findUnique({ where: { height: BLOCK } });
+  const holderStart = (intent: Record<string, unknown>) =>
+    signedBody(NEWHOLDER, START, { blockHeight: BLOCK, streamUrl: 'https://www.twitch.tv/somechannel', walletAddress: NEWHOLDER.address, ...intent });
+
+  beforeEach(async () => {
+    await db.block.create({ data: { height: BLOCK } });
+  });
+
+  it('U12 a signed start by the holder stores one of three stream types; anything else is stored as a broadcast', async () => {
+    mockLiveOwner.mockResolvedValue(HOLDS());
+    const cases: [unknown, string][] = [['x'.repeat(5000), 'broadcast'], ['spatial', 'spatial'], [7, 'broadcast']];
+    for (const [streamType, stored] of cases) {
+      const res: any = await START_STREAM(jsonReq(await holderStart({ streamType })));
+      expect(res.status).toBe(200);
+      const label = typeof streamType === 'string' ? `text of ${streamType.length}` : String(streamType);
+      expect([label, (await row()).streamType]).toEqual([label, stored]);
+    }
+  });
+
+  it('U13 a link of more than 500 characters is refused before any signature or chain work; one of exactly 500 is stored', async () => {
+    mockLiveOwner.mockResolvedValue(HOLDS());
+    const long = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&x=' + 'a'.repeat(501 - 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&x='.length);
+    expect(long).toHaveLength(501);
+    const refused = { ...(await holderStart({ streamUrl: long })), signature: 'not-a-valid-signature' };
+    const res: any = await START_STREAM(jsonReq(refused));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'That stream link is too long. Paste the plain link to your stream.' });
+    expect(mockLiveOwner).not.toHaveBeenCalled();
+    expect(db.__rows('challenge').map((c: any) => c.consumedAt)).toEqual([null]);
+    expect((await row()).streamUrl ?? null).toBeNull();
+
+    const exact = long.slice(0, 500);
+    expect(exact).toHaveLength(500);
+    const ok: any = await START_STREAM(jsonReq(await holderStart({ streamUrl: exact })));
+    expect(ok.status).toBe(200);
+    expect((await row()).streamOwner).toBe(NEWHOLDER.address);
+  });
+});
+
 // ── POST /brain/appeal ──────────────────────────────────────────────────
 describe('POST /brain/appeal', () => {
   const APPEAL_B = { action: 'brain.appeal', method: 'POST', path: '/api/v1/brain/appeal', blockHeight: 0, purpose: 'brain' };

@@ -4,7 +4,7 @@
  * substring (CodeQL #16-#21), and ids cannot smuggle path or query parts.
  */
 
-import { PLAYER_ORIGINS, getStreamEmbedUrl, playerFrameSrc, streamPlatform } from '@/lib/stream-embed';
+import { PLAYER_ORIGINS, STREAM_URL_MAX, getStreamEmbedUrl, playerFrameSrc, streamPlatform, streamTypeOf } from '@/lib/stream-embed';
 
 describe('streamPlatform', () => {
   it.each([
@@ -121,5 +121,37 @@ describe('playerFrameSrc', () => {
     expect(playerFrameSrc(twitch, 'www.blockgenomics.io')).toBe(twitch);
     expect(playerFrameSrc(twitch, 'BAD HOST/x')).toBe(twitch);
     expect(playerFrameSrc(youtube, 'preview-abc.vercel.app')).toBe(youtube);
+  });
+
+  it('E5 a frame address must be https on the player origin itself: no blob: address, no other port', () => {
+    for (const a of [
+      'blob:https://www.youtube.com/3c1b6e0e-6f0a-4d2e-9d57-0f6f1f1b7a10',
+      'blob:https://player.kick.com/3c1b6e0e-6f0a-4d2e-9d57-0f6f1f1b7a10',
+      'https://www.youtube.com:8443/embed/abc',
+      'https://player.twitch.tv:444/?channel=somechannel',
+    ]) expect([a, playerFrameSrc(a, 'blockgenomics.io')]).toEqual([a, null]);
+    expect(playerFrameSrc('https://www.youtube.com:443/embed/abc', 'blockgenomics.io')).toBe('https://www.youtube.com/embed/abc');
+  });
+});
+
+describe("what a start accepts", () => {
+  it('E4 a stream type is one of three; anything else reads as a broadcast', () => {
+    for (const t of ['broadcast', 'townhall', 'spatial']) expect(streamTypeOf(t)).toBe(t);
+    for (const t of ['Broadcast', '', 'x'.repeat(5000), undefined, null, 7, {}, ['townhall']]) expect(streamTypeOf(t)).toBe('broadcast');
+    expect(STREAM_URL_MAX).toBe(500);
+  });
+
+  it("E6 a past video, a clip, the directory and a Kick video page are not a channel; a channel's own pages still play", () => {
+    for (const link of [
+      'https://www.twitch.tv/videos/2301234567',
+      'https://www.twitch.tv/Videos/2301234567',
+      'https://www.twitch.tv/directory/category/just-chatting',
+      'https://clips.twitch.tv/SomeClipNameOfWords',
+      'https://kick.com/video/0a1b2c3d-1111-2222-3333-444455556666',
+      'https://kick.com/Video/0a1b2c3d-1111-2222-3333-444455556666',
+    ]) expect([link, getStreamEmbedUrl(link)]).toEqual([link, null]);
+    expect(getStreamEmbedUrl('https://www.twitch.tv/somechannel/videos')).toContain('?channel=somechannel&');
+    expect(getStreamEmbedUrl('https://m.twitch.tv/somechannel')).toContain('?channel=somechannel&');
+    expect(getStreamEmbedUrl('https://kick.com/somechannel/videos')).toBe('https://player.kick.com/somechannel');
   });
 });

@@ -62,6 +62,7 @@ describe('stream players switch', () => {
     expect(flagValue('off')).toBe(false);
     expect(flagValue('')).toBe(false);
     expect(flagValue('ON')).toBe(false);
+    expect(flagValue('OFF')).toBe(false);
     expect(flagValue('true')).toBe(false);
     expect(flagValue('1')).toBe(false);
   });
@@ -168,5 +169,22 @@ describe('stream players switch', () => {
       [') : streams.length + games.length === 0 ? (', 1],
     ];
     for (const [needle, n] of liveOnce) expect([needle, count(live, needle)]).toEqual([needle, n]);
+  });
+
+  it('S6 the pages ask nothing in a hidden tab, ignore an older answer, key the player by its stream, mark a kept card as being checked, and the desktop panel fits a short window', () => {
+    const pv = src(PV);
+    const pvCounts: [string, number][] = [
+      ['      if (document.hidden) {', 1],
+      ['    const seq = ++readSeq.current;', 1],
+      ['<StreamPlayer key={streamIdentity(shownStream.stream)} blockHeight={blockHeight}', 1],
+      ['sm:w-[520px] sm:max-w-[calc(160dvh_-_256px)] sm:rounded-xl', 1],
+    ];
+    for (const [needle, n] of pvCounts) expect([needle, count(pv, needle)]).toEqual([needle, n]);
+    const live = src(LIVE);
+    const liveCounts: [string, number][] = [
+      ['      if (document.hidden) return;', 2],
+      ["      if (read !== null && read.kind === 'hidden' && read.ended === 'unconfirmed') next.add(id); else next.delete(id);", 1],
+    ];
+    for (const [needle, n] of liveCounts) expect([needle, count(live, needle)]).toEqual([needle, n]);
   });
 });

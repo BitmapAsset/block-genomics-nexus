@@ -447,4 +447,10 @@ describe('G-LIVE-FRAME', () => {
     expect(r.status).toBe('pass');
     expect(r.reason).toContain("checked only the list's shape");
   });
+
+  it('GL10 a listed blob: address with a player origin inside fails', async () => {
+    const r = await run({ [LIST]: { status: 200, body: { ...ONE, streams: [{ embedUrl: 'blob:https://www.youtube.com/3c1b6e0e-6f0a-4d2e-9d57-0f6f1f1b7a10' }] } } });
+    expect(r.status).toBe('fail');
+    expect(r.reason).toContain('1 listed stream(s) name a player address outside the three platforms.');
+  });
 });

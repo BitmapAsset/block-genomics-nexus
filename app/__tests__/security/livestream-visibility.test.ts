@@ -71,6 +71,7 @@ import { GET } from '@/app/api/v1/livestream/route';
 import { GET as ACTIVE } from '@/app/api/v1/livestream/active/route';
 import { __resetOwnerObservations } from '@/lib/onchain/owner-freshness';
 import { canonicalDeedFor } from '@/lib/onchain/deed';
+import { STREAM_MAX_AGE_MS, streamExpired } from '@/lib/stream-visibility';
 
 const db = prisma as any;
 const deedMock = canonicalDeedFor as jest.Mock;
@@ -217,6 +218,24 @@ describe('GET /livestream', () => {
     expect(await get()).toEqual({ live: false, ended: 'holder_changed' });
     expect(deedMock).not.toHaveBeenCalled();
     expect(mockOrd).not.toHaveBeenCalled();
+  });
+
+  it('V20 a stored stream type that is not one of the three reads as a broadcast in the single read and the list; townhall stays townhall', async () => {
+    await seed(3_600_000, HOLDER, 612888, { streamType: 'x'.repeat(600) });
+    expect((await get()).streamType).toBe('broadcast');
+    expect((await list()).streams[0].streamType).toBe('broadcast');
+    db.__reset();
+    __resetOwnerObservations();
+    await seed(3_600_000, HOLDER, 612888, { streamType: 'townhall' });
+    expect((await get()).streamType).toBe('townhall');
+    expect((await list()).streams[0].streamType).toBe('townhall');
+  });
+
+  it('V21 a stream is hidden from the millisecond its 12 hours end; a stream without a start time is hidden', () => {
+    const t0 = Date.parse('2026-11-20T00:00:00.000Z');
+    expect(streamExpired(new Date(t0), t0 + STREAM_MAX_AGE_MS)).toBe(true);
+    expect(streamExpired(new Date(t0), t0 + STREAM_MAX_AGE_MS - 1)).toBe(false);
+    expect(streamExpired(null, t0)).toBe(true);
   });
 });
 
