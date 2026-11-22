@@ -4,7 +4,7 @@ import { shareMetadata } from '@/lib/site-card';
 import { DOCS_FAQ } from '@/lib/seo-schema';
 import { Badge, ResourceLink, linkClass, linkStyle } from './DocParts';
 import { DOC_PAGES } from './doc-pages';
-import { NPM_CLI, NPM_SDK, RELEASES, openApiVersion } from './docs-content';
+import { ENDPOINTS, NPM_CLI, NPM_SDK, RELEASES, openApiCounts, openApiVersion } from './docs-content';
 
 export const dynamic = 'force-static';
 
@@ -61,7 +61,17 @@ const SECTIONS: { id: string; eyebrow: string; title: string; slug: (typeof DOC_
     eyebrow: 'Reference',
     title: 'API',
     slug: 'api',
-    body: <>Sixteen endpoints with their auth level, plus a read-only sandbox key you can use without a wallet: 100 requests per UTC day.</>,
+    body: (() => {
+      // Counted from the spec and the reference table, never typed in by hand.
+      const { paths, operations } = openApiCounts();
+      return (
+        <>
+          The {ENDPOINTS.length} endpoints you need first, with their auth level, out of {paths} paths ({operations}{' '}
+          operations) in the OpenAPI {openApiVersion()} spec, plus a read-only sandbox key you can use without a wallet: 100
+          requests per UTC day.
+        </>
+      );
+    })(),
   },
   {
     id: 'cli',
