@@ -14,6 +14,21 @@ export function openApiVersion(): string {
   return (JSON.parse(raw) as { info: { version: string } }).info.version;
 }
 
+const HTTP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
+
+/**
+ * Path and operation counts of the published spec, read at build time like
+ * openApiVersion(): the hub said "Sixteen endpoints" while the spec had grown
+ * to 32 paths (CRAWL-AUDIT 2026-11-21).
+ */
+export function openApiCounts(): { paths: number; operations: number } {
+  const raw = readFileSync(join(process.cwd(), 'public', 'openapi.json'), 'utf8');
+  const spec = JSON.parse(raw) as { paths?: Record<string, Record<string, unknown>> };
+  const paths = Object.values(spec.paths ?? {});
+  const operations = paths.reduce((n, item) => n + Object.keys(item).filter((k) => HTTP_METHODS.includes(k)).length, 0);
+  return { paths: paths.length, operations };
+}
+
 export const NPM_SDK = 'https://www.npmjs.com/package/block-genomics-connect';
 export const NPM_CLI = 'https://www.npmjs.com/package/block-genomics';
 export const NPM_MCP = 'https://www.npmjs.com/package/block-genomics-mcp';

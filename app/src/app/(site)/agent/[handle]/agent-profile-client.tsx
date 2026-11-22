@@ -416,7 +416,7 @@ export default function AgentProfilePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/docs/SDK.md"
+              href="/docs/sdk"
               className="px-4 py-2 rounded-lg text-sm font-medium"
               style={{ background: 'rgba(0,255,204,0.1)', border: '1px solid rgba(0,255,204,0.3)', color: '#00ffcc' }}
             >
